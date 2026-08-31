@@ -104,7 +104,6 @@ export class Renderer {
   routeIdx = 0
   private hoverWorld: { x: number; y: number } | null = null
   private hoverText: Text | null = null
-  private guardCountText: Text | null = null
   private fog: FogRenderer | null = null
   readonly camera = new Camera(800, 600)
   private entitySprites = new Map<number, Sprite>()
@@ -676,42 +675,8 @@ export class Renderer {
         const py = (gx / 1000 + gy / 1000) * ISO_HALF_H
         const weapon = getWeapon(a.weaponId, world.settings)
         const r = weapon.range * 32
-        const rangeFx = weapon.range * 1000
-        const rangeSq = rangeFx * rangeFx
-        const team = world.teamOf(id)
-        let count = 0
-        world.attacks.forEach((oid, oa) => {
-          if (!oa.guardMode || !oa.guardPost) return
-          if (oid === id) return
-          if (world.teamOf(oid) !== team) return
-          const dx = oa.guardPost.x - gx
-          const dy = oa.guardPost.y - gy
-          if (dx * dx + dy * dy <= rangeSq) count++
-        })
         const pulse = 0.5 + Math.sin(world.tick * 0.06) * 0.25
         this.fxGraphics.circle(px, py, r).stroke({ color: 0x4ad8ff, width: 1.4, alpha: 0.12 + pulse * 0.2 })
-        // "+N unit" badge: how many other friendly guard posts sit inside the
-        // firing range of this selected guard unit.
-        if (count > 0) {
-          if (!this.guardCountText) {
-            this.guardCountText = new Text({
-              text: '',
-              style: {
-                fontFamily: 'ui-monospace, monospace',
-                fontSize: 13,
-                fill: '#7fe0ff',
-                stroke: { color: '#003a4a', width: 4 },
-              },
-            })
-            this.guardCountText.anchor.set(0.5, 1.4)
-            this.barLayer.addChild(this.guardCountText)
-          }
-          this.guardCountText.text = `+${count}`
-          this.guardCountText.position.set(px, py)
-          this.guardCountText.visible = true
-        } else if (this.guardCountText) {
-          this.guardCountText.visible = false
-        }
       }
     })
   }

@@ -429,7 +429,7 @@
       "combatAttack": "<b>Attack</b> — engage the selected enemy: units advance only to the edge of firing range and stop there, spreading in an arc; once the target dies they stop and hold.",
       "combatAttackMove": "<b>Attack-move</b> (A + right-click) — advance along the path, engaging anything in range, but keep pressing toward the destination after each kill.",
       "combatKeepAttack": "<b>Keep attack</b> (K + right-click) — like attack, but keeps pressing the spot and loops without stopping until you cancel.",
-      "combatGuard": "<b>Guard</b> (G + right-click) — units march to the exact center of the guard circle, then act as a turret: they hold position and shoot anything that comes within firing range without ever chasing. A selected guard shows its range circle with a <code>+N</code> badge counting friendly guard posts within range."
+      "combatGuard": "<b>Guard</b> (G + right-click) — units march to the guard position and form up around it, then act as turrets: they hold position and shoot anything that comes within firing range without ever chasing. Selecting a guard shows its range circle."
     },
     "mobile": {
       "h3": "Mobile Mode",

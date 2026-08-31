@@ -39,52 +39,6 @@ export const setChase = (world: World, id: number, tx: number, ty: number): void
   }
 }
 
-// Compute a firing standoff point for this unit's attack on `target`. The base
-// point sits just inside fire range (~85%), back from the target along the line
-// FROM this unit's own position, so the attacker stops at the near edge of range
-// instead of walking onto/through the target. When several friendly attackers
-// share the same target they are spread in an arc around it (semicircle).
-const standoffPoint = (
-  world: World,
-  id: number,
-  team: number,
-  target: number,
-  rangeFx: number,
-  unitX: number,
-  unitY: number,
-): { x: number; y: number } => {
-  const tp = world.transforms.get(target)
-  if (!tp) return { x: Math.floor(unitX), y: Math.floor(unitY) }
-  const stand = rangeFx * 0.85
-  let dx = tp.x - unitX
-  let dy = tp.y - unitY
-  const d = Math.sqrt(dx * dx + dy * dy) || 1
-  dx /= d
-  dy /= d
-  let bx = tp.x - dx * stand
-  let by = tp.y - dy * stand
-  let n = 0
-  let base = 0
-  world.attacks.forEach((oid, a) => {
-    if (!a || a.target !== target) return
-    const teamOf = world.units.get(oid)?.team
-    if (teamOf !== team) return
-    if (oid === id) base = n
-    n++
-  })
-  if (n > 1) {
-    const span = Math.min(n - 1, 4) * (Math.PI / 6)
-    const off = -span / 2 + (span / Math.max(n - 1, 1)) * base
-    const rx = tp.x - bx
-    const ry = tp.y - by
-    const cos = Math.cos(off)
-    const sin = Math.sin(off)
-    bx = tp.x - (rx * cos - ry * sin)
-    by = tp.y - (rx * sin + ry * cos)
-  }
-  return { x: Math.floor(bx), y: Math.floor(by) }
-}
-
 export const pickTarget = (
   world: World,
   id: number,
@@ -240,21 +194,12 @@ export const CombatSystem = {
             }
           }
         } else {
-          // Plain attack / attack-move-with-target: advance only to the edge of
-          // fire range, then stop and engage — don't pile on top of the target.
-          // Multiple attackers spread in an arc around the target (semicircle).
-          // Recomputed each tick so a moving target is still pursued to range,
-          // but only re-issued when the standoff moves >400fx to avoid repathing
-          // every tick and stalling.
-          const sp = standoffPoint(world, id, team, target, rangeFx, t.x, t.y)
-          const gx = sp.x
-          const gy = sp.y
-          const m = world.moves.get(id)
-          if (!m || Math.sqrt(Math.pow(m.tx - gx, 2) + Math.pow(m.ty - gy, 2)) > 400) {
-            const mm = setMove(world, id, gx, gy, false)
-            mm.needsPath = true
-            mm.attackMove = true
-          }
+          // Plain attack / attack-move-with-target: advance toward the target
+          // exactly like keep-attack does (setChase) and rely on the in-range
+          // branch above to stop and fire at firing range — so an attacker never
+          // walks onto/through the target. Multiple attackers converge and
+          // separation spreads them at the edge of range.
+          setChase(world, id, tp.x, tp.y)
         }
       } else if (a.targetPos !== null) {
         if (a.guardMode && a.guardPost) {

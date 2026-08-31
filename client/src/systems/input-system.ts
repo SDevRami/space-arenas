@@ -33,6 +33,31 @@ const resolveMovePoint = (world: World, x: number, y: number): { x: number; y: n
   return p ?? { x, y }
 }
 
+// Deterministic formation slots around a center point for a group of units,
+// mirroring the grid layout used by a move order. Every unit gets its own slot
+// (index-ordered), so identical command streams produce identical posts.
+const formationSlots = (
+  world: World,
+  ids: number[],
+  cx: number,
+  cy: number,
+): Map<number, { x: number; y: number }> => {
+  const map = new Map<number, { x: number; y: number }>()
+  if (ids.length === 0) return map
+  const hasVehicle = ids.some((id) => world.units.get(id)?.class === 'vehicle')
+  const cell = hasVehicle ? 2400 : 1400
+  const cols = Math.ceil(Math.sqrt(ids.length))
+  const rows = Math.ceil(ids.length / cols)
+  ids.forEach((id, i) => {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const dx = Math.floor((col - (cols - 1) / 2) * cell)
+    const dy = Math.floor((row - (rows - 1) / 2) * cell)
+    map.set(id, { x: cx + dx, y: cy + dy })
+  })
+  return map
+}
+
 const ownedUnit = (world: World, player: number, id: number): boolean => {
   const u = world.units.get(id)
   return !!u && u.team === player
@@ -222,23 +247,38 @@ export const InputSystem = {
         }
         case 'guard': {
           const mp = resolveMovePoint(world, cmd.x, cmd.y)
-          for (const id of cmd.entities) {
-            if (!ownedUnit(world, player, id)) continue
+          const guardIds = cmd.entities.filter(
+            (id) => ownedUnit(world, player, id) && world.attacks.has(id) && !world.planes.has(id),
+          )
+          const planeIds = cmd.entities.filter((id) => ownedUnit(world, player, id) && world.planes.has(id))
+          // Hand each ground guard unit its own slot around the post center so a
+          // group forms up around the position instead of everyone piling onto
+          // the exact same spot (same grid layout as a move order).
+          const posts = formationSlots(world, guardIds, mp.x, mp.y)
+          for (const id of guardIds) {
             const a = world.attacks.get(id)
             if (!a) continue
+            const slot = posts.get(id) ?? { x: mp.x, y: mp.y }
             a.keepAttack = null
             a.guardMode = true
-            a.guardPost = { x: mp.x, y: mp.y }
-            // guard = march to the post first, then hold there as a turret.
+            a.guardPost = { x: slot.x, y: slot.y }
+            // guard = march to the post slot first, then hold there as a turret.
             // It never chases: targets are only auto-acquired when already in
             // range of the post, so we don't assign a direct target here.
             a.target = null
-            a.targetPos = { x: mp.x, y: mp.y }
+            a.targetPos = { x: slot.x, y: slot.y }
+          }
+          for (const id of planeIds) {
+            const a = world.attacks.get(id)
             const pl = world.planes.get(id)
-            if (pl) {
-              pl.hoverX = mp.x
-              pl.hoverY = mp.y
-            }
+            if (!a || !pl) continue
+            a.keepAttack = null
+            a.guardMode = true
+            a.guardPost = { x: mp.x, y: mp.y }
+            a.target = null
+            a.targetPos = { x: mp.x, y: mp.y }
+            pl.hoverX = mp.x
+            pl.hoverY = mp.y
           }
           break
         }
