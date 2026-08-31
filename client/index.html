@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Space Arenas — RTS</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="loading-screen">
+      <h1>SPACE ARENAS</h1>
+      <p>Loading game...</p>
+      <div class="loader"></div>
+    </div>
+    <div id="app">
+      <div id="game-canvas"></div>
+      <div id="hud">
+        <div class="hud-top">
+          <span class="hud-credits" id="credits">$800</span>
+          <span class="hud-power">
+            <span class="power-bar"><span class="power-fill" id="power-fill"></span></span>
+            <span id="power-text">power 0/0</span>
+          </span>
+          <span id="tick-info"></span>
+          <span id="sync-info"></span>
+          <span id="fps-info" class="fps-info"></span>
+          <button class="menu-btn" id="log-toggle" data-i18n-title="tools.logTitle" data-i18n="tools.log">Log</button>
+          <button class="menu-btn hud-chat-btn" id="chat-btn" data-i18n-title="chat.buttonTitle"><span data-i18n="chat.button">Chat</span><span class="badge"></span></button>
+          <button class="menu-btn" id="menu-btn" data-i18n="menu.button">Menu</button>
+        </div>
+        <div class="hud-game-log" id="game-log"></div>
+        <div id="chat-overlay">
+          <div class="chat-tabs">
+            <button data-target="all" class="active" data-i18n="chat.global">Global</button>
+            <button data-target="team" data-i18n="chat.team">Team</button>
+            <button class="close" id="chat-close" data-i18n-title="chat.close">✕</button>
+          </div>
+          <div id="chat-history"></div>
+          <div class="chat-input-row">
+            <input id="chat-input" maxlength="200" placeholder="Message…" autocomplete="off" data-i18n-placeholder="chat.inputPlaceholder" />
+            <button id="chat-send" data-i18n="chat.send">Send</button>
+          </div>
+        </div>
+        <div id="mm-btns">
+          <button class="tool-btn" id="mm-btn-m" data-i18n-title="tools.minimapTitle" data-i18n="tools.minimapShort">Map</button>
+          <button class="tool-btn" id="mm-btn-h" data-i18n-title="tools.homeTitle" data-i18n="tools.homeShort">Home</button>
+        </div>
+        <div id="tools-bar">
+          <span class="tools-label" data-i18n="tools.label">Tools</span>
+          <button class="tool-btn" id="tool-satellite" disabled>Satellite</button>
+          <button class="tool-btn" id="tool-laser" disabled>Space Laser</button>
+          <button class="tool-btn" id="tool-idle" data-i18n-title="tools.idleWorkerTitle" data-i18n="tools.idleWorker">Idle Worker</button>
+          <button class="tool-btn" id="tool-dozer" data-i18n-title="tools.idleDozerTitle" data-i18n="tools.idleDozer">Idle Bulldozer</button>
+        </div>
+        <div id="mobile-controls">
+          <span class="mc-label" data-i18n="mobile.label">Touch</span>
+          <button class="mc-btn" data-tool="X" data-i18n-title="mobile.btns.X" title="Box select toggle: drag to select multiple units (X)">X</button>
+          <button class="mc-btn" data-tool="M" data-i18n-title="mobile.btns.M" title="Toggle minimap size (M)">M</button>
+          <button class="mc-btn" data-tool="H" data-i18n-title="mobile.btns.H" title="Center on home (H)">H</button>
+        </div>
+        <div id="confirm-overlay">
+          <div class="panel">
+            <h2 data-i18n="confirm.title">Sell selected?</h2>
+            <p id="confirm-message"></p>
+            <div class="row">
+              <button id="confirm-cancel" data-i18n="confirm.cancel">Cancel</button>
+              <button class="danger" id="confirm-yes" data-i18n="confirm.sell">Sell</button>
+            </div>
+          </div>
+        </div>
+        <div id="menu-overlay">
+          <div class="panel">
+            <h2 data-i18n="menu.paused">Paused</h2>
+            <div id="menu-stats"></div>
+            <button id="menu-resume" data-i18n="menu.resume">Resume</button>
+            <button id="menu-quit" data-i18n="menu.quit">Quit Game</button>
+          </div>
+        </div>
+        <div class="hud-selection" id="selection-bar">
+          <button class="hud-toggle" id="selection-toggle" title="Expand selection bar" data-i18n-title="game.expandSelection">▲</button>
+          <div class="hud-build" id="build-menu"></div>
+          <span class="selection-info" id="selection-info" data-i18n="hud.noSelection">No selection</span>
+        </div>
+      </div>
+      <div id="results-overlay">
+        <div class="panel">
+          <div id="results-board"></div>
+          <button id="results-quit" data-i18n="menu.back">Back to Menu</button>
+        </div>
+      </div>
+
+      <div id="lobby">
+        <div class="menu-side">
+          <h1 data-i18n="lobby.brand">Space Arenas</h1>
+          <button id="tab-offline" class="active" data-i18n="lobby.tab.offline">Offline Game</button>
+          <button id="tab-network" data-i18n="lobby.tab.network">Network Play</button>
+          <button id="tab-online" data-i18n="lobby.tab.online">Online Server</button>
+          <button id="tab-mapbuilder" data-i18n="lobby.tab.mapbuilder">Map Builder</button>
+          <button id="tab-info" data-i18n="lobby.tab.info">Game Info</button>
+          <button id="tab-settings" data-i18n="lobby.tab.settings">Settings</button>
+          <button id="tab-mobile" data-i18n="lobby.tab.mobile">Mobile Mode</button>
+          <button id="tab-dev" data-i18n="lobby.tab.dev">Dev Settings</button>
+        </div>
+        <div class="panel-side">
+          <div id="offline-panel">
+            <div class="panel wide">
+              <h1 class="panel-title" data-i18n="offline.h1">Offline Game</h1>
+              <div class="map-panel">
+                <div class="map-pick">
+                  <label data-i18n="offline.map">Map</label>
+                  <select id="map-select"></select>
+                  <div class="hint" id="map-desc"></div>
+                </div>
+                <canvas id="map-preview" width="320" height="240"></canvas>
+              </div>
+              <label data-i18n="offline.startingCredits">Starting credits</label>
+              <input id="start-credits" type="number" min="100" max="2000" step="100" value="800" class="credits-input" />
+              <label data-i18n="offline.weather">Weather (visual only)</label>
+              <select id="start-weather" class="weather-select"></select>
+              <div class="hint" data-i18n="offline.weatherHint">A cosmetic overlay on your screen only. It does not change the game rules.</div>
+              <label data-i18n="offline.winCondition">Win condition</label>
+              <select id="win-rule" class="win-rule-select">
+                <option value="standard" data-i18n="offline.win.standard">Standard (base destruction)</option>
+                <option value="annihilation" data-i18n="offline.win.annihilation">Total Annihilation</option>
+                <option value="command-center" data-i18n="offline.win.commandCenter">Command Center</option>
+              </select>
+              <div class="hint" id="win-rule-desc" data-i18n="offline.winDesc.standard">Lose when your Command Center is destroyed and you cannot rebuild it (all Bulldozers dead, or not enough money to buy a new one).</div>
+              <div class="players" id="players-list"></div>
+              <button class="ghost" id="add-bot-btn" data-i18n="offline.addBot">+ Add Bot</button>
+              <button class="primary" id="start-btn" data-i18n="offline.start">Start Game</button>
+              <button class="ghost danger" id="cancel-btn" style="display:none;" data-i18n="offline.cancel">Cancel</button>
+              <div class="status" id="offline-status"></div>
+            </div>
+          </div>
+          <div id="network-panel" class="hidden-panel">
+            <div class="panel wide">
+              <h1 class="panel-title" data-i18n="network.h1">Network Play</h1>
+              <div class="net-grid">
+                <div class="net-left">
+                  <label data-i18n="network.yourName">Your name</label>
+                  <input id="net-name" maxlength="16" placeholder="Commander" data-i18n-placeholder="network.namePlaceholder" />
+                  <label data-i18n="network.yourAddress">Your address (auto-detected)</label>
+                  <input id="net-addr" readonly placeholder="detecting…" data-i18n-placeholder="network.addrPlaceholder" />
+                  <label data-i18n="network.matchPassword">Match password (only if the match requires one)</label>
+                  <input id="net-pass" type="password" placeholder="(empty = no password)" data-i18n-placeholder="network.noPassPlaceholder" />
+                  <button class="primary" id="net-create-btn" data-i18n="network.create">+ Create a Match</button>
+                  <div class="status" id="net-status"></div>
+                  <details class="manual">
+                    <summary data-i18n="network.manual">Manual connect</summary>
+                    <label data-i18n="network.serverAddress">Server address (host:port)</label>
+                    <input id="net-addr-manual" placeholder="192.168.1.50:17321" />
+                    <label data-i18n="network.roomCode">Room code</label>
+                    <input id="net-code" placeholder="A1B2" maxlength="4" />
+                    <button class="ghost" id="net-join-btn" data-i18n="network.join">Join</button>
+                  </details>
+                  <div class="hint" data-i18n="network.hint">Pick a match below to auto-fill the address and room code, or use Manual connect. If a match has already started you can still watch it as a spectator.</div>
+                </div>
+                <div class="net-right">
+                  <h3 id="net-players-title" data-i18n="network.playersTitle">Players on your network</h3>
+                  <div class="net-list" id="net-players"></div>
+                  <h3 data-i18n="network.openMatches">Open matches</h3>
+                  <div class="net-list" id="net-matches"></div>
+                </div>
+              </div>
+              <div class="net-chat">
+                <h3 data-i18n="network.lobbyChat">LAN lobby chat</h3>
+                <div class="net-chat-history" id="net-chat-history"></div>
+                <div class="net-chat-row">
+                  <input id="net-chat-input" maxlength="200" placeholder="Message the players on your network…" autocomplete="off" data-i18n-placeholder="network.chatPlaceholder" />
+                  <button class="primary" id="net-chat-send" data-i18n="network.send">Send</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="match-panel" class="hidden-panel">
+            <div class="panel wide">
+              <div class="match-head">
+                <h1 class="panel-title-tight" data-i18n="match.h1">Match Options</h1>
+                <div class="match-code"><span data-i18n="match.room">Room </span><b id="match-code">----</b></div>
+              </div>
+              <div class="map-panel">
+                <div class="map-pick">
+                  <label data-i18n="offline.map">Map</label>
+                  <select id="match-map-select"></select>
+                  <div class="hint" id="match-map-desc"></div>
+                </div>
+                <canvas id="match-map-preview" width="320" height="240"></canvas>
+              </div>
+              <label data-i18n="offline.startingCredits">Starting credits</label>
+              <input id="match-credits" type="number" min="100" max="2000" step="100" value="800" class="credits-input" />
+              <label data-i18n="offline.weather">Weather (visual only)</label>
+              <select id="match-weather" class="weather-select"></select>
+              <div class="hint" data-i18n="offline.weatherHint">A cosmetic overlay on your screen only. It does not change the game rules.</div>
+              <label data-i18n="offline.winCondition" id="match-win-rule-label">Win condition</label>
+              <select id="match-win-rule" class="win-rule-select">
+                <option value="standard" data-i18n="offline.win.standard">Standard (base destruction)</option>
+                <option value="annihilation" data-i18n="offline.win.annihilation">Total Annihilation</option>
+                <option value="command-center" data-i18n="offline.win.commandCenter">Command Center</option>
+              </select>
+              <div class="hint" id="match-win-rule-desc" data-i18n="offline.winDesc.standard">Lose when your Command Center is destroyed and you cannot rebuild it (all Bulldozers dead, or not enough money to buy a new one).</div>
+              <div class="players" id="match-players-list"></div>
+              <div class="match-add-actions" id="match-add-actions">
+                <select id="match-bot-diff" title="New bot difficulty"></select>
+                <button class="ghost" id="match-add-bot" data-i18n="offline.addBot">+ Add Bot</button>
+                <div class="match-pass-row" id="match-pass-row">
+                  <input id="match-pass-input" type="password" placeholder="password (optional)" data-i18n-placeholder="match.passNewPlaceholder" />
+                  <button class="ghost" id="match-pass-btn" data-i18n="match.passSet">Set</button>
+                </div>
+              </div>
+              <div class="match-actions" id="match-actions"></div>
+              <div id="sync-panel">
+                <h3 data-i18n="sync.title">Dev settings check</h3>
+                <div class="sync-hint" data-i18n="sync.hint">Tick a player and clone their dev settings — manually, never automatically.</div>
+                <div id="sync-players"></div>
+                <div class="sync-btns">
+                  <button id="sync-once" data-i18n="sync.syncOnce">Sync once</button>
+                  <button id="sync-copy" data-i18n="sync.copySync">Copy &amp; save</button>
+                </div>
+              </div>
+              <div class="status" id="match-status"></div>
+              <div class="match-note" data-i18n="match.note">Share the room code above, or the address on your network panel, so friends can join.</div>
+              <div class="match-note" id="match-notes"></div>
+              <div class="match-invite-row" id="match-invite-row">
+                <button class="primary" id="match-invite-btn" data-i18n="lobby.tab.invite">Invite</button>
+              </div>
+            </div>
+          </div>
+          <div id="online-panel" class="hidden-panel">
+            <div class="panel wide">
+              <h1 class="panel-title-compact" data-i18n="online.h1">Online Server</h1>
+              <div class="hint" data-i18n="online.hint">Preview of the future online feature. Accounts, servers and matchmaking do not exist yet — the inputs document the planned flow.</div>
+              <div class="online-grid">
+                <div class="online-acc">
+                  <h3 data-i18n="online.accountH3">Account</h3>
+                  <label data-i18n="online.name">User name</label>
+                  <input id="online-name" maxlength="24" placeholder="Commander" />
+                  <label data-i18n="online.email">Email</label>
+                  <input id="online-email" type="email" placeholder="you@example.com" />
+                  <label data-i18n="online.password">Password</label>
+                  <input id="online-pass" type="password" placeholder="••••••••" />
+                  <div class="online-actions">
+                    <button class="ghost" id="online-login" data-i18n="online.login">Log in</button>
+                    <button class="ghost" id="online-register" data-i18n="online.register">Register</button>
+                    <button class="ghost" id="online-change-pass" data-i18n="online.changePass">Change password</button>
+                  </div>
+                </div>
+                <div class="online-acc">
+                  <h3 data-i18n="online.serverH3">Server</h3>
+                  <label data-i18n="online.serverLink">Server link</label>
+                  <input id="online-server-link" placeholder="wss://example.com:443" />
+                  <label data-i18n="online.dbLink">Database link</label>
+                  <input id="online-db-link" placeholder="https://example.com/db" />
+                  <label data-i18n="online.region">Server region</label>
+                  <select id="online-region">
+                    <option value="auto" data-i18n="online.regionAuto">Auto</option>
+                    <option value="eu">Europe</option>
+                    <option value="na">North America</option>
+                    <option value="asia">Asia</option>
+                    <option value="me">Middle East</option>
+                    <option value="af">Africa</option>
+                    <option value="sa">South America</option>
+                    <option value="oc">Oceania</option>
+                  </select>
+                  <div class="online-actions">
+                    <button class="ghost" id="online-connect" data-i18n="online.connect">Connect</button>
+                    <button class="ghost" id="online-refresh" data-i18n="online.refresh">Refresh</button>
+                  </div>
+                </div>
+              </div>
+              <div class="status" id="online-status"></div>
+              <h3 class="section-h3" data-i18n="online.matchesH3">Current matches</h3>
+              <table class="lobby-table" id="online-matches-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="online.thRoom">Room</th>
+                    <th data-i18n="online.thMap">Map</th>
+                    <th data-i18n="online.thPlayers">Players</th>
+                    <th data-i18n="online.thStatus">Status</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+              <div class="online-actions">
+                <button class="ghost" id="online-create" data-i18n="online.create">+ Create match</button>
+                <button class="ghost" id="online-join" data-i18n="online.join">Join selected</button>
+                <button class="ghost" id="online-clear-table" data-i18n="online.clear">Clear table</button>
+              </div>
+            </div>
+          </div>
+          <div id="mapbuilder-panel" class="hidden-panel">
+            <div class="panel wide">
+              <h1 class="panel-title-compact" data-i18n="mapbuilder.h1">Map Builder</h1>
+              <div class="hint" data-i18n="mapbuilder.hint">Create and edit your own maps. Saved maps appear immediately in the offline and online map lists.</div>
+              <h3 class="section-h3" data-i18n="mapbuilder.mapsH3">Maps</h3>
+              <div class="maps-toolbar">
+                <button class="ghost" id="mb-create" data-i18n="mapbuilder.create">Create</button>
+                <button class="ghost" id="mb-import" data-i18n="mapbuilder.import">Import</button>
+                <button class="ghost" id="mb-export" data-i18n="mapbuilder.export">Export</button>
+                <button class="ghost" id="mb-refresh" data-i18n="mapbuilder.refresh">Refresh</button>
+                <button class="ghost" id="mb-clone" data-i18n="mapbuilder.clone">Clone selected</button>
+                <button class="ghost" id="mb-edit" data-i18n="mapbuilder.edit">Edit selected</button>
+                <button class="ghost danger" id="mb-delete" data-i18n="mapbuilder.delete">Delete selected</button>
+              </div>
+              <table class="lobby-table" id="mb-maps-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th data-i18n="mapbuilder.thName">Name</th>
+                    <th data-i18n="mapbuilder.thPlayers">Players</th>
+                    <th data-i18n="mapbuilder.thVariant">Variant</th>
+                    <th data-i18n="mapbuilder.thDesc">Description</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+              <div class="status" id="mb-status"></div>
+            </div>
+          </div>
+          <div id="mapbuilder-overlay" class="mb-overlay">
+            <div class="mb-header">
+              <button class="ghost" id="mb-back" data-i18n="mapbuilder.back">Back</button>
+              <span class="mb-title" id="mb-title">Map Builder</span>
+              <div class="mb-header-actions">
+                <button class="ghost" id="mb-worldmap" data-i18n="mapbuilder.world.open">Real world</button>
+                <button class="ghost" id="mb-reset" data-i18n="mapbuilder.reset">Reset</button>
+                <button class="ghost" id="mb-info" data-i18n="mapbuilder.mapInfo">Map info</button>
+                <button class="ghost primary" id="mb-save" data-i18n="mapbuilder.save">Save</button>
+              </div>
+            </div>
+            <div class="mb-body">
+              <div class="mb-side">
+                <div class="mb-group">
+                  <div class="mb-group-title" data-i18n="mapbuilder.brush">Brush</div>
+                  <button class="mb-brush" data-brush="ground" data-i18n="mapbuilder.brushes.ground">Ground</button>
+                  <div class="mb-swatches" id="mb-ground-swatches">
+                    <button class="mb-swatch active" data-terrain="0" title="Ground"></button>
+                    <button class="mb-swatch" data-terrain="1" title="Cliff"></button>
+                    <button class="mb-swatch" data-terrain="3" title="Road"></button>
+                  </div>
+                  <button class="mb-brush" data-brush="water" data-i18n="mapbuilder.brushes.water">Water</button>
+                  <div class="mb-group-title" data-i18n="mapbuilder.color">Ground color</div>
+                  <div class="mb-color-row">
+                    <input type="color" id="mb-brush-color" value="#39422f" />
+                    <button class="mb-color-clear" id="mb-brush-color-clear" data-i18n="mapbuilder.colorDefault">Palette</button>
+                  </div>
+                  <div class="mb-group-title" data-i18n="mapbuilder.size">Brush size</div>
+                  <input type="range" id="mb-brush-size" min="1" max="8" step="1" value="1" />
+                  <div class="mb-size-label" id="mb-brush-size-label">1</div>
+                </div>
+                <div class="mb-group">
+                  <div class="mb-group-title" data-i18n="mapbuilder.tools">Tool</div>
+                  <button class="mb-tool active" data-tool="paint" data-i18n="mapbuilder.tools.paint">Paint</button>
+                  <button class="mb-tool" data-tool="fill" data-i18n="mapbuilder.tools.fill">Fill</button>
+                  <button class="mb-tool" data-tool="spawn" data-i18n="mapbuilder.tools.spawn">Spawn</button>
+                  <button class="mb-tool" data-tool="supply" data-i18n="mapbuilder.tools.supply">Supply field</button>
+                  <button class="mb-tool" data-tool="oil" data-i18n="mapbuilder.tools.oil">Oil field</button>
+                  <button class="mb-tool" data-tool="obstruction" data-i18n="mapbuilder.tools.obstruction">Static object</button>
+                  <button class="mb-tool" data-tool="erase" data-i18n="mapbuilder.tools.erase">Erase</button>
+                </div>
+                <div class="mb-group">
+                  <div class="mb-group-title" data-i18n="mapbuilder.objectsTitle">Object kind</div>
+                  <div class="mb-shapes" id="mb-object-kind">
+                    <button class="mb-shape" data-kind="tree" data-i18n="mapbuilder.objects.tree">Tree</button>
+                    <button class="mb-shape active" data-kind="rock" data-i18n="mapbuilder.objects.rock">Rock</button>
+                    <button class="mb-shape" data-kind="wreck" data-i18n="mapbuilder.objects.wreck">Wreck</button>
+                  </div>
+                </div>
+                <div class="mb-group">
+                  <div class="mb-group-title" data-i18n="mapbuilder.light">Day / night light</div>
+                  <input type="range" id="mb-light" min="-10" max="10" step="1" value="0" />
+                  <div class="mb-size-label" id="mb-light-label">0</div>
+                </div>
+                <div class="status" id="mb-ed-status"></div>
+              </div>
+              <div class="mb-canvas-wrap"></div>
+            </div>
+          </div>
+          <div id="mb-confirm-overlay" class="overlay hidden">
+            <div class="overlay-card">
+              <h2 data-i18n="mapbuilder.confirmTitle">Discard changes?</h2>
+              <p class="overlay-p" data-i18n="mapbuilder.confirmBody">This map has unsaved changes. Leave without saving?</p>
+              <div class="overlay-actions">
+                <button class="ghost" id="mb-confirm-cancel" data-i18n="mapbuilder.confirmCancel">Keep editing</button>
+                <button class="ghost danger" id="mb-confirm-ok" data-i18n="mapbuilder.confirmOk">Leave anyway</button>
+              </div>
+            </div>
+          </div>
+          <div id="mb-info-overlay" class="overlay hidden">
+            <div class="overlay-card">
+              <h2 data-i18n="mapbuilder.mapInfo">Map info</h2>
+              <label data-i18n="mapbuilder.infoName">Name</label>
+              <input id="mb-info-name" maxlength="48" placeholder="My Map" />
+              <div class="mb-info-size">
+                <div class="mb-size-box">
+                  <label data-i18n="mapbuilder.infoWidth">Width</label>
+                  <input id="mb-info-width" type="number" min="16" max="256" step="1" value="128" />
+                </div>
+                <span class="mb-size-x">&times;</span>
+                <div class="mb-size-box">
+                  <label data-i18n="mapbuilder.infoHeight">Height</label>
+                  <input id="mb-info-height" type="number" min="16" max="256" step="1" value="128" />
+                </div>
+              </div>
+              <label data-i18n="mapbuilder.infoVariant">Variant</label>
+              <input id="mb-info-variant" maxlength="24" placeholder="e.g. river" />
+              <label data-i18n="mapbuilder.infoDesc">Description</label>
+              <input id="mb-info-desc" maxlength="120" placeholder="Describe your map" />
+              <div class="overlay-actions">
+                <button class="ghost" id="mb-info-cancel" data-i18n="mapbuilder.infoCancel">Cancel</button>
+                <button class="ghost primary" id="mb-info-save" data-i18n="mapbuilder.infoSave">Save</button>
+              </div>
+            </div>
+          </div>
+          <div id="mb-worldmap-overlay" class="mb-overlay mb-world-overlay">
+            <div class="mb-header">
+              <button class="ghost" id="mb-world-close" data-i18n="mapbuilder.world.close">Back</button>
+              <span class="mb-title" data-i18n="mapbuilder.world.title">Real world map</span>
+              <div class="mb-header-actions">
+                <span class="hint mb-world-hint" data-i18n="mapbuilder.world.hint">Drag to pan, scroll to zoom, then draw the selected area.</span>
+                <button class="ghost primary" id="mb-world-import" data-i18n="mapbuilder.world.draw">Draw to map grid</button>
+              </div>
+            </div>
+            <div class="mb-world-body">
+              <canvas id="mb-world-canvas"></canvas>
+            </div>
+            <div class="mb-world-footer">
+              <label data-i18n="mapbuilder.infoWidth">Width</label>
+              <input id="mb-world-w" type="number" min="16" max="256" step="1" value="32" />
+              <span class="mb-size-x">&times;</span>
+              <label data-i18n="mapbuilder.infoHeight">Height</label>
+              <input id="mb-world-h" type="number" min="16" max="256" step="1" value="32" />
+              <span class="mb-world-zoom-label" data-i18n="mapbuilder.world.zoom">Zoom</span>
+              <b id="mb-world-zoom">14</b>
+              <div class="status" id="mb-world-status"></div>
+            </div>
+          </div>
+          <div id="info-panel" class="hidden-panel">
+            <div class="panel wide">
+              <h1 style="color:#7cd4ff; font-size:16px; margin-bottom:8px;" data-i18n="info.h1">Game Info</h1>
+              <div class="info-tabs" id="info-tabs">
+                <button data-tab="start" class="active" data-i18n="info.tab.start">Getting Started</button>
+                <button data-tab="units" data-i18n="info.tab.units">Units</button>
+                <button data-tab="buildings" data-i18n="info.tab.buildings">Buildings</button>
+                <button data-tab="power" data-i18n="info.tab.power">Power &amp; Economy</button>
+                <button data-tab="bots" data-i18n="info.tab.bots">Bot Difficulty</button>
+                <button data-tab="tech" data-i18n="info.tab.tech">Tech &amp; Upgrades</button>
+              </div>
+              <div class="info-content" id="info-content"></div>
+            </div>
+          </div>
+          <div id="settings-panel" class="hidden-panel">
+            <div class="panel wide">
+              <h1 class="panel-title" data-i18n="settings.h1">Settings</h1>
+              <label data-i18n="settings.language">Language</label>
+              <div class="settings-lang-row">
+                <button id="lang-en" class="settings-lang active" data-i18n="settings.english">English</button>
+                <button id="lang-ar" class="settings-lang" data-i18n="settings.arabic">العربية</button>
+              </div>
+              <div class="hint" data-i18n="settings.languageHint">The whole interface switches immediately. Your choice is saved on this device.</div>
+              <div class="settings-section">
+                <h2 class="settings-heading" data-i18n="settings.graphics.h2">Graphics</h2>
+                <p class="hint" id="graphics-quality-line"></p>
+                <div class="controls-list" id="graphics-effects"></div>
+                <div class="status" id="graphics-status"></div>
+              </div>
+              <div class="settings-section">
+                <h2 class="settings-heading" data-i18n="settings.controls.h2">Controls</h2>
+                <p class="hint" data-i18n="settings.controls.hint">Rebind the keyboard shortcuts below. Mouse actions are fixed — they are listed for reference.</p>
+                <div class="settings-controls-row">
+                  <button class="ghost" id="ctrls-change" data-i18n="settings.controls.change">Change controls</button>
+                  <button class="ghost" id="ctrls-info" data-i18n="settings.controls.info">Controls info</button>
+                  <button class="ghost" id="ctrls-restore" data-i18n="settings.controls.restore">Restore defaults</button>
+                </div>
+                <div class="status" id="ctrls-status"></div>
+              </div>
+            </div>
+          </div>
+          <div id="dev-panel" class="hidden-panel">
+            <div class="panel wide">
+              <div class="dev-header-row">
+                <h1 class="panel-title-tight" data-i18n="dev.h1">Dev Settings</h1>
+                <button class="ghost" id="dev-collapse" class="dev-collapse-btn" data-i18n="dev.collapse">Close all sections</button>
+              </div>
+              <div class="hint" data-i18n="dev.hint">Tune numeric match variables for debugging. Edits take effect for the next match in this session; use <b>Save changes</b> to persist them for future sessions and push them to a match you host — every client receives them at match start so games stay in sync.</div>
+              <div class="dev-grid" id="dev-settings-form"></div>
+              <div class="status" id="dev-status"></div>
+              <div class="dev-actions">
+                <button class="ghost" id="dev-save" data-i18n="dev.save">Save changes</button>
+                <button class="ghost danger" id="dev-reset" data-i18n="dev.reset">Reset to defaults</button>
+                <button class="ghost" id="dev-save-default" data-i18n="dev.saveAsDefault">Save as default</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="countdown-overlay">
+        <div id="countdown-box">
+          <div id="countdown-num">5</div>
+          <div id="countdown-label" data-i18n="countdown.starting">Starting match…</div>
+          <button id="countdown-cancel" data-i18n="countdown.cancel">Cancel</button>
+        </div>
+      </div>
+      <div id="create-overlay">
+        <div class="panel">
+          <h2 data-i18n="create.h1">Create Match</h2>
+          <p data-i18n="create.desc">This machine will host the match on your network. Other players will see it in their match list and can join with the password you set.</p>
+          <label data-i18n="create.address">Match address</label>
+          <input id="create-addr" readonly />
+          <label data-i18n="create.password">Match password (leave empty for no password)</label>
+          <input id="create-pass" type="password" placeholder="optional" data-i18n-placeholder="create.passPlaceholder" />
+          <div class="row">
+            <button id="create-cancel" data-i18n="create.cancel">Cancel</button>
+            <button class="primary" id="create-ok" data-i18n="create.create">Create</button>
+          </div>
+        </div>
+      </div>
+      <div id="invite-overlay">
+        <div class="panel">
+          <h2 data-i18n="lobby.inviteTitle">Invite players</h2>
+          <p class="hint" data-i18n="lobby.inviteHint">Scan the QR code on another device to join this machine's network match.</p>
+          <div class="invite-qr">
+            <img id="invite-qr-img" alt="Invite QR code" />
+          </div>
+          <div class="invite-url" id="invite-url"></div>
+          <div class="status" id="invite-status"></div>
+          <div class="row">
+            <button class="ghost" id="invite-copy" data-i18n="lobby.inviteCopy">Copy Link</button>
+            <button class="primary" id="invite-close" data-i18n="lobby.inviteClose">Close</button>
+          </div>
+        </div>
+      </div>
+      <div id="controls-overlay">
+        <div class="panel">
+          <h2 style="color:#7cd4ff; font-size:16px; margin-bottom:8px;" data-i18n="settings.controls.popupH2">Change controls</h2>
+          <p class="hint" id="ctrls-capture-hint" data-i18n="settings.controls.rebindHint">Click Set on a row, then press the new key. Press Esc to cancel.</p>
+          <div class="controls-list" id="controls-list"></div>
+          <div class="row">
+            <button id="controls-done" data-i18n="settings.controls.done">Done</button>
+            <button class="ghost" id="controls-reset" data-i18n="settings.controls.restore">Restore defaults</button>
+          </div>
+        </div>
+      </div>
+      <div id="controls-info-overlay">
+        <div class="panel">
+          <h2 style="color:#7cd4ff; font-size:16px; margin-bottom:8px;" data-i18n="settings.controls.infoH2">Controls &amp; mobile info</h2>
+          <div class="info-content" id="controls-info-content"></div>
+          <div class="row">
+            <button id="controls-info-close" data-i18n="settings.close">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="err-box"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

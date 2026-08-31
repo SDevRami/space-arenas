@@ -1,0 +1,476 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { spawn, type ChildProcess } from 'node:child_process'
+import { createServer, type Server } from 'node:net'
+import { pbkdf2Sync } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { resolve, dirname } from 'node:path'
+import WebSocket from 'ws'
+import {
+  BIN,
+  decodeControl,
+  decodeFrame,
+  decodeRelayChecksum,
+  encodeChecksum,
+  encodeCmd,
+  type ControlMessage,
+  type LobbyMessage,
+} from '@space-arenas/shared'
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const ROOM_CODE = 'ABCD'
+const PASS = 'changeme'
+
+function freePort(): Promise<number> {
+  return new Promise((resolvePort, reject) => {
+    const s: Server = createServer()
+    s.listen(0, () => {
+      const addr = s.address()
+      if (addr && typeof addr === 'object') resolvePort(addr.port)
+      else reject(new Error('no port'))
+      s.close()
+    })
+  })
+}
+
+function passHash(pass: string, code: string): string {
+  return pbkdf2Sync(pass, `space-arenas:${code}`, 100_000, 32, 'sha256').toString('hex')
+}
+
+async function waitForHttp(url: string, timeoutMs = 15000): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(url)
+      if (res.ok) return
+    } catch (e) {
+      console.log('[test:waitForHttp] retry error:', (e as Error).message)
+    }
+    await new Promise((r) => setTimeout(r, 200))
+  }
+  throw new Error(`host did not become ready at ${url}`)
+}
+
+class TestClient {
+  ws!: WebSocket
+  queue: ControlMessage[] = []
+  frames: { tick: number; commands: import('@space-arenas/shared').EnvelopeCommand[] }[] = []
+  relays: { player: number; tick: number; crc: number }[] = []
+  id = -1
+  onLobby: ((msg: LobbyMessage) => void) | null = null
+
+  connect(port: number): Promise<void> {
+    return new Promise((resolveConn, reject) => {
+      this.ws = new WebSocket(`ws://127.0.0.1:${port}/ws`)
+      this.ws.binaryType = 'arraybuffer'
+      this.ws.on('message', (data) => {
+        const buf = Buffer.isBuffer(data) ? data : Buffer.from(data as string)
+        const first = buf[0]
+        if (first === BIN.FRAME) {
+          this.frames.push(decodeFrame(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)))
+        } else if (first === BIN.RELAY_CHECKSUM) {
+          this.relays.push(decodeRelayChecksum(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)))
+        } else {
+          const msg = decodeControl(buf.toString())
+          if (msg.kind === 'H_LOBBY') this.id = msg.yourId
+          this.onLobby?.(msg as LobbyMessage)
+          this.queue.push(msg)
+        }
+      })
+      this.ws.on('open', resolveConn)
+      this.ws.on('error', reject)
+    })
+  }
+
+  send(obj: unknown): void {
+    this.ws.send(JSON.stringify(obj))
+  }
+
+  join(name: string): void {
+    this.send({ kind: 'C_JOIN', roomCode: ROOM_CODE, passphraseHash: passHash(PASS, ROOM_CODE), name })
+  }
+
+  joinWrongPass(): void {
+    this.send({ kind: 'C_JOIN', roomCode: ROOM_CODE, passphraseHash: 'deadbeef', name: 'evil' })
+  }
+
+  ready(v: boolean): void {
+    this.send({ kind: 'C_READY', ready: v })
+  }
+
+  updateSlot(patch: { name?: string; team?: number; spawn?: number }): void {
+    this.send({ kind: 'C_UPDATE_SLOT', ...patch })
+  }
+
+  updateRoom(patch: { mapId?: string; password?: string }): void {
+    this.send({ kind: 'C_UPDATE_ROOM', ...patch })
+  }
+
+  addBot(difficulty: 'easy' | 'medium' | 'hard'): void {
+    this.send({ kind: 'C_ADD_BOT', difficulty })
+  }
+
+  removeBot(id: number): void {
+    this.send({ kind: 'C_REMOVE_BOT', id })
+  }
+
+  start(): void {
+    this.send({ kind: 'C_START' })
+  }
+
+  loaded(): void {
+    this.send({ kind: 'C_LOADED' })
+  }
+
+  sendCmd(type: string, entities: number[]): void {
+    const env = { player: this.id, seq: 1, tick: 0, cmd: { type, entities, x: 1000, y: 2000 } }
+    this.ws.send(encodeCmd(env))
+  }
+
+  sendChecksum(tick: number, crc: number): void {
+    this.ws.send(encodeChecksum(tick, crc))
+  }
+
+  async waitFor(kind: string, timeoutMs = 10000): Promise<ControlMessage> {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      const idx = this.queue.findIndex((m) => m.kind === kind)
+      if (idx >= 0) return this.queue.splice(idx, 1)[0]
+      await new Promise((r) => setTimeout(r, 25))
+    }
+    throw new Error(`timeout waiting for ${kind}`)
+  }
+
+  async waitForLobby(pred: (m: LobbyMessage) => boolean, timeoutMs = 10000): Promise<LobbyMessage> {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      const idx = this.queue.findIndex((m) => m.kind === 'H_LOBBY' && pred(m as LobbyMessage))
+      if (idx >= 0) return this.queue.splice(idx, 1)[0] as LobbyMessage
+      await new Promise((r) => setTimeout(r, 25))
+    }
+    throw new Error('timeout waiting for a matching H_LOBBY')
+  }
+}
+
+async function startHost(code = ROOM_CODE, pass = PASS): Promise<{ host: ChildProcess; port: number }> {
+  const p = await freePort()
+  const bundle = resolve(ROOT, 'host/dist/host.js')
+  const args = existsSync(bundle)
+    ? [bundle]
+    : ['node_modules/tsx/dist/cli.mjs', 'host/src/index.ts']
+  const h = spawn(process.execPath, args, {
+    cwd: ROOT,
+    env: { ...process.env, SA_PORT: String(p), SA_ROOM_CODE: code, SA_PASSPHRASE: pass },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  h.stdout?.on('data', (d) => console.log('[host]', d.toString().trim()))
+  h.stderr?.on('data', (d) => console.log('[host:err]', d.toString().trim()))
+  h.on('exit', (code, sig) => console.log('[host] exited', code, sig))
+  h.on('error', (e) => console.log('[host:spawn-error]', e.message))
+  await waitForHttp(`http://127.0.0.1:${p}/`, 30000)
+  return { host: h, port: p }
+}
+
+let port = 0
+let host: ChildProcess | null = null
+
+beforeAll(async () => {
+  console.log('[test] ROOT =', ROOT)
+  ;({ host, port } = await startHost())
+}, 30000)
+
+afterAll(() => {
+  host?.kill()
+})
+
+describe('host: lobby flow', () => {
+  it('joins, reaches lobby, starts a match and relays frames/checksums', async () => {
+    const a = new TestClient()
+    const b = new TestClient()
+    await a.connect(port)
+    a.join('Alpha')
+    const lobbyA = (await a.waitFor('H_LOBBY')) as LobbyMessage
+    expect(lobbyA.yourId).toBe(0)
+    expect(lobbyA.hostId).toBe(0)
+    expect(lobbyA.players).toHaveLength(1)
+    expect(lobbyA.players[0].host).toBe(true)
+
+    await b.connect(port)
+    b.join('Bravo')
+    const lobbyB = (await b.waitFor('H_LOBBY')) as LobbyMessage
+    expect(lobbyB.players).toHaveLength(2)
+    expect(lobbyB.players.map((p) => p.name).sort()).toEqual(['Alpha', 'Bravo'])
+
+    a.ready(true)
+    b.ready(true)
+    await new Promise((r) => setTimeout(r, 150))
+    const l2 = a.queue.filter((m) => m.kind === 'H_LOBBY').pop() as LobbyMessage
+    expect(l2.players.every((p) => p.ready)).toBe(true)
+
+    a.start()
+    const startA = await a.waitFor('S_MATCH_START')
+    const startB = await b.waitFor('S_MATCH_START')
+    expect(startA.kind).toBe('S_MATCH_START')
+    expect(startB.kind).toBe('S_MATCH_START')
+    if (startA.kind === 'S_MATCH_START') {
+      expect(startA.seed).toBeGreaterThan(0)
+      expect(startA.map.width).toBe(128)
+      expect(startA.players).toHaveLength(2)
+    }
+
+    a.loaded()
+    b.loaded()
+    await new Promise((r) => setTimeout(r, 250))
+
+    expect(a.frames.length).toBeGreaterThan(0)
+    expect(b.frames.length).toBeGreaterThan(0)
+    const ticksA = a.frames.map((f) => f.tick)
+    const ticksB = b.frames.map((f) => f.tick)
+    expect(ticksA.slice(0, ticksB.length)).toEqual(ticksB)
+
+    a.sendCmd('move', [7, 8])
+    await new Promise((r) => setTimeout(r, 120))
+    const found = b.frames.some((f) =>
+      f.commands.some((c) => c.player === a.id && c.cmd.type === 'move' && c.cmd.entities[0] === 7),
+    )
+    expect(found).toBe(true)
+
+    a.sendChecksum(3, 0x12345678)
+    await new Promise((r) => setTimeout(r, 120))
+    const relay = b.relays.find((r) => r.player === a.id && r.crc === 0x12345678)
+    expect(relay).toBeDefined()
+    expect(relay?.tick).toBe(3)
+
+    a.ws.close()
+    b.ws.close()
+  }, 30000)
+
+  it('rejects a wrong passphrase', async () => {
+    const bad = await startHost()
+    const c = new TestClient()
+    await c.connect(bad.port)
+    c.joinWrongPass()
+    const err = await c.waitFor('H_ERROR')
+    expect(err.kind).toBe('H_ERROR')
+    if (err.kind === 'H_ERROR') expect(err.message).toContain('passphrase')
+    c.ws.close()
+    bad.host.kill()
+  }, 15000)
+
+  it('honours slot/room options: names, teams, map, password and ready', async () => {
+    const { host: h2, port: p2 } = await startHost()
+    const hostC = new TestClient()
+    const guestC = new TestClient()
+
+    await hostC.connect(p2)
+    hostC.join('Host')
+    const lobbyHost = (await hostC.waitFor('H_LOBBY')) as LobbyMessage
+    expect(lobbyHost.hostId).toBe(hostC.id)
+    expect(lobbyHost.mapId).toBe('four-corners')
+    expect(lobbyHost.maxPlayers).toBe(4)
+    expect(lobbyHost.passwordRequired).toBe(true)
+
+    await guestC.connect(p2)
+    guestC.join('Guest')
+    await guestC.waitFor('H_LOBBY')
+
+    guestC.updateRoom({ mapId: 'breach' })
+    const err = await guestC.waitFor('H_ERROR')
+    if (err.kind === 'H_ERROR') expect(err.message.toLowerCase()).toContain('host')
+
+    guestC.updateSlot({ name: 'Guesty', team: 2 })
+    const lobbyGuest = await guestC.waitForLobby((m) =>
+      m.players.some((p) => p.id === guestC.id && p.name === 'Guesty'),
+    )
+    const guest = lobbyGuest.players.find((p) => p.id === guestC.id)
+    expect(guest?.team).toBe(2)
+
+    guestC.updateSlot({ spawn: 2 })
+    const lobbySpawn = await guestC.waitForLobby((m) =>
+      m.players.some((p) => p.id === guestC.id && p.spawn === 2),
+    )
+    expect(lobbySpawn.players.find((p) => p.id === guestC.id)?.spawn).toBe(2)
+
+    hostC.updateRoom({ mapId: 'grand-arena' })
+    const lobbyMap = await hostC.waitForLobby((m) => m.mapId === 'grand-arena')
+    expect(lobbyMap.maxPlayers).toBe(8)
+    expect(lobbyMap.mapName).toBe('Grand Arena')
+
+    hostC.updateRoom({ password: '' })
+    const lobbyPass = await hostC.waitForLobby((m) => !m.passwordRequired)
+    expect(lobbyPass.mapId).toBe('grand-arena')
+
+    guestC.ready(true)
+    const lobbyReady = await guestC.waitForLobby(
+      (m) => m.players.find((p) => p.id === guestC.id)?.ready === true,
+    )
+    expect(lobbyReady.players.find((p) => p.id === guestC.id)?.ready).toBe(true)
+
+    hostC.start()
+    const start = await hostC.waitFor('S_MATCH_START')
+    if (start.kind === 'S_MATCH_START') {
+      expect(start.map.spawnPoints).toHaveLength(8)
+      expect(start.players).toHaveLength(2)
+      expect(start.map.spawnPoints.findIndex((s) => s.team === guestC.id)).toBe(2)
+      expect(start.map.spawnPoints.findIndex((s) => s.team === hostC.id)).toBe(0)
+    }
+
+    guestC.ws.close()
+    hostC.ws.close()
+    h2.kill()
+  }, 30000)
+
+  it('ends the match for everyone when a player quits mid-match', async () => {
+    const { host: h2, port: p2 } = await startHost()
+    const a = new TestClient()
+    const b = new TestClient()
+
+    await a.connect(p2)
+    a.join('Alpha')
+    await a.waitFor('H_LOBBY')
+    await b.connect(p2)
+    b.join('Bravo')
+    await b.waitFor('H_LOBBY')
+
+    a.ready(true)
+    b.ready(true)
+    await new Promise((r) => setTimeout(r, 150))
+    a.start()
+    await a.waitFor('S_MATCH_START')
+    await b.waitFor('S_MATCH_START')
+    a.loaded()
+    b.loaded()
+    await new Promise((r) => setTimeout(r, 250))
+    expect(a.frames.length).toBeGreaterThan(0)
+
+    b.ws.close()
+    const over = await a.waitFor('H_GAME_OVER')
+    expect(over.kind).toBe('H_GAME_OVER')
+    if (over.kind === 'H_GAME_OVER') expect(over.winner).toBe(a.id)
+
+    await new Promise((r) => setTimeout(r, 300))
+    const net = (await (await fetch(`http://127.0.0.1:${p2}/api/network`)).json()) as { self: { roomCode: string | null } }
+    expect(net.self.roomCode).toBeNull()
+
+    a.ws.close()
+    h2.kill()
+  }, 30000)
+
+  it('continues a 3-player match when a non-host leaves and relays a forfeit', async () => {
+    const { host: h2, port: p2 } = await startHost()
+    const a = new TestClient()
+    const b = new TestClient()
+    const c = new TestClient()
+
+    await a.connect(p2)
+    a.join('Alpha')
+    await a.waitFor('H_LOBBY')
+    await b.connect(p2)
+    b.join('Bravo')
+    await b.waitFor('H_LOBBY')
+    await c.connect(p2)
+    c.join('Charlie')
+    await c.waitFor('H_LOBBY')
+
+    a.ready(true)
+    b.ready(true)
+    c.ready(true)
+    await new Promise((r) => setTimeout(r, 150))
+    a.start()
+    await a.waitFor('S_MATCH_START')
+    await b.waitFor('S_MATCH_START')
+    await c.waitFor('S_MATCH_START')
+    a.loaded()
+    b.loaded()
+    c.loaded()
+    await new Promise((r) => setTimeout(r, 250))
+    expect(a.frames.length).toBeGreaterThan(0)
+    expect(c.frames.length).toBeGreaterThan(0)
+
+    b.ws.close()
+
+    let sawForfeit = false
+    const deadline = Date.now() + 5000
+    while (Date.now() < deadline && !sawForfeit) {
+      sawForfeit = a.frames.some((f) => f.commands.some((cmd) => cmd.player === b.id && cmd.cmd.type === 'forfeit'))
+      await new Promise((r) => setTimeout(r, 25))
+    }
+    expect(sawForfeit).toBe(true)
+
+    await new Promise((r) => setTimeout(r, 600))
+
+    const noOver = !a.queue.some((m) => m.kind === 'H_GAME_OVER') && !c.queue.some((m) => m.kind === 'H_GAME_OVER')
+    expect(noOver).toBe(true)
+
+    const ticksBefore = c.frames.length
+    await new Promise((r) => setTimeout(r, 500))
+    expect(c.frames.length).toBeGreaterThan(ticksBefore)
+
+    a.ws.close()
+    c.ws.close()
+    h2.kill()
+  }, 30000)
+
+  it('host can add bots: they are ready, count toward capacity, and play through the relay', async () => {
+    const { host: h3, port: p3 } = await startHost()
+    const hostC = new TestClient()
+    const guestC = new TestClient()
+
+    await hostC.connect(p3)
+    hostC.join('Host')
+    await hostC.waitFor('H_LOBBY')
+
+    await guestC.connect(p3)
+    guestC.join('Guest')
+    await guestC.waitFor('H_LOBBY')
+
+    hostC.addBot('easy')
+    const lobbyBot = await hostC.waitForLobby((m) => m.players.some((p) => p.bot === true))
+    const bot1 = lobbyBot.players.find((p) => p.bot)
+    expect(bot1?.ready).toBe(true)
+    expect(bot1?.difficulty).toBe('easy')
+
+    hostC.addBot('medium')
+    const lobbyBot2 = await hostC.waitForLobby((m) => m.players.filter((p) => p.bot).length === 2)
+    const bot2 = lobbyBot2.players.find((p) => p.bot && p.difficulty === 'medium')
+    expect(bot2).toBeDefined()
+
+    // host + guest + 2 bots = 4 (four-corners max) → a third bot is rejected
+    hostC.addBot('hard')
+    const capErr = await hostC.waitFor('H_ERROR')
+    if (capErr.kind === 'H_ERROR') expect(capErr.message.toLowerCase()).toContain('fits')
+
+    // guests cannot add or remove bots
+    guestC.addBot('hard')
+    const gAddErr = await guestC.waitFor('H_ERROR')
+    if (gAddErr.kind === 'H_ERROR') expect(gAddErr.message.toLowerCase()).toContain('host')
+    guestC.removeBot(bot1?.id ?? -1)
+    const gRmErr = await guestC.waitFor('H_ERROR')
+    if (gRmErr.kind === 'H_ERROR') expect(gRmErr.message.toLowerCase()).toContain('host')
+
+    hostC.removeBot(bot2?.id ?? -1)
+    await hostC.waitForLobby((m) => m.players.filter((p) => p.bot).length === 1)
+
+    guestC.ready(true)
+    await guestC.waitForLobby((m) => m.players.find((p) => p.id === guestC.id)?.ready === true)
+
+    hostC.start()
+    const start = await hostC.waitFor('S_MATCH_START')
+    if (start.kind === 'S_MATCH_START') {
+      expect(start.players).toHaveLength(3)
+      expect(start.players.filter((p) => p.bot)).toHaveLength(1)
+    }
+    const botId = start.kind === 'S_MATCH_START' ? (start.players.find((p) => p.bot)?.id ?? -1) : -1
+    expect(botId).toBeGreaterThanOrEqual(0)
+
+    guestC.loaded()
+    hostC.loaded()
+
+    await new Promise((r) => setTimeout(r, 4500))
+    expect(hostC.frames.some((f) => f.commands.some((c) => c.player === botId))).toBe(true)
+
+    hostC.ws.close()
+    guestC.ws.close()
+    h3.kill()
+  }, 30000)
+})

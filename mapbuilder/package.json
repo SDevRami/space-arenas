@@ -1,0 +1,19 @@
+{
+  "name": "@space-arenas/mapbuilder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@space-arenas/shared": "*",
+    "pixi.js": "^8.6.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.8"
+  }
+}

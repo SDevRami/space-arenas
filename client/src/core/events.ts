@@ -1,0 +1,35 @@
+export type SimEvent =
+  | { type: 'entity-created'; entity: number; kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery'; team: number }
+  | { type: 'entity-destroyed'; entity: number; kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery'; team: number; typeName?: string }
+  | { type: 'unit-trained'; entity: number; unitType: string; team: number }
+  | { type: 'building-placed'; entity: number; buildingType: string; team: number }
+  | { type: 'building-completed'; entity: number; buildingType: string; team: number }
+  | { type: 'upgrade-completed'; building: number; upgrade: string; team: number }
+  | { type: 'combat-hit'; attacker: number; target: number; damage: number; team: number }
+  | { type: 'shot-fired'; attacker: number; x: number; y: number; team: number }
+  | { type: 'supply-harvested'; team: number; amount: number }
+  | { type: 'oil-claiming'; field: number; entity: number; team: number }
+  | { type: 'oil-claimed'; field: number; entity: number; team: number }
+  | { type: 'oil-income'; field: number; team: number; amount: number }
+  | { type: 'scenery-destroyed'; entity: number; kind: 'rock' | 'tree'; x: number; y: number; w: number; h: number }
+  | { type: 'order-queued'; building: number; unitType: string; team: number }
+  | { type: 'order-dequeued'; building: number; unitType: string; team: number }
+  | { type: 'research-started'; building: number; upgrade: string; team: number }
+  | { type: 'building-sold'; entity: number; buildingType: string; team: number; refund: number }
+  | { type: 'unit-sold'; entity: number; unitType: string; team: number; refund: number }
+  | { type: 'dozer-assigned'; entity: number; building: number; kind: 'construct' | 'repair'; team: number }
+  | { type: 'work-cancelled'; entity: number; building: number; team: number }
+  | { type: 'spawn-point-set'; building: number; team: number }
+  | { type: 'flag-point-set'; building: number; team: number }
+  | { type: 'harvester-dock-assigned'; entity: number; building: number; team: number }
+  | { type: 'satellite-used'; team: number }
+  | { type: 'laser-strike'; team: number; x: number; y: number }
+  | { type: 'player-left'; team: number; amount: number }
+  | { type: 'game-over'; winner: number | null; eliminated: number[] }
+  | { type: 'power-down'; team: number }
+  | { type: 'power-restored'; team: number }
+  | { type: 'power-boost'; entity: number; team: number }
+  | { type: 'power-boost-ended'; entity: number; team: number }
+  | { type: 'command-rejected'; player: number; reason: string }
+
+export type EventListener = (event: SimEvent) => void
