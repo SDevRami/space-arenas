@@ -81,7 +81,7 @@ export function createPlayerRow(cfg: PlayerRowConfig): HTMLDivElement {
     if (e.key === 'Enter') {
       if (debounce !== null) clearTimeout(debounce)
       const trimmed = name.value.trim()
-      if (trimmed) cfg.onNameImmediate?.(trimmed) ?? cfg.onNameChange(trimmed)
+      if (trimmed) (cfg.onNameImmediate ?? cfg.onNameChange)(trimmed)
       name.blur()
     }
   })
