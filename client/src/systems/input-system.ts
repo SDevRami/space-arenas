@@ -304,6 +304,21 @@ export const InputSystem = {
           break
         }
         case 'attack': {
+          // Determine the selected attack units (shooters that can issue an
+          // attack); buildings are handled below but have no position of their
+          // own for a ground march, so keep them out of the formation slots.
+          const enemyTarget =
+            cmd.target !== undefined && cmd.target >= 0 && world.isAlive(cmd.target) && !world.sameTeam(player, world.teamOf(cmd.target))
+              ? cmd.target
+              : -1
+          const attackIds = cmd.entities.filter(
+            (id) => ownedUnit(world, player, id) && world.attacks.has(id),
+          )
+          // Attacking empty ground: give each unit its own formation slot around
+          // the clicked point (same grid layout as a move order) so a group
+          // spreads instead of piling onto the exact same spot. The combat system
+          // then marches it there, and it stops once inside firing range.
+          const slots = enemyTarget < 0 ? formationSlots(world, attackIds, cmd.x, cmd.y) : null
           for (const id of cmd.entities) {
             const a = world.attacks.get(id)
             const isOwn = ownedUnit(world, player, id) || ownedBuilding(world, player, id)
@@ -311,9 +326,13 @@ export const InputSystem = {
             a.keepAttack = null
             a.guardMode = false
             a.guardPost = null
-            a.targetPos = null
-            if (cmd.target !== undefined && cmd.target >= 0 && world.isAlive(cmd.target) && !world.sameTeam(player, world.teamOf(cmd.target))) {
-              a.target = cmd.target
+            if (enemyTarget >= 0) {
+              a.target = enemyTarget
+              a.targetPos = null
+            } else {
+              a.target = null
+              const slot = slots?.get(id)
+              a.targetPos = slot ? { x: slot.x, y: slot.y } : { x: cmd.x, y: cmd.y }
             }
           }
           break
