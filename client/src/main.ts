@@ -597,7 +597,7 @@ const makeTextInput = (
   const input = document.createElement('input')
   input.type = 'text'
   input.value = value
-  input.placeholder = 'path/to/image_{frame}_{color}.png'
+  input.placeholder = 'folder/{color}/folder_{frame}.png'
   input.addEventListener('change', () => onCommit(input.value.trim()))
   wrap.appendChild(l)
   wrap.appendChild(d)

@@ -16,8 +16,11 @@ const FOLDERS: Record<string, string> = {
 export const BUILDING_STATUS_FRAMES = 8
 export const DEFAULT_PLAYER_COLOR = 1
 
-/** The color index is 0-based (palette slot); the on-disk suffix is 1-based (cc_1_1…cc_1_10). */
+/** The color index is 0-based (palette slot); the on-disk color folder is 1-based (pp/1/…pp/10). */
 const fileColor = (index: number): number => index + 1
+
+/** Frame numbers are zero-padded to 4 digits on disk (pp_0001.png…pp_0008.png). */
+const padFrame = (frame: number): string => String(frame).padStart(4, '0')
 
 const sprites = new Map<string, Texture>()
 const pending = new Set<string>()
@@ -25,11 +28,11 @@ const pending = new Set<string>()
 const frameUrl = (type: string, folder: string, frame: number, color: number): string => {
   const override = getGraphics().assetPaths[`building:${type}`]?.trim()
   if (override) {
-    const url = override.replaceAll('{frame}', String(frame)).replaceAll('{color}', String(fileColor(color)))
+    const url = override.replaceAll('{frame}', padFrame(frame)).replaceAll('{color}', String(fileColor(color)))
     if (/^https?:\/\//i.test(url) || url.startsWith('/')) return url
     return `${import.meta.env.BASE_URL}${url}`
   }
-  return `${import.meta.env.BASE_URL}${folder}/${folder}_${frame}_${fileColor(color)}.png`
+  return `${import.meta.env.BASE_URL}${folder}/${fileColor(color)}/${folder}_${padFrame(frame)}.png`
 }
 
 const loadFrame = async (type: string, folder: string, frame: number, color = DEFAULT_PLAYER_COLOR): Promise<void> => {
@@ -81,7 +84,7 @@ export const buildingAssetTemplate = (type: string): string => {
   const override = getGraphics().assetPaths[`building:${type}`]?.trim()
   if (override) return override
   const folder = FOLDERS[type] ?? type
-  return `${folder}/${folder}_{frame}_{color}.png`
+  return `${folder}/{color}/${folder}_{frame}.png`
 }
 
 // ---------- fields & scenery (high quality) ----------

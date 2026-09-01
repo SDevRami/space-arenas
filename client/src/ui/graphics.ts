@@ -52,12 +52,12 @@ const UNIT_ASSET_FOLDERS: Record<string, string> = {
   fighter: 'v_f',
 }
 
-/** Client-only high-quality asset path templates; {frame} is replaced with the image number, {dir} with a direction name, {color} with the player's 1-based color slot. */
+/** Client-only high-quality asset path templates; {frame} is replaced with the 4-digit image number, {dir} with a direction name, {color} with the player's 1-based color folder. */
 export const DEFAULT_ASSET_PATHS: Record<string, string> = {
-  ...Object.fromEntries(Object.entries(BUILDING_ASSET_FOLDERS).map(([id, f]) => [`building:${id}`, `${f}/${f}_{frame}_{color}.png`])),
+  ...Object.fromEntries(Object.entries(BUILDING_ASSET_FOLDERS).map(([id, f]) => [`building:${id}`, `${f}/{color}/${f}_{frame}.png`])),
   'field:supply': 'sf/sf_{frame}.png',
   'field:oil': 'of/of_{frame}.png',
-  ...Object.fromEntries(Object.entries(UNIT_ASSET_FOLDERS).map(([id, f]) => [`unit:${id}`, `${f}/${f}_{dir}_{color}.png`])),
+  ...Object.fromEntries(Object.entries(UNIT_ASSET_FOLDERS).map(([id, f]) => [`unit:${id}`, `${f}/{color}/${f}_{dir}.png`])),
   obstacle: 'ao/{type}.png',
   ...Object.fromEntries(OBSTACLE_ASSET_TYPES.map((k) => [`obstacle:${k}`, `ao/${k}.png`])),
 }
@@ -159,10 +159,23 @@ const load = (): GraphicsSettings => {
         }
       }
       if (parsed && parsed.assetPaths && typeof parsed.assetPaths === 'object') {
+        // migration: the color slot moved from a filename suffix to a subfolder
+        // (pp/pp_0001_1.png → pp/1/pp_0001.png). Stored old-default templates are
+        // replaced by the new defaults; genuine user overrides are kept.
+        const migrateKey = (k: string, v: string): string => {
+          const adopt = (): string => (DEFAULT_ASSET_PATHS[k] as string) ?? v
+          if (k.startsWith('building:')) {
+            const f = BUILDING_ASSET_FOLDERS[k.slice('building:'.length)]
+            if (f && (v === '' || v === `${f}/${f}_{frame}_{color}.png`)) return adopt()
+          } else if (k.startsWith('unit:')) {
+            const f = UNIT_ASSET_FOLDERS[k.slice('unit:'.length)]
+            if (f && (v === '' || v === `${f}/${f}_{dir}_{color}.png`)) return adopt()
+          }
+          return v === '' && DEFAULT_ASSET_PATHS[k] ? adopt() : v
+        }
         for (const [k, v] of Object.entries(parsed.assetPaths)) {
           if (typeof v !== 'string') continue
-          // stored empty value over a key that now ships with a default → adopt the default
-          base.assetPaths[k] = v === '' && DEFAULT_ASSET_PATHS[k] ? (DEFAULT_ASSET_PATHS[k] as string) : v
+          base.assetPaths[k] = migrateKey(k, v)
         }
       }
     }
