@@ -252,7 +252,7 @@ export const CombatSystem = {
           if (!a.keepAttack && !a.guardMode) {
             a.targetPos = null
             const m = world.moves.get(id)
-            if (m && !m.chase) world.moves.delete(id)
+            if (m) world.moves.delete(id)
           }
         } else if (!isBuilding) {
           if (a.keepAttack || a.guardMode) {
