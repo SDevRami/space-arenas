@@ -6,6 +6,23 @@ export const SECONDS_TO_TICKS = (seconds: number): number => Math.round(seconds 
 export const DEFAULT_PORT = 17321
 export const DEFAULT_MAX_PLAYERS = 8
 export const PROTOCOL_VERSION = 1
+
+/** Number of selectable per-player colors. */
+export const PLAYER_COLOR_COUNT = 10
+
+/** Team/player identity palette. Index = the player's chosen color slot (0-9). */
+export const PLAYER_COLORS: number[] = [
+  0x42c95c, // green
+  0xe0564f, // red
+  0x4f8fe0, // blue
+  0xe0c14f, // yellow
+  0x9a5fe0, // purple
+  0x4fc4d0, // cyan
+  0xe0823f, // orange
+  0xe04fa0, // pink
+  0xb8b8c2, // white-grey
+  0x3fa35f, // teal-green
+]
 export const DEFAULT_CREDITS = 800
 export const SUPPLY_PER_TRIP = 50
 export const HARVESTER_LOAD_TICKS = 40

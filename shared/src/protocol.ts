@@ -51,6 +51,7 @@ export interface PlayerSlot {
   host: boolean
   team?: number
   spawn?: number
+  color?: number
   spectator?: boolean
   bot?: boolean
   difficulty?: BotDifficulty
@@ -352,6 +353,7 @@ export interface UpdateSlotMessage {
   name?: string
   team?: number
   spawn?: number
+  color?: number
 }
 export interface AddBotMessage {
   kind: 'C_ADD_BOT'
@@ -359,6 +361,7 @@ export interface AddBotMessage {
   name?: string
   team?: number
   spawn?: number
+  color?: number
 }
 export interface UpdateBotMessage {
   kind: 'C_UPDATE_BOT'
@@ -366,6 +369,7 @@ export interface UpdateBotMessage {
   name?: string
   team?: number
   spawn?: number
+  color?: number
   difficulty?: BotDifficulty
 }
 export interface RemoveBotMessage {

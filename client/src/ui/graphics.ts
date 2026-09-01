@@ -52,12 +52,12 @@ const UNIT_ASSET_FOLDERS: Record<string, string> = {
   fighter: 'v_f',
 }
 
-/** Client-only high-quality asset path templates; {frame} is replaced with the image number, {dir} with a direction name. */
+/** Client-only high-quality asset path templates; {frame} is replaced with the image number, {dir} with a direction name, {color} with the player's 1-based color slot. */
 export const DEFAULT_ASSET_PATHS: Record<string, string> = {
-  ...Object.fromEntries(Object.entries(BUILDING_ASSET_FOLDERS).map(([id, f]) => [`building:${id}`, `${f}/${f}_{frame}.png`])),
+  ...Object.fromEntries(Object.entries(BUILDING_ASSET_FOLDERS).map(([id, f]) => [`building:${id}`, `${f}/${f}_{frame}_{color}.png`])),
   'field:supply': 'sf/sf_{frame}.png',
   'field:oil': 'of/of_{frame}.png',
-  ...Object.fromEntries(Object.entries(UNIT_ASSET_FOLDERS).map(([id, f]) => [`unit:${id}`, `${f}/${f}_{dir}.png`])),
+  ...Object.fromEntries(Object.entries(UNIT_ASSET_FOLDERS).map(([id, f]) => [`unit:${id}`, `${f}/${f}_{dir}_{color}.png`])),
   obstacle: 'ao/{type}.png',
   ...Object.fromEntries(OBSTACLE_ASSET_TYPES.map((k) => [`obstacle:${k}`, `ao/${k}.png`])),
 }

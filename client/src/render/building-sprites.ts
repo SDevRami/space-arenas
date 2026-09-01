@@ -14,28 +14,31 @@ const FOLDERS: Record<string, string> = {
 }
 
 export const BUILDING_STATUS_FRAMES = 8
+export const DEFAULT_PLAYER_COLOR = 1
 
-const sprites = new Map<string, Texture[]>()
+/** The color index is 0-based (palette slot); the on-disk suffix is 1-based (cc_1_1…cc_1_10). */
+const fileColor = (index: number): number => index + 1
+
+const sprites = new Map<string, Texture>()
 const pending = new Set<string>()
 
-const frameUrl = (type: string, folder: string, frame: number): string => {
+const frameUrl = (type: string, folder: string, frame: number, color: number): string => {
   const override = getGraphics().assetPaths[`building:${type}`]?.trim()
   if (override) {
-    if (/^https?:\/\//i.test(override) || override.startsWith('/')) return override.replaceAll('{frame}', String(frame))
-    return `${import.meta.env.BASE_URL}${override.replaceAll('{frame}', String(frame))}`
+    const url = override.replaceAll('{frame}', String(frame)).replaceAll('{color}', String(fileColor(color)))
+    if (/^https?:\/\//i.test(url) || url.startsWith('/')) return url
+    return `${import.meta.env.BASE_URL}${url}`
   }
-  return `${import.meta.env.BASE_URL}${folder}/${folder}_${frame}.png`
+  return `${import.meta.env.BASE_URL}${folder}/${folder}_${frame}_${fileColor(color)}.png`
 }
 
-const loadFrame = async (type: string, folder: string, frame: number): Promise<void> => {
-  const slot = `${type}:${frame}`
-  if (sprites.get(type)?.[frame - 1] || pending.has(slot)) return
+const loadFrame = async (type: string, folder: string, frame: number, color = DEFAULT_PLAYER_COLOR): Promise<void> => {
+  const slot = `${type}:${frame}:${color}`
+  if (sprites.has(slot) || pending.has(slot)) return
   pending.add(slot)
   try {
-    const tex = await Assets.load<Texture>(frameUrl(type, folder, frame))
-    const list = sprites.get(type) ?? []
-    list[frame - 1] = tex
-    sprites.set(type, list)
+    const tex = await Assets.load<Texture>(frameUrl(type, folder, frame, color))
+    sprites.set(slot, tex)
   } catch {
     /* missing image: keep vector fallback */
   } finally {
@@ -45,11 +48,14 @@ const loadFrame = async (type: string, folder: string, frame: number): Promise<v
 
 export const buildingImagesEnabled = (): boolean => getGraphics().quality === 'high'
 
-export const preloadBuildingSprites = async (): Promise<void> => {
+export const preloadBuildingSprites = async (colors?: number[]): Promise<void> => {
   if (!buildingImagesEnabled()) return
+  const palette = colors && colors.length > 0 ? colors : [DEFAULT_PLAYER_COLOR]
   const jobs: Promise<void>[] = []
   for (const [type, folder] of Object.entries(FOLDERS)) {
-    for (let f = 1; f <= BUILDING_STATUS_FRAMES; f++) jobs.push(loadFrame(type, folder, f))
+    for (let f = 1; f <= BUILDING_STATUS_FRAMES; f++) {
+      for (const c of palette) jobs.push(loadFrame(type, folder, f, c))
+    }
   }
   await Promise.all(jobs)
 }
@@ -61,12 +67,13 @@ export const buildingStatusIndex = (done: boolean, progress: number, hpFrac: num
   return 5 + Math.min(3, Math.floor((1 - Math.max(0, Math.min(1, hpFrac))) * 4))
 }
 
-export const buildingStatusTexture = (type: string, frame: number): Texture | null => {
+export const buildingStatusTexture = (type: string, frame: number, color = DEFAULT_PLAYER_COLOR): Texture | null => {
   if (!buildingImagesEnabled() || !FOLDERS[type]) return null
   if (frame < 1 || frame > BUILDING_STATUS_FRAMES) return null
-  const tex = sprites.get(type)?.[frame - 1]
+  const slot = `${type}:${frame}:${color}`
+  const tex = sprites.get(slot)
   if (tex) return tex
-  void loadFrame(type, FOLDERS[type], frame)
+  void loadFrame(type, FOLDERS[type], frame, color)
   return null
 }
 
@@ -74,7 +81,7 @@ export const buildingAssetTemplate = (type: string): string => {
   const override = getGraphics().assetPaths[`building:${type}`]?.trim()
   if (override) return override
   const folder = FOLDERS[type] ?? type
-  return `${folder}/${folder}_{frame}.png`
+  return `${folder}/${folder}_{frame}_{color}.png`
 }
 
 // ---------- fields & scenery (high quality) ----------
@@ -168,30 +175,32 @@ const ANGLE_TO_DIR: string[] = [
 const unitSprites = new Map<string, Map<string, Texture>>()
 const pendingUnits = new Set<string>()
 
-const loadUnitDir = async (type: string, template: string, dir: string): Promise<void> => {
-  if (unitSprites.get(type)?.has(dir) || pendingUnits.has(`${type}:${dir}`)) return
-  pendingUnits.add(`${type}:${dir}`)
+const loadUnitDir = async (type: string, template: string, dir: string, color = DEFAULT_PLAYER_COLOR): Promise<void> => {
+  const key = `${dir}:${color}`
+  if (unitSprites.get(type)?.has(key) || pendingUnits.has(`${type}:${key}`)) return
+  pendingUnits.add(`${type}:${key}`)
   try {
-    const raw = template.replaceAll('{dir}', dir).replaceAll('{frame}', String(UNIT_DIRECTION_NAMES.indexOf(dir as never) + 1))
+    const raw = template.replaceAll('{dir}', dir).replaceAll('{frame}', String(UNIT_DIRECTION_NAMES.indexOf(dir as never) + 1)).replaceAll('{color}', String(fileColor(color)))
     const url = /^https?:\/\//i.test(raw) || raw.startsWith('/') ? raw : `${import.meta.env.BASE_URL}${raw}`
     const tex = await Assets.load<Texture>(url)
     const map = unitSprites.get(type) ?? new Map<string, Texture>()
-    map.set(dir, tex)
+    map.set(key, tex)
     unitSprites.set(type, map)
   } catch {
     /* missing image: keep vector fallback */
   } finally {
-    pendingUnits.delete(`${type}:${dir}`)
+    pendingUnits.delete(`${type}:${key}`)
   }
 }
 
-export const preloadUnitSprites = async (): Promise<void> => {
+export const preloadUnitSprites = async (colors?: number[]): Promise<void> => {
   if (!buildingImagesEnabled()) return
+  const palette = colors && colors.length > 0 ? colors : [DEFAULT_PLAYER_COLOR]
   const jobs: Promise<void>[] = []
   for (const id of UNIT_ASSET_IDS) {
     const tmpl = getGraphics().assetPaths[`unit:${id}`]?.trim()
     if (!tmpl) continue
-    for (const dir of UNIT_DIRECTION_NAMES) jobs.push(loadUnitDir(id, tmpl, dir))
+    for (const dir of UNIT_DIRECTION_NAMES) for (const c of palette) jobs.push(loadUnitDir(id, tmpl, dir, c))
   }
   await Promise.all(jobs)
 }
@@ -203,18 +212,18 @@ export const unitDirFromScreenAngle = (angleRad: number): string => {
 }
 
 /** Picks the direction image matching a screen-space movement angle (radians). */
-export const unitDirectionTexture = (type: string, angleRad: number): Texture | null => {
+export const unitDirectionTexture = (type: string, angleRad: number, color = DEFAULT_PLAYER_COLOR): Texture | null => {
   const deg = ((angleRad * 180) / Math.PI + 360) % 360
   const bin = Math.round(deg / 45) % 8
-  return unitTextureByName(type, ANGLE_TO_DIR[bin])
+  return unitTextureByName(type, ANGLE_TO_DIR[bin], color)
 }
 
-export const unitTextureByName = (type: string, dir: string): Texture | null =>
-  unitSprites.get(type)?.get(dir) ?? null
+export const unitTextureByName = (type: string, dir: string, color = DEFAULT_PLAYER_COLOR): Texture | null =>
+  unitSprites.get(type)?.get(`${dir}:${color}`) ?? null
 
-export const unitImagesAvailable = (type: string): boolean => {
+export const unitImagesAvailable = (type: string, color = DEFAULT_PLAYER_COLOR): boolean => {
   const m = unitSprites.get(type)
-  return !!m && m.size > 0
+  return !!m && m.has(`${'south'}:${color}`) && m.size > 0
 }
 
 /** Approximate on-screen width (px) of a small vector unit shape, for image size parity. */

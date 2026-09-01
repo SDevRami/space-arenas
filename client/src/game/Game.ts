@@ -293,9 +293,12 @@ export class Game {
     const map = startMsg ? startMsg.map : (cfg?.map ?? generateDefaultMap())
     const seed = startMsg ? startMsg.seed : (cfg?.seed ?? (Math.floor(Math.random() * 0xffffffff) >>> 0))
     const players = startMsg ? startMsg.players.map((p) => p.id) : (cfg ? cfg.slots.map((s) => s.team) : [0])
+    const playerColors = startMsg
+      ? startMsg.players.map((p) => p.color ?? p.id)
+      : (cfg ? cfg.slots.map((s) => s.color ?? s.team) : [0])
 
     const renderer = new Renderer()
-    await renderer.init(document.getElementById('game-canvas')!, map)
+    await renderer.init(document.getElementById('game-canvas')!, map, [...new Set(playerColors)])
     this.renderer = renderer
 
     if (startMsg) {
@@ -304,6 +307,7 @@ export class Game {
       for (const p of startMsg.players) {
         const ts = this.world.teams.get(p.id)
         if (ts && p.team !== undefined) ts.alliance = p.team
+        if (ts && p.color !== undefined) ts.color = p.color
       }
       this.sim = null
     } else {
@@ -316,6 +320,7 @@ export class Game {
       for (const s of cfg.slots) {
         const ts = this.world.teams.get(s.team)
         if (ts && s.alliance !== undefined) ts.alliance = s.alliance
+        if (ts && s.color !== undefined) ts.color = s.color
       }
       for (const s of cfg.slots) {
         if (s.difficulty && this.sim) this.bots.push(new BotPlayer(this.sim, s.team, s.difficulty))

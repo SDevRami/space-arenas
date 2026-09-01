@@ -209,7 +209,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
     }
     case 'C_UPDATE_SLOT': {
       if (!room) return
-      rooms.updateSlot(ws, { name: msg.name, team: msg.team, spawn: msg.spawn })
+      rooms.updateSlot(ws, { name: msg.name, team: msg.team, spawn: msg.spawn, color: msg.color })
       broadcastLobby()
       break
     }
@@ -242,7 +242,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
         send(ws, { kind: 'H_ERROR', message: 'Only the host can add bots' })
         return
       }
-      const res = rooms.addBot(msg.difficulty, { name: msg.name, team: msg.team, spawn: msg.spawn })
+      const res = rooms.addBot(msg.difficulty, { name: msg.name, team: msg.team, spawn: msg.spawn, color: msg.color })
       if (!res.ok) {
         send(ws, { kind: 'H_ERROR', message: res.error ?? 'add failed' })
         return
@@ -256,7 +256,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
         send(ws, { kind: 'H_ERROR', message: 'Only the host can edit bots' })
         return
       }
-      const res = rooms.updateBot(msg.id, { name: msg.name, team: msg.team, spawn: msg.spawn, difficulty: msg.difficulty })
+      const res = rooms.updateBot(msg.id, { name: msg.name, team: msg.team, spawn: msg.spawn, color: msg.color, difficulty: msg.difficulty })
       if (!res.ok) {
         send(ws, { kind: 'H_ERROR', message: res.error ?? 'update failed' })
         return

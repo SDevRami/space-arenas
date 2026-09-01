@@ -134,6 +134,7 @@ export interface TeamState {
   laserFreeShotUsed: boolean
   laserLevel: number
   alliance: number
+  color: number
 }
 
 export type PlaneState = 'idle' | 'attacking' | 'returning'
@@ -217,7 +218,7 @@ export class World {
     this.settings = mergeMatchSettings(settings)
     this.rng = new RNG(seed)
     for (const p of players) {
-      this.teams.set(p, { credits: this.settings.startingCredits, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: p })
+      this.teams.set(p, { credits: this.settings.startingCredits, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: p, color: p })
       this.fog.set(p, new Uint8Array(map.width * map.height))
     }
     this.initStatic(map)
@@ -399,7 +400,7 @@ export class World {
 
   teamState(team: number): TeamState {    let s = this.teams.get(team)
     if (!s) {
-      s = { credits: 0, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: team }
+      s = { credits: 0, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: team, color: team }
       this.teams.set(team, s)
     }
     return s

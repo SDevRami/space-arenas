@@ -6,6 +6,7 @@ export interface MatchSlot {
   name: string
   difficulty?: BotDifficulty
   alliance?: number
+  color?: number
 }
 
 export interface MatchConfig {

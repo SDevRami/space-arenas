@@ -1,5 +1,5 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
-import { BUILDINGS, UNITS, getBuilding, getWeapon, type MapData } from '@space-arenas/shared'
+import { BUILDINGS, PLAYER_COLOR_COUNT, PLAYER_COLORS, UNITS, getBuilding, getWeapon, type MapData } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { Camera, ISO_HALF_H, ISO_HALF_W } from './camera.ts'
 import { addGroundTo, FogRenderer } from './ground.ts'
@@ -17,8 +17,6 @@ const PRODUCERS = new Set(['command-center', 'supply-dock', 'barracks', 'war-fac
 const OBSTACLE_BASE_WIDTH = 30
 const BAR_W = 26
 const BAR_H = 4
-
-export const TEAM_COLORS = [0x7cf27c, 0xf07c7c, 0x7cc6f2, 0xf2d27c]
 
 export const UNIT_COLORS: Record<string, number> = {
   bulldozer: 0xe0b34a,
@@ -143,7 +141,7 @@ export class Renderer {
     this.camera.centerOn(anchor.x, anchor.y)
   }
 
-  async init(container: HTMLElement, map: MapData): Promise<void> {
+  async init(container: HTMLElement, map: MapData, colors?: number[]): Promise<void> {
     this.app = new Application()
     await this.app.init({
       resizeTo: window,
@@ -184,9 +182,9 @@ export class Renderer {
     this.lightningTex = lightningTexture(this.app.renderer)
 
     this.camera.resize(this.app.renderer.width / this.app.renderer.resolution, this.app.renderer.height / this.app.renderer.resolution)
-    await preloadBuildingSprites()
+    await preloadBuildingSprites(colors)
     await preloadFieldSprites()
-    await preloadUnitSprites()
+    await preloadUnitSprites(colors)
     window.addEventListener('resize', this.onWindowResize)
     window.addEventListener('orientationchange', this.onWindowResize)
     this.vv?.addEventListener('resize', this.onWindowResize)
@@ -289,7 +287,7 @@ export class Renderer {
     if (ghost) {
       const ghostTex =
         ghost.kind === 'building'
-          ? (buildingStatusTexture(ghost.type, 5) ?? textureFor(ghost.kind, ghost.type, this.app.renderer))
+          ? (buildingStatusTexture(ghost.type, 5, this.colorIndex(world, ghost.team)) ?? textureFor(ghost.kind, ghost.type, this.app.renderer))
           : textureFor(ghost.kind, ghost.type, this.app.renderer)
       if (!this.ghostSprite) {
         this.ghostSprite = new Sprite(ghostTex)
@@ -501,11 +499,17 @@ export class Renderer {
     return ext ? camera.isInViewBox(pos.x, pos.y, ext.halfW, ext.halfH) : camera.isInView(pos.x, pos.y)
   }
 
+  /** Palette index chosen by a team (its player's color slot). */
+  private colorIndex(world: World, team: number): number {
+    if (team < 0) return 0
+    const s = world.teams.get(team)
+    const idx = s ? s.color : team
+    return ((Math.round(idx) % PLAYER_COLOR_COUNT) + PLAYER_COLOR_COUNT) % PLAYER_COLOR_COUNT
+  }
+
   private teamColor(world: World, team: number): number {
     if (team < 0) return 0xffffff
-    if (world.sameTeam(this.localTeam, team)) return TEAM_COLORS[0]
-    const len = TEAM_COLORS.length
-    return TEAM_COLORS[(((team - this.localTeam) % len) + len) % len]
+    return PLAYER_COLORS[this.colorIndex(world, team)]
   }
 
   private drawPaths(world: World): void {
@@ -868,6 +872,7 @@ export class Renderer {
       this.entityLayer.addChild(spr)
       this.entitySprites.set(id, spr)
     }
+    const textureColor = this.colorIndex(world, world.teamOf(id))
     // aircraft fly above everything ground-level (fields, buildings, obstacles)
     const isAir = kind === 'unit' && world.units.get(id)?.class === 'air'
     if (kind === 'unit') {
@@ -915,7 +920,7 @@ export class Renderer {
       const b = world.buildings.get(id)
       if (b) {
         const h = world.healths.get(id)
-        statusTex = buildingStatusTexture(type, buildingStatusIndex(b.done, b.buildProgress, h ? h.hp / h.maxHp : 1))
+        statusTex = buildingStatusTexture(type, buildingStatusIndex(b.done, b.buildProgress, h ? h.hp / h.maxHp : 1), textureColor)
         if (statusTex && spr.texture !== statusTex) spr.texture = statusTex
         const ratio = this.buildingFillRatio()
         if (ratio > 0) {
@@ -928,7 +933,7 @@ export class Renderer {
         spr.position.y += this.buildingOffsetDist(b.footprintW, b.footprintH)
       }
     }
-    if (kind === 'unit' && unitImagesAvailable(type)) {
+    if (kind === 'unit' && unitImagesAvailable(type, textureColor)) {
       let dirName: string | null = null
       const face = (fx: number, fy: number): void => {
         const dx = fx - t.x
@@ -975,7 +980,7 @@ export class Renderer {
       // keep the last facing when idle; fresh spawns face the camera
       if (!dirName) dirName = this.unitFacing.get(id) ?? 'south'
       this.unitFacing.set(id, dirName)
-      const dirTex = unitTextureByName(type, dirName)
+      const dirTex = unitTextureByName(type, dirName, textureColor)
       if (dirTex) {
         if (spr.texture !== dirTex) spr.texture = dirTex
         const cls = world.units.get(id)?.class ?? 'vehicle'
@@ -1344,7 +1349,7 @@ export class Renderer {
       } else {
         spr.alpha = 0.95
         spr.scale.set(scale)
-        spr.tint = f.owner >= 0 ? TEAM_COLORS[f.owner % TEAM_COLORS.length] : 0xc8a04a
+        spr.tint = f.owner >= 0 ? PLAYER_COLORS[this.colorIndex(world, f.owner)] : 0xc8a04a
         spr.visible = getGraphics().quality === 'low'
       }
       const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
@@ -1372,7 +1377,7 @@ export class Renderer {
       let labelText = ''
       if (f.owner >= 0) {
         frac = Math.min(1, f.incomeTicks / world.settings.oilIncomeIntervalTicks)
-        barTint = TEAM_COLORS[f.owner % TEAM_COLORS.length]
+        barTint = PLAYER_COLORS[this.colorIndex(world, f.owner)]
         labelText = `+${world.settings.oilIncome}`
       } else if (f.claimingScout !== 0) {
         frac = Math.min(1, f.claimTicks / world.settings.oilClaimTicks)
@@ -1637,7 +1642,7 @@ export class Renderer {
       const spr = new Sprite(this.outlineForBuilding(2, 2))
       spr.anchor.set(0.5)
       spr.position.set((cx / 1000 - cy / 1000) * ISO_HALF_W, (cx / 1000 + cy / 1000) * ISO_HALF_H)
-      spr.tint = TEAM_COLORS[s.team % TEAM_COLORS.length]
+      spr.tint = PLAYER_COLORS[s.team % PLAYER_COLORS.length]
       spr.alpha = 0.9
       this.debugLayer.addChild(spr)
     }

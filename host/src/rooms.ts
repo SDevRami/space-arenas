@@ -12,6 +12,7 @@ import {
   type WinRule,
 } from '@space-arenas/shared'
 import { hashPassphrase, newRoomCode } from './passphrase.ts'
+import { PLAYER_COLOR_COUNT } from '@space-arenas/shared'
 
 export interface HostPlayer extends PlayerSlot {
   connected: boolean
@@ -192,6 +193,7 @@ export class RoomManager {
       host: false,
       team: room.nextPlayerId - 1,
       spawn: room.nextPlayerId - 1,
+      color: (room.nextPlayerId - 1) % PLAYER_COLOR_COUNT,
       connected: true,
       spectator: false,
     }
@@ -199,7 +201,7 @@ export class RoomManager {
     return { ok: true }
   }
 
-  addBot(difficulty: BotDifficulty, patch?: { name?: string; team?: number; spawn?: number }): { ok: boolean; error?: string } {
+  addBot(difficulty: BotDifficulty, patch?: { name?: string; team?: number; spawn?: number; color?: number }): { ok: boolean; error?: string } {
     const room = this.room
     if (!room) return { ok: false, error: 'No room on this server' }
     if (room.started) return { ok: false, error: 'Match already started' }
@@ -213,6 +215,7 @@ export class RoomManager {
       host: false,
       team: patch?.team !== undefined ? clamp(patch.team, 0, room.maxPlayers - 1) : room.nextPlayerId - 1,
       spawn: patch?.spawn !== undefined ? clamp(patch.spawn, 0, room.map.spawnPoints.length - 1) : room.nextPlayerId - 1,
+      color: patch?.color !== undefined ? clamp(patch.color, 0, PLAYER_COLOR_COUNT - 1) : (room.nextPlayerId - 1) % PLAYER_COLOR_COUNT,
       connected: true,
       spectator: false,
       bot: true,
@@ -222,7 +225,7 @@ export class RoomManager {
     return { ok: true }
   }
 
-  updateBot(id: number, patch: { name?: string; team?: number; spawn?: number; difficulty?: BotDifficulty }): { ok: boolean; error?: string } {
+  updateBot(id: number, patch: { name?: string; team?: number; spawn?: number; color?: number; difficulty?: BotDifficulty }): { ok: boolean; error?: string } {
     const room = this.room
     if (!room) return { ok: false, error: 'No room on this server' }
     if (room.started) return { ok: false, error: 'Match already started' }
@@ -234,6 +237,9 @@ export class RoomManager {
     }
     if (patch.spawn !== undefined && Number.isFinite(patch.spawn)) {
       bot.spawn = clamp(Math.floor(patch.spawn), 0, room.map.spawnPoints.length - 1)
+    }
+    if (patch.color !== undefined && Number.isFinite(patch.color)) {
+      bot.color = clamp(Math.floor(patch.color), 0, PLAYER_COLOR_COUNT - 1)
     }
     if (patch.difficulty !== undefined) bot.difficulty = patch.difficulty
     return { ok: true }
@@ -272,7 +278,7 @@ export class RoomManager {
     return this.room.players.get(ws) ?? null
   }
 
-  updateSlot(ws: WebSocket, patch: { name?: string; team?: number; spawn?: number }): void {
+  updateSlot(ws: WebSocket, patch: { name?: string; team?: number; spawn?: number; color?: number }): void {
     const p = this.playerFor(ws)
     const room = this.room
     if (!p || !room || p.spectator) return
@@ -286,6 +292,9 @@ export class RoomManager {
     if (patch.spawn !== undefined && Number.isFinite(patch.spawn)) {
       const spawnCount = room.map.spawnPoints.length
       p.spawn = Math.max(0, Math.min(spawnCount - 1, Math.floor(patch.spawn)))
+    }
+    if (patch.color !== undefined && Number.isFinite(patch.color)) {
+      p.color = Math.max(0, Math.min(PLAYER_COLOR_COUNT - 1, Math.floor(patch.color)))
     }
   }
 
@@ -378,10 +387,10 @@ export class RoomManager {
   slots(room: Room): PlayerSlot[] {
     const slots: PlayerSlot[] = []
     room.players.forEach((p) => {
-      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, spectator: p.spectator, bot: p.bot, difficulty: p.difficulty, ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}) })
+      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, bot: p.bot, difficulty: p.difficulty, ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}) })
     })
     for (const b of room.bots) {
-      slots.push({ id: b.id, name: b.name, ready: b.ready, host: false, team: b.team, spawn: b.spawn, spectator: false, bot: true, difficulty: b.difficulty })
+      slots.push({ id: b.id, name: b.name, ready: b.ready, host: false, team: b.team, spawn: b.spawn, color: b.color, spectator: false, bot: true, difficulty: b.difficulty })
     }
     return slots.sort((a, b) => a.id - b.id)
   }
@@ -390,10 +399,10 @@ export class RoomManager {
     const slots: PlayerSlot[] = []
     room.players.forEach((p) => {
       if (p.spectator) return
-      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, bot: p.bot, difficulty: p.difficulty })
+      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, bot: p.bot, difficulty: p.difficulty })
     })
     for (const b of room.bots) {
-      slots.push({ id: b.id, name: b.name, ready: b.ready, host: false, team: b.team, spawn: b.spawn, bot: true, difficulty: b.difficulty })
+      slots.push({ id: b.id, name: b.name, ready: b.ready, host: false, team: b.team, spawn: b.spawn, color: b.color, bot: true, difficulty: b.difficulty })
     }
     return slots.sort((a, b) => a.id - b.id)
   }

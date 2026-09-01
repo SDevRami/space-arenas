@@ -139,7 +139,7 @@ export class NetClient {
     this.send({ kind: 'C_READY', ready })
   }
 
-  updateSlot(patch: { name?: string; team?: number; spawn?: number }): void {
+  updateSlot(patch: { name?: string; team?: number; spawn?: number; color?: number }): void {
     this.send({ kind: 'C_UPDATE_SLOT', ...patch })
   }
 
@@ -151,11 +151,11 @@ export class NetClient {
     this.send({ kind: 'C_UPDATE_ROOM', ...patch })
   }
 
-  addBot(difficulty: BotDifficulty, patch?: { name?: string; team?: number; spawn?: number }): void {
+  addBot(difficulty: BotDifficulty, patch?: { name?: string; team?: number; spawn?: number; color?: number }): void {
     this.send({ kind: 'C_ADD_BOT', difficulty, ...patch })
   }
 
-  updateBot(id: number, patch: { name?: string; team?: number; spawn?: number; difficulty?: BotDifficulty }): void {
+  updateBot(id: number, patch: { name?: string; team?: number; spawn?: number; difficulty?: BotDifficulty; color?: number }): void {
     this.send({ kind: 'C_UPDATE_BOT', id, ...patch })
   }
 

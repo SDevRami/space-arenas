@@ -221,7 +221,8 @@
       "you": "you",
       "removeBot": "Remove bot",
       "teamTitle": "Team number — players on the same team are allies",
-      "spawnTitle": "Starting position on the map (numbered in the preview)"
+      "spawnTitle": "Starting position on the map (numbered in the preview)",
+      "colorTitle": "Player color — used for flag, units and base"
     },
     "status": {
       "tooMany": "This map supports up to {n} players.",
@@ -318,6 +319,7 @@
     "you": "(you)",
     "teamTitle": "Team — players on the same team are allies",
     "spawnTitle": "Spawn point — where you start on the map",
+    "colorTitle": "Player color — used for flag, units and base",
     "displayName": "Your display name",
     "removeBot": "Remove bot",
     "botTitleEdit": "Edit bot name",

@@ -1,5 +1,5 @@
 import './styles.css'
-import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, type MatchSettings, type WinRule } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, type MatchSettings, type WinRule } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { NetClient } from './net/net.ts'
@@ -20,6 +20,8 @@ const NAME_DEBOUNCE_MS = 500
 const MAX_CHAT_LINES = 100
 const POLL_INTERVAL_MS = 2500
 const AUTO_JOIN_DELAY_MS = 600
+
+const COLOR_HEXES = PLAYER_COLORS.map((c) => `#${c.toString(16).padStart(6, '0')}`)
 
 const errBox = document.getElementById('err-box') as HTMLDivElement
 let errCount = 0
@@ -595,7 +597,7 @@ const makeTextInput = (
   const input = document.createElement('input')
   input.type = 'text'
   input.value = value
-  input.placeholder = 'path/to/image_{frame}.png'
+  input.placeholder = 'path/to/image_{frame}_{color}.png'
   input.addEventListener('change', () => onCommit(input.value.trim()))
   wrap.appendChild(l)
   wrap.appendChild(d)
@@ -902,6 +904,7 @@ interface UiRow {
   difficulty: BotDifficulty | undefined
   team: number
   spawn: number
+  color: number
 }
 
 const mapSelect = document.getElementById('map-select') as HTMLSelectElement
@@ -926,10 +929,15 @@ previewCanvas.replaceWith(preview.canvas)
 let selectedPreset: MapEntry = findMapEntry(MAP_PRESETS[0].id)!
 let previewMap: MapData = entryToMap(selectedPreset)
 let rows: UiRow[] = [
-  { slot: 0, name: 'Commander', difficulty: undefined, team: 0, spawn: 0 },
-  { slot: 1, name: 'Bot 1', difficulty: 'easy', team: 1, spawn: 1 },
+  { slot: 0, name: 'Commander', difficulty: undefined, team: 0, spawn: 0, color: 0 },
+  { slot: 1, name: 'Bot 1', difficulty: 'easy', team: 1, spawn: 1, color: 1 },
 ]
 let countdownTimer: number | null = null
+
+const previewColorFor = (team: number): number => {
+  const row = rows.find((r) => r.slot === team)
+  return row ? row.color : team
+}
 
 const setOfflineStatus = (text: string, isError = false): void => {
   offlineStatus.textContent = text
@@ -964,11 +972,12 @@ const selectPreset = (preset: MapEntry): void => {
     r.slot = i
     r.team = i
     r.spawn = i
+    r.color = i
   })
   applySpawnAssignments()
   renderMapSelect()
   renderPlayers()
-  preview.render(previewMap)
+  preview.render(previewMap, previewColorFor)
 }
 
 mapSelect.addEventListener('change', () => {
@@ -991,6 +1000,8 @@ const renderPlayers = (): void => {
       maxPlayers: selectedPreset.players,
       team: row.team,
       spawn: row.spawn,
+      color: row.color,
+      palette: COLOR_HEXES,
       name: row.name,
       nameTitle: undefined,
       isBot: !!row.difficulty,
@@ -1001,11 +1012,16 @@ const renderPlayers = (): void => {
       spawnLabel: (n) => t('offline.playerRow.spawn', { n }),
       teamTitle: t('offline.playerRow.teamTitle'),
       spawnTitle: t('offline.playerRow.spawnTitle'),
+      colorTitle: t('offline.playerRow.colorTitle'),
       onTeamChange: (v) => { row.team = v },
       onSpawnChange: (v) => {
         row.spawn = v
         applySpawnAssignments()
-        preview.render(previewMap)
+        preview.render(previewMap, previewColorFor)
+      },
+      onColorChange: (v) => {
+        row.color = v
+        preview.render(previewMap, previewColorFor)
       },
       onNameChange: (name) => { row.name = name || row.name },
       onDifficultyChange: row.difficulty ? (d) => { row.difficulty = d } : undefined,
@@ -1013,7 +1029,7 @@ const renderPlayers = (): void => {
         rows.splice(index, 1)
         renderPlayers()
         applySpawnAssignments()
-        preview.render(previewMap)
+        preview.render(previewMap, previewColorFor)
       } : undefined,
     })
     playersList.appendChild(div)
@@ -1026,10 +1042,10 @@ addBotBtn.addEventListener('click', () => {
     return
   }
   const slot = nextFreeSlot()
-  rows.push({ slot, name: t('offline.bot', { n: rows.length }), difficulty: 'medium', team: slot, spawn: slot })
+  rows.push({ slot, name: t('offline.bot', { n: rows.length }), difficulty: 'medium', team: slot, spawn: slot, color: slot })
   renderPlayers()
   applySpawnAssignments()
-  preview.render(previewMap)
+  preview.render(previewMap, previewColorFor)
 })
 
 // ---------- countdown ----------
@@ -1090,7 +1106,7 @@ startBtn.addEventListener('click', () => {
     seed: (Math.floor(Math.random() * 0xffffffff) >>> 0) || 0x5eed,
     credits,
     localTeam: humans[0].slot,
-    slots: rows.map((r) => ({ team: r.slot, name: r.name, difficulty: r.difficulty, alliance: r.team })),
+    slots: rows.map((r) => ({ team: r.slot, name: r.name, difficulty: r.difficulty, alliance: r.team, color: r.color })),
     winRule: winRuleSelect.value as WinRule,
     settings: resolvedDevSettings(),
   }
@@ -1100,7 +1116,7 @@ startBtn.addEventListener('click', () => {
 
 renderMapSelect()
 renderPlayers()
-preview.render(previewMap)
+preview.render(previewMap, previewColorFor)
 
 const WIN_RULE_KEYS: Record<WinRule, string> = {
   standard: 'standard',
@@ -1223,7 +1239,8 @@ const renderMatchOptions = (msg: LobbyMessage, isHost: boolean): void => {
   const matchMapEntry = findMapEntry(msg.mapId)
   const shownMap = msg.map ?? (matchMapEntry ? entryToMap(matchMapEntry) : mapForPreset(MAP_PRESETS[0]))
   matchMapDescEl.textContent = shownMap.description || shownMap.name
-  matchPreview.render(shownMap)
+  const matchColorFor = (team: number): number => msg.players.find((p) => p.id === team)?.color ?? team
+  matchPreview.render(shownMap, matchColorFor)
 
   const prevDiff = matchBotDiffEl.value
   matchBotDiffEl.innerHTML = ''
@@ -1265,6 +1282,8 @@ const renderMatchPanel = (msg: LobbyMessage): void => {
       maxPlayers: msg.maxPlayers,
       team: p.team ?? 0,
       spawn: p.spawn ?? 0,
+      color: p.color ?? 0,
+      palette: COLOR_HEXES,
       name: p.name,
       nameTitle: p.bot ? (isHost ? t('match.botTitleEdit') : t('match.bot')) : t('match.displayName'),
       isBot: !!p.bot,
@@ -1275,6 +1294,7 @@ const renderMatchPanel = (msg: LobbyMessage): void => {
       spawnLabel: (n) => t('match.spawn', { n }),
       teamTitle: t('match.teamTitle'),
       spawnTitle: t('match.spawnTitle'),
+      colorTitle: t('match.colorTitle'),
       onTeamChange: (v) => {
         if (p.bot) net?.updateBot(p.id, { team: v })
         else net?.updateSlot({ team: v })
@@ -1282,6 +1302,10 @@ const renderMatchPanel = (msg: LobbyMessage): void => {
       onSpawnChange: (v) => {
         if (p.bot) net?.updateBot(p.id, { spawn: v })
         else net?.updateSlot({ spawn: v })
+      },
+      onColorChange: (v) => {
+        if (p.bot) net?.updateBot(p.id, { color: v })
+        else net?.updateSlot({ color: v })
       },
       onNameChange: updateName,
       nameDebounceMs: NAME_DEBOUNCE_MS,

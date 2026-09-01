@@ -1,4 +1,4 @@
-import { TEAM_COLORS } from '../render/renderer.ts'
+import { PLAYER_COLORS } from '@space-arenas/shared'
 import type { SimEvent } from '../core/events.ts'
 import type { MatchSlot } from '../game/match.ts'
 import { t } from '../i18n/index.ts'
@@ -76,7 +76,7 @@ export interface StatsRow {
 }
 
 const teamHex = (team: number): string => {
-  const c = TEAM_COLORS[team % TEAM_COLORS.length]
+  const c = PLAYER_COLORS[((team % PLAYER_COLORS.length) + PLAYER_COLORS.length) % PLAYER_COLORS.length]
   return `#${c.toString(16).padStart(6, '0')}`
 }
 
