@@ -18,30 +18,6 @@ const OBSTACLE_BASE_WIDTH = 30
 const BAR_W = 26
 const BAR_H = 4
 
-export const UNIT_COLORS: Record<string, number> = {
-  bulldozer: 0xe0b34a,
-  harvester: 0x7fc8e0,
-  scout: 0xb8e05a,
-  rifleman: 0x5ac8e0,
-  'rocket-trooper': 0xe06ab0,
-  'assault-walker': 0xc8a04a,
-  'aa-platform': 0x7a9ae0,
-  artillery: 0xe07a5a,
-  fighter: 0xe0e0e0,
-}
-
-export const BUILDING_COLORS: Record<string, number> = {
-  'command-center': 0x5ad8a0,
-  'power-plant': 0xe0d45a,
-  'supply-dock': 0x9aa8c0,
-  barracks: 0x5a9ae0,
-  'war-factory': 0xc8803c,
-  turret: 0x8a95a5,
-  'tech-center': 0x9a6ad0,
-  'air-force': 0x5ad8e0,
-  'super-weapon': 0xe04a5a,
-}
-
 const OBSTRUCTION_COLORS: Record<string, number> = {
   rock: 0xffb35c,
   wreck: 0x9aa7b8,
@@ -990,7 +966,7 @@ export class Renderer {
         spr.scale.set((UNIT_SPRITE_WIDTH / (dirTex.frame.width || 1)) * mult)
       }
     }
-    let color = kind === 'unit' ? (UNIT_COLORS[type] ?? 0xffffff) : (BUILDING_COLORS[type] ?? 0xffffff)
+    let color = this.teamColor(world, world.teamOf(id))
     let powerDown = false
     if (kind === 'building') {
       const b = world.buildings.get(id)

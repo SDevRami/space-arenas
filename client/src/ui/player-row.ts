@@ -15,6 +15,7 @@ export interface PlayerRowConfig {
   showYouBadge: boolean
   teamLabel: (n: number) => string
   spawnLabel: (n: number) => string
+  colorLabel: (n: number) => string
   teamTitle: string
   spawnTitle: string
   colorTitle: string
@@ -36,40 +37,31 @@ function buildColorPicker(
   palette: string[],
   current: number,
   editable: boolean,
+  label: (n: number) => string,
   onChange: (v: number) => void,
-): HTMLDivElement {
-  const wrap = document.createElement('div')
-  wrap.className = className
-  wrap.title = title
-  wrap.style.display = 'flex'
-  wrap.style.gap = '3px'
-  wrap.style.alignItems = 'center'
+): HTMLSelectElement | HTMLSpanElement {
+  const hexOf = (i: number): string => palette[((i % palette.length) + palette.length) % palette.length] ?? '#888'
   if (!editable) {
-    const dot = document.createElement('span')
-    dot.style.width = '14px'
-    dot.style.height = '14px'
-    dot.style.borderRadius = '50%'
-    dot.style.border = '1px solid rgba(255,255,255,0.5)'
-    dot.style.background = palette[((current % palette.length) + palette.length) % palette.length] ?? '#888'
-    wrap.appendChild(dot)
-    return wrap
+    const span = document.createElement('span')
+    span.className = className
+    span.textContent = `● ${label(current + 1)}`
+    span.style.color = hexOf(current)
+    return span
   }
-  palette.forEach((hex, i) => {
-    const btn = document.createElement('button')
-    btn.type = 'button'
-    btn.title = `${title} ${i + 1}`
-    btn.style.width = '16px'
-    btn.style.height = '16px'
-    btn.style.borderRadius = '50%'
-    btn.style.border = i === current ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.4)'
-    btn.style.background = hex
-    btn.style.cursor = 'pointer'
-    btn.style.padding = '0'
-    btn.style.flex = '0 0 auto'
-    btn.addEventListener('click', () => onChange(i))
-    wrap.appendChild(btn)
-  })
-  return wrap
+  const sel = document.createElement('select')
+  sel.className = className
+  sel.title = title
+  for (let i = 0; i < palette.length; i++) {
+    const opt = document.createElement('option')
+    opt.value = String(i)
+    opt.textContent = label(i + 1)
+    opt.style.background = hexOf(i)
+    opt.style.color = '#0d1018'
+    if (i === current) opt.selected = true
+    sel.appendChild(opt)
+  }
+  sel.addEventListener('change', () => onChange(Number(sel.value)))
+  return sel
 }
 
 function buildSelect(
@@ -107,7 +99,7 @@ export function createPlayerRow(cfg: PlayerRowConfig): HTMLDivElement {
 
   div.appendChild(buildSelect('p-team', cfg.teamTitle, cfg.maxPlayers, cfg.team, cfg.teamLabel, cfg.editable, cfg.onTeamChange))
   div.appendChild(buildSelect('p-spawn', cfg.spawnTitle, cfg.maxPlayers, cfg.spawn, cfg.spawnLabel, cfg.editable, cfg.onSpawnChange))
-  div.appendChild(buildColorPicker('p-colors', cfg.colorTitle, cfg.palette, cfg.color, cfg.editable, cfg.onColorChange))
+  div.appendChild(buildColorPicker('p-colors', cfg.colorTitle, cfg.palette, cfg.color, cfg.editable, cfg.colorLabel, cfg.onColorChange))
 
   const name = document.createElement('input')
   name.className = 'p-name'

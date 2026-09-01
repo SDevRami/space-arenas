@@ -342,9 +342,7 @@
       .player-row .p-spawn { width: 96px; }
       .player-row .p-name { flex: 1 1 auto; min-width: 0; }
       .player-row .p-diff { width: 110px; }
-      .player-row .p-colors { flex: 0 0 auto; }
-      .player-row .p-colors button:hover { border-color: #ffffff; }
-      .player-row .p-colors button:focus { outline: 1px solid #ffffff; outline-offset: 1px; }
+      .player-row .p-colors { width: 118px; }
       .player-row button { padding: 6px 10px; background: var(--color-danger); border: 1px solid var(--color-danger-border); color: var(--color-danger-text); cursor: pointer; font-family: inherit; }
       .player-row button:hover { background: #7a2626; }
       .player-row .you-badge { color: var(--color-success); font-size: 11px; margin-left: 4px; }
