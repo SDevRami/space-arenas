@@ -3,6 +3,11 @@ setlocal
 title Space Arenas - Game (LAN auto-discovery)
 cd /d "%~dp0"
 
+REM --- clear previously generated invite QR codes ---
+if exist "%~dp0invites" (
+  del /q "%~dp0invites\*" >nul 2>&1
+)
+
 set "SA_PORT=17321"
 set "SA_PASSPHRASE=changeme"
 if not "%~1"=="" set "SA_PORT=%~1"
