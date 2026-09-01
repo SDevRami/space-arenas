@@ -2,7 +2,6 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  publicDir: '../assets',
   resolve: {
     alias: {
       '@space-arenas/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
@@ -25,6 +24,8 @@ export default defineConfig({
   build: {
     target: 'es2022',
     outDir: 'dist',
+    // assets live inside client/dist (object/color/image) and must survive builds
+    emptyOutDir: false,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
