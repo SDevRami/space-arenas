@@ -62,6 +62,28 @@ const workArrivePoint = (world: World, buildingId: number, dozerId: number): { x
   return sides[0]
 }
 
+// True when the point (x,y) is on a tile that touches the target footprint
+// (Chebyshev distance 1 ring around its footprint, not inside it). Used to reject
+// a dozer that has only reached a NEIGHBOURING building's border rather than the
+// actual structure it is assigned to build.
+const touchesFootprint = (
+  x: number,
+  y: number,
+  b: { footprintW: number; footprintH: number },
+  bt: { x: number; y: number },
+): boolean => {
+  const dtx = Math.floor(x / 1000)
+  const dty = Math.floor(y / 1000)
+  const x0 = Math.floor((bt.x - b.footprintW * 500) / 1000)
+  const x1 = Math.ceil((bt.x + b.footprintW * 500) / 1000) - 1
+  const y0 = Math.floor((bt.y - b.footprintH * 500) / 1000)
+  const y1 = Math.ceil((bt.y + b.footprintH * 500) / 1000) - 1
+  return (
+    dtx >= x0 - 1 && dtx <= x1 + 1 && dty >= y0 - 1 && dty <= y1 + 1 &&
+    !(dtx >= x0 && dtx <= x1 && dty >= y0 && dty <= y1)
+  )
+}
+
 export const WorkSystem = {
   name: 'Work',
   update(world: World): void {
@@ -106,29 +128,28 @@ export const WorkSystem = {
           return
         }
       }
-      const halfX = b.footprintW * 500
-      const halfY = b.footprintH * 500
-      const pad = workPad(world)
-      // strictWorkArrival (dev setting): padded-box acceptance additionally requires the
-      // dozer's tile to touch the target footprint — stops a dozer from grinding against
-      // a NEIGHBOURING building when its path ended on a fallback tile nearby.
-      const strict = world.settings.strictWorkArrival >= 1
-      let inPad = Math.abs(t.x - bt.x) <= halfX + pad && Math.abs(t.y - bt.y) <= halfY + pad
-      if (strict && inPad) {
-        const dtx = Math.floor(t.x / 1000)
-        const dty = Math.floor(t.y / 1000)
-        const x0 = Math.floor((bt.x - halfX) / 1000)
-        const x1 = Math.ceil((bt.x + halfX) / 1000) - 1
-        const y0 = Math.floor((bt.y - halfY) / 1000)
-        const y1 = Math.ceil((bt.y + halfY) / 1000) - 1
-        const touchesTarget =
-          dtx >= x0 - 1 && dtx <= x1 + 1 && dty >= y0 - 1 && dty <= y1 + 1 &&
-          !(dtx >= x0 && dtx <= x1 && dty >= y0 && dty <= y1)
-        if (!touchesTarget) inPad = false
-      }
       const p = workArrivePoint(world, w.building, id)
+      // Precise arrival: the dozer has reached its assigned work pad point.
       const arrived = p !== null && isqrt(sqDist(t.x, t.y, p.x, p.y)) <= u.speed * 2
-      if (!inPad && !arrived) {
+      // Precise touch: the dozer's tile is adjacent to the target footprint. This
+      // is what stops a dozer from stopping at a NEIGHBOURING building's border
+      // while still marching — it must actually touch the assigned structure.
+      const touches = touchesFootprint(t.x, t.y, b, bt)
+      // Stuck: the dozer can't get any closer to its pad point (blocked by
+      // neighbours/terrain). Count consecutive ticks that make no progress and
+      // treat it as arrived once it has been unable to advance for a while — this
+      // keeps boxed-in buildings buildable without relying on a lenient box.
+      const dToPad = p ? isqrt(sqDist(t.x, t.y, p.x, p.y)) : 0
+      const prev = w.lastPadDist ?? -1
+      const improved = prev < 0 || dToPad < prev
+      if (improved) {
+        w.stuckTicks = 0
+      } else if (dToPad > 0) {
+        w.stuckTicks = (w.stuckTicks ?? 0) + 1
+      }
+      w.lastPadDist = dToPad
+      const stuck = dToPad > 0 && (w.stuckTicks ?? 0) >= world.settings.workStuckTicks
+      if (!arrived && !touches && !stuck) {
         if (!world.moves.has(id) && p) {
           const m = setMove(world, id, p.x, p.y)
           m.needsPath = true

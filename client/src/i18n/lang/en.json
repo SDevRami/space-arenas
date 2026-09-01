@@ -684,7 +684,7 @@
       "planeReloadRadius": { "label": "Plane reload radius", "desc": "Distance from home air force within which a plane rearms, in tiles" },
       "planeSortieMult": { "label": "Plane sortie range", "desc": "Auto-attack acquisition radius as × of weapon range/vision while idle" },
       "workPadDistance": { "label": "Dozer work pad", "desc": "Distance beyond the building edge where the bulldozer parks to work, in tiles" },
-      "strictWorkArrival": { "label": "Strict dozer arrival", "desc": "1 = the dozer must touch the target footprint before it starts building (prevents grinding against neighbouring buildings); 0 = classic lenient arrival" },
+      "workStuckTicks": { "label": "Dozer stuck patience", "desc": "How many ticks a bulldozer may fail to get closer to its work pad before it starts building anyway (helps boxed-in buildings), in ticks" },
       "pathBudgetPerTick": { "label": "Path budget/tick", "desc": "Max A* path computations allowed per tick (excess waits)" },
       "pathMaxNodes": { "label": "A* max nodes", "desc": "Node cap per A* search; exceeding it aborts and retries later" },
       "astarCostStraight": { "label": "A* straight cost", "desc": "Internal A* cost of one cardinal step (relative to diagonal cost)" },

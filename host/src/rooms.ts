@@ -91,7 +91,7 @@ const SANITIZE: Record<string, { min: number; max: number }> = {
   planeReloadRadius: { min: 1, max: 40 },
   planeSortieMult: { min: 0, max: 20 },
   workPadDistance: { min: 0.5, max: 10 },
-  strictWorkArrival: { min: 0, max: 1 },
+  workStuckTicks: { min: 5, max: 300 },
   pathBudgetPerTick: { min: 1, max: 100 },
   pathMaxNodes: { min: 100, max: 200000 },
 }

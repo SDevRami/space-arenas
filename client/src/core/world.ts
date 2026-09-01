@@ -115,6 +115,8 @@ export type WorkKind = 'construct' | 'repair'
 export interface WorkComp {
   kind: WorkKind
   building: number
+  stuckTicks?: number
+  lastPadDist?: number
 }
 
 export interface TeamState {

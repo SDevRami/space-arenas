@@ -134,7 +134,7 @@ export interface MatchSettings {
   planeReloadRadius: number
   planeSortieMult: number
   workPadDistance: number
-  strictWorkArrival: number
+  workStuckTicks: number
   pathBudgetPerTick: number
   pathMaxNodes: number
   buildingOverrides: Record<string, BuildingOverrides>
@@ -195,7 +195,7 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   planeReloadRadius: 4,
   planeSortieMult: 4,
   workPadDistance: 1,
-  strictWorkArrival: 0,
+  workStuckTicks: 45,
   pathBudgetPerTick: 8,
   pathMaxNodes: 8000,
   buildingOverrides: {},
