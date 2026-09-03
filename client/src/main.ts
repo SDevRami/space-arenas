@@ -2,6 +2,7 @@ import './styles.css'
 import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, type MatchSettings, type WinRule } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
+import { AudioHooks } from './audio/hooks.ts'
 import { NetClient } from './net/net.ts'
 import type { LobbyMessage, MatchStartMessage } from '@space-arenas/shared'
 import type { MatchConfig } from './game/match.ts'
@@ -47,6 +48,21 @@ let game: Game | null = null
 let net: NetClient | null = null
 let localTeam = 0
 let lobbyEl: HTMLElement | null = null
+
+// ---------- lobby ambient audio ----------
+
+const lobbyAudio = new AudioHooks()
+let lobbyAmbientUnlocked = false
+const unlockLobbyAudio = (): void => {
+  if (lobbyAmbientUnlocked) return
+  lobbyAudio.unlock()
+  lobbyAudio.startLobbyAmbient()
+  lobbyAmbientUnlocked = true
+  window.removeEventListener('pointerdown', unlockLobbyAudio, true)
+  window.removeEventListener('keydown', unlockLobbyAudio, true)
+}
+window.addEventListener('pointerdown', unlockLobbyAudio, true)
+window.addEventListener('keydown', unlockLobbyAudio, true)
 
 const hideLobby = (): void => {
   ;(document.getElementById('lobby') as HTMLDivElement).style.display = 'none'
@@ -240,6 +256,14 @@ const graphicsReady = import('./ui/graphics-settings.ts').then((mod) => {
   renderWeatherOptions = refs.renderWeatherOptions
   startWeatherEl = refs.startWeatherEl
   matchWeatherEl = refs.matchWeatherEl
+})
+
+// ---------- audio settings ----------
+
+let renderAudioList: () => void = () => {}
+
+const audioReady = import('./ui/audio-settings.ts').then((mod) => {
+  renderAudioList = mod.initAudioSettings().renderAudioList
 })
 
 // ---------- dev settings ----------
@@ -1084,6 +1108,7 @@ const startCountdown = (cfg: MatchConfig): void => {
 }
 
 const beginGame = (cfg: MatchConfig): void => {
+  lobbyAudio.stopAmbient()
   if (game) {
     game.destroy()
     game = null
@@ -1597,6 +1622,7 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
       setTab('match')
     },
     onMatchStart: (msg: MatchStartMessage) => {
+      lobbyAudio.stopAmbient()
       if (!game) game = makeGame()
       hideLobby()
       void game.startNet(net!, msg)
@@ -1960,6 +1986,7 @@ const refreshLobbyTexts = (): void => {
   renderOnlineMatches()
   renderMapBuilderTable()
   renderGraphicsList()
+  renderAudioList()
   renderWeatherOptions(startWeatherEl)
   renderWeatherOptions(matchWeatherEl)
   if (controlsOverlay.classList.contains('visible')) renderControlsList()
@@ -1982,7 +2009,7 @@ if (inviteCode) {
 
 // ---------- hide loading screen ----------
 
-void Promise.allSettled([graphicsReady, mapBuilderReady, infoCatalogReady]).then(() => {
+void Promise.allSettled([graphicsReady, audioReady, mapBuilderReady, infoCatalogReady]).then(() => {
   const el = document.getElementById('loading-screen')
   if (el) {
     el.classList.add('hidden')

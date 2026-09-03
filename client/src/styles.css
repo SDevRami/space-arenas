@@ -501,6 +501,9 @@
       .controls-list .ctrl-row button.btn.off:hover { background: #3a4d7d; }
       .controls-list .ctrl-chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
       .controls-list input.ctrl-number { width: 84px; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 3px; background: var(--color-surface-dark); color: var(--color-text); font-family: inherit; font-size: 12px; flex: 0 0 auto; }
+      .controls-list .ctrl-range-wrap { display: flex; align-items: center; gap: 8px; flex: 0 0 180px; }
+      .controls-list input.ctrl-range { flex: 1 1 auto; accent-color: #27a86b; cursor: pointer; }
+      .controls-list .ctrl-val { flex: 0 0 40px; text-align: right; color: var(--color-text); font-size: 12px; font-weight: 600; }
       #controls-info-overlay .info-content { font-size: 13px; line-height: 1.55; color: var(--color-text-body); margin-top: 10px; }
       #controls-info-overlay .info-content h3 { color: var(--color-accent); font-size: 14px; margin: 16px 0 6px; border-bottom: 1px solid var(--color-divider); padding-bottom: 3px; }
       #controls-info-overlay .info-content h3:first-child { margin-top: 4px; }

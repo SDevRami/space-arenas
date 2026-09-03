@@ -83,6 +83,25 @@
       "weatherHint": "A cosmetic overlay on your screen only. It does not change the game rules.",
       "iconSize": "Thumbnail size (px)",
       "iconSizeDesc": "Size of the unit/building thumbnails in the selection bar."
+    },
+    "audio": {
+      "h2": "Audio",
+      "master": "Master volume",
+      "masterDesc": "Overall loudness of every sound.",
+      "effects": "Effects volume",
+      "effectsDesc": "UI clicks, weapon and unit sounds (scaled by master).",
+      "ambient": "Ambient volume",
+      "ambientDesc": "Lobby drone and in-game background hum.",
+      "muted": "Mute all",
+      "mutedDesc": "Silences every sound and the ambient layer at once.",
+      "ambientOn": "Ambient layer",
+      "ambientOnDesc": "Toggles the ambient drone/hum entirely.",
+      "haptics": "Mobile vibration",
+      "hapticsDesc": "Vibrate on select, actions and taking damage (phones/tablets).",
+      "on": "ON",
+      "off": "OFF",
+      "saved": "Audio settings saved.",
+      "effective": "Effective levels — effects {e}% · ambient {a}%"
     }
   },
   "online": {

@@ -6,6 +6,7 @@ import { Renderer, type GhostState } from '../render/renderer.ts'
 import { InputManager, type BoxInfo, type ClickInfo, type CommandKind } from '../input/input.ts'
 import { NetClient } from '../net/net.ts'
 import { AudioHooks } from '../audio/hooks.ts'
+import { hapticSelect, hapticAction, hapticDamaged } from '../audio/haptics.ts'
 import { Hud } from '../ui/hud.ts'
 import { ChatBox } from '../ui/chat.ts'
 import { Minimap } from '../render/minimap.ts'
@@ -438,6 +439,8 @@ export class Game {
     }
 
     this.hud.show()
+    this.audio.startGameAmbient()
+    this.audio.refitAmbient()
     this.layoutToolsBar()
     this.weather = new WeatherOverlay(document.getElementById('hud')!)
     this.weather.setWeather(getGraphics().weather)
@@ -526,6 +529,10 @@ export class Game {
     const input = this.input
     if (!world || !renderer || !input) return
 
+    const camCenter = renderer.camera.screenToWorldExact(renderer.camera.viewWidth / 2, renderer.camera.viewHeight / 2)
+    this.audio.listenerX = camCenter.x
+    this.audio.listenerY = camCenter.y
+
     const edge = input.edgePanVelocity()
     if (edge) renderer.camera.panBy(edge.x, edge.y)
     this.processMultiRoute()
@@ -560,6 +567,11 @@ export class Game {
           const at = world.transforms.get(e.attacker)
           if (at) renderer.addProjectile(at.x, at.y, e.x, e.y, e.team)
         }
+        const atkW = world.attacks.get(e.attacker)
+        if (atkW) this.audio.playWeaponSfx(atkW.weaponId, e.x, e.y)
+      }
+      if (e.type === 'combat-hit' && world.teamOf(e.target) === this.localTeam) {
+        hapticDamaged()
       }
       if (e.type === 'scenery-destroyed' && e.kind === 'tree') {
         renderer.addTreeFall(e.x, e.y, e.w, e.h)
@@ -889,6 +901,7 @@ export class Game {
         }
         if (hit !== null) {
           this.selection = new Set([hit])
+          this.notifySelection()
           return
         }
         this.onCommand('move', info.world)
@@ -902,9 +915,26 @@ export class Game {
       } else {
         this.selection = new Set([hit])
       }
+      this.notifySelection()
     } else if (!info.ctrl) {
       this.selection.clear()
     }
+  }
+
+  /** Play a selection bleep (pitch by unit class) + select haptic for the current selection. */
+  private notifySelection(): void {
+    const world = this.world
+    if (!world) return
+    let clazz: string | null = null
+    for (const id of this.selection) {
+      const u = world.units.get(id)
+      if (u) {
+        clazz = u.class
+        break
+      }
+    }
+    if (clazz) this.audio.playSelectBleep(clazz)
+    hapticSelect()
   }
 
   private onBox(box: BoxInfo): void {
@@ -922,7 +952,10 @@ export class Game {
         selected.add(id)
       }
     })
-    if (selected.size > 0) this.selection = selected
+    if (selected.size > 0) {
+      this.selection = selected
+      this.notifySelection()
+    }
   }
 
   private pickEntity(worldX: number, worldY: number): number | null {
@@ -1421,6 +1454,7 @@ export class Game {
     if (this.placePendingMarker(worldPt)) return
     const world = this.world
     if (!world || this.selection.size === 0) return
+    hapticAction()
     const ids = [...this.selection]
 
     // Combat modes (attack / keep-attack / guard) only apply when the selection
@@ -1822,6 +1856,7 @@ export class Game {
   destroy(): void {
     this.loop?.stop()
     this.loop = null
+    this.audio.stopAmbient()
     this.input?.detach()
     this.input = null
     window.removeEventListener('keydown', this.onKeyDown)

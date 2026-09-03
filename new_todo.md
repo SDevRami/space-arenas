@@ -21,9 +21,9 @@ Renderer/UI only, no sim changes. Ships together.
 
 ---
 
-## Day 2 — Audio + Haptics + SFX Ready
+## Day 2 — Audio + Haptics + SFX Ready ✅ DONE
 
-All audio/haptic, no sim changes.
+All audio/haptic, no sim changes. Audio settings (master/effects/ambient volume, mute, ambient toggle, haptics toggle) exposed in the Settings → Audio panel.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
@@ -321,7 +321,7 @@ New game mode overlay with guided walkthrough.
 | Day | Bundle | Effort | Sim change? | Status |
 |-----|--------|--------|-------------|--------|
 | 1 | UI icons + wreck + sell | S | No | ✅ |
-| 2 | Audio + haptics + SFX | S | No | |
+| 2 | Audio + haptics + SFX | S | No | ✅ |
 | 3 | Control groups + selection + paint | S | No | |
 | 4 | Fog modes + day/night + base alert | M | Yes | |
 | 5 | Damage feedback + settings + shake | S | No | |
