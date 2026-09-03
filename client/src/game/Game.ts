@@ -564,6 +564,9 @@ export class Game {
       if (e.type === 'scenery-destroyed' && e.kind === 'tree') {
         renderer.addTreeFall(e.x, e.y, e.w, e.h)
       }
+      if (e.type === 'unit-sold') {
+        renderer.addSellFx(e.x, e.y, 1)
+      }
       if (e.type === 'game-over') {
         this.hud.toast(this.netTitle(e.winner))
         this.showResults(e.winner)
@@ -614,6 +617,8 @@ export class Game {
         const d = UNITS[e.unitType]
         return t('game.events.unitSold', { name: d ? tn(e.unitType, d.name) : e.unitType, r: e.refund })
       }
+      case 'wreck-collected':
+        return e.team === this.localTeam ? t('game.events.collected', { a: e.value }) : null
       case 'dozer-assigned': {
         const b = this.world?.buildings.get(e.building)
         const name = b ? (BUILDINGS[b.buildingType] ? tn(b.buildingType, BUILDINGS[b.buildingType].name) : b.buildingType) : t('game.events.building')
@@ -960,6 +965,20 @@ export class Game {
       const rect = rectFromCenter(t.x, t.y, s.w, s.h)
       if (tileX >= rect.x && tileX < rect.x + rect.w && tileY >= rect.y && tileY < rect.y + rect.h) {
         const area = rect.w * rect.h
+        if (area < bestArea) {
+          bestArea = area
+          best = id
+        }
+      }
+    })
+    world.wrecks.forEach((id) => {
+      if (!world.isVisibleTo(this.localTeam, id, revealAll)) return
+      const t = world.transforms.require(id)
+      const r = 1.3
+      const dx = tileX - t.x / 1000
+      const dy = tileY - t.y / 1000
+      if (dx * dx + dy * dy <= r * r) {
+        const area = r * r
         if (area < bestArea) {
           bestArea = area
           best = id
@@ -1456,6 +1475,11 @@ export class Game {
     }
     const dozerIds = ids.filter((id) => world.units.get(id)?.unitType === 'bulldozer')
     if (target !== null && dozerIds.length > 0) {
+      const w = this.world?.wrecks.get(target)
+      if (w) {
+        this.issue({ type: 'collect', entities: [dozerIds[0]], x: 0, y: 0, target })
+        return
+      }
       const b = world.buildings.get(target)
       const h = world.healths.get(target)
       if (b && b.team === this.localTeam && (!b.done || (h && h.hp < h.maxHp))) {

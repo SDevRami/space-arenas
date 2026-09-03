@@ -10,6 +10,7 @@ import { ScenerySystem } from './scenery-system.ts'
 import { PathfindingSystem } from './pathfinding-system.ts'
 import { WorkSystem } from './work-system.ts'
 import { CombatSystem } from './combat-system.ts'
+import { SellSystem } from './sell-system.ts'
 import { PlaneSystem } from './plane-system.ts'
 import { LaserSystem } from './laser-system.ts'
 import { VisionSystem } from './vision-system.ts'
@@ -32,6 +33,7 @@ export const SYSTEMS: SystemDef[] = [
   PathfindingSystem,
   WorkSystem,
   CombatSystem,
+  SellSystem,
   PlaneSystem,
   LaserSystem,
   VisionSystem,

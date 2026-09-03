@@ -35,6 +35,10 @@ export interface BuildingComp {
   flagTy: number
   maxPowerUntil: number
   maxPowerHpTarget: number
+  /** Tick at which a pending sale completes (0 = not being sold). While set, the
+   * building animates its status frames in reverse and can still be attacked; if
+   * destroyed before this tick the owner is denied the refund. */
+  sellingUntil: number
 }
 
 export interface HealthComp {
@@ -110,13 +114,26 @@ export interface SceneryComp {
   h: number
 }
 
-export type WorkKind = 'construct' | 'repair'
+export type WorkKind = 'construct' | 'repair' | 'collect'
 
 export interface WorkComp {
   kind: WorkKind
   building: number
   stuckTicks?: number
   lastPadDist?: number
+  /** Progress (ticks worked) collecting a wreck when kind === 'collect'. */
+  collectTicks?: number
+}
+
+/** A persistent wreck left behind by a destroyed unit/building. Any team's
+ * bulldozer can collect it for `value` credits. */
+export interface WreckComp {
+  /** Credits granted to the collecting team. */
+  value: number
+  /** The team that originally owned the destroyed object. */
+  team: number
+  /** 'unit' or 'building' — the kind of the destroyed object. */
+  srcKind: 'unit' | 'building'
 }
 
 export interface TeamState {
@@ -196,13 +213,14 @@ export class World {
   readonly fields = new SparseSet<SupplyFieldComp>()
   readonly oilFields = new SparseSet<OilFieldComp>()
   readonly works = new SparseSet<WorkComp>()
+  readonly wrecks = new SparseSet<WreckComp>()
   readonly satelliteMarkers = new SparseSet<SatelliteMarkerComp>()
   readonly planes = new SparseSet<PlaneComp>()
   readonly lasers = new SparseSet<LaserComp>()
   readonly scenery = new SparseSet<SceneryComp>()
 
   readonly events: SimEvent[] = []
-  private readonly entityKinds = new Map<number, 'unit' | 'building' | 'field' | 'marker' | 'scenery'>()
+  private readonly entityKinds = new Map<number, 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck'>()
 
   grid: WorldGrid | null = null
   gridDirty = true
@@ -278,7 +296,7 @@ export class World {
     }
   }
 
-  createEntity(kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery', team: number): number {
+  createEntity(kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck', team: number): number {
     const id = this.nextId++
     this.entityKinds.set(id, kind)
     if (team >= 0) this.events.push({ type: 'entity-created', entity: id, kind, team })
@@ -295,6 +313,9 @@ export class World {
       const t = this.transforms.get(id)
       if (s && t) this.events.push({ type: 'scenery-destroyed', entity: id, kind: s.type, x: t.x, y: t.y, w: s.w, h: s.h })
     }
+    const deadT = this.transforms.get(id)
+    const deadX = deadT?.x ?? 0
+    const deadY = deadT?.y ?? 0
     this.transforms.delete(id)
     this.units.delete(id)
     this.buildings.delete(id)
@@ -307,6 +328,7 @@ export class World {
     this.fields.delete(id)
     this.oilFields.delete(id)
     this.works.delete(id)
+    this.wrecks.delete(id)
     this.satelliteMarkers.delete(id)
     this.planes.delete(id)
     this.lasers.delete(id)
@@ -314,7 +336,7 @@ export class World {
     this.entityKinds.delete(id)
     if (kind === 'building' || kind === 'field' || kind === 'scenery') this.gridDirty = true
     if (team >= 0) {
-      this.events.push({ type: 'entity-destroyed', entity: id, kind, team, ...(typeName !== undefined ? { typeName } : {}) })
+      this.events.push({ type: 'entity-destroyed', entity: id, kind, team, x: deadX, y: deadY, ...(typeName !== undefined ? { typeName } : {}) })
     }
   }
 
@@ -326,6 +348,14 @@ export class World {
     const f = this.oilFields.get(id)
     if (f && f.owner >= 0) return f.owner
     return -1
+  }
+
+  /** Create a persistent wreck at a world position for a destroyed unit/building. */
+  spawnWreck(x: number, y: number, value: number, team: number, srcKind: 'unit' | 'building'): number {
+    const id = this.createEntity('wreck', -1)
+    this.transforms.set(id, { x, y })
+    this.wrecks.set(id, { value, team, srcKind })
+    return id
   }
 
   sameTeam(a: number, b: number): boolean {
@@ -386,7 +416,7 @@ export class World {
     for (const id of stale) this.removeEntity(id)
   }
 
-  kindOf(id: number): 'unit' | 'building' | 'field' | 'marker' | 'scenery' | undefined {
+  kindOf(id: number): 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck' | undefined {
     return this.entityKinds.get(id)
   }
 

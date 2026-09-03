@@ -1,4 +1,4 @@
-import { getWeapon, sqDist, tileToFx } from '@space-arenas/shared'
+import { getBuilding, getUnit, getWeapon, sqDist, tileToFx } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { setMove } from '../entities/factories.ts'
 
@@ -18,7 +18,18 @@ export const applyDamage = (world: World, target: number, amount: number, attack
       if (!m || m.attackMove) a.target = attacker
     }
   }
-  if (h.hp <= 0) world.removeEntity(target)
+  if (h.hp <= 0) {
+    const deadX = world.transforms.get(target)?.x ?? 0
+    const deadY = world.transforms.get(target)?.y ?? 0
+    const u = world.units.get(target)
+    const b = world.buildings.get(target)
+    const owner = u ? u.team : b ? b.team : -1
+    const srcKind: 'unit' | 'building' | null = u ? 'unit' : b ? 'building' : null
+    const cost = u ? getUnit(u.unitType, world.settings).cost : b ? getBuilding(b.buildingType, world.settings).cost : 0
+    const value = Math.floor(cost * world.settings.wreckValueFraction)
+    world.removeEntity(target)
+    if (srcKind && value > 0 && owner >= 0) world.spawnWreck(deadX, deadY, value, owner, srcKind)
+  }
 }
 
 export const setChase = (world: World, id: number, tx: number, ty: number): void => {

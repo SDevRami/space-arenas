@@ -96,6 +96,7 @@ export const WorkSystem = {
     })
 
     world.works.forEach((id, w) => {
+      if (w.kind === 'collect') return
       const b = world.buildings.get(w.building)
       if (!b || b.assignedDozer !== id) {
         world.works.delete(id)
@@ -106,9 +107,42 @@ export const WorkSystem = {
     world.works.forEach((id, w) => {
       const u = world.units.get(id)
       const t = world.transforms.get(id)
+      if (!u || !t) {
+        world.works.delete(id)
+        world.moves.delete(id)
+        return
+      }
+      if (w.kind === 'collect') {
+        const wc = world.wrecks.get(w.building)
+        const wt = world.wrecks.get(w.building) ? world.transforms.get(w.building) : null
+        if (!wc || !wt) {
+          world.works.delete(id)
+          world.moves.delete(id)
+          return
+        }
+        const arrived = isqrt(sqDist(t.x, t.y, wt.x, wt.y)) <= u.speed * 2 + 400
+        if (!arrived) {
+          if (!world.moves.has(id)) {
+            const m = setMove(world, id, wt.x, wt.y)
+            m.needsPath = true
+          }
+          return
+        }
+        world.moves.delete(id)
+        w.collectTicks = (w.collectTicks ?? 0) + 1
+        if (w.collectTicks >= world.settings.wreckCollectTicks) {
+          const ws = world.teams.get(u.team)
+          if (ws) ws.credits += wc.value
+          world.emit({ type: 'wreck-collected', entity: w.building, team: u.team, value: wc.value })
+          world.removeEntity(w.building)
+          world.works.delete(id)
+          world.moves.delete(id)
+        }
+        return
+      }
       const b = world.buildings.get(w.building)
       const bt = world.transforms.get(w.building)
-      if (!u || !t || !b || !bt) {
+      if (!b || !bt) {
         world.works.delete(id)
         world.moves.delete(id)
         return

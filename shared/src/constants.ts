@@ -5,7 +5,7 @@ export const SECONDS_TO_TICKS = (seconds: number): number => Math.round(seconds 
 
 export const DEFAULT_PORT = 17321
 export const DEFAULT_MAX_PLAYERS = 8
-export const PROTOCOL_VERSION = 1
+export const PROTOCOL_VERSION = 2
 
 /** Number of selectable per-player colors. */
 export const PLAYER_COLOR_COUNT = 10
@@ -51,6 +51,13 @@ export const OIL_CLAIM_TICKS = SECONDS_TO_TICKS(20)
 
 export const DEFAULT_SELL_REFUND_FRACTION = 0.5
 export const DEFAULT_QUEUE_LIMIT = 10
+
+/** Fraction of an object's cost recovered by a bulldozer collecting its wreck. */
+export const DEFAULT_WRECK_VALUE_FRACTION = 0.1
+/** How long (ticks) a bulldozer must work to collect a wreck. */
+export const DEFAULT_WRECK_COLLECT_TICKS = SECONDS_TO_TICKS(2)
+/** How long a building keeps animating (frames reversed 5→1) while being sold. */
+export const DEFAULT_SELL_TICKS = SECONDS_TO_TICKS(3)
 
 /** 0 means "use the map's own value" for the global field overrides. */
 export const FIELD_OVERRIDE_AUTO = 0
@@ -119,6 +126,9 @@ export interface MatchSettings {
   maxPowerTicks: number
   fogFadeDistance: number
   sellRefundFraction: number
+  sellTicks: number
+  wreckValueFraction: number
+  wreckCollectTicks: number
   queueLimit: number
   supplyFieldCapacity: number
   supplyFieldRadius: number
@@ -180,6 +190,9 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   maxPowerTicks: MAX_POWER_TICKS,
   fogFadeDistance: FOG_FADE_DISTANCE,
   sellRefundFraction: DEFAULT_SELL_REFUND_FRACTION,
+  sellTicks: DEFAULT_SELL_TICKS,
+  wreckValueFraction: DEFAULT_WRECK_VALUE_FRACTION,
+  wreckCollectTicks: DEFAULT_WRECK_COLLECT_TICKS,
   queueLimit: DEFAULT_QUEUE_LIMIT,
   supplyFieldCapacity: FIELD_OVERRIDE_AUTO,
   supplyFieldRadius: FIELD_OVERRIDE_AUTO,

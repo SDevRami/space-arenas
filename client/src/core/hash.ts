@@ -87,6 +87,7 @@ export const hashWorld = (world: World): number => {
   addComp(world.fields, (id) => world.fields.require(id))
   addComp(world.oilFields, (id) => world.oilFields.require(id))
   addComp(world.works, (id) => world.works.require(id))
+  addComp(world.wrecks, (id) => world.wrecks.require(id))
   addComp(world.satelliteMarkers, (id) => world.satelliteMarkers.require(id))
   addComp(world.planes, (id) => world.planes.require(id))
   addComp(world.lasers, (id) => world.lasers.require(id))

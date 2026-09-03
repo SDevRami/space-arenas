@@ -80,7 +80,9 @@
       },
       "weather": "Weather (visual only)",
       "weatherLabel": "Weather",
-      "weatherHint": "A cosmetic overlay on your screen only. It does not change the game rules."
+      "weatherHint": "A cosmetic overlay on your screen only. It does not change the game rules.",
+      "iconSize": "Thumbnail size (px)",
+      "iconSizeDesc": "Size of the unit/building thumbnails in the selection bar."
     }
   },
   "online": {
@@ -647,6 +649,9 @@
       "harvesterLoadTicks": { "label": "Harvester load time", "desc": "Time a harvester spends loading" },
       "builderRepairPerTick": { "label": "Builder repair", "desc": "HP a builder repairs each tick" },
       "sellRefundFraction": { "label": "Sell refund", "desc": "Fraction of value refunded when selling" },
+      "sellTicks": { "label": "Sell time", "desc": "How long a building stays animating while it is being sold" },
+      "wreckValueFraction": { "label": "Wreck value", "desc": "Fraction of an object's cost recovered by collecting its wreck" },
+      "wreckCollectTicks": { "label": "Wreck collect time", "desc": "How long a bulldozer must work to collect a wreck" },
       "queueLimit": { "label": "Queue limit", "desc": "Max production orders per factory" },
       "satelliteRevealTicks": { "label": "Satellite reveal", "desc": "How long a scan reveals the map" },
       "satelliteCooldownTicks": { "label": "Satellite cooldown", "desc": "Cooldown between satellite scans" },
@@ -936,6 +941,7 @@
       "researchDone": "{name} researched",
       "sold": "{name} sold (+${r})",
       "unitSold": "{name} destroyed (+${r})",
+      "collected": "Wreck collected (+${a} credits)",
       "dozerConstruct": "Bulldozer constructing {name}",
       "dozerRepair": "Bulldozer repairing {name}",
       "building": "building",

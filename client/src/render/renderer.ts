@@ -92,6 +92,7 @@ export class Renderer {
   private flagTex: Texture = Texture.EMPTY
   private barSprites = new Map<number, { bg: Sprite; fill: Sprite }>()
   private barBgTex: Texture = Texture.EMPTY
+  private wreckBars = new Map<number, { bg: Sprite; fill: Sprite }>()
   private fieldSprites = new Map<number, Sprite>()
   private fieldBars = new Map<number, { bg: Sprite; fill: Sprite }>()
   private fieldLabels = new Map<number, Text>()
@@ -102,6 +103,8 @@ export class Renderer {
   private scenerySprites = new Map<number, Sprite>()
   private sceneryBars = new Map<number, { bg: Sprite; fill: Sprite }>()
   private treeFalls: Array<{ spr: Sprite; isoX: number; isoY: number; age: number }> = []
+  private wreckEntitySprites = new Map<number, Sprite>()
+  private sellFx: Array<{ spr: Sprite; isoX: number; isoY: number; scale: number; age: number }> = []
   private minimap: Minimap | null = null
   private powerLayer = new Container()
   private lightningTex: Texture = Texture.EMPTY
@@ -323,10 +326,13 @@ export class Renderer {
     this.syncFlagMarkers(world, camera, selection)
     this.syncFields(world, camera)
     this.syncScenery(world, camera)
+    this.syncWrecks(world)
+    this.syncWreckBars(world, camera)
     this.syncPowerIcons(world, camera)
     this.renderBox(box)
     this.drawFx(world, moveMarker, selection)
     this.stepTreeFalls()
+    this.stepFades()
     this.drawPaths(world)
     this.drawHoverName(world, camera)
 
@@ -670,6 +676,94 @@ export class Renderer {
       .stroke({ color: 0x2a7dff, width: 1.5, alpha: 0.9 })
   }
 
+  /** Draw persistent wreck sprites for every live wreck entity (never fade —
+   * they are collected by bulldozers and removed by the sim). */
+  private syncWrecks(world: World): void {
+    const seen = new Set<number>()
+    world.wrecks.forEach((id, w) => {
+      const t = world.transforms.get(id)
+      if (!t) return
+      if (!this.isEntityVisible(world, id)) return
+      seen.add(id)
+      let spr = this.wreckEntitySprites.get(id)
+      if (!spr) {
+        spr = new Sprite(obstacleTexture('wreck', this.app.renderer))
+        spr.anchor.set(0.5)
+        spr.tint = 0xffffff
+        const aoTex = obstacleImageTexture('wreck')
+        if (aoTex) {
+          spr.texture = aoTex
+          spr.scale.set(Math.max(0.6, w.srcKind === 'building' ? 3 : 1) * (OBSTACLE_BASE_WIDTH / (aoTex.frame.width || 1)))
+        } else {
+          spr.scale.set(Math.max(0.6, w.srcKind === 'building' ? 3 : 1) * 1.1)
+        }
+        spr.alpha = 0.95
+        this.fxLayer.addChild(spr)
+        this.wreckEntitySprites.set(id, spr)
+      }
+      const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+      const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+      spr.position.set(isoX, isoY)
+      spr.zIndex = isoY
+    })
+    for (const [id, spr] of this.wreckEntitySprites) {
+      if (!seen.has(id)) {
+        this.fxLayer.removeChild(spr)
+        spr.destroy()
+        this.wreckEntitySprites.delete(id)
+      }
+    }
+  }
+
+  /** Draw a progress bar over a wreck while a bulldozer is collecting it. */
+  private syncWreckBars(world: World, camera: Camera): void {
+    const seen = new Set<number>()
+    world.works.forEach((_id, w) => {
+      if (w.kind !== 'collect') return
+      const ticks = w.collectTicks ?? 0
+      if (ticks <= 0) return
+      const wc = world.wrecks.get(w.building)
+      if (!wc) return
+      if (!this.isEntityVisible(world, w.building)) return
+      const t = world.transforms.get(w.building)
+      if (!t) return
+      seen.add(w.building)
+      let pair = this.wreckBars.get(w.building)
+      if (!pair) {
+        const bg = new Sprite(this.barBgTex)
+        bg.anchor.set(0.5)
+        const fill = new Sprite(Texture.WHITE)
+        fill.anchor.set(0, 0.5)
+        fill.scale.y = BAR_H
+        this.barLayer.addChild(bg)
+        this.barLayer.addChild(fill)
+        pair = { bg, fill }
+        this.wreckBars.set(w.building, pair)
+      }
+      const total = world.settings.wreckCollectTicks || 1
+      const frac = Math.max(0, Math.min(1, ticks / total))
+      const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+      const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+      const barY = isoY - 24
+      pair.bg.position.set(isoX, barY)
+      pair.fill.position.set(isoX - BAR_W / 2, barY)
+      pair.fill.scale.x = Math.max(0.001, BAR_W * frac)
+      pair.fill.tint = 0xe8a24a
+      const pos = { x: 0, y: 0 }
+      camera.worldToScreen(t.x, t.y, pos)
+      const vis = this.inView(pos, w.building, world, camera)
+      pair.bg.visible = vis
+      pair.fill.visible = vis
+    })
+    for (const [id, pair] of this.wreckBars) {
+      if (!seen.has(id)) {
+        this.barLayer.removeChild(pair.bg)
+        this.barLayer.removeChild(pair.fill)
+        this.wreckBars.delete(id)
+      }
+    }
+  }
+
   private syncBars(world: World, camera: Camera, selection: Set<number>): void {
     const seen = new Set<number>()
     world.units.forEach((id, u) => {
@@ -896,7 +990,18 @@ export class Renderer {
       const b = world.buildings.get(id)
       if (b) {
         const h = world.healths.get(id)
-        statusTex = buildingStatusTexture(type, buildingStatusIndex(b.done, b.buildProgress, h ? h.hp / h.maxHp : 1), textureColor)
+        let frame: number
+        if (b.sellingUntil >= world.tick) {
+          // Being sold: play the status frames in reverse (5→1) over the timer.
+          // Use >= so the final rendered frame (at the removal tick) is 0001,
+          // not the completed 0005 frame.
+          const total = world.settings.sellTicks || 1
+          const remain = Math.max(0, b.sellingUntil - world.tick)
+          frame = Math.max(1, Math.min(5, Math.ceil((remain / total) * 5)))
+        } else {
+          frame = buildingStatusIndex(b.done, b.buildProgress, h ? h.hp / h.maxHp : 1)
+        }
+        statusTex = buildingStatusTexture(type, frame, textureColor)
         if (statusTex && spr.texture !== statusTex) spr.texture = statusTex
         const ratio = this.buildingFillRatio()
         if (ratio > 0) {
@@ -1552,6 +1657,36 @@ export class Renderer {
     this.treeFalls.push({ spr, isoX, isoY, age: 0 })
   }
 
+  /** Play a shrink + smoke-puff animation at a sold entity's position. */
+  addSellFx(x: number, y: number, scale: number): void {
+    const spr = new Sprite(obstacleTexture('wreck', this.app.renderer))
+    spr.anchor.set(0.5)
+    spr.tint = 0x9aa7b8
+    spr.scale.set(Math.max(0.6, scale) * 1.1)
+    const isoX = (x / 1000 - y / 1000) * ISO_HALF_W
+    const isoY = (x / 1000 + y / 1000) * ISO_HALF_H
+    spr.position.set(isoX, isoY)
+    spr.alpha = 0.9
+    this.fxLayer.addChild(spr)
+    this.sellFx.push({ spr, isoX, isoY, scale, age: 0 })
+  }
+
+  /** Advance + clear the purely-visual unit sell animation. */
+  private stepFades(): void {
+    for (const f of this.sellFx) {
+      const t = f.age / 20
+      if (t >= 1) {
+        this.fxLayer.removeChild(f.spr)
+        f.spr.destroy()
+        continue
+      }
+      f.spr.scale.set(f.scale * (1 - t) * 1.1)
+      f.spr.alpha = 0.9 * (1 - t)
+      f.age++
+    }
+    this.sellFx = this.sellFx.filter((f) => f.age < 20)
+  }
+
   private syncPowerIcons(world: World, camera: Camera): void {
     const seen = new Set<number>()
     world.buildings.forEach((id, b) => {
@@ -1648,6 +1783,16 @@ export class Renderer {
       f.spr.destroy()
     }
     this.treeFalls = []
+    for (const spr of this.wreckEntitySprites.values()) {
+      this.fxLayer.removeChild(spr)
+      spr.destroy()
+    }
+    this.wreckEntitySprites.clear()
+    for (const f of this.sellFx) {
+      this.fxLayer.removeChild(f.spr)
+      f.spr.destroy()
+    }
+    this.sellFx = []
     clearShapeCache()
     this.app.destroy(true, { children: true, texture: true })
   }

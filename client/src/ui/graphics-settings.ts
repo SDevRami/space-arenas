@@ -9,6 +9,7 @@ import {
   setEffect,
   setQuality,
   setWeather,
+  setHudIconSize,
   effectEnabled,
 } from './graphics.ts'
 
@@ -49,6 +50,37 @@ const renderWeatherRow = (): HTMLElement => {
     chips.appendChild(btn)
   }
   div.appendChild(chips)
+  return div
+}
+
+const renderIconSizeRow = (): HTMLElement => {
+  const div = document.createElement('div')
+  div.className = 'ctrl-row'
+  const label = document.createElement('div')
+  label.className = 'ctrl-label'
+  const name = document.createElement('div')
+  name.textContent = t('settings.graphics.iconSize')
+  const desc = document.createElement('div')
+  desc.className = 'ctrl-desc'
+  desc.textContent = t('settings.graphics.iconSizeDesc')
+  label.appendChild(name)
+  label.appendChild(desc)
+  div.appendChild(label)
+  const input = document.createElement('input')
+  input.type = 'number'
+  input.min = '8'
+  input.max = '64'
+  input.step = '1'
+  input.value = String(getGraphics().hudIconSize)
+  input.className = 'ctrl-number'
+  input.addEventListener('change', () => {
+    const v = Number(input.value)
+    setHudIconSize(Number.isFinite(v) ? v : 20)
+    input.value = String(getGraphics().hudIconSize)
+    renderGraphicsList()
+    setGraphicsStatus(t('settings.graphics.saved'))
+  })
+  div.appendChild(input)
   return div
 }
 
@@ -114,6 +146,7 @@ const renderGraphicsList = (): void => {
     graphicsEffectsEl.appendChild(div)
   }
   graphicsEffectsEl.appendChild(renderWeatherRow())
+  graphicsEffectsEl.appendChild(renderIconSizeRow())
 }
 
 const renderWeatherOptions = (select: HTMLSelectElement): void => {

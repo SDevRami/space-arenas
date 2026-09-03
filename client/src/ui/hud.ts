@@ -1,6 +1,7 @@
 import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, getBuilding, getUnit, getUpgrade, type UpgradeDef } from '@space-arenas/shared'
 import type { ProductionOrder, World } from '../core/world.ts'
 import { t, tn } from '../i18n/index.ts'
+import { getGraphics } from './graphics.ts'
 
 export interface HudActions {
   onBuildClick: (type: string) => void
@@ -30,6 +31,34 @@ const BUILDER_BUILDABLES = ['command-center', 'power-plant', 'supply-dock', 'bar
 const UPGRADES_BY_BUILDING: Record<string, UpgradeDef[]> = {}
 for (const u of Object.values(UPGRADES)) {
   ;(UPGRADES_BY_BUILDING[u.availableAt] ??= []).push(u)
+}
+
+/** Resolve an asset URL for a selection-bar icon, or '' when no image asset exists. */
+function assetIconUrl(kind: 'unit' | 'building', type: string): string {
+  const tpl = getGraphics().assetPaths[`${kind}:${type}`]
+  if (!tpl) return ''
+  const raw =
+    kind === 'building'
+      ? tpl.replaceAll('{color}', '1').replaceAll('{frame}', '0005')
+      : tpl.replaceAll('{color}', '1').replaceAll('{dir}', 'south')
+  if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) return raw
+  return `${import.meta.env.BASE_URL}${raw}`
+}
+
+/** Class badge for an icon, by entity type for coloring and fallback letter. */
+function iconBadgeClass(kind: 'unit' | 'building', type: string): string {
+  if (kind === 'building') return 'building'
+  return UNITS[type]?.class ?? 'vehicle'
+}
+
+/** Small icon markup (image sprite with a colored letter-badge fallback). */
+function hudIconHtml(kind: 'unit' | 'building', type: string, label: string): string {
+  const url = assetIconUrl(kind, type)
+  const letter = (label.trim().charAt(0) || '?').toUpperCase()
+  const badge = iconBadgeClass(kind, type)
+  const size = getGraphics().hudIconSize
+  const img = url ? `<img src="${url}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''
+  return `<span class="hud-icon hud-icon-${badge}" style="width:${size}px;height:${size}px;font-size:${Math.max(8, Math.round(size * 0.55))}px"><span class="hud-icon-letter">${letter}</span>${img}</span>`
 }
 
 export class Hud {
@@ -297,7 +326,7 @@ export class Hud {
       for (const ud of trainable) {
         const udCost = getUnit(ud.id, world.settings).cost
         this.addButton(
-          `${tn(ud.id, ud.name)} <span class="cost">$${udCost}</span>`,
+          `${hudIconHtml('unit', ud.id, tn(ud.id, ud.name))}<span>${tn(ud.id, ud.name)}</span> <span class="cost">$${udCost}</span>`,
           () => {
             const ts = world.teamState(bd.team)
             if (ts.credits < udCost) return false
@@ -455,7 +484,7 @@ export class Hud {
       for (const bdId of BUILDER_BUILDABLES) {
         const bd = getBuilding(bdId, world.settings)
         this.addButton(
-          `${tn(bd.id, bd.name)} <span class="cost">$${bd.cost}</span>`,
+          `${hudIconHtml('building', bd.id, tn(bd.id, bd.name))}<span>${tn(bd.id, bd.name)}</span> <span class="cost">$${bd.cost}</span>`,
           () => {
             const ts = world.teamState(localTeam)
             if (ts.credits < bd.cost) return false
@@ -475,11 +504,17 @@ export class Hud {
     for (const updater of this.updaters) updater()
   }
 
-  private addButton(label: string, isEnabled: () => boolean, onClick: () => void, className?: string): void {
+  private addButton(label: string, isEnabled: () => boolean, onClick: () => void, className?: string, iconHtml = '', hover?: { onEnter: () => void; onLeave: () => void }): void {
     const b = document.createElement('button')
-    b.innerHTML = label
+    b.type = 'button'
+    b.innerHTML = iconHtml + label
+    if (iconHtml) b.classList.add('has-icon')
     if (className) b.classList.add(className)
     b.addEventListener('click', onClick)
+    if (hover) {
+      b.addEventListener('mouseenter', hover.onEnter)
+      b.addEventListener('mouseleave', hover.onLeave)
+    }
     this.buildMenu.appendChild(b)
     this.menuSlots.push({ enabled: isEnabled, act: onClick })
     this.updaters.push(() => {

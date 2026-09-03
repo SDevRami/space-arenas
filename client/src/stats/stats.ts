@@ -18,6 +18,7 @@ const EMPTY: TeamStats = { unitsBuilt: 0, buildingsBuilt: 0, unitsLost: 0, build
 export class StatsTracker {
   private readonly stats = new Map<number, TeamStats>()
   private readonly lastAttacker = new Map<number, number>()
+  private readonly sold = new Set<number>()
 
   private state(team: number): TeamStats {
     let s = this.stats.get(team)
@@ -44,12 +45,17 @@ export class StatsTracker {
         this.state(e.team).supplyHarvested += e.amount
         break
       case 'entity-destroyed': {
+        if (this.sold.has(e.entity)) break
         const attacker = this.lastAttacker.get(e.entity)
         if (attacker !== undefined) this.state(attacker).kills++
         if (e.kind === 'unit') this.state(e.team).unitsLost++
         else if (e.kind === 'building') this.state(e.team).buildingsLost++
         break
       }
+      case 'building-sold':
+      case 'unit-sold':
+        this.sold.add(e.entity)
+        break
       default:
         break
     }

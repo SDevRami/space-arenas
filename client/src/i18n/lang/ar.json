@@ -80,7 +80,9 @@
       },
       "weather": "الطقس (بصري فقط)",
       "weatherLabel": "الطقس",
-      "weatherHint": "طبقة بصرية على شاشتك فقط. لا تغيّر قواعد اللعبة."
+      "weatherHint": "طبقة بصرية على شاشتك فقط. لا تغيّر قواعد اللعبة.",
+      "iconSize": "حجم الصورة المصغّرة (بكسل)",
+      "iconSizeDesc": "حجم صور الوحدات/المباني المصغّرة في شريط الاختيار."
     }
   },
   "online": {
@@ -647,6 +649,9 @@
       "harvesterLoadTicks": { "label": "زمن تحميل الحاصدة", "desc": "الوقت الذي تقضيه الحاصدة في التحميل" },
       "builderRepairPerTick": { "label": "إصلاح البنّاء", "desc": "الصحة التي يصلحها البنّاء كل نقرة" },
       "sellRefundFraction": { "label": "استرداد البيع", "desc": "نسبة القيمة المستردة عند البيع" },
+      "sellTicks": { "label": "زمن البيع", "desc": "مدة بقاء المبنى متحركاً أثناء بيعه" },
+      "wreckValueFraction": { "label": "قيمة الحطام", "desc": "نسبة تكلفة الشيء المستردة عند جمع حطامه" },
+      "wreckCollectTicks": { "label": "زمن جمع الحطام", "desc": "مدة عمل الجرّافة لجمع الحطام" },
       "queueLimit": { "label": "حد القائمة", "desc": "أقصى أوامر إنتاج لكل مصنع" },
       "satelliteRevealTicks": { "label": "كشف القمر الصناعي", "desc": "مدة كشف الخريطة بالمسح" },
       "satelliteCooldownTicks": { "label": "تبريد القمر الصناعي", "desc": "فترة التبريد بين عمليات المسح" },
@@ -936,6 +941,7 @@
       "researchDone": "أُكمل بحث {name}",
       "sold": "بِيع {name} (+${r})",
       "unitSold": "دُمّر {name} (+${r})",
+      "collected": "جُمع الحطام (+${a} اعتماد)",
       "dozerConstruct": "الجرّافة تبني {name}",
       "dozerRepair": "الجرّافة تصلح {name}",
       "building": "مبنى",

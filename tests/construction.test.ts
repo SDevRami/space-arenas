@@ -245,6 +245,7 @@ describe('command center rebuilding', () => {
     reveal(sim)
     const cc = ccId(sim.world)
     sim.step([cmd(sim, 1, { type: 'sell', entities: [cc], x: 0, y: 0 })])
+    sim.advance(76)
     expect(sim.world.teamState(0).credits).toBe(800 + Math.floor(500 / 2))
 
     const d = dozerId(sim.world)

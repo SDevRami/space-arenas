@@ -10,6 +10,7 @@ export type CommandType =
   | 'stop'
   | 'place'
   | 'sell'
+  | 'collect'
   | 'queue'
   | 'dequeue'
   | 'attack'
@@ -73,6 +74,7 @@ export const CMD_TYPE_IDS: Record<CommandType, number> = {
   stop: 2,
   place: 3,
   sell: 4,
+  collect: 19,
   queue: 5,
   dequeue: 6,
   attack: 7,
@@ -87,7 +89,7 @@ export const CMD_TYPE_IDS: Record<CommandType, number> = {
   'max-power': 18,
 }
 
-const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power']
+const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power', 'collect']
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -137,7 +139,7 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
     typeName === 'place' || typeName === 'queue' ? nameSize(cmd.buildingType ?? cmd.unitType) + 2
     :     typeName === 'research' ? nameSize(cmd.upgrade) + 2
     : typeName === 'dequeue' ? 1
-    : typeName === 'attack-move' || typeName === 'attack' || typeName === 'build' || typeName === 'assign-dock' || typeName === 'keep-attack' || typeName === 'guard' ? 4
+    : typeName === 'attack-move' || typeName === 'attack' || typeName === 'build' || typeName === 'collect' || typeName === 'assign-dock' || typeName === 'keep-attack' || typeName === 'guard' ? 4
     : 0
 
   let buf = new Uint8Array(4 + 4 + 1 + 4 + 2 + cmd.entities.length * 4 + 8 + extra)
@@ -184,6 +186,7 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
   if (typeName === 'attack-move') putI32(cmd.target ?? -1)
   if (typeName === 'attack') putI32(cmd.target ?? -1)
   if (typeName === 'build') putI32(cmd.target ?? -1)
+  if (typeName === 'collect') putI32(cmd.target ?? -1)
   if (typeName === 'assign-dock') putI32(cmd.target ?? -1)
   if (typeName === 'keep-attack') putI32(cmd.target ?? -1)
   if (typeName === 'guard') putI32(cmd.target ?? -1)
@@ -212,6 +215,7 @@ export const decodeEnvelope = (data: Uint8Array): EnvelopeCommand => {
   if (typeName === 'attack-move') cmd.target = readI32(c)
   if (typeName === 'attack') cmd.target = readI32(c)
   if (typeName === 'build') cmd.target = readI32(c)
+  if (typeName === 'collect') cmd.target = readI32(c)
   if (typeName === 'assign-dock') cmd.target = readI32(c)
   if (typeName === 'keep-attack') cmd.target = readI32(c)
   if (typeName === 'guard') cmd.target = readI32(c)
@@ -304,6 +308,7 @@ const envelopeLength = (data: Uint8Array): number => {
     typeName === 'attack-move' ||
     typeName === 'attack' ||
     typeName === 'build' ||
+    typeName === 'collect' ||
     typeName === 'assign-dock' ||
     typeName === 'keep-attack' ||
     typeName === 'guard'

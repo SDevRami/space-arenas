@@ -1,6 +1,6 @@
 export type SimEvent =
-  | { type: 'entity-created'; entity: number; kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery'; team: number }
-  | { type: 'entity-destroyed'; entity: number; kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery'; team: number; typeName?: string }
+  | { type: 'entity-created'; entity: number; kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck'; team: number }
+  | { type: 'entity-destroyed'; entity: number; kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck'; team: number; typeName?: string; x?: number; y?: number }
   | { type: 'unit-trained'; entity: number; unitType: string; team: number }
   | { type: 'building-placed'; entity: number; buildingType: string; team: number }
   | { type: 'building-completed'; entity: number; buildingType: string; team: number }
@@ -15,8 +15,9 @@ export type SimEvent =
   | { type: 'order-queued'; building: number; unitType: string; team: number }
   | { type: 'order-dequeued'; building: number; unitType: string; team: number }
   | { type: 'research-started'; building: number; upgrade: string; team: number }
-  | { type: 'building-sold'; entity: number; buildingType: string; team: number; refund: number }
-  | { type: 'unit-sold'; entity: number; unitType: string; team: number; refund: number }
+  | { type: 'building-sold'; entity: number; buildingType: string; team: number; refund: number; x: number; y: number }
+  | { type: 'unit-sold'; entity: number; unitType: string; team: number; refund: number; x: number; y: number }
+  | { type: 'wreck-collected'; entity: number; team: number; value: number }
   | { type: 'dozer-assigned'; entity: number; building: number; kind: 'construct' | 'repair'; team: number }
   | { type: 'work-cancelled'; entity: number; building: number; team: number }
   | { type: 'spawn-point-set'; building: number; team: number }

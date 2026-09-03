@@ -82,6 +82,8 @@ export interface GraphicsSettings {
   fieldOffset: number
   unitScale: Record<UnitScaleClass, number>
   assetPaths: Record<string, string>
+  /** Selection-bar thumbnail size in px. */
+  hudIconSize: number
 }
 
 export interface EffectRowDef {
@@ -120,6 +122,7 @@ const load = (): GraphicsSettings => {
     fieldOffset: DEFAULT_FIELD_OFFSET,
     unitScale: { ...DEFAULT_UNIT_SCALE },
     assetPaths: { ...DEFAULT_ASSET_PATHS },
+    hudIconSize: 20,
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -157,6 +160,9 @@ const load = (): GraphicsSettings => {
           const v = (parsed.unitScale as Record<string, unknown>)[c]
           if (typeof v === 'number' && Number.isFinite(v)) base.unitScale[c] = v
         }
+      }
+      if (parsed && typeof parsed.hudIconSize === 'number' && Number.isFinite(parsed.hudIconSize)) {
+        base.hudIconSize = Math.max(8, Math.min(64, parsed.hudIconSize))
       }
       if (parsed && parsed.assetPaths && typeof parsed.assetPaths === 'object') {
         // migration: the color slot moved from a filename suffix to a subfolder
@@ -235,6 +241,11 @@ export const setEffect = (id: EffectId, on: boolean): void => {
 
 export const setWeather = (id: WeatherId): void => {
   state.weather = id
+  save(state)
+}
+
+export const setHudIconSize = (px: number): void => {
+  state.hudIconSize = Math.max(8, Math.min(64, Math.round(px)))
   save(state)
 }
 

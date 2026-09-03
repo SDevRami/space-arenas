@@ -213,3 +213,54 @@ The Map Builder is currently a **separate `mapbuilder/` workspace** with its own
 
 ### Verification
 - `npm run typecheck -w client`, `npm run lint`, `npm run build -w client` all green.
+
+---
+
+# Deferred Features — Future Development
+
+These features are deferred: either too large, blocked on the online server, or dependent on features not yet built.
+
+---
+
+## Sea Army (L+, blocked until core is stable)
+
+**4a** — Naval units (destroyer, submarine, carrier, frigate, missile-boat).
+- Full sea-rotation: underwater units, torpedo weapons, naval landing ops.
+- Requires sea-only maps, new terrain type `SeaTile`, underwater fog system.
+- Naval production building (dock), water obstacles + shoreline mechanics.
+- Blocked: needs balanced core ground/air combat first; large scope.
+
+---
+
+## Territory Capture — Full Game Mode (L, after N2c proof-of-concept)
+
+**N2a** — Full territory capture game mode with capturable HQ buildings.
+- Requires N2c (supply capture twist) to be implemented and validated first.
+- Game mode selector in lobby: Conquest / Territory Capture / Survival.
+- Capturable HQ buildings on the map, win by holding majority.
+
+---
+
+## Online Server Backend
+
+- Replace stub account/matchmaking handlers with real WebSocket server.
+- Ranked ladder play, persistent player accounts, cloud match history.
+- **Cloud profile** (#14 partial): sync stats/achievements across devices.
+- Server-side replay validation, anti-cheat.
+
+---
+
+## Cloud Mods
+
+**N7c** — Online mod repository: browse, rate, download balance mods.
+- Requires online server + account system.
+- Community voting, mod versioning, dependency resolution.
+
+---
+
+## Map Builder — Advanced Features
+
+- Collaborative editing (multiplayer map editing).
+- Trigger/scripting system for custom game modes.
+- Terrain heightmap, water flow direction, fog-of-war prebake.
+- See existing work in sections (b) and (d)–(h) above.

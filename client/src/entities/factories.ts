@@ -92,6 +92,7 @@ export const spawnBuilding = (
     flagTy: -1,
     maxPowerUntil: -1,
     maxPowerHpTarget: -1,
+    sellingUntil: 0,
   }
   const h: HealthComp = { hp: def.hp, maxHp: def.hp }
   world.transforms.set(id, t)

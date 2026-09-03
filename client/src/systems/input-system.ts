@@ -365,6 +365,20 @@ export const InputSystem = {
           world.emit({ type: 'dozer-assigned', entity: dozerId, building: target, kind, team: player })
           break
         }
+        case 'collect': {
+          const dozerId = cmd.entities[0]
+          const target = cmd.target ?? -1
+          if (dozerId === undefined || target < 0) break
+          if (!ownedUnit(world, player, dozerId)) break
+          const du = world.units.require(dozerId)
+          if (du.unitType !== 'bulldozer') break
+          if (world.works.has(dozerId)) break
+          const w = world.wrecks.get(target)
+          if (!w) break
+          world.works.set(dozerId, { kind: 'collect', building: target })
+          world.moves.delete(dozerId)
+          break
+        }
         case 'set-spawn-point': {
           const id = cmd.entities[0]
           if (id === undefined || !ownedBuilding(world, player, id)) break
@@ -568,9 +582,11 @@ export const InputSystem = {
             const b = world.buildings.get(id)
             if (b) {
               if (b.team !== player) continue
-              const def = getBuilding(b.buildingType, world.settings)
-              const refund = Math.floor(def.cost * world.settings.sellRefundFraction)
-              teamState.credits += refund
+              // Buildings sell over a short timer: the status frames play in
+              // reverse (5→1) while the building can still be attacked. The
+              // refund is only granted if it survives the full timer (SellSystem).
+              if (b.sellingUntil > world.tick) continue
+              b.sellingUntil = world.tick + world.settings.sellTicks
               if (b.assignedDozer !== 0) {
                 const w = world.works.get(b.assignedDozer)
                 if (w && w.building === id) {
@@ -579,8 +595,9 @@ export const InputSystem = {
                 }
                 b.assignedDozer = 0
               }
-              world.emit({ type: 'building-sold', entity: id, buildingType: b.buildingType, team: player, refund })
-              world.removeEntity(id)
+              world.queues.delete(id)
+              b.researching = ''
+              b.researchTicks = 0
               continue
             }
             const u = world.units.get(id)
@@ -592,7 +609,8 @@ export const InputSystem = {
               world.works.delete(id)
               world.attacks.delete(id)
               world.harvesters.delete(id)
-              world.emit({ type: 'unit-sold', entity: id, unitType: u.unitType, team: player, refund })
+              const ut = world.transforms.get(id)
+              world.emit({ type: 'unit-sold', entity: id, unitType: u.unitType, team: player, refund, x: ut?.x ?? 0, y: ut?.y ?? 0 })
               world.removeEntity(id)
             }
           }

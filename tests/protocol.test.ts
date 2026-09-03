@@ -133,6 +133,7 @@ describe('protocol: type ids are stable', () => {
       'set-flag-point': 14,
       forfeit: 15,
       'max-power': 18,
+      collect: 19,
     })
   })
 })
