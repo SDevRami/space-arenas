@@ -587,7 +587,7 @@ export class Renderer {
       const pulse = 0.5 + Math.sin(world.tick * 0.5 + id) * 0.5
       this.fxGraphics.circle(px, py, r).stroke({ color: 0xff4a5a, width: 3, alpha: 0.9 * frac })
       this.fxGraphics.circle(px, py, r * (0.6 + pulse * 0.4)).fill({ color: 0xff2a4a, alpha: 0.12 * frac })
-      if (effectEnabled('laserBeam')) {
+      if (effectEnabled('effects')) {
         const core = 0xfff2d0
         const beamH = 6000
         const top = py - beamH

@@ -22,10 +22,32 @@ const DEFAULTS: AudioSettings = {
   effects: 0.8,
   ambient: 0.35,
   muted: false,
-  ambientEnabled: true,
+  ambientEnabled: false,
   haptics: true,
   overrides: {},
 }
+
+/** Every sound kind played in the game, overridable via the dev-settings Audio
+ * section (empty override = synth fallback; a path = asset file, e.g. .wav/.mp3). */
+export const SOUND_IDS = [
+  'select',
+  'move-bleep',
+  'alert',
+  'weapon-rifle',
+  'weapon-rocket',
+  'weapon-cannon',
+  'weapon-artillery',
+  'weapon-air-cannon',
+  'unit-trained',
+  'building-completed',
+  'upgrade-completed',
+  'supply-harvested',
+  'combat-hit',
+  'laser-strike',
+  'power-down',
+  'game-over',
+] as const
+export type SoundId = (typeof SOUND_IDS)[number]
 
 const load = (): AudioSettings => {
   const base: AudioSettings = { ...DEFAULTS, overrides: { ...DEFAULTS.overrides } }

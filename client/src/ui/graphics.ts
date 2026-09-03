@@ -1,5 +1,5 @@
 export type GraphicsQuality = 'low' | 'medium' | 'high'
-export type EffectId = 'bulletImpact' | 'bulletProjectile' | 'laserBeam'
+export type EffectId = 'effects'
 export type WeatherId = 'none' | 'rain' | 'snow' | 'thunder'
 
 export const GRAPHICS_QUALITY: GraphicsQuality = 'low'
@@ -68,9 +68,7 @@ export const OIL_FIELD_FRAMES = 4
 const STORAGE_KEY = 'space-arenas:graphics'
 
 const DEFAULT_EFFECTS: Record<EffectId, boolean> = {
-  bulletImpact: true,
-  bulletProjectile: true,
-  laserBeam: true,
+  effects: true,
 }
 
 export interface GraphicsSettings {
@@ -94,19 +92,9 @@ export interface EffectRowDef {
 
 export const EFFECT_ROWS: EffectRowDef[] = [
   {
-    id: 'bulletImpact',
-    labelKey: 'settings.graphics.effects.bulletImpact',
-    descKey: 'settings.graphics.effects.bulletImpactDesc',
-  },
-  {
-    id: 'bulletProjectile',
-    labelKey: 'settings.graphics.effects.bulletProjectile',
-    descKey: 'settings.graphics.effects.bulletProjectileDesc',
-  },
-  {
-    id: 'laserBeam',
-    labelKey: 'settings.graphics.effects.laserBeam',
-    descKey: 'settings.graphics.effects.laserBeamDesc',
+    id: 'effects',
+    labelKey: 'settings.graphics.effectsLabel',
+    descKey: 'settings.graphics.effectsDesc',
   },
 ]
 
@@ -132,6 +120,15 @@ const load = (): GraphicsSettings => {
         for (const id of Object.keys(DEFAULT_EFFECTS) as EffectId[]) {
           const v = parsed.effects[id]
           if (typeof v === 'boolean') base.effects[id] = v
+        }
+        // migration: the three separate combat-effect toggles (bullet impact,
+        // bullet projectile, laser beam) were collapsed into a single one.
+        const legacy = parsed.effects as Record<string, unknown>
+        if (typeof legacy.bulletImpact === 'boolean' || typeof legacy.bulletProjectile === 'boolean' || typeof legacy.laserBeam === 'boolean') {
+          base.effects.effects =
+            legacy.bulletImpact !== false &&
+            legacy.bulletProjectile !== false &&
+            legacy.laserBeam !== false
         }
       }
       if (parsed && WEATHERS.includes(parsed.weather as WeatherId)) {

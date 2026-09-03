@@ -11,6 +11,7 @@ import { createPlayerRow } from './ui/player-row.ts'
 import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
 import { initControlsSettings } from './ui/controls-settings.ts'
 import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setUnitScale, setAssetPath, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_UNIT_SCALE, UNIT_ASSET_IDS, OBSTACLE_ASSET_TYPES } from './ui/graphics.ts'
+import { getAudio, setOverride, type SoundId } from './audio/settings.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
 import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, type MapEntry } from './mapbuilder/library.ts'
 
@@ -613,6 +614,7 @@ const makeTextInput = (
   desc: string,
   value: string,
   onCommit: (v: string) => void,
+  placeholder = 'folder/{color}/folder_{frame}.png',
 ): void => {
   const wrap = document.createElement('div')
   wrap.className = 'dev-field'
@@ -624,7 +626,7 @@ const makeTextInput = (
   const input = document.createElement('input')
   input.type = 'text'
   input.value = value
-  input.placeholder = 'folder/{color}/folder_{frame}.png'
+  input.placeholder = placeholder
   input.addEventListener('change', () => onCommit(input.value.trim()))
   wrap.appendChild(l)
   wrap.appendChild(d)
@@ -639,6 +641,20 @@ const appendAssetGroupLabel = (text: string): void => {
   h.style.marginTop = '6px'
   h.textContent = text
   devGroupEl.appendChild(h)
+}
+
+/** Dev-settings row editing the asset-file path override for one sound kind. */
+const audioPathInput = (id: SoundId): void => {
+  makeTextInput(
+    t(`dev.audio.${id}`),
+    t('dev.fields.audioPath.desc'),
+    getAudio().overrides[id] ?? '',
+    (v) => {
+      setOverride(id, v)
+      setDevStatus(t('dev.status.audioSaved'))
+    },
+    'sounds/{id}.wav',
+  )
 }
 
 const buildOverrideInputs = (mapKey: OverrideMapKey, id: string, defs: OverrideFieldDef[]): void => {
@@ -817,6 +833,17 @@ const buildDevForm = (): void => {
       setAssetPath(`obstacle:${k}`, v)
       setDevStatus(t('dev.status.assetSaved'))
     })
+  }
+  appendDevSection(t('dev.sections.audio'))
+  appendAssetGroupLabel(t('dev.audio.ui'))
+  for (const id of ['select', 'move-bleep', 'alert'] as SoundId[]) audioPathInput(id)
+  appendAssetGroupLabel(t('dev.audio.weapons'))
+  for (const id of ['weapon-rifle', 'weapon-rocket', 'weapon-cannon', 'weapon-artillery', 'weapon-air-cannon'] as SoundId[]) {
+    audioPathInput(id)
+  }
+  appendAssetGroupLabel(t('dev.audio.events'))
+  for (const id of ['unit-trained', 'building-completed', 'upgrade-completed', 'supply-harvested', 'combat-hit', 'laser-strike', 'power-down', 'game-over'] as SoundId[]) {
+    audioPathInput(id)
   }
   for (const section of DEV_SCALAR_SECTIONS) {
     appendDevSection(t(`dev.sections.${section.title}`))

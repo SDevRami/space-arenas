@@ -137,6 +137,31 @@ export class AudioHooks {
         this.playTone({ freq: 880, dur: 0.1, type: 'square', gain: g * 0.5 })
         this.playTone({ freq: 660, dur: 0.1, type: 'square', gain: g * 0.5, delay: 0.12 })
         break
+      case 'unit-trained':
+        this.playTone({ freq: 880, dur: 0.08, gain: g })
+        break
+      case 'building-completed':
+        this.playTone({ freq: 520, dur: 0.12, type: 'triangle', gain: g })
+        break
+      case 'upgrade-completed':
+        this.playTone({ freq: 720, dur: 0.18, type: 'sine', gain: g })
+        break
+      case 'supply-harvested':
+        this.playTone({ freq: 1320, dur: 0.06, type: 'sine', gain: g })
+        break
+      case 'combat-hit':
+        this.playTone({ freq: 120 + ((opts.pitch ?? 0) % 80), dur: 0.04, type: 'sawtooth', gain: g })
+        break
+      case 'laser-strike':
+        this.playTone({ freq: 90, dur: 0.9, type: 'sawtooth', gain: g })
+        this.playTone({ freq: 180, dur: 0.5, type: 'square', gain: g * 0.6 })
+        break
+      case 'power-down':
+        this.playTone({ freq: 140, dur: 0.25, type: 'sawtooth', gain: g })
+        break
+      case 'game-over':
+        this.playTone({ freq: (opts.pitch ?? 1) >= 1 ? 440 : 220, dur: 0.5, type: 'triangle', gain: g })
+        break
       default:
         break
     }
@@ -253,29 +278,28 @@ export class AudioHooks {
   onEvent(e: SimEvent): void {
     switch (e.type) {
       case 'unit-trained':
-        this.playTone({ freq: 880, dur: 0.08 })
+        this.playSfx('unit-trained')
         break
       case 'building-completed':
-        this.playTone({ freq: 520, dur: 0.12, type: 'triangle', gain: 0.07 })
+        this.playSfx('building-completed', { gain: 0.07 })
         break
       case 'upgrade-completed':
-        this.playTone({ freq: 720, dur: 0.18, type: 'sine', gain: 0.06 })
+        this.playSfx('upgrade-completed', { gain: 0.06 })
         break
       case 'supply-harvested':
-        this.playTone({ freq: 1320, dur: 0.06, type: 'sine', gain: 0.04 })
+        this.playSfx('supply-harvested', { gain: 0.04 })
         break
       case 'combat-hit':
-        this.playTone({ freq: 120 + (e.damage % 80), dur: 0.04, type: 'sawtooth', gain: 0.025 })
+        this.playSfx('combat-hit', { pitch: e.damage, gain: 0.025 })
         break
       case 'laser-strike':
-        this.playTone({ freq: 90, dur: 0.9, type: 'sawtooth', gain: 0.07 })
-        this.playTone({ freq: 180, dur: 0.5, type: 'square', gain: 0.04 })
+        this.playSfx('laser-strike', { gain: 0.07 })
         break
       case 'power-down':
-        this.playTone({ freq: 140, dur: 0.25, type: 'sawtooth', gain: 0.06 })
+        this.playSfx('power-down', { gain: 0.06 })
         break
       case 'game-over':
-        this.playTone({ freq: e.winner !== null ? 440 : 220, dur: 0.5, type: 'triangle', gain: 0.08 })
+        this.playSfx('game-over', { pitch: e.winner !== null ? 1 : 0.5, gain: 0.08 })
         break
       default:
         break

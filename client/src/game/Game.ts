@@ -562,8 +562,8 @@ export class Game {
       const msg = this.describeEvent(e)
       if (msg) this.hud.log(msg)
       if (e.type === 'shot-fired') {
-        if (gfx.effects.bulletImpact) renderer.addImpact(e.x, e.y)
-        if (gfx.effects.bulletProjectile) {
+        if (gfx.effects.effects) {
+          renderer.addImpact(e.x, e.y)
           const at = world.transforms.get(e.attacker)
           if (at) renderer.addProjectile(at.x, at.y, e.x, e.y, e.team)
         }
