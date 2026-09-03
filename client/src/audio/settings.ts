@@ -28,7 +28,11 @@ const DEFAULTS: AudioSettings = {
 }
 
 /** Every sound kind played in the game, overridable via the dev-settings Audio
- * section (empty override = synth fallback; a path = asset file, e.g. .wav/.mp3). */
+ * section. An override may be a single audio file (…/x.wav/.mp3/.ogg/.m4a) or a
+ * folder path (`sound/<id>/`) containing `v1.wav, v2.wav, …` — for ordinary
+ * sounds one variant is shuffled per play; for `ambient-lobby`/`ambient-game`
+ * the files play one-after-another in a shuffled loop. Empty override = synth.
+ * The `ambient-lobby` files differ from the `ambient-game` files. */
 export const SOUND_IDS = [
   'select',
   'move-bleep',
@@ -46,6 +50,8 @@ export const SOUND_IDS = [
   'laser-strike',
   'power-down',
   'game-over',
+  'ambient-lobby',
+  'ambient-game',
 ] as const
 export type SoundId = (typeof SOUND_IDS)[number]
 

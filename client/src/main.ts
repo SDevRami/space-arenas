@@ -643,7 +643,7 @@ const appendAssetGroupLabel = (text: string): void => {
   devGroupEl.appendChild(h)
 }
 
-/** Dev-settings row editing the asset-file path override for one sound kind. */
+/** Dev-settings row editing the sound override folder for one sound kind. */
 const audioPathInput = (id: SoundId): void => {
   makeTextInput(
     t(`dev.audio.${id}`),
@@ -653,7 +653,7 @@ const audioPathInput = (id: SoundId): void => {
       setOverride(id, v)
       setDevStatus(t('dev.status.audioSaved'))
     },
-    'sounds/{id}.wav',
+    'sound/{id}/',
   )
 }
 
@@ -845,6 +845,8 @@ const buildDevForm = (): void => {
   for (const id of ['unit-trained', 'building-completed', 'upgrade-completed', 'supply-harvested', 'combat-hit', 'laser-strike', 'power-down', 'game-over'] as SoundId[]) {
     audioPathInput(id)
   }
+  appendAssetGroupLabel(t('dev.audio.ambient'))
+  for (const id of ['ambient-lobby', 'ambient-game'] as SoundId[]) audioPathInput(id)
   for (const section of DEV_SCALAR_SECTIONS) {
     appendDevSection(t(`dev.sections.${section.title}`))
     for (const def of section.fields) {

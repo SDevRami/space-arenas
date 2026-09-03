@@ -64,7 +64,7 @@ const renderSliderRow = (labelKey: string, descKey: string, value: number, onInp
   return div
 }
 
-const renderToggleRow = (labelKey: string, descKey: string, on: boolean, onChange: (next: boolean) => void): HTMLElement => {
+const renderToggleRow = (labelKey: string, descKey: string, current: () => boolean, onChange: (next: boolean) => void): HTMLElement => {
   const div = document.createElement('div')
   div.className = 'ctrl-row'
   const label = document.createElement('div')
@@ -79,14 +79,14 @@ const renderToggleRow = (labelKey: string, descKey: string, on: boolean, onChang
   div.appendChild(label)
   const btn = document.createElement('button')
   btn.type = 'button'
-  btn.className = `btn small ${on ? 'on' : 'off'}`
-  btn.textContent = on ? t('settings.audio.on') : t('settings.audio.off')
+  btn.className = `btn small ${current() ? 'on' : 'off'}`
+  btn.textContent = current() ? t('settings.audio.on') : t('settings.audio.off')
   const setBtnState = (next: boolean): void => {
     btn.className = `btn small ${next ? 'on' : 'off'}`
     btn.textContent = next ? t('settings.audio.on') : t('settings.audio.off')
   }
   btn.addEventListener('click', () => {
-    const next = !on
+    const next = !current()
     onChange(next)
     setBtnState(next)
     refreshEffective()
@@ -110,13 +110,13 @@ const renderAudioList = (): void => {
     renderSliderRow('settings.audio.ambient', 'settings.audio.ambientDesc', a.ambient, (v) => setAmbient(v)),
   )
   audioListEl.appendChild(
-    renderToggleRow('settings.audio.muted', 'settings.audio.mutedDesc', a.muted, (v) => setMuted(v)),
+    renderToggleRow('settings.audio.muted', 'settings.audio.mutedDesc', () => getAudio().muted, (v) => setMuted(v)),
   )
   audioListEl.appendChild(
-    renderToggleRow('settings.audio.ambientOn', 'settings.audio.ambientOnDesc', a.ambientEnabled, (v) => setAmbientEnabled(v)),
+    renderToggleRow('settings.audio.ambientOn', 'settings.audio.ambientOnDesc', () => getAudio().ambientEnabled, (v) => setAmbientEnabled(v)),
   )
   audioListEl.appendChild(
-    renderToggleRow('settings.audio.haptics', 'settings.audio.hapticsDesc', a.haptics, (v) => setHaptics(v)),
+    renderToggleRow('settings.audio.haptics', 'settings.audio.hapticsDesc', () => getAudio().haptics, (v) => setHaptics(v)),
   )
   const summary = document.createElement('div')
   summary.className = 'hint'

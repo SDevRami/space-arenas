@@ -719,7 +719,7 @@
       "assetBuilding": { "label": "Building images path", "desc": "High-quality status image template; {frame} = image 0001-0008 (1-5 construction, 5-8 damage), {color} = player color folder. e.g. pp/1/pp_0001.png. Applied on the next match" },
       "assetUnit": { "label": "Unit image path", "desc": "High-quality directional sprite template; {dir} = one of 8 directions (north, north+east, east, …), {color} = player color folder. e.g. v_b/1/v_b_south.png. Empty = vector shape" },
       "assetObstacle": { "label": "Scenery image path", "desc": "Static object image (tree, rock, wreck), e.g. ao/tree.png — leave empty for the vector shape" },
-      "audioPath": { "label": "Sound file override", "desc": "Replaces the built-in synthsized sound for this effect. Path to a .wav/.mp3/.ogg file, e.g. sounds/select.wav — leave empty for the default synth" },
+      "audioPath": { "label": "Sound override", "desc": "A single file (…/x.wav/.mp3/.ogg) OR a folder under client/dist such as sound/{id}/ holding v1.wav, v2.wav, … Ordinary sounds play a shuffled variant each time; ambient-lobby/ambient-game play their files one-after-another in a shuffled loop. Empty = default synth" },
       "fieldSupply": { "label": "Supply field image path", "desc": "Fill-level image template; {frame} = 1-25, one step per 1/25 of the stored capacity" },
       "fieldOil": { "label": "Oil field image path", "desc": "Damage image template; {frame} = 1-4 at 100/75/50/25% health" },
       "fieldOffset": { "label": "High-quality field offset", "desc": "Shifts the supply/oil field images down from the tile center, as a fraction of r (center-to-bottom distance)" },
@@ -800,7 +800,10 @@
       "combat-hit": "Combat hit",
       "laser-strike": "Laser strike",
       "power-down": "Power down",
-      "game-over": "Game over"
+      "game-over": "Game over",
+      "ambient": "Ambient (looping)",
+      "ambient-lobby": "Ambient — lobby",
+      "ambient-game": "Ambient — in match"
     }
   },
   "menu": {

@@ -34,7 +34,28 @@ export class AudioHooks {
   /** World (fx) position of the listener — updated by Game each frame from the camera center. */
   listenerX = 0
   listenerY = 0
-  private ambientSpec: { freq?: number; type?: OscillatorType; wave?: number } | null = null
+
+  /** Synth drone params for the current ambient layer (used when no audio files exist). */
+  private ambientSynthSpec: { freq?: number; type?: OscillatorType; wave?: number } | null = null
+  /** Which sound id the ambient layer reads its file overrides from (e.g. 'ambient-lobby'). */
+  private ambientKind: string | null = null
+  /** Clean-up token so a stale async ambient build can't start a new layer. */
+  private ambientGen = 0
+  /** Audio buffers backing the ambient file loop. */
+  private ambientBuffers: AudioBuffer[] = []
+  /** Current shuffled play order over ambientBuffers. */
+  private ambientOrder: number[] = []
+  private ambientPos = 0
+  /** The currently playing ambient file source (null when using the synth drone). */
+  private ambientFile: AudioBufferSourceNode | null = null
+
+  /** Resolved variant file lists per override folder (cached). */
+  private variants = new Map<string, string[]>()
+  /** In-flight probes per override folder. */
+  private variantsLoading = new Map<string, Promise<string[]>>()
+  /** Per-sound shuffle deck of variant URLs (SFX, no immediate repeats). */
+  private sfxDecks = new Map<string, string[]>()
+  private sfxIndex = new Map<string, number>()
 
   constructor() {
     onChangeAudio(() => {
@@ -53,7 +74,7 @@ export class AudioHooks {
     } catch {
       this.ctx = null
     }
-    if (this.ctx && this.ambientSpec) this.buildAmbient(this.ambientSpec)
+    if (this.ctx && this.ambientKind) this.buildAmbient(this.ambientKind, this.ambientSynthSpec ?? {})
   }
 
   /** Scale a sound's volume by distance to the listener; 1 at center, ~0.3 at 18 tiles. */
@@ -89,17 +110,96 @@ export class AudioHooks {
   }
 
   /**
-   * Play an effect sound. If `opts.url` is set and decodable, the asset buffer is
-   * used; otherwise the synth fallback runs. Positional falloff is applied when
-   * `x`/`y` are supplied.
+   * Play an effect sound. A single-file `opts.url` plays that file directly. Otherwise
+   * the user override for `kind` is used: a file path (…/x.wav / .mp3 / .ogg / .m4a)
+   * plays that file, while a folder path (…/audio_id/) is probed for `v1.wav, v2.wav,
+   * …` and one variant is picked per play (shuffled, no immediate repeats).
+   * Positional falloff is applied when `x`/`y` are supplied.
    */
   playSfx(kind: string, opts: SfxOpts = {}): void {
-    const url = opts.url ?? getAudio().overrides[kind]
-    if (url && url.length > 0) {
-      void this.playAsset(kind, url, opts)
+    if (opts.url && opts.url.length > 0) {
+      void this.playAsset(kind, opts.url, opts)
+      return
+    }
+    const o = getAudio().overrides[kind]
+    if (o && o.length > 0) {
+      void this.playVariants(kind, opts)
       return
     }
     this.synthSfx(kind, opts)
+  }
+
+  /** Resolve the override for `kind` into a list of candidate file URLs (empty = synth). */
+  private async overrideUrls(kind: string): Promise<string[]> {
+    const o = getAudio().overrides[kind]
+    if (!o || o.length === 0) return []
+    if (/\.(wav|mp3|ogg|m4a)$/i.test(o)) return [o]
+    return this.resolveVariants(o)
+  }
+
+  /** Resolve a folder override into its `v1, v2, …` variant files (probed + cached). */
+  private async resolveVariants(folder: string): Promise<string[]> {
+    const cached = this.variants.get(folder)
+    if (cached) return cached
+    const inflight = this.variantsLoading.get(folder)
+    if (inflight) return inflight
+    const p = this.probeVariants(folder)
+    this.variantsLoading.set(folder, p)
+    try {
+      const urls = await p
+      this.variants.set(folder, urls)
+      return urls
+    } finally {
+      this.variantsLoading.delete(folder)
+    }
+  }
+
+  /** Probe `folder/v1.wav`, `folder/v2.wav`, … until the first one 404s. */
+  private async probeVariants(folder: string): Promise<string[]> {
+    const urls: string[] = []
+    let i = 1
+    for (; i <= 100; i++) {
+      const u = `${folder}v${i}.wav`
+      try {
+        const resp = await fetch(u, { method: 'HEAD' })
+        if (!resp.ok) break
+        urls.push(u)
+      } catch {
+        break
+      }
+    }
+    return urls
+  }
+
+  /** Pick the next variant for a sound from its (auto-shuffled) deck. */
+  private nextVariant(kind: string, urls: string[]): string {
+    let deck = this.sfxDecks.get(kind)
+    let idx = this.sfxIndex.get(kind) ?? 0
+    if (!deck || idx >= deck.length) {
+      deck = [...urls]
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        const tmp = deck[i]
+        deck[i] = deck[j]
+        deck[j] = tmp
+      }
+      idx = 0
+      this.sfxDecks.set(kind, deck)
+      this.sfxIndex.set(kind, 0)
+    }
+    this.sfxIndex.set(kind, idx + 1)
+    return deck[idx]
+  }
+
+  /** Play one random variant from the override folder for `kind` (synth if none). */
+  private async playVariants(kind: string, opts: SfxOpts): Promise<void> {
+    const urls = await this.overrideUrls(kind)
+    if (urls.length === 0) {
+      this.synthSfx(kind, { ...opts })
+      return
+    }
+    const url = this.nextVariant(kind, urls)
+    await this.playAsset(kind, url, opts)
   }
 
   private synthSfx(kind: string, opts: SfxOpts): void {
@@ -172,10 +272,8 @@ export class AudioHooks {
     const master = this.masterGain
     if (!ctx || ctx.state !== 'running' || !master) return
     try {
-      const resp = await fetch(url)
-      if (!resp.ok) return
-      const buf = await resp.arrayBuffer()
-      const audioBuf = await ctx.decodeAudioData(buf)
+      const audioBuf = await this.fetchBuffer(url)
+      if (!audioBuf) return
       const src = ctx.createBufferSource()
       src.buffer = audioBuf
       const g = ctx.createGain()
@@ -191,14 +289,18 @@ export class AudioHooks {
     }
   }
 
-  /** Start (or refit) the ambient layer; idempotent. `freq`/`type`/`wave` shape the drone. */
-  startAmbient(spec: { freq?: number; type?: OscillatorType; wave?: number } = {}): void {
-    this.ambientSpec = spec
+  /** Start (or refit) the ambient layer; idempotent. The layer reads its file
+   * overrides from `kind`, falling back to a synth drone shaped by `synthSpec`
+   * when no audio files exist. File variants play one after another in a
+   * shuffled order that loops. */
+  startAmbient(kind: string, synthSpec: { freq?: number; type?: OscillatorType; wave?: number } = {}): void {
+    this.ambientKind = kind
+    this.ambientSynthSpec = synthSpec
     if (!this.ctx || !this.ambientGain) return
-    this.buildAmbient(spec)
+    void this.buildAmbient(kind, synthSpec)
   }
 
-  private buildAmbient(spec: { freq?: number; type?: OscillatorType; wave?: number }): void {
+  private buildSynthAmbient(spec: { freq?: number; type?: OscillatorType; wave?: number }): void {
     const ctx = this.ctx
     const ambient = this.ambientGain
     if (!ctx || !ambient) return
@@ -221,14 +323,74 @@ export class AudioHooks {
     this.refitAmbient()
   }
 
-  /** Start a lobby ambient drone. */
-  startLobbyAmbient(): void {
-    this.startAmbient({ freq: 49, type: 'sawtooth', wave: 0.2 })
+  /** Build the ambient layer for `kind`; uses file variants when present, else the synth drone. */
+  private async buildAmbient(kind: string, synthSpec: { freq?: number; type?: OscillatorType; wave?: number }): Promise<void> {
+    const ctx = this.ctx
+    const ambient = this.ambientGain
+    if (!ctx || !ambient) return
+    this.stopAmbient()
+    this.ambientGen++
+    const gen = this.ambientGen
+    const urls = await this.overrideUrls(kind)
+    if (gen !== this.ambientGen) return
+    const buffers: AudioBuffer[] = []
+    for (const u of urls) {
+      const b = await this.fetchBuffer(u)
+      if (gen !== this.ambientGen) return
+      if (b) buffers.push(b)
+    }
+    if (gen !== this.ambientGen) return
+    if (buffers.length === 0) {
+      this.buildSynthAmbient(synthSpec)
+      return
+    }
+    this.ambientBuffers = buffers
+    this.ambientOrder = buffers.map((_, i) => i)
+    this.shuffle(this.ambientOrder)
+    this.ambientPos = 0
+    this.playNextAmbientFile()
   }
 
-  /** Start an in-game ambient hum (slightly deeper/present). */
+  /** Play the next ambient file variant (shuffled rotation, loops). */
+  private playNextAmbientFile(): void {
+    const ctx = this.ctx
+    const ambient = this.ambientGain
+    if (!ctx || !ambient) return
+    const gen = this.ambientGen
+    if (this.ambientPos >= this.ambientOrder.length) {
+      this.ambientOrder = this.ambientBuffers.map((_, i) => i)
+      this.shuffle(this.ambientOrder)
+      this.ambientPos = 0
+    }
+    const buf = this.ambientBuffers[this.ambientOrder[this.ambientPos++]]
+    if (!buf) return
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+    const g = ctx.createGain()
+    const t = ctx.currentTime
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(1, t + Math.min(0.5, buf.duration / 2))
+    g.gain.setValueAtTime(1, t + buf.duration - Math.min(0.5, buf.duration / 2))
+    g.gain.exponentialRampToValueAtTime(0.0001, t + buf.duration)
+    src.connect(g)
+    g.connect(ambient)
+    src.onended = () => {
+      if (gen !== this.ambientGen) return
+      this.ambientFile = null
+      this.playNextAmbientFile()
+    }
+    src.start(t)
+    this.ambientFile = src
+  }
+
+  /** Start the lobby ambient layer (own sound id/file overrides). */
+  startLobbyAmbient(): void {
+    this.startAmbient('ambient-lobby', { freq: 49, type: 'sawtooth', wave: 0.2 })
+  }
+
+  /** Start the in-game ambient layer (own sound id/file overrides). */
   startGameAmbient(): void {
-    this.startAmbient({ freq: 55, type: 'sawtooth', wave: 0.35 })
+    this.startAmbient('ambient-game', { freq: 55, type: 'sawtooth', wave: 0.35 })
   }
 
   /** Re-apply the current ambient volume value (call after settings change). */
@@ -239,6 +401,7 @@ export class AudioHooks {
   }
 
   stopAmbient(): void {
+    this.ambientGen++
     if (this.ambientSource) {
       try {
         this.ambientSource.stop()
@@ -246,6 +409,41 @@ export class AudioHooks {
         /* already stopped */
       }
       this.ambientSource = null
+    }
+    if (this.ambientFile) {
+      try {
+        this.ambientFile.onended = null
+        this.ambientFile.stop()
+      } catch {
+        /* already stopped */
+      }
+      this.ambientFile = null
+    }
+    this.ambientBuffers = []
+    this.ambientOrder = []
+    this.ambientPos = 0
+  }
+
+  /** Fetch + decode an audio file into a buffer; null on failure. */
+  private async fetchBuffer(url: string): Promise<AudioBuffer | null> {
+    const ctx = this.ctx
+    if (!ctx) return null
+    try {
+      const resp = await fetch(url)
+      if (!resp.ok) return null
+      const buf = await resp.arrayBuffer()
+      return await ctx.decodeAudioData(buf)
+    } catch {
+      return null
+    }
+  }
+
+  private shuffle<T>(arr: T[]): void {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      const tmp = arr[i]
+      arr[i] = arr[j]
+      arr[j] = tmp
     }
   }
 
