@@ -2,6 +2,7 @@ import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, getBuilding, getUnit, getUpgra
 import type { ProductionOrder, World } from '../core/world.ts'
 import { t, tn } from '../i18n/index.ts'
 import { getGraphics } from './graphics.ts'
+import { modifierLabel } from './controls.ts'
 
 export interface HudActions {
   onBuildClick: (type: string) => void
@@ -78,7 +79,8 @@ export class Hud {
   private lastWorkSig: string | null = null
   private lastResearchSig: string | null = null
   private updaters: Array<() => void> = []
-  private menuSlots: Array<{ enabled: () => boolean; act: () => void }> = []
+  private hotkeySlots: Array<{ key: string; enabled: () => boolean; act: () => void }> = []
+  private usedHotkeys = new Set<string>()
 
   private fpsFrames = 0
   private fpsTime = performance.now()
@@ -237,7 +239,8 @@ export class Hud {
 
   private renderMenu(world: World, selection: Set<number>, localTeam: number, hasBuilder: boolean, hasWorkingDozer: boolean, isMobile: boolean): void {
     let anySection = false
-    this.menuSlots = []
+    this.hotkeySlots = []
+    this.usedHotkeys.clear()
 
     const buildings: Array<{ id: number; type: string; team: number }> = []
     selection.forEach((id) => {
@@ -348,6 +351,9 @@ export class Hud {
             return true
           },
           () => this.actions.onQueueClick(ud.id),
+          undefined,
+          undefined,
+          this.assignUniqueHotkey(tn(ud.id, ud.name)),
         )
       }
     }
@@ -412,6 +418,9 @@ export class Hud {
               return true
             },
             () => this.actions.onResearchClick(up.id),
+            undefined,
+            undefined,
+            this.assignUniqueHotkey(tn(up.id, upDef.name)),
           )
           continue
         }
@@ -429,6 +438,9 @@ export class Hud {
             return true
           },
           () => this.actions.onResearchClick(up.id),
+          undefined,
+          undefined,
+          this.assignUniqueHotkey(tn(up.id, upDef.name)),
         )
       }
     }
@@ -453,16 +465,6 @@ export class Hud {
       label.className = 'qc-label'
       btn.appendChild(label)
       scroll.appendChild(btn)
-      this.menuSlots.push({
-        enabled: () => {
-          const bb = world.buildings.get(bd.id)
-          const hh = world.healths.get(bd.id)
-          if (!bb || !bb.done) return false
-          if (bb.maxPowerUntil > world.tick) return false
-          return !!hh && hh.hp >= hh.maxHp
-        },
-        act: () => this.actions.onMaxPowerClick([bd.id]),
-      })
       btn.addEventListener('click', () => this.actions.onMaxPowerClick([bd.id]))
       this.updaters.push(() => {
         const bb = world.buildings.get(bd.id)
@@ -492,6 +494,9 @@ export class Hud {
             return true
           },
           () => this.actions.onBuildClick(bd.id),
+          undefined,
+          undefined,
+          this.assignUniqueHotkey(tn(bd.id, bd.name)),
         )
       }
     }
@@ -504,7 +509,7 @@ export class Hud {
     for (const updater of this.updaters) updater()
   }
 
-  private addButton(label: string, isEnabled: () => boolean, onClick: () => void, className?: string, iconHtml = '', hover?: { onEnter: () => void; onLeave: () => void }): void {
+  private addButton(label: string, isEnabled: () => boolean, onClick: () => void, className?: string, iconHtml = '', hotkey?: string, hover?: { onEnter: () => void; onLeave: () => void }): void {
     const b = document.createElement('button')
     b.type = 'button'
     b.innerHTML = iconHtml + label
@@ -516,10 +521,34 @@ export class Hud {
       b.addEventListener('mouseleave', hover.onLeave)
     }
     this.buildMenu.appendChild(b)
-    this.menuSlots.push({ enabled: isEnabled, act: onClick })
+    if (hotkey) {
+      this.hotkeySlots.push({ key: hotkey, enabled: isEnabled, act: onClick })
+      const hint = document.createElement('span')
+      hint.className = 'hud-hotkey'
+      hint.textContent = `${modifierLabel()}+${hotkey.toUpperCase()}`
+      b.appendChild(hint)
+    }
     this.updaters.push(() => {
       b.disabled = !isEnabled()
     })
+  }
+
+  /** Pick a unique letter hotkey for a menu button: first free letter (1st, then 2nd, then 3rd…). */
+  private assignUniqueHotkey(label: string): string {
+    const lower = label.toLowerCase()
+    let pick = ''
+    for (const ch of lower) {
+      if (!/[a-z]/.test(ch)) continue
+      if (this.usedHotkeys.has(ch)) continue
+      pick = ch
+      break
+    }
+    if (!pick) {
+      const c = lower.trim().charAt(0) || ''
+      if (c && !/[a-z]/.test(c)) pick = c
+    }
+    if (pick) this.usedHotkeys.add(pick)
+    return pick
   }
 
   private hasAttackable(world: World, selection: Set<number>, localTeam: number): boolean {
@@ -543,19 +572,26 @@ export class Hud {
     b.innerHTML = label
     b.addEventListener('click', onToggle)
     this.buildMenu.appendChild(b)
-    this.menuSlots.push({ enabled: () => true, act: onToggle })
     this.updaters.push(() => {
       b.classList.toggle('active', isActive())
     })
   }
 
-  hudShortcut(n: number): boolean {
-    if (!this.buildMenu.classList.contains('visible')) return false
-    const slot = this.menuSlots[n - 1]
-    if (!slot) return false
-    if (!slot.enabled()) return true
-    slot.act()
-    return true
+  isBuildMenuVisible(): boolean {
+    return this.buildMenu.classList.contains('visible')
+  }
+
+  hudShortcutByLetter(letter: string): boolean {
+    if (!this.isBuildMenuVisible()) return false
+    const l = letter.toLowerCase()
+    for (const s of this.hotkeySlots) {
+      if (s.key === l) {
+        if (!s.enabled()) return true
+        s.act()
+        return true
+      }
+    }
+    return false
   }
 
   private addQueueCard(parent: HTMLElement, buildingId: number, index: number, order: ProductionOrder, name: string, totalTicks: number): void {

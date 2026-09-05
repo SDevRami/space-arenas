@@ -17,7 +17,7 @@ import { BotPlayer } from '../ai/bot.ts'
 import type { MatchConfig } from './match.ts'
 import { StatsBoard, StatsTracker, buildStatsRows, type StatsRow } from '../stats/stats.ts'
 import { t, tn } from '../i18n/index.ts'
-import { getControls } from '../ui/controls.ts'
+import { getControls, modifierLabel } from '../ui/controls.ts'
 import { getGraphics } from '../ui/graphics.ts'
 import { WeatherOverlay } from '../render/weather.ts'
 
@@ -43,6 +43,7 @@ export class Game {
   private mode: GameMode = 'offline'
   private localTeam = 0
   private selection = new Set<number>()
+  private controlGroups = new Map<number, number[]>()
   private moveMarker: { x: number; y: number; until: number; color: number } | null = null
   private pendingPlace: { buildingType: string; dozerId: number } | null = null
   private seq = 0
@@ -80,6 +81,11 @@ export class Game {
   private mmMapBtn: HTMLButtonElement | null = null
   private mmHomeBtn: HTMLButtonElement | null = null
   private logToggle: HTMLButtonElement | null = null
+  private keysToggle: HTMLButtonElement | null = null
+  private groupsDoneBtn: HTMLButtonElement | null = null
+  private groupsOverlay: HTMLDivElement
+  private groupsSig = ''
+  private groupModDown = false
   private pendingLaser = false
   private pendingSpawnPoint = false
   private pendingFlag = false
@@ -100,6 +106,7 @@ export class Game {
     this.onQuit = options?.onQuit
     this.menuBtn = document.getElementById('menu-btn') as HTMLButtonElement
     this.menuOverlay = document.getElementById('menu-overlay') as HTMLDivElement
+    this.groupsOverlay = document.getElementById('groups-overlay') as HTMLDivElement
     this.menuResumeBtn = document.getElementById('menu-resume') as HTMLButtonElement
     this.menuQuitBtn = document.getElementById('menu-quit') as HTMLButtonElement
     this.resultsOverlay = document.getElementById('results-overlay') as HTMLDivElement
@@ -132,6 +139,10 @@ export class Game {
     this.mmHomeBtn?.addEventListener('click', this.onMmHomeClick)
     this.logToggle = document.getElementById('log-toggle') as HTMLButtonElement | null
     this.logToggle?.addEventListener('click', this.onLogToggleClick)
+    this.keysToggle = document.getElementById('keys-toggle') as HTMLButtonElement | null
+    this.keysToggle?.addEventListener('click', this.onKeysToggleClick)
+    this.groupsDoneBtn = document.getElementById('groups-done') as HTMLButtonElement | null
+    this.groupsDoneBtn?.addEventListener('click', this.onGroupsDoneClick)
 
     this.mobileControls = document.getElementById('mobile-controls')
     this.mobileControls?.addEventListener('click', this.onMobileControlsClick)
@@ -428,6 +439,7 @@ export class Game {
 
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
+    window.addEventListener('blur', this.onWindowBlur)
     window.addEventListener('pointerdown', this.onPointerDown, true)
 
     this.world.onSyncTick = (hash) => {
@@ -549,6 +561,7 @@ export class Game {
     if (!this.paused) this.weather?.step()
     this.weather?.draw()
     this.hud.update(world, this.localTeam, world.tick, this.localHash, this.syncOk)
+    this.refreshGroupsPanel()
     this.hud.selectionChanged(this.selection, world, this.localTeam, this.isMobileView())
     this.syncMobileToolButtonsForSelection()
     this.updateSatelliteButton(world)
@@ -1321,6 +1334,7 @@ export class Game {
   }
 
   private onKeyUp = (e: KeyboardEvent): void => {
+    if (this.keyMatch(e, 'groupMod')) this.groupModDown = false
     if (this.keyMatch(e, 'spawnPoint') && this.pendingSpawnPoint) {
       this.pendingSpawnPoint = false
       if (!this.holdPlaced) this.hud.toast(t('game.spawnCancelled'))
@@ -1436,6 +1450,40 @@ export class Game {
     renderer.camera.centerOn(entry.x, entry.y)
     this.selection = new Set([entry.id])
     this.hud.toast(kind === 'harvester' ? t('game.idleHarvester', { i: idx + 1, n: list.length }) : t('game.idleDozer', { i: idx + 1, n: list.length }))
+    this.audio.uiClick()
+  }
+
+  private selectAllCombat(): void {
+    const world = this.world
+    if (!world) return
+    const ids: number[] = []
+    world.units.forEach((id, u) => {
+      if (u.team !== this.localTeam) return
+      if (getUnit(u.unitType, world.settings).weapon) ids.push(id)
+    })
+    if (ids.length === 0) {
+      this.hud.toast(t('game.noCombatUnits'))
+      return
+    }
+    this.selection = new Set(ids)
+    this.hud.toast(t('game.selectedCombat', { n: ids.length }))
+    this.audio.uiClick()
+  }
+
+  private selectAllHarvesters(): void {
+    const world = this.world
+    if (!world) return
+    const ids: number[] = []
+    world.units.forEach((id, u) => {
+      if (u.team !== this.localTeam) return
+      if (getUnit(u.unitType, world.settings).isHarvester) ids.push(id)
+    })
+    if (ids.length === 0) {
+      this.hud.toast(t('game.noHarvesters'))
+      return
+    }
+    this.selection = new Set(ids)
+    this.hud.toast(t('game.selectedHarvesters', { n: ids.length }))
     this.audio.uiClick()
   }
 
@@ -1659,7 +1707,159 @@ export class Game {
     return !!k && e.key.toLowerCase() === k.toLowerCase()
   }
 
+  private saveControlGroup(n: number): void {
+    const world = this.world
+    if (!world) return
+    const ids = [...this.selection].filter((id) => {
+      const b = world.buildings.get(id)
+      if (b && b.team === this.localTeam) return true
+      const u = world.units.get(id)
+      return !!u && u.team === this.localTeam
+    })
+    this.controlGroups.set(n, ids)
+    this.hud.toast(t('game.groupSaved', { n, count: ids.length }))
+  }
+
+  private recallControlGroup(n: number): void {
+    const world = this.world
+    if (!world) return
+    const ids = this.controlGroups.get(n)
+    if (!ids) return
+    const kept: number[] = []
+    for (const id of ids) {
+      const b = world.buildings.get(id)
+      if (b && b.team === this.localTeam) {
+        kept.push(id)
+        continue
+      }
+      const u = world.units.get(id)
+      if (u && u.team === this.localTeam) kept.push(id)
+    }
+    this.selection = new Set(kept)
+  }
+
+  private onKeysToggleClick = (): void => {
+    this.toggleControlGroupsPanel()
+  }
+
+  private onGroupsDoneClick = (): void => {
+    this.groupsOverlay.classList.remove('visible')
+  }
+
+  private toggleControlGroupsPanel(): void {
+    const el = this.groupsOverlay
+    const open = !el.classList.contains('visible')
+    el.classList.toggle('visible', open)
+    if (open) {
+      this.groupsSig = ''
+      this.renderControlGroups()
+    }
+  }
+
+  private groupKeyLabel(n: number): string {
+    const c = getControls()
+    const slot = c[`slot:${n}`] ?? String(n)
+    return `${modifierLabel()}+${slot.toUpperCase()}`
+  }
+
+  private isOwnedAlive(id: number): boolean {
+    const world = this.world
+    if (!world) return false
+    const b = world.buildings.get(id)
+    if (b) return b.team === this.localTeam
+    const u = world.units.get(id)
+    return !!u && u.team === this.localTeam
+  }
+
+  private summarizeGroup(ids: number[]): string {
+    const world = this.world
+    if (!world) return ''
+    const counts = new Map<string, number>()
+    for (const id of ids) {
+      const u = world.units.get(id)
+      let name = ''
+      if (u && u.team === this.localTeam) {
+        name = tn(u.unitType, getUnit(u.unitType, world.settings).name)
+      } else {
+        const b = world.buildings.get(id)
+        if (b && b.team === this.localTeam) name = tn(b.buildingType, getBuilding(b.buildingType).name)
+      }
+      if (name) counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
+    return [...counts.entries()].map(([name, count]) => `${count} ${name}`).join(', ')
+  }
+
+  private renderControlGroups(): void {
+    const listEl = document.getElementById('groups-list')
+    if (!listEl) return
+    listEl.innerHTML = ''
+    let shown = false
+    for (const [n, ids] of [...this.controlGroups.entries()].sort((a, b) => a[0] - b[0])) {
+      const alive = ids.filter((id) => this.isOwnedAlive(id))
+      if (alive.length === 0) {
+        this.controlGroups.delete(n)
+        continue
+      }
+      if (alive.length !== ids.length) this.controlGroups.set(n, alive)
+      shown = true
+      const row = document.createElement('div')
+      row.className = 'group-row'
+      const key = document.createElement('span')
+      key.className = 'group-key'
+      key.textContent = this.groupKeyLabel(n)
+      const desc = document.createElement('span')
+      desc.className = 'group-desc'
+      desc.textContent = this.summarizeGroup(alive)
+      const rm = document.createElement('button')
+      rm.type = 'button'
+      rm.className = 'ghost danger'
+      rm.textContent = t('groups.remove')
+      rm.title = t('groups.removeTitle', { key: this.groupKeyLabel(n) })
+      rm.addEventListener('click', () => this.clearControlGroup(n))
+      row.appendChild(key)
+      row.appendChild(desc)
+      row.appendChild(rm)
+      listEl.appendChild(row)
+    }
+    if (!shown) {
+      const empty = document.createElement('div')
+      empty.className = 'group-empty'
+      empty.textContent = t('groups.empty')
+      listEl.appendChild(empty)
+    }
+  }
+
+  private clearControlGroup(n: number): void {
+    this.controlGroups.delete(n)
+    this.groupsSig = ''
+    this.renderControlGroups()
+    this.hud.toast(t('game.groupCleared', { n: this.groupKeyLabel(n) }))
+    this.audio.uiClick()
+  }
+
+  private refreshGroupsPanel(): void {
+    if (!this.groupsOverlay.classList.contains('visible')) return
+    const sig = [...this.controlGroups.entries()].map(([n, ids]) => `${n}:${ids.join(',')}`).join('|')
+    if (sig === this.groupsSig) return
+    this.groupsSig = sig
+    this.renderControlGroups()
+  }
+
+  private onWindowBlur = (): void => {
+    this.groupModDown = false
+  }
+
+  private modifierHeld(e: KeyboardEvent): boolean {
+    const gm = (getControls().groupMod ?? 'Control').toLowerCase()
+    if (gm === 'control') return e.ctrlKey && !e.altKey && !e.metaKey
+    if (gm === 'shift') return e.shiftKey
+    if (gm === 'alt') return e.altKey
+    if (gm === 'meta') return e.metaKey
+    return this.groupModDown
+  }
+
   private onKeyDown = (e: KeyboardEvent): void => {
+    if (this.keyMatch(e, 'groupMod')) this.groupModDown = true
     if (e.key === 'Escape' || this.keyMatch(e, 'esc')) {
       if (this.chat?.isVisible()) {
         this.chat.hide()
@@ -1679,6 +1879,23 @@ export class Game {
         this.input.guardKey = false
       }
       this.selection.clear()
+      return
+    }
+    if (!isTypingTarget(e.target) && this.modifierHeld(e)) {
+      e.preventDefault()
+      const key = e.key.toLowerCase()
+      if (key.length === 1 && /[a-z]/.test(key) && this.hud.isBuildMenuVisible()) {
+        this.hud.hudShortcutByLetter(key)
+        return
+      }
+      const ctrl = getControls()
+      for (let i = 1; i <= 9; i++) {
+        const k = ctrl[`slot:${i}`]
+        if (k && key === k.toLowerCase()) {
+          this.saveControlGroup(i)
+          return
+        }
+      }
       return
     }
     if (this.keyMatch(e, 'borders')) {
@@ -1749,6 +1966,14 @@ export class Game {
       this.centerOnIdleWorker('bulldozer')
       return
     }
+    if (this.keyMatch(e, 'selectCombat')) {
+      if (!isTypingTarget(e.target)) this.selectAllCombat()
+      return
+    }
+    if (this.keyMatch(e, 'selectHarvesters')) {
+      if (!isTypingTarget(e.target)) this.selectAllHarvesters()
+      return
+    }
     if (this.keyMatch(e, 'log')) {
       this.toggleGameLog()
       return
@@ -1794,12 +2019,15 @@ export class Game {
       })
       if (owned) this.destroySelection()
     }
+    if (isTypingTarget(e.target)) return
+    const key = e.key.toLowerCase()
     const ctrl = getControls()
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= 9; i++) {
       const k = ctrl[`slot:${i}`]
-      if (k && e.key.toLowerCase() === k.toLowerCase()) {
-        if (this.hud.hudShortcut(i)) return
-        break
+      if (!k) continue
+      if (key === k.toLowerCase()) {
+        this.recallControlGroup(i)
+        return
       }
     }
   }
@@ -1861,6 +2089,7 @@ export class Game {
     this.input = null
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
+    window.removeEventListener('blur', this.onWindowBlur)
     window.removeEventListener('pointerdown', this.onPointerDown, true)
     this.net?.close()
     this.net = null
@@ -1882,6 +2111,11 @@ export class Game {
     this.mmHomeBtn = null
     this.logToggle?.removeEventListener('click', this.onLogToggleClick)
     this.logToggle = null
+    this.keysToggle?.removeEventListener('click', this.onKeysToggleClick)
+    this.keysToggle = null
+    this.groupsDoneBtn?.removeEventListener('click', this.onGroupsDoneClick)
+    this.groupsDoneBtn = null
+    this.groupsOverlay.classList.remove('visible')
     this.mobileControls?.removeEventListener('click', this.onMobileControlsClick)
     this.mobileControls = null
     this.renderer?.destroy()

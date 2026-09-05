@@ -84,6 +84,8 @@ export class InputManager {
     c.addEventListener('wheel', this.onWheel, { passive: false })
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
+    window.addEventListener('blur', this.onWindowBlur)
+    document.addEventListener('visibilitychange', this.onVisibilityChange)
   }
 
   detach(): void {
@@ -98,6 +100,8 @@ export class InputManager {
     c.removeEventListener('wheel', this.onWheel)
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
+    window.removeEventListener('blur', this.onWindowBlur)
+    document.removeEventListener('visibilitychange', this.onVisibilityChange)
     this.setTouchEnabled(false)
   }
 
@@ -507,5 +511,22 @@ export class InputManager {
     if (e.key === 'Shift') this.shift = false
     if (e.key === 'Alt') this.alt = false
     if (e.key.toLowerCase() === getControls().attackMove?.toLowerCase()) this.aKey = false
+  }
+
+  private onWindowBlur = (): void => {
+    this.resetModifiers()
+  }
+
+  private onVisibilityChange = (): void => {
+    if (document.visibilityState === 'hidden') this.resetModifiers()
+  }
+
+  private resetModifiers(): void {
+    this.ctrl = false
+    this.shift = false
+    this.alt = false
+    this.aKey = false
+    this.keepAttackKey = false
+    this.guardKey = false
   }
 }

@@ -53,14 +53,15 @@ This report covers the two new lobby sections and the Settings → Controls pane
   - **Restore defaults** → wipes saved bindings to factory defaults.
 - **Rebinding popup** lists, in three groups:
   - *Keyboard shortcuts* — borders, paths, reveal, minimap, box-select, stop, home, idle worker, idle dozer, game log, attack-move, sell, esc.
-  - *HUD selection bar (number keys)* — HUD actions 1–9 that trigger the on-screen selection-bar buttons.
+  - *HUD selection bar (control groups)* — control-group recall keys 1–9 (Ctrl+key saves the group).
   - *Mouse* — informational rows (fixed, e.g. select / box / pan / zoom / minimap-jump / edge-pan), not rebindable.
 - Clicking **Set** on a key/slot row captures the next key; bindings persist in `localStorage` under `space-arenas:controls`; assigning a key already in use swaps it back on the previous holder. **Restore defaults** removes the storage key.
 
 ### Game wiring (beyond the popup)
 - New module `client/src/ui/controls.ts` — default binding table, load/save, uniqueness swap, `getControls()`, `changeBinding()`, `restoreDefaultBindings()`.
 - `client/src/game/Game.ts` now resolves every hotkey through the bindings (`keyMatch(e, 'borders')`, etc.), so rebinding takes effect in-match immediately.
-- Number keys 1–9 trigger the HUD selection-bar buttons via `Hud.hudShortcut(n)` in `client/src/ui/hud.ts`, which calls the exact same click handlers the on-screen buttons use (build / produce / research / command).
+- Number keys 1–9 recall control groups (`Game.saveControlGroup`/`recallControlGroup` in `client/src/game/Game.ts`); the prefix modifier is the user-remappable `groupMod` binding (default `Control`, so the default combo is Ctrl+1–9; rebinding it to e.g. Shift dodges browser-reserved Ctrl combos). It is the first field in the Settings → **Change controls** → "Control groups (number keys)" section. The on-screen selection bar no longer consumes numeric hotkeys: command buttons (stop / multi-pos / destroy / attack / guard / spawn / flag / deselect) are unbounded, and build / produce / research buttons use `groupMod + <letter>` (e.g. `Ctrl+B` for barracks, with the 1st–2nd–3rd letter fallback for duplicate first letters) resolved through `Hud.hudShortcutByLetter` + `Hud.assignUniqueHotkey` in `client/src/ui/hud.ts`, which calls the exact same click handlers the on-screen buttons use.
+- A **Keys** button (`#keys-toggle`, HUD header) opens an in-match **control groups** panel listing each saved group (`Ctrl+1 — 3 Riflemen, 2 Assault Walker`) with a per-group **Remove** button, maintained by `Game.renderControlGroups`/`clearControlGroup`; it is separate from the Settings rebinding popup.
 - `client/src/input/input.ts` reads the `attackMove` binding for the held-`A` attack-move modifier.
 - Game Info **Controls** and **Mobile** tabs were removed from the info panel; their content now renders in the Settings **Controls info** popup via `controlsInfoHtml()` in `client/src/main.ts`, reusing the same `info.controls.*` / `info.mobile.*` strings (the tab labels `info.tab.controls`, `info.tab.mobile` were removed from en/ar).
 

@@ -101,6 +101,7 @@
       .hud-build button.danger { background: var(--color-danger); border-color: var(--color-danger-border); color: var(--color-danger-text); }
       .hud-build button.danger:hover { background: #7a2626; }
       .hud-build .cost { color: var(--color-gold); margin-left: 6px; }
+      .hud-build .hud-hotkey { color: var(--color-text-muted); font-size: 10px; margin-left: 8px; border: 1px solid var(--color-border); border-radius: 3px; padding: 1px 4px; }
       .hud-build .queue-scroll { flex: 0 0 100%; max-width: 100%; min-width: 0; display: flex; flex-direction: row; align-items: center; gap: 6px; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; pointer-events: auto; scrollbar-width: thin; }
       .hud-build .queue-scroll::-webkit-scrollbar { height: 6px; }
       .hud-build .queue-scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
@@ -471,14 +472,21 @@
       #lobby .settings-controls-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
       #lobby .settings-controls-row button { width: auto; margin-top: 0; padding: 8px 16px; }
 
-      #controls-overlay, #controls-info-overlay { position: absolute; inset: 0; z-index: 46; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.7); }
-      #controls-overlay.visible, #controls-info-overlay.visible { display: flex; }
-      #controls-overlay .panel, #controls-info-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 22px; width: 580px; max-width: 94vw; border-radius: 6px; max-height: 86vh; overflow-y: auto; }
-      #controls-overlay h2, #controls-info-overlay h2 { color: var(--color-accent); font-size: 16px; margin-bottom: 8px; }
-      #controls-overlay .row, #controls-info-overlay .row { display: flex; gap: 10px; margin-top: 14px; }
-      #controls-overlay .row button, #controls-info-overlay .row button { flex: 1 1 0; padding: 10px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); cursor: pointer; font-family: inherit; font-size: 13px; }
-      #controls-overlay .row button:hover, #controls-info-overlay .row button:hover { background: var(--color-surface-hover); }
+      #controls-overlay, #controls-info-overlay, #groups-overlay { position: absolute; inset: 0; z-index: 46; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.7); }
+      #controls-overlay.visible, #controls-info-overlay.visible, #groups-overlay.visible { display: flex; }
+      #controls-overlay .panel, #controls-info-overlay .panel, #groups-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 22px; width: 580px; max-width: 94vw; border-radius: 6px; max-height: 86vh; overflow-y: auto; }
+      #controls-overlay h2, #controls-info-overlay h2, #groups-overlay h2 { color: var(--color-accent); font-size: 16px; margin-bottom: 8px; }
+      #groups-overlay .hint { font-size: 11px; color: var(--color-text-muted); margin: 0 0 6px; line-height: 1.4; }
+      #controls-overlay .row, #controls-info-overlay .row, #groups-overlay .row { display: flex; gap: 10px; margin-top: 14px; }
+      #controls-overlay .row button, #controls-info-overlay .row button, #groups-overlay .row button { flex: 1 1 0; padding: 10px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); cursor: pointer; font-family: inherit; font-size: 13px; }
+      #controls-overlay .row button:hover, #controls-info-overlay .row button:hover, #groups-overlay .row button:hover { background: var(--color-surface-hover); }
       .controls-list { display: flex; flex-direction: column; gap: 4px; font-size: 13px; margin-top: 10px; }
+      .groups-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+      .group-row { display: flex; gap: 10px; align-items: center; padding: 8px 12px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); border-radius: 4px; }
+      .group-key { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--color-accent); min-width: 72px; }
+      .group-desc { flex: 1 1 auto; font-size: 12px; color: var(--color-text); min-width: 0; overflow-wrap: anywhere; }
+      .group-row button.ghost.danger { flex: 0 0 auto; margin: 0; padding: 5px 12px; font-size: 12px; }
+      .group-empty { color: var(--color-text-muted); font-size: 12px; padding: 10px 4px; }
       .controls-row { display: flex; gap: 10px; align-items: center; padding: 7px 10px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); border-radius: 4px; }
       .controls-row label { flex: 1 1 auto; margin: 0; color: var(--color-text); font-size: 12px; }
       .controls-row .key { font-family: monospace; letter-spacing: 1px; color: var(--color-gold); padding: 2px 8px; border: 1px solid var(--color-border); background: var(--color-bg); min-width: 56px; text-align: center; border-radius: 3px; }

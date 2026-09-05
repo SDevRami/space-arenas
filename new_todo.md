@@ -19,9 +19,21 @@ Renderer/UI only, no sim changes. Ships together.
 
 **Touch points:** `hud.ts`, `renderer.ts`, `Game.ts` (sell preview state), new icon assets `client/dist/ic/`
 
+**Custom changes on top** (beyond the 4 base tasks):
+
+| # | Feature | Notes |
+|---|---------|-------|
+| 5 | **Wreck collection** | Bulldozers gather persistent wreck entities via new `collect` SimCommand (id 19) for credits. Player kills drop wrecks (team −1); AI kills skip them. Collection shown via progress bar. |
+| 6 | **Timed sell** | Sell is now a timed process: status frames reverse 5→1 over `sellTicks`; refund paid only if it survives (new `sell-system.ts`). Sell animation ends on empty frame `_0001` (not completed `_0005`). |
+| 7 | **Per-player color selection** | 10-color palette in shared; lobby/match rows get a color picker matching team/spawn style; spawn markers + match preview render in chosen color. Renderer uses player color everywhere and preloads only in-use colors. |
+| 8 | **High-quality asset image system** | Buildings/units/fields/obstacles load baked PNGs from `client/dist/<object>/<color>/<object>_<frame|dir>.png` with `{frame}/{dir}/{color}` tokens (4-digit frames); vector color-tinted fallback when absent. |
+| 9 | **Graphics settings + dev Assets section** | Settings → Graphics: quality preset (low/medium/high), single **Effects** toggle, weather, thumbnail size. Dev settings adds per-asset path overrides + building fill/offset, field offset, unit scale. |
+| 10 | **Asset folder restructure** | `client/dist` is the single asset home (root `assets/` removed); color subfolders `1..10` scaffolded for every object folder; build keeps authored images (`emptyOutDir: false`). |
+| 11 | **Protocol** | PROTOCOL_VERSION bumped to 2; `hash.ts` now includes wrecks (collectable state). |
+
 ---
 
-## Day 2 — Audio + Haptics + SFX Ready ✅ DONE
+## Day 2 — Audio + Haptic + SFX Ready ✅ DONE
 
 All audio/haptic, no sim changes. Audio settings (master/effects/ambient volume, mute, ambient toggle, haptics toggle) exposed in the Settings → Audio panel.
 
@@ -36,19 +48,41 @@ All audio/haptic, no sim changes. Audio settings (master/effects/ambient volume,
 
 **Touch points:** `hooks.ts`, `combat-system.ts`, `Game.ts`, `input.ts`
 
+**Custom changes on top** (beyond the 6 base tasks):
+
+| # | Feature | Notes |
+|---|---------|-------|
+| 7 | **Settings → Audio panel** | `audio-settings.ts` exposes master / effects / ambient volume sliders plus Mute all, Ambient layer, and Mobile vibration toggles. Ambient layer defaults **off**, still toggleable. |
+| 8 | **Dev settings Audio section** | `settings.ts` `SOUND_IDS` route every sound through `playSfx`; a per-sound override in dev settings. `.wav/.mp3/.ogg/.m4a` = single file, else a folder; empty = synth fallback. Grouped UI / Weapons / Events / Ambient. |
+| 9 | **Sound variant folders** | Override folder `sound/<id>/` auto-probed for `v1.wav, v2.wav, …` (HEAD probe, cached). Ordinary sounds play one **shuffled** variant per play (no immediate repeats). |
+| 10 | **Ambient variant loops** | Distinct `ambient-lobby` and `ambient-game` folders each play their files **one-after-another in a shuffled, infinite loop**; synth drone fallback when empty. |
+| 11 | **Toggle fix** | Mute all / Ambient layer / Mobile vibration previously stuck after one toggle; click handler now reads live state via `getAudio()` instead of a stale render-time snapshot. |
+
 ---
 
-## Day 3 — Controls QoL: Control Groups + Selection + Attack-Move Paint
+## Day 3 — Controls QoL: Control Groups + Selection ✅ DONE
 
-Client input/selection only, no sim changes.
+Client input/selection only, no sim changes. Point 3 (attack-move paint) is deliberately excluded.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Control groups** — Ctrl+1–9 saves selection, 1–9 recalls it | #21a | `Game.ts` new `Map<number, Set<number>> controlGroups`. Keydown handler for Ctrl+digit saves; digit without Ctrl recalls. Select the group if any unit alive; silently skip if all dead. |
-| 2 | **Selection hotkeys** — select-all combat units, select-all harvesters, double-tap idle worker/dozer | #25a+b | `Game.ts` new bindings `selectCombat`, `selectHarvesters`, `selectIdleWorker`, `selectIdleDozer`. Double-tap idle key cycles through idle units (camera pan + selection swap). |
-| 3 | **Attack-move paint** — Shift+drag on minimap paints a colored attack-move path overlay | #22a | `renderer.ts` new `attackMovePathG` Graphics layer. `Game.ts` Shift+drag handlers paint points into `attackMovePath: Point[]`. Clear on next attack-move command execution. |
+| 1 | **Control groups** — Ctrl+1–9 saves selection, 1–9 recalls it | #21a | `Game.ts` new `Map<number, number[]> controlGroups`. Keydown handler: `Ctrl+digit` saves the current selection (owned units/buildings only); `digit` recalls the group, filtering out any units/buildings no longer alive. Silent skip when empty. |
+| 2 | **Selection hotkeys** — select-all combat units, select-all harvesters, double-tap idle worker/dozer | #25a+b | Added `selectCombat` (default `C`) and `selectHarvesters` (default `W`) bindings wired to `Game.selectAllCombat()` / `selectAllHarvesters()` (`Game.ts`). Double-tap idle worker/dozer cycling already existed via `idleWorkers()` + `centerOnIdleWorker()` using `idleCycleIndex` (newest-first camera pan + selection swap). |
+| 3 | ~~Attack-move paint~~ | — | **Skipped** per user instruction. |
 
-**Touch points:** `Game.ts`, `renderer.ts`, `controls.ts` (new bindings), `input.ts`
+**Touch points:** `Game.ts`, `renderer.ts`, `controls.ts`, `input.ts`
+
+**Custom changes on top** (beyond the base tasks):
+
+| # | Feature | Notes |
+|---|---------|-------|
+| 4 | **HUD selection bar hotkey rework** | Command buttons (stop / multi-pos / destroy / attack / guard / spawn / flag / deselect / max power) no longer hold numeric `1/2/3` bindings — the old `slot:N` numbered mapping is gone. Build / produce / research buttons now bind to **`Ctrl + <first letter>`** of the button name (e.g. `Ctrl+B` = Barracks) via `Hud.hudShortcutByLetter`, and show a `Ctrl+X` hint badge. Bound in `hud.ts` (`hotkeySlots` + `firstLetter()`). |
+| 5 | **Control-group keys repurposed** | The `slot:1..9` remappable bindings now mean control-group recall; `Ctrl+<key>` saves. `controls.ts` drops the old `slot:10`; `controls-settings.ts` `slotRows()` now returns 1–9. |
+| 6 | **Select-all hotkeys added** | New remappable bindings `selectCombat` (`C`) and `selectHarvesters` (`W`) in `controls.ts`, with `settings.controls.entries.*` labels. `Game.selectAllCombat()` (units with a weapon) and `selectAllHarvesters()` select the whole owned fleet and toast a count (new `game.*` i18n keys). The `slots` settings label now reads "Control groups". |
+| 7 | **Shortcut-modifier safety (regression fix)** | All `groupMod+<key>` presses in-game are intercepted **before** single-key handlers and `preventDefault()`ed, so the browser can't hijack them and the modifier `keyup` can't be swallowed (browser-reserved combos like Ctrl+T/W can never be blocked at page level — hence the remappable `groupMod`, see #10). `groupMod`+letter dispatches the build-menu shortcut (`Hud.hudShortcutByLetter`); `groupMod`+digit saves a control group. `input.ts` also resets ctrl/shift/alt/attack-move flags on window blur / tab hide, so a stuck modifier can no longer break deselect-on-empty-click or edge-pan (which requires Ctrl). `recallControlGroup` no longer clears the selection for a never-saved group; saved toast uses `game.groupSaved`. |
+| 8 | **In-game Keys panel button** | `#keys-toggle` in the HUD header (next to Log) opens a **control-groups panel**: one row per group the player saved this match, showing the key (e.g. `Ctrl+1`) and a live summary of its units (e.g. `3 Riflemen, 2 Assault Walker`), each with a **Remove** button that empties the group (`Game.clearControlGroup`). The panel refreshes every frame while open (dead units are dropped, empty groups auto-removed). It does **not** open the binding-settings overlay — the `keys-toggle` wiring is now Game-owned, `controls-settings.ts` wiring reverted. New `groups.*` + `game.groupCleared` i18n keys. |
+| 9 | **Conflicting letter hotkeys fall back** | In `hud.ts`, `firstLetter()` replaced with `Hud.assignUniqueHotkey(label)` which tracks letters used across the whole current menu and picks the first unused letter (1st → 2nd → 3rd …) for every build / produce / research button — e.g. Tech Center and Turret no longer both get `Ctrl+T`. Non-Latin (Arabic) labels keep the first-character fallback. |
+| 10 | **Remappable group/shortcut modifier** | New binding `groupMod` (default `Control`) — shown as the **first field of the "Control groups (number keys)" settings section** ("Group modifier (X + number)"). The combo becomes `groupMod` + number (e.g. **Shift+1** after rebinding), which sidesteps browser-reserved combos that pages cannot override (Ctrl+T/W/N etc.). The same modifier drives the build-menu letter shortcuts, the `Ctrl+X` hint badges (`Hud.modifierLabel()`), the Keys panel key labels, and the keydown interception (`Game.modifierHeld(e)` — event flags for Control/Shift/Alt/Meta, held-key tracking `groupModDown` for letter modifiers, reset on window blur). Edge-pan / Ctrl+click keep their own `mod` (Control) binding untouched. |
 
 ---
 
@@ -322,7 +356,7 @@ New game mode overlay with guided walkthrough.
 |-----|--------|--------|-------------|--------|
 | 1 | UI icons + wreck + sell | S | No | ✅ |
 | 2 | Audio + haptics + SFX | S | No | ✅ |
-| 3 | Control groups + selection + paint | S | No | |
+| 3 | Control groups + selection (+ bar-hotkey rework) | S | No | ✅ (point 3 skipped) |
 | 4 | Fog modes + day/night + base alert | M | Yes | |
 | 5 | Damage feedback + settings + shake | S | No | |
 | 6 | Pings + spectator + perf | M | Yes | |

@@ -1,5 +1,5 @@
 import { t } from '../i18n/index.ts'
-import { CONTROL_ROWS, getControls, changeBinding, restoreDefaultBindings, slotRows, mouseSide, type ControlRowDef } from './controls.ts'
+import { CONTROL_ROWS, getControls, changeBinding, restoreDefaultBindings, slotRows, groupModRow, mouseSide, type ControlRowDef } from './controls.ts'
 
 // ---------- controls (settings) ----------
 
@@ -76,7 +76,7 @@ const renderControlsList = (): void => {
   controlsListEl.innerHTML = ''
   const groups: Array<{ labelKey: string; rows: ControlRowDef[] }> = [
     { labelKey: 'settings.controls.keyboard', rows: CONTROL_ROWS.filter((r) => r.kind === 'key') },
-    { labelKey: 'settings.controls.slots', rows: slotRows() },
+    { labelKey: 'settings.controls.slots', rows: [groupModRow(), ...slotRows()] },
     { labelKey: 'settings.controls.mouse', rows: CONTROL_ROWS.filter((r) => r.kind === 'mouse') },
   ]
   for (const g of groups) {
@@ -120,13 +120,14 @@ const doRestoreControls = (): void => {
 }
 
 export const initControlsSettings = (getControlsInfoHtml: () => string): { renderControlsList: () => void; controlsOverlay: HTMLDivElement; controlsInfoOverlay: HTMLDivElement; controlsInfoContent: HTMLDivElement } => {
-  document.getElementById('ctrls-change')!.addEventListener('click', () => {
+  const openControls = (): void => {
     captureId = null
     setCtrlsStatus('')
     ctrlsCaptureHint.textContent = t('settings.controls.rebindHint')
     renderControlsList()
     controlsOverlay.classList.add('visible')
-  })
+  }
+  document.getElementById('ctrls-change')!.addEventListener('click', openControls)
   document.getElementById('ctrls-restore')!.addEventListener('click', doRestoreControls)
   document.getElementById('controls-reset')!.addEventListener('click', doRestoreControls)
   document.getElementById('controls-done')!.addEventListener('click', () => {

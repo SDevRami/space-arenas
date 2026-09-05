@@ -26,6 +26,8 @@ export const DEFAULT_BINDINGS: Bindings = {
   home: 'h',
   idleWorker: 'i',
   idleDozer: 'd',
+  selectCombat: 'c',
+  selectHarvesters: 'w',
   log: 'l',
   attackMove: 'a',
   keepAttack: 'k',
@@ -41,6 +43,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   panLeft: 'ArrowLeft',
   panRight: 'ArrowRight',
   mod: 'Control',
+  groupMod: 'Control',
   select: 'left',
   box: 'left',
   ctrl: 'left',
@@ -54,7 +57,6 @@ export const DEFAULT_BINDINGS: Bindings = {
   'slot:7': '7',
   'slot:8': '8',
   'slot:9': '9',
-  'slot:10': '0',
 }
 
 const isKnown = (id: string): boolean => Object.prototype.hasOwnProperty.call(DEFAULT_BINDINGS, id)
@@ -124,6 +126,8 @@ export const CONTROL_ROWS: ControlRowDef[] = [
   { id: 'home', kind: 'key', labelKey: 'info.controls.home' },
   { id: 'idleWorker', kind: 'key', labelKey: 'info.controls.idleWorker' },
   { id: 'idleDozer', kind: 'key', labelKey: 'info.controls.idleDozer' },
+  { id: 'selectCombat', kind: 'key', labelKey: 'settings.controls.entries.selectCombat' },
+  { id: 'selectHarvesters', kind: 'key', labelKey: 'settings.controls.entries.selectHarvesters' },
   { id: 'log', kind: 'key', labelKey: 'settings.controls.entries.log' },
   { id: 'attackMove', kind: 'key', labelKey: 'info.controls.attackMove' },
   { id: 'keepAttack', kind: 'key', labelKey: 'info.controls.keepAttack' },
@@ -149,8 +153,21 @@ export const CONTROL_ROWS: ControlRowDef[] = [
 ]
 
 export const slotRows = (): ControlRowDef[] =>
-  Array.from({ length: 10 }, (_, i) => ({
+  Array.from({ length: 9 }, (_, i) => ({
     id: `slot:${i + 1}`,
     kind: 'slot' as const,
     slot: i + 1,
   }))
+
+export const groupModRow = (): ControlRowDef => ({ id: 'groupMod', kind: 'key', labelKey: 'settings.controls.entries.groupMod' })
+
+/** Human label for a modifier binding: 'Control' → Ctrl, 'Shift' → Shift, letters → uppercase. */
+export const modifierLabel = (id: 'groupMod' | 'mod' = 'groupMod'): string => {
+  const k = getControls()[id] ?? 'Control'
+  const l = k.toLowerCase()
+  if (l === 'control') return 'Ctrl'
+  if (l === 'meta') return 'Meta'
+  if (l === 'shift') return 'Shift'
+  if (l === 'alt') return 'Alt'
+  return k.length === 1 ? k.toUpperCase() : k
+}

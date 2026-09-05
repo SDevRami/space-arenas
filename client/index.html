@@ -25,6 +25,7 @@
           <span id="sync-info"></span>
           <span id="fps-info" class="fps-info"></span>
           <button class="menu-btn" id="log-toggle" data-i18n-title="tools.logTitle" data-i18n="tools.log">Log</button>
+          <button class="menu-btn" id="keys-toggle" data-i18n-title="tools.keysTitle" data-i18n="tools.keys">Keys</button>
           <button class="menu-btn hud-chat-btn" id="chat-btn" data-i18n-title="chat.buttonTitle"><span data-i18n="chat.button">Chat</span><span class="badge"></span></button>
           <button class="menu-btn" id="menu-btn" data-i18n="menu.button">Menu</button>
         </div>
@@ -532,6 +533,16 @@
           <div class="row">
             <button class="ghost" id="invite-copy" data-i18n="lobby.inviteCopy">Copy Link</button>
             <button class="primary" id="invite-close" data-i18n="lobby.inviteClose">Close</button>
+          </div>
+        </div>
+      </div>
+      <div id="groups-overlay">
+        <div class="panel">
+          <h2 data-i18n="groups.h2">Control groups</h2>
+          <p class="hint" data-i18n="groups.hint">Control groups you saved in this match with Ctrl+1-9. Press a group key to select those units again, or remove a group here.</p>
+          <div class="groups-list" id="groups-list"></div>
+          <div class="row">
+            <button id="groups-done" data-i18n="settings.controls.done">Done</button>
           </div>
         </div>
       </div>

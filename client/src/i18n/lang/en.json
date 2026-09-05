@@ -39,9 +39,9 @@
       "restore": "Restore defaults",
       "restored": "Controls restored to defaults.",
       "keyboard": "Keyboard shortcuts",
-      "slots": "HUD selection bar (number keys)",
+      "slots": "Control groups (number keys)",
       "mouse": "Mouse",
-      "slot": "HUD action {n}",
+      "slot": "Control group {n}",
       "setKey": "Set",
       "left": "Left",
       "right": "Right",
@@ -52,8 +52,11 @@
       "rebound": "Bound to {key}.",
       "done": "Done",
       "entries": {
+        "groupMod": "Group modifier (X + number)",
         "boxSelect": "Box-select mode toggle",
-        "log": "Toggle game log overlay"
+        "log": "Toggle game log overlay",
+        "selectCombat": "Select all combat units",
+        "selectHarvesters": "Select all harvesters"
       }
     },
     "graphics": {
@@ -913,10 +916,19 @@
     "cancel": "Cancel",
     "sell": "Sell"
   },
+  "groups": {
+    "h2": "Control groups",
+    "hint": "Groups you saved in this match with your group key + a number (default Ctrl+1-9). Press a group key to select its units again, or remove a group below.",
+    "empty": "No control groups yet — select units, then press your group key + a number (default Ctrl+1) to save them.",
+    "remove": "Remove",
+    "removeTitle": "Empty control group {key}"
+  },
   "tools": {
     "label": "Tools",
     "log": "Log",
     "logTitle": "Toggle game log (L)",
+    "keys": "Keys",
+    "keysTitle": "Control groups saved in this match",
     "minimapShort": "Map",
     "minimapTitle": "Toggle minimap size (M)",
     "homeShort": "Home",
@@ -1036,6 +1048,12 @@
     "noIdleDozers": "No idle bulldozers",
     "idleHarvester": "Idle harvester {i}/{n}",
     "idleDozer": "Idle bulldozer {i}/{n}",
+    "noCombatUnits": "No combat units",
+    "selectedCombat": "Selected {n} combat unit(s)",
+    "noHarvesters": "No harvesters",
+    "selectedHarvesters": "Selected {n} harvester(s)",
+    "groupSaved": "Group {n} saved ({count})",
+    "groupCleared": "Group {n} cleared",
     "laserTarget": "Space laser targeting — click a location, Esc to cancel",
     "laserCancelled": "Space laser targeting cancelled",
     "laserInvalid": "Cannot target there",
