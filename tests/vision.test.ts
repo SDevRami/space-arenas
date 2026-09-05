@@ -82,4 +82,38 @@ describe('VisionSystem', () => {
 
     expect(fogAt(world, 0, tx, ty)).toBe(2)
   })
+
+  it('hard fog forgets seen tiles instantly', () => {
+    const sim = new Simulator(makeMap(), SEED, [0, 1], { fogMode: 'hard' })
+    const { world } = sim
+    const scout = spawnUnit(world, 'scout', 0, 10000, 10000)
+    sim.step()
+
+    const tx = 3
+    const ty = 3
+    expect(fogAt(world, 0, tx, ty)).toBe(2)
+
+    world.transforms.require(scout).x = 50000
+    world.transforms.require(scout).y = 50000
+    sim.step()
+
+    expect(fogAt(world, 0, tx, ty)).toBe(0)
+  })
+
+  it('classic fog keeps seen tiles bright (no explore fade)', () => {
+    const sim = new Simulator(makeMap(), SEED, [0, 1], { fogMode: 'classic' })
+    const { world } = sim
+    const scout = spawnUnit(world, 'scout', 0, 10000, 10000)
+    sim.step()
+
+    const tx = 3
+    const ty = 3
+    expect(fogAt(world, 0, tx, ty)).toBe(2)
+
+    world.transforms.require(scout).x = 50000
+    world.transforms.require(scout).y = 50000
+    sim.step()
+
+    expect(fogAt(world, 0, tx, ty)).toBe(2)
+  })
 })

@@ -5,7 +5,7 @@ export const SECONDS_TO_TICKS = (seconds: number): number => Math.round(seconds 
 
 export const DEFAULT_PORT = 17321
 export const DEFAULT_MAX_PLAYERS = 8
-export const PROTOCOL_VERSION = 2
+export const PROTOCOL_VERSION = 3
 
 /** Number of selectable per-player colors. */
 export const PLAYER_COLOR_COUNT = 10
@@ -32,6 +32,16 @@ export const SATELLITE_COOLDOWN_TICKS = SECONDS_TO_TICKS(30)
 
 /** How long the "Max Power" overdrive lasts on a power plant before it overheats. */
 export const MAX_POWER_TICKS = SECONDS_TO_TICKS(30)
+
+/** Fog-of-war decay mode: Memory keeps explored tiles dim, Classic skips the fade (seen = bright forever), Hard forgets everything instantly. */
+export const FOG_MODES = ['memory', 'classic', 'hard'] as const
+export type FogMode = (typeof FOG_MODES)[number]
+export const FOG_MODE_DEFAULT: FogMode = 'memory'
+
+/** Length of one full day/night cycle, in game ticks, when dayNight is enabled. */
+export const DAY_NIGHT_CYCLE_TICKS = SECONDS_TO_TICKS(310)
+/** Duration of the dusk and dawn transition phases within the cycle. */
+export const DAY_NIGHT_TRANSITION_TICKS = SECONDS_TO_TICKS(60)
 
 export const LASER_COOLDOWN_TICKS = SECONDS_TO_TICKS(60)
 export const LASER_RADIUS = 3
@@ -125,6 +135,10 @@ export interface MatchSettings {
   laserDelayTicksLv2: number
   maxPowerTicks: number
   fogFadeDistance: number
+  fogMode: FogMode
+  dayNight: boolean
+  dayNightCycleTicks: number
+  dayNightTransitionTicks: number
   sellRefundFraction: number
   sellTicks: number
   wreckValueFraction: number
@@ -189,6 +203,10 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   laserDelayTicksLv2: LASER_DELAY_TICKS_LV2,
   maxPowerTicks: MAX_POWER_TICKS,
   fogFadeDistance: FOG_FADE_DISTANCE,
+  fogMode: FOG_MODE_DEFAULT,
+  dayNight: false,
+  dayNightCycleTicks: DAY_NIGHT_CYCLE_TICKS,
+  dayNightTransitionTicks: DAY_NIGHT_TRANSITION_TICKS,
   sellRefundFraction: DEFAULT_SELL_REFUND_FRACTION,
   sellTicks: DEFAULT_SELL_TICKS,
   wreckValueFraction: DEFAULT_WRECK_VALUE_FRACTION,

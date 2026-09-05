@@ -203,6 +203,12 @@
       #lobby .status { margin-top: 10px; font-size: 12px; color: var(--color-text-muted); white-space: pre-wrap; }
       #lobby .error { color: var(--color-error); }
       #lobby .hidden-panel { display: none; }
+      #lobby .check-label { display: inline-flex; align-items: center; gap: 8px; margin: 12px 0 4px; font-size: 12px; color: var(--color-text); cursor: pointer; user-select: none; }
+      #lobby .check-label input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 34px; height: 18px; border-radius: 10px; background: var(--color-border); border: 1px solid var(--color-border-light); position: relative; cursor: pointer; flex: 0 0 auto; transition: background 0.15s ease; padding: 0; margin: 0; }
+      #lobby .check-label input[type="checkbox"]::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--color-text-muted); transition: transform 0.15s ease, background 0.15s ease; }
+      #lobby .check-label input[type="checkbox"]:checked { background: var(--color-primary); border-color: var(--color-primary-hover); }
+      #lobby .check-label input[type="checkbox"]:checked::after { transform: translateX(16px); background: #fff; }
+      #lobby .check-label:hover input[type="checkbox"] { box-shadow: 0 0 0 2px rgba(94, 130, 255, 0.18); }
 
       #lobby .net-grid { display: flex; gap: 16px; margin-top: 10px; align-items: flex-start; flex-wrap: wrap; }
       #lobby .net-left { flex: 1 1 280px; min-width: 260px; }
@@ -271,6 +277,7 @@
       #lobby .dev-field label { margin: 0; color: var(--color-text-muted); }
       #lobby .dev-desc { font-size: 11px; color: var(--color-text-dim); line-height: 1.35; }
       #lobby .dev-field input { width: 100%; }
+      #lobby .dev-field select { width: 100%; background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); padding: 8px; font-family: inherit; }
       #lobby .dev-field.dev-overridden { border-color: #2e6fb0; background: #101a2e; }
       #lobby .dev-field.dev-overridden label { color: #ffd479; }
       #lobby .dev-field.dev-overridden .dev-desc { color: #7d92b8; }
@@ -485,7 +492,8 @@
       .group-row { display: flex; gap: 10px; align-items: center; padding: 8px 12px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); border-radius: 4px; }
       .group-key { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--color-accent); min-width: 72px; }
       .group-desc { flex: 1 1 auto; font-size: 12px; color: var(--color-text); min-width: 0; overflow-wrap: anywhere; }
-      .group-row button.ghost.danger { flex: 0 0 auto; margin: 0; padding: 5px 12px; font-size: 12px; }
+      .group-row button.ghost.danger { flex: 0 0 auto; margin: 0; padding: 5px 12px; font-size: 12px; background: transparent; border: 1px solid var(--color-danger-border); color: var(--color-danger-text); border-radius: 4px; cursor: pointer; font-family: inherit; }
+      .group-row button.ghost.danger:hover { background: var(--color-danger); color: #fff; }
       .group-empty { color: var(--color-text-muted); font-size: 12px; padding: 10px 4px; }
       .controls-row { display: flex; gap: 10px; align-items: center; padding: 7px 10px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); border-radius: 4px; }
       .controls-row label { flex: 1 1 auto; margin: 0; color: var(--color-text); font-size: 12px; }

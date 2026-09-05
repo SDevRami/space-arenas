@@ -237,6 +237,11 @@ export class AudioHooks {
         this.playTone({ freq: 880, dur: 0.1, type: 'square', gain: g * 0.5 })
         this.playTone({ freq: 660, dur: 0.1, type: 'square', gain: g * 0.5, delay: 0.12 })
         break
+      case 'base-alert':
+        this.playTone({ freq: 880, dur: 0.09, type: 'square', gain: g * 0.6 })
+        this.playTone({ freq: 660, dur: 0.09, type: 'square', gain: g * 0.6, delay: 0.12 })
+        this.playTone({ freq: 880, dur: 0.09, type: 'square', gain: g * 0.6, delay: 0.24 })
+        break
       case 'unit-trained':
         this.playTone({ freq: 880, dur: 0.08, gain: g })
         break
@@ -455,6 +460,11 @@ export class AudioHooks {
 
   uiClick(): void {
     this.playTone({ freq: 660, dur: 0.05, type: 'square', gain: 0.03 })
+  }
+
+  /** Alarm when one of our buildings takes enemy damage. */
+  baseAlert(x: number, y: number): void {
+    this.playSfx('base-alert', { x, y, gain: 0.08 })
   }
 
   /** Play a positional weapon fire sound. */

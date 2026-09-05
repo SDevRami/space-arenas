@@ -6,6 +6,7 @@ export type SimEvent =
   | { type: 'building-completed'; entity: number; buildingType: string; team: number }
   | { type: 'upgrade-completed'; building: number; upgrade: string; team: number }
   | { type: 'combat-hit'; attacker: number; target: number; damage: number; team: number }
+  | { type: 'base-under-attack'; building: number; team: number; x: number; y: number }
   | { type: 'shot-fired'; attacker: number; x: number; y: number; team: number }
   | { type: 'supply-harvested'; team: number; amount: number }
   | { type: 'oil-claiming'; field: number; entity: number; team: number }

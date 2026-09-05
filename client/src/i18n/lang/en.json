@@ -216,6 +216,15 @@
     "startingCredits": "Starting credits",
     "weather": "Weather (visual only)",
     "weatherHint": "A cosmetic overlay on your screen only. It does not change the game rules.",
+    "fogMode": "Fog of war",
+    "fogHint": "How the map remembers what your units explored.",
+    "fog": {
+      "memory": "Classic (map stays explored)",
+      "classic": "Classic+ (no fade — seen areas stay bright)",
+      "hard": "Hard (fog always returns)"
+    },
+    "dayNight": "Day/night cycle",
+    "dayNightHint": "A 5-minute day/night cycle darkens the world at night. Cosmetic.",
     "winCondition": "Win condition",
     "win": {
       "standard": "Standard (base destruction)",
@@ -345,7 +354,10 @@
     "botTitleEdit": "Edit bot name",
     "botDifficultyTitle": "Bot difficulty",
     "creditsUpdating": "Updating starting credits…",
-    "winChanging": "Changing win condition to {n}…"
+    "winChanging": "Changing win condition to {n}…",
+    "fogChanging": "Changing fog of war to {n}…",
+    "dayNightOn": "Day/night cycle ON",
+    "dayNightOff": "Day/night cycle OFF"
   },
   "info": {
     "h1": "Game Info",
@@ -644,6 +656,7 @@
       "satellite": "Satellite",
       "laser": "Space laser",
       "fog": "Fog of war",
+      "dayNight": "Day/night cycle (synced)",
       "worldFields": "World fields (0 = use the map value)",
       "movement": "Movement & separation (synced)",
       "combat": "Combat behaviour (synced)",
@@ -681,6 +694,9 @@
       "laserDelayTicksLv2": { "label": "Laser wind-up lv.2", "desc": "Delay after picking the target before a level-2 laser starts firing" },
       "maxPowerTicks": { "label": "Max Power duration", "desc": "How long the Max Power overdrive lasts before a power plant overheats to 50% HP" },
       "fogFadeDistance": { "label": "Fog fade distance", "desc": "How deep (in cells) enemy units stay visible behind the fog edge" },
+      "fogMode": { "label": "Fog mode", "desc": "How the map treats tiles you have seen: keep explored (memory), keep bright forever (classic), or forget instantly (hard)" },
+      "dayNightCycleTicks": { "label": "Day/night cycle", "desc": "Time for a full day → dusk → night → dawn cycle" },
+      "dayNightTransitionTicks": { "label": "Dusk/dawn transition", "desc": "Length of the dusk and dawn fade phases" },
       "supplyFieldCapacity": { "label": "Supply field capacity", "desc": "0 = use the map value" },
       "supplyFieldRadius": { "label": "Supply field radius", "desc": "0 = use the map value" },
       "oilFieldRadius": { "label": "Oil field radius", "desc": "0 = use the map value" },
@@ -1016,7 +1032,8 @@
       "maxPowerTeam": "Team {t} pushed a power plant to Max Power",
       "maxPowerEnd": "Max Power over — power plant overheated to 50% HP",
       "playerLeft": "Team {t} left — ${a} distributed to supply fields",
-      "destroyed": "{name} destroyed"
+      "destroyed": "{name} destroyed",
+      "baseAttacked": "Your base is under attack — team {t}"
     },
     "noFreeDozer": "No free Bulldozer selected",
     "place": "Place {name} — click a location, Esc to cancel",

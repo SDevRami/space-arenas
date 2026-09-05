@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type SimCommand, type SpectateSyncMessage } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type SimCommand, type SpectateSyncMessage } from '@space-arenas/shared'
 import { World, placementExplored, type WorldGrid } from '../core/world.ts'
 import { Simulator } from '../core/Simulator.ts'
 import { GameLoop } from '../core/loop.ts'
@@ -45,6 +45,7 @@ export class Game {
   private selection = new Set<number>()
   private controlGroups = new Map<number, number[]>()
   private moveMarker: { x: number; y: number; until: number; color: number } | null = null
+  private baseAlertCooldowns = new Map<number, number>()
   private pendingPlace: { buildingType: string; dozerId: number } | null = null
   private seq = 0
   private pendingCmds: EnvelopeCommand[] = []
@@ -558,6 +559,7 @@ export class Game {
 
     const ghost = this.computeGhost()
     renderer.render(world, this.localTeam, this.selection, ghost, input.boxRect, this.moveMarker)
+    renderer.setDayNight(world.settings.dayNight ? this.dayPhase(world) : 0)
     if (!this.paused) this.weather?.step()
     this.weather?.draw()
     this.hud.update(world, this.localTeam, world.tick, this.localHash, this.syncOk)
@@ -586,6 +588,14 @@ export class Game {
       if (e.type === 'combat-hit' && world.teamOf(e.target) === this.localTeam) {
         hapticDamaged()
       }
+      if (e.type === 'base-under-attack' && e.team === this.localTeam) {
+        const last = this.baseAlertCooldowns.get(e.team) ?? -Infinity
+        if (world.tick - last >= SECONDS_TO_TICKS(4)) {
+          this.baseAlertCooldowns.set(e.team, world.tick)
+          this.audio.baseAlert(e.x, e.y)
+          this.mm?.flashBuilding(world.tick, e.team, e.x, e.y)
+        }
+      }
       if (e.type === 'scenery-destroyed' && e.kind === 'tree') {
         renderer.addTreeFall(e.x, e.y, e.w, e.h)
       }
@@ -601,6 +611,19 @@ export class Game {
         this.hud.toast(t('game.rejected', { reason: e.reason }))
       }
     }
+  }
+
+  /** 0..1 night factor for the day/night cycle: day → dusk → night → dawn, over one full cycle. */
+  private dayPhase(world: World): number {
+    const cycle = world.settings.dayNightCycleTicks
+    const T = world.settings.dayNightTransitionTicks
+    if (cycle <= 0 || T <= 0) return 0
+    const cyc = world.tick % cycle
+    const half = Math.max(0, (cycle - 2 * T) / 2)
+    if (cyc < half) return 0
+    if (cyc < half + T) return (cyc - half) / T
+    if (cyc < half + T + half) return 1
+    return 1 - (cyc - half - T - half) / T
   }
 
   private describeEvent(e: SimEvent): string | null {
@@ -686,6 +709,12 @@ export class Game {
         return t('game.rejected', { reason: e.reason })
       case 'player-left':
         return t('game.events.playerLeft', { t: e.team, a: e.amount })
+      case 'base-under-attack': {
+        if (e.team !== this.localTeam) return null
+        const last = this.baseAlertCooldowns.get(e.team) ?? -Infinity
+        if (this.world && this.world.tick - last < SECONDS_TO_TICKS(4)) return null
+        return t('game.events.baseAttacked', { t: e.team })
+      }
       case 'game-over':
         return this.netTitle(e.winner)
       default:
@@ -1707,6 +1736,15 @@ export class Game {
     return !!k && e.key.toLowerCase() === k.toLowerCase()
   }
 
+  /** The key's identity (letter/digit) independent of modifier state, so Shift+1 resolves to '1', not '!'. */
+  private eventKeyChar(e: KeyboardEvent): string {
+    const c = e.code
+    if (c.startsWith('Digit')) return c.slice('Digit'.length)
+    if (c.startsWith('Numpad')) return c.slice('Numpad'.length)
+    if (c.startsWith('Key')) return c.slice('Key'.length).toLowerCase()
+    return e.key.toLowerCase()
+  }
+
   private saveControlGroup(n: number): void {
     const world = this.world
     if (!world) return
@@ -1743,17 +1781,23 @@ export class Game {
   }
 
   private onGroupsDoneClick = (): void => {
-    this.groupsOverlay.classList.remove('visible')
+    this.closeControlGroupsPanel()
   }
 
   private toggleControlGroupsPanel(): void {
     const el = this.groupsOverlay
     const open = !el.classList.contains('visible')
     el.classList.toggle('visible', open)
+    this.keysToggle?.classList.toggle('active', open)
     if (open) {
       this.groupsSig = ''
       this.renderControlGroups()
     }
+  }
+
+  private closeControlGroupsPanel(): void {
+    this.groupsOverlay.classList.remove('visible')
+    this.keysToggle?.classList.remove('active')
   }
 
   private groupKeyLabel(n: number): string {
@@ -1883,7 +1927,7 @@ export class Game {
     }
     if (!isTypingTarget(e.target) && this.modifierHeld(e)) {
       e.preventDefault()
-      const key = e.key.toLowerCase()
+      const key = this.eventKeyChar(e)
       if (key.length === 1 && /[a-z]/.test(key) && this.hud.isBuildMenuVisible()) {
         this.hud.hudShortcutByLetter(key)
         return

@@ -86,17 +86,28 @@ Client input/selection only, no sim changes. Point 3 (attack-move paint) is deli
 
 ---
 
-## Day 4 — Vision & Awareness: Fog Modes + Day/Night + Base Alert
+## Day 4 — Vision & Awareness: Fog Modes + Day/Night + Base Alert ✅ DONE
 
 Vision-system + renderer changes.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Fog mode toggle** — Classic (no fade), Hard (no memory), Radar-limited | #11a+c | `MatchSettings.fogMode` enum. `vision-system.ts` branches: Classic skips 2→1 decay; Hard decays 2→0 instantly; Radar-limited disables reveal for non-radar units. Lobby dropdown `#fog-mode` in match options. |
-| 2 | **Day/night tint** — every 5 min 10 s cycle, 2-min dusk/dawn, tint + fog shrink | #31a | `Game.ts` `dayPhase` (day/dusk/night/dawn), computed from `tick % cycle`. Renderer tints world container; `world.fogFadeDistance` scales by phase. `graphics.ts` `setDayNightTint(phase)`. |
-| 3 | **Base-under-attack alert** — audio ping + minimap flash when building takes damage | N5a+b | `combat-system.ts`: when `target` is a building and team differs, emit `base-under-attack` event. `Game.ts` handles event: `hooks.ts` `playAlertPing()`, `minimap.ts` `flashBuilding(entityId, team)`. |
+| 1 | **Fog mode toggle** — Classic (no fade), Hard (no memory) | #11a+c | `MatchSettings.fogMode` enum (`memory | classic | hard`). `vision-system.ts` branches: Classic skips the 2→1 decay; Hard decays 2→0 instantly. **Radar-limited was deferred — the codebase has no unit radar flag yet.** Protocol: `PROTOCOL_VERSION` bumped 2→3; host `sanitizeSettings` whitelists the enum. Lobby dropdowns `#start-fog` (offline) + `#match-fog` (network, host-only), synced via `renderMatchOptions`. |
+| 2 | **Day/night tint** — 5 min 10 s cycle, ~1-min dusk/dawn transitions | #31a | `Game.ts` `dayPhase` (day → dusk → night → dawn) computed per tick from `MatchSettings.dayNightCycleTicks` (default `DAY_NIGHT_CYCLE_TICKS`, 310 s @ 25 Hz) and `MatchSettings.dayNightTransitionTicks` (default `DAY_NIGHT_TRANSITION_TICKS`, 60 s). `MatchSettings.dayNight` boolean (offline + network, host-only). All three are exposed in the dev-settings panel (day/night section + fog mode select) and clamped by the host `SANITIZE` map. Renderer `setDayNight(phase)` draws a screen-space night tint (`nightOverlay`, max 25 % alpha, blue-dark `0x1a2a44`) above `worldLayer`, below selection box; cached per-tick quantization. `graphics.ts` `dayNightTint(phase)`. Fog-shrink not included (kept cosmetic-only, no `isVisibleTo` change). |
+| 3 | **Base-under-attack alert** — audio ping + minimap flash when building takes damage | N5a+b | `combat-system.ts` `applyDamage()`: building damaged by a non-allied attacker (done, not selling) emits `base-under-attack {building, team, x, y}`. `Game.ts` handles it throttled to once per 4 s per team: `hooks.ts` `baseAlert(x, y)` → `playSfx('base-alert')` (new synth + Day-2 `overrides` file path honored, positional), `minimap.ts` `flashBuilding(tick, team, x, y)` (30-tick red pulse), and the `game.events.baseAttacked` log line. |
+| 4 | **Turret range ring** — show attack range while placing + on selection | User idea | Client-only (`renderer.ts`). While ghost-placing a building with a weapon (turret): draw the ghost's `turret-gun` range ring (8 tiles, iso-ellipse centered on the transform point combat measures from) **and** faint range rings on all owned turrets, so coverage/overlap is visible before confirming. Additionally, selecting a weapon building (own team) shows its ring (alpha 0.45), with faint rings on every owned turret — same result whether rings come from a placement or a selection. `buildingDefRange()` reads `getWeapon(def.weapon).range`; invalid placement tints its ring red. |
 
-**Touch points:** `vision-system.ts`, `world.ts`, `Game.ts`, `renderer.ts`, `hooks.ts`, `minimap.ts`, `constants.ts`, `index.html` (lobby fog dropdown)
+**Touch points:** `vision-system.ts`, `world.ts`, `Game.ts`, `renderer.ts` (ghost range ring + night tint), `hooks.ts`, `minimap.ts`, `constants.ts`, `index.html` (lobby fog dropdown + day/night checkbox), `main.ts`, `host/src/rooms.ts`, `events.ts`, `combat-system.ts`, `graphics.ts`
+
+**Custom changes on top:**
+
+- Fog modes include a third option `classic` ("Classic+ — no fade") where the 2→1 remember-step is skipped entirely (seen tiles stay bright forever), distinct from the default `memory`.
+- New `base-under-attack` event + `base-alert` synth sound id (so players can drop their own `base-alert` audio override files, consistent with Day 2's `SOUND_IDS`/override wiring and volume sliders).
+- Day/night cycle and transition durations are real `MatchSettings` fields (`dayNightCycleTicks` / `dayNightTransitionTicks`, defaults 310 s / 60 s) rather than constants, so the dev panel (new "Day/night cycle (synced)" section) and network match options can tune them per match.
+- Dev panel gains a select row (`makeSelectInput`) for the fog mode (with the `dev-overridden` highlight) — previously only numeric inputs existed.
+- Lobby day/night checkboxes styled as a toggle switch (`.check-label` + `appearance:none` thumb); the Keys popup's Remove button got base `ghost`-danger colors (it had sizing only); the Keys header button highlights `.menu-btn.active` while the panel is open.
+- Day/night uses a full `day → dusk → night → dawn` profile (dusk + dawn ≈ 2 min combined) rather than a flat sinusoid.
+- Lobby labels translated (ar + en).
 
 ---
 
@@ -357,7 +368,7 @@ New game mode overlay with guided walkthrough.
 | 1 | UI icons + wreck + sell | S | No | ✅ |
 | 2 | Audio + haptics + SFX | S | No | ✅ |
 | 3 | Control groups + selection (+ bar-hotkey rework) | S | No | ✅ (point 3 skipped) |
-| 4 | Fog modes + day/night + base alert | M | Yes | |
+| 4 | Fog modes + day/night + base alert | M | Yes | ✅ (radar-limited deferred) |
 | 5 | Damage feedback + settings + shake | S | No | |
 | 6 | Pings + spectator + perf | M | Yes | |
 | 7 | Build queue + waypoint + victory | M | Yes (reorder) | |

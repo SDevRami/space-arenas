@@ -251,3 +251,10 @@ export const setQuality = (q: GraphicsQuality): void => {
   state.quality = q
   save(state)
 }
+
+/** Cosmetic night tint overlay color for the day/night cycle. `phase` 0 = noon, 1 = midnight. */
+export const dayNightTint = (phase: number): { color: number; a: number } => {
+  const night = Math.max(0, Math.min(1, phase))
+  if (night <= 0) return { color: 0x1a2a44, a: 0 }
+  return { color: 0x1a2a44, a: 0.25 * night }
+}

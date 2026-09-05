@@ -10,6 +10,7 @@ import {
   getUpgrade,
   getWeapon,
   mergeMatchSettings,
+  DEFAULT_MATCH_SETTINGS,
 } from '@space-arenas/shared'
 import { Simulator } from '../client/src/core/Simulator.ts'
 import { spawnBuilding, spawnUnit } from '../client/src/entities/factories.ts'
@@ -29,6 +30,38 @@ describe('match settings', () => {
     const sim = new Simulator(MAP, SEED, [0])
     expect(sim.world.settings.startingCredits).toBe(DEFAULT_CREDITS)
     expect(sim.world.teams.get(0)?.credits).toBe(DEFAULT_CREDITS)
+  })
+
+  it('defaults fog-of-war mode to memory and day/night off', () => {
+    const sim = new Simulator(MAP, SEED, [0])
+    expect(sim.world.settings.fogMode).toBe('memory')
+    expect(sim.world.settings.dayNight).toBe(false)
+    expect(sim.world.settings.dayNightCycleTicks).toBe(DEFAULT_MATCH_SETTINGS.dayNightCycleTicks)
+    expect(sim.world.settings.dayNightTransitionTicks).toBe(DEFAULT_MATCH_SETTINGS.dayNightTransitionTicks)
+  })
+
+  it('day/night uses the patched cycle from settings and the phase stays in 0..1', () => {
+    const sim = new Simulator(MAP, SEED, [0], { dayNight: true, dayNightCycleTicks: 20, dayNightTransitionTicks: 4 })
+    const seenFullNight = new Set<number>()
+    for (let tick = 0; tick < 200; tick++) {
+      sim.step()
+      const cycle = sim.world.settings.dayNightCycleTicks
+      const T = sim.world.settings.dayNightTransitionTicks
+      const cyc = tick % cycle
+      const half = Math.max(0, (cycle - 2 * T) / 2)
+      let phase: number
+      if (cyc < half) phase = 0
+      else if (cyc < half + T) phase = (cyc - half) / T
+      else if (cyc < half + T + half) phase = 1
+      else phase = 1 - (cyc - half - T - half) / T
+      expect(phase).toBeGreaterThanOrEqual(0)
+      expect(phase).toBeLessThanOrEqual(1)
+      seenFullNight.add(phase)
+    }
+    expect(sim.world.settings.dayNight).toBe(true)
+    expect(sim.world.settings.dayNightCycleTicks).toBe(20)
+    expect(seenFullNight.has(0)).toBe(true)
+    expect(seenFullNight.has(1)).toBe(true)
   })
 
   it('custom oil income fires with the patched amount', () => {

@@ -37,6 +37,7 @@ export class Minimap {
   private lastRe = 0
   private lastOx = NaN
   private lastOy = NaN
+  private flashes: Array<{ x: number; y: number; started: number; team: number }> = []
 
   constructor(map: MapData, sizeFactor = 1) {
     this.map = map
@@ -90,6 +91,11 @@ export class Minimap {
     this.offsetX += dx
     this.offsetY += dy
     this.clampOffsets()
+  }
+
+  /** Start a pulsing alert flash for a building being attacked. `startTick` is the world tick it began. */
+  flashBuilding(startTick: number, team: number, x: number, y: number): void {
+    this.flashes.push({ x, y, started: startTick, team })
   }
 
   private clampOffsets(): void {
@@ -218,6 +224,27 @@ export class Minimap {
       ctx.restore()
     }
     this.drawViewport(camera, re, offsetX, offsetY)
+    this.drawFlashes(world, re, offsetX, offsetY)
+  }
+
+  /** Draw decaying pulse rings at recently-attacked buildings. */
+  private drawFlashes(world: World, re: number, offsetX: number, offsetY: number): void {
+    if (this.flashes.length === 0) return
+    const ctx = this.vctx
+    for (let i = this.flashes.length - 1; i >= 0; i--) {
+      const f = this.flashes[i]
+      const age = world.tick - f.started
+      if (age > 30) {
+        this.flashes.splice(i, 1)
+        continue
+      }
+      const a = 1 - age / 30
+      ctx.strokeStyle = `rgba(255,80,80,${a.toFixed(2)})`
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc((f.x / 1000) * re + offsetX, (f.y / 1000) * re + offsetY, 3 + age * 0.2, 0, Math.PI * 2)
+      ctx.stroke()
+    }
   }
 
   private drawViewport(camera: Camera, re: number, offsetX: number, offsetY: number): void {

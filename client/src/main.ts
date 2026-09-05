@@ -1,5 +1,5 @@
 import './styles.css'
-import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, type MatchSettings, type WinRule } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, type MatchSettings, type WinRule, type FogMode } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { AudioHooks } from './audio/hooks.ts'
@@ -367,6 +367,13 @@ const DEV_SCALAR_SECTIONS: Array<{ title: string; fields: DevFieldDef[] }> = [
     fields: [{ key: 'fogFadeDistance', unit: 'cells', min: 0, max: 30, step: 1 }],
   },
   {
+    title: 'dayNight',
+    fields: [
+      { key: 'dayNightCycleTicks', unit: 'sec', min: 30, max: 3600, step: 5, seconds: true },
+      { key: 'dayNightTransitionTicks', unit: 'sec', min: 1, max: 600, step: 1, seconds: true },
+    ],
+  },
+  {
     title: 'worldFields',
     fields: [
       { key: 'supplyFieldRadius', unit: 'cells', min: 0, max: 30, step: 1 },
@@ -634,6 +641,41 @@ const makeTextInput = (
   devGroupEl.appendChild(wrap)
 }
 
+const makeSelectInput = (
+  label: string,
+  desc: string,
+  value: string,
+  options: Array<{ value: string; label: string }>,
+  defaultValue: string,
+  onCommit: (v: string) => void,
+): void => {
+  const wrap = document.createElement('div')
+  wrap.className = 'dev-field'
+  const l = document.createElement('label')
+  l.textContent = label
+  const d = document.createElement('div')
+  d.className = 'dev-desc'
+  d.textContent = desc
+  const input = document.createElement('select')
+  for (const o of options) {
+    const opt = document.createElement('option')
+    opt.value = o.value
+    opt.textContent = o.label
+    input.appendChild(opt)
+  }
+  input.value = value
+  wrap.classList.toggle('dev-overridden', value !== defaultValue)
+  input.addEventListener('change', () => {
+    wrap.classList.toggle('dev-overridden', input.value !== defaultValue)
+    onCommit(input.value)
+    renderActiveInfoTab()
+  })
+  wrap.appendChild(l)
+  wrap.appendChild(d)
+  wrap.appendChild(input)
+  devGroupEl.appendChild(wrap)
+}
+
 const appendAssetGroupLabel = (text: string): void => {
   const h = document.createElement('div')
   h.className = 'tools-label'
@@ -881,6 +923,27 @@ const buildDevForm = (): void => {
         },
       )
     }
+    if (section.title === 'fog') {
+      const fogCurrent = resolved.fogMode
+      const fogDefault = DEFAULT_MATCH_SETTINGS.fogMode
+      makeSelectInput(
+        t('dev.fields.fogMode.label'),
+        t('dev.fields.fogMode.desc'),
+        fogCurrent,
+        FOG_MODES.map((m) => ({ value: m, label: t(`offline.fog.${m}`) })),
+        fogDefault,
+        (v) => {
+          const next = v as FogMode
+          if (next === fogDefault) clearDevScalar('fogMode')
+          else devOverrides = { ...devOverrides, fogMode: next }
+          setDevStatus(
+            next === fogDefault
+              ? t('dev.status.scalarDefault', { label: t('dev.fields.fogMode.label'), v: t(`offline.fog.${fogDefault}`) })
+              : t('dev.status.scalarSet', { label: t('dev.fields.fogMode.label'), v: t(`offline.fog.${next}`) }),
+          )
+        },
+      )
+    }
   }
   appendDevSection(t('dev.sections.buildings'))
   for (const id of Object.keys(BUILDINGS)) {
@@ -973,6 +1036,10 @@ const addBotBtn = document.getElementById('add-bot-btn') as HTMLButtonElement
 const creditsInput = document.getElementById('start-credits') as HTMLInputElement
 const winRuleSelect = document.getElementById('win-rule') as HTMLSelectElement
 const winRuleDesc = document.getElementById('win-rule-desc') as HTMLDivElement
+const startFogEl = document.getElementById('start-fog') as HTMLSelectElement
+const matchFogEl = document.getElementById('match-fog') as HTMLSelectElement
+const startDayNightEl = document.getElementById('start-daynight') as HTMLInputElement
+const matchDayNightEl = document.getElementById('match-daynight') as HTMLInputElement
 const offlineStatus = document.getElementById('offline-status') as HTMLDivElement
 const countdownOverlay = document.getElementById('countdown-overlay') as HTMLDivElement
 const countdownNum = document.getElementById('countdown-num') as HTMLDivElement
@@ -1166,7 +1233,7 @@ startBtn.addEventListener('click', () => {
     localTeam: humans[0].slot,
     slots: rows.map((r) => ({ team: r.slot, name: r.name, difficulty: r.difficulty, alliance: r.team, color: r.color })),
     winRule: winRuleSelect.value as WinRule,
-    settings: resolvedDevSettings(),
+    settings: { ...resolvedDevSettings(), fogMode: startFogEl.value as FogMode, dayNight: startDayNightEl.checked },
   }
   setOfflineStatus('')
   startCountdown(cfg)
@@ -1275,6 +1342,12 @@ const renderMatchOptions = (msg: LobbyMessage, isHost: boolean): void => {
   matchWinRuleEl.value = winRule
   matchWinRuleEl.disabled = !isHost
   matchWinRuleDescEl.textContent = t(`offline.winDesc.${WIN_RULE_KEYS[winRule]}`)
+
+  const fogMode = msg.settings?.fogMode ?? DEFAULT_MATCH_SETTINGS.fogMode
+  if ((FOG_MODES as readonly string[]).includes(fogMode)) matchFogEl.value = fogMode
+  matchFogEl.disabled = !isHost
+  matchDayNightEl.checked = msg.settings?.dayNight ?? DEFAULT_MATCH_SETTINGS.dayNight
+  matchDayNightEl.disabled = !isHost
 
   matchMapSelectEl.innerHTML = ''
   if (isHost) {
@@ -1472,6 +1545,20 @@ matchWinRuleEl.addEventListener('change', () => {
   const rule = matchWinRuleEl.value as WinRule
   net?.updateRoom({ winRule: rule })
   setMatchStatus(t('match.winChanging', { n: t(`offline.win.${WIN_RULE_KEYS[rule]}`) }))
+})
+
+matchFogEl.addEventListener('change', () => {
+  if (!lobbyState || lobbyState.yourId !== lobbyState.hostId) return
+  const v = matchFogEl.value as FogMode
+  if (!(FOG_MODES as readonly string[]).includes(v)) return
+  net?.updateRoom({ settings: { fogMode: v } })
+  setMatchStatus(t('match.fogChanging', { n: t(`offline.fog.${v}`) }))
+})
+
+matchDayNightEl.addEventListener('change', () => {
+  if (!lobbyState || lobbyState.yourId !== lobbyState.hostId) return
+  net?.updateRoom({ settings: { dayNight: matchDayNightEl.checked } })
+  setMatchStatus(matchDayNightEl.checked ? t('match.dayNightOn') : t('match.dayNightOff'))
 })
 
 matchAddBotEl.addEventListener('click', () => {

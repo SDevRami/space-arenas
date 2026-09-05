@@ -4,8 +4,16 @@ export const VisionSystem = {
   name: 'Vision',
   update(world: World): void {
     const { width, height } = world
+    const mode = world.settings.fogMode
 
     world.fog.forEach((fog, _team) => {
+      if (mode === 'classic') return
+      if (mode === 'hard') {
+        for (let i = 0; i < fog.length; i++) {
+          if (fog[i] === 2) fog[i] = 0
+        }
+        return
+      }
       for (let i = 0; i < fog.length; i++) {
         if (fog[i] === 2) fog[i] = 1
       }

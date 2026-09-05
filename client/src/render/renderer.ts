@@ -10,9 +10,16 @@ import type { BoxInfo } from '../input/input.ts'
 import { findSpawnTile } from '../systems/production-system.ts'
 import { rectFromCenter } from '../core/geometry.ts'
 import { t, tn } from '../i18n/index.ts'
-import { effectEnabled, getGraphics } from '../ui/graphics.ts'
+import { effectEnabled, getGraphics, dayNightTint } from '../ui/graphics.ts'
 
 const PRODUCERS = new Set(['command-center', 'supply-dock', 'barracks', 'war-factory', 'air-force'])
+/** Weapon attack range in tiles for a building that can fire (e.g. turret), or null when it has no weapon. */
+const buildingDefRange = (type: string, settings: World['settings']): number | null => {
+  const def = getBuilding(type, settings)
+  if (!def || !def.weapon) return null
+  const weapon = getWeapon(def.weapon, settings)
+  return weapon && weapon.range > 0 ? weapon.range : null
+}
 /** Approximate on-screen width (px) of a vector obstacle shape at scale 1, for image size parity. */
 const OBSTACLE_BASE_WIDTH = 30
 const BAR_W = 26
@@ -67,9 +74,12 @@ export class Renderer {
   private pathGraphics = new Graphics()
   private boxLayer = new Container()
   private boxGraphics = new Graphics()
+  private nightOverlay = new Graphics()
+  private nightPhase = -1
   private fxGraphics = new Graphics()
   private ghostSprite: Sprite | null = null
   private ghostOutline = new Graphics()
+  private rangeRingG = new Graphics()
   private impacts: Array<{ x: number; y: number; age: number }> = []
   private projectiles: Array<{ x0: number; y0: number; x1: number; y1: number; age: number; team: number }> = []
   laserTarget: { x: number; y: number; valid: boolean } | null = null
@@ -183,6 +193,7 @@ export class Renderer {
     this.worldLayer.addChild(this.airLayer)
     this.worldLayer.addChild(this.ghostLayer)
     this.ghostLayer.addChild(this.ghostOutline)
+    this.ghostLayer.addChild(this.rangeRingG)
     this.worldLayer.addChild(this.barLayer)
     this.worldLayer.addChild(this.powerLayer)
     this.worldLayer.addChild(this.teamFlagLayer)
@@ -195,9 +206,22 @@ export class Renderer {
     this.buildStaticScenery(map)
     this.buildStaticDebug(map)
     this.app.stage.addChild(this.worldLayer)
+    this.nightOverlay.eventMode = 'none'
+    this.app.stage.addChild(this.nightOverlay)
 
     this.boxLayer.addChild(this.boxGraphics)
     this.app.stage.addChild(this.boxLayer)
+  }
+
+  /** Cosmetic night overlay tint — `phase` 0 = full day, 1 = full night. */
+  setDayNight(phase: number): void {
+    if (Math.round(phase * 1000) === this.nightPhase) return
+    this.nightPhase = Math.round(phase * 1000)
+    const t = dayNightTint(phase)
+    this.nightOverlay.clear()
+    if (t.a > 0) {
+      this.nightOverlay.rect(0, 0, this.app.screen.width, this.app.screen.height).fill({ color: t.color, alpha: t.a })
+    }
   }
 
   setMinimap(m: Minimap | null): void {
@@ -319,6 +343,46 @@ export class Renderer {
       this.ghostOutline.clear()
     }
 
+    this.rangeRingG.clear()
+    const hasSelectedWeapon = [...selection].some((id) => {
+      const s = world.buildings.get(id)
+      return s !== undefined && buildingDefRange(s.buildingType, world.settings) !== null
+    })
+    if (ghost && ghost.kind === 'building') {
+      const range = buildingDefRange(ghost.type, world.settings)
+      if (range !== null) {
+        const gcx = (ghost.xFx / 1000 - ghost.yFx / 1000) * ISO_HALF_W
+        const gcy = (ghost.xFx / 1000 + ghost.yFx / 1000) * ISO_HALF_H
+        const ghostColor = ghost.valid ? this.teamColor(world, ghost.team) : 0xff4040
+        this.drawRangeRing(this.rangeRingG, gcx, gcy, range, ghostColor, ghost.valid ? 0.45 : 0.55, 2.5, ghost.valid ? 0.07 : 0.09)
+        if (!hasSelectedWeapon) {
+          world.buildings.forEach((id, b) => {
+            if (b.team !== ghost.team) return
+            const t = world.transforms.get(id)
+            if (!t) return
+            const br = buildingDefRange(b.buildingType, world.settings)
+            if (br === null) return
+            const ix = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+            const iy = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+            this.drawRangeRing(this.rangeRingG, ix, iy, br, this.teamColor(world, b.team), 0.22, 1.5, 0.03)
+          })
+        }
+      }
+    }
+    if (hasSelectedWeapon) {
+      world.buildings.forEach((id, b) => {
+        if (b.team !== localTeam) return
+        const t = world.transforms.get(id)
+        if (!t) return
+        const br = buildingDefRange(b.buildingType, world.settings)
+        if (br === null) return
+        const ix = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+        const iy = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+        const focus = selection.has(id)
+        this.drawRangeRing(this.rangeRingG, ix, iy, br, this.teamColor(world, b.team), focus ? 0.45 : 0.22, focus ? 2.5 : 1.5, focus ? 0.07 : 0.03)
+      })
+    }
+
     this.debugLayer.visible = this.showBorders
 
     this.syncBars(world, camera, selection)
@@ -339,6 +403,14 @@ export class Renderer {
     if (this.minimap) {
       this.minimap.draw(world, localTeam, this.camera, world.radarActive(localTeam), this.showAll)
     }
+  }
+
+  /** Draws a building's attack-range ring (world circle → iso ellipse) centered at an entity transform. */
+  private drawRangeRing(g: Graphics, cx: number, cy: number, rangeTiles: number, color: number, strokeAlpha: number, width: number, fillAlpha: number): void {
+    const ax = rangeTiles * Math.SQRT2 * ISO_HALF_W
+    const ay = rangeTiles * Math.SQRT2 * ISO_HALF_H
+    if (fillAlpha > 0) g.ellipse(cx, cy, ax, ay).fill({ color, alpha: fillAlpha })
+    g.ellipse(cx, cy, ax, ay).stroke({ color, width, alpha: strokeAlpha })
   }
 
   addImpact(x: number, y: number): void {

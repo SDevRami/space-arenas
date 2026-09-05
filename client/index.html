@@ -119,6 +119,18 @@
               <label data-i18n="offline.weather">Weather (visual only)</label>
               <select id="start-weather" class="weather-select"></select>
               <div class="hint" data-i18n="offline.weatherHint">A cosmetic overlay on your screen only. It does not change the game rules.</div>
+              <label data-i18n="offline.fogMode">Fog of war</label>
+              <select id="start-fog" class="fog-select">
+                <option value="memory" data-i18n="offline.fog.memory">Classic (map stays explored)</option>
+                <option value="classic" data-i18n="offline.fog.classic">Classic+ (no fade — seen areas stay bright)</option>
+                <option value="hard" data-i18n="offline.fog.hard">Hard (fog always returns)</option>
+              </select>
+              <div class="hint" data-i18n="offline.fogHint">How the map remembers what your units explored.</div>
+              <label for="start-daynight" class="check-label">
+                <input type="checkbox" id="start-daynight" />
+                <span data-i18n="offline.dayNight">Day/night cycle</span>
+              </label>
+              <div class="hint" data-i18n="offline.dayNightHint">A 5-minute day/night cycle darkens the world at night. Cosmetic.</div>
               <label data-i18n="offline.winCondition">Win condition</label>
               <select id="win-rule" class="win-rule-select">
                 <option value="standard" data-i18n="offline.win.standard">Standard (base destruction)</option>
@@ -192,6 +204,18 @@
               <label data-i18n="offline.weather">Weather (visual only)</label>
               <select id="match-weather" class="weather-select"></select>
               <div class="hint" data-i18n="offline.weatherHint">A cosmetic overlay on your screen only. It does not change the game rules.</div>
+              <label data-i18n="offline.fogMode">Fog of war</label>
+              <select id="match-fog" class="fog-select">
+                <option value="memory" data-i18n="offline.fog.memory">Classic (map stays explored)</option>
+                <option value="classic" data-i18n="offline.fog.classic">Classic+ (no fade — seen areas stay bright)</option>
+                <option value="hard" data-i18n="offline.fog.hard">Hard (fog always returns)</option>
+              </select>
+              <div class="hint" data-i18n="offline.fogHint">How the map remembers what your units explored.</div>
+              <label for="match-daynight" class="check-label">
+                <input type="checkbox" id="match-daynight" />
+                <span data-i18n="offline.dayNight">Day/night cycle</span>
+              </label>
+              <div class="hint" data-i18n="offline.dayNightHint">A 5-minute day/night cycle darkens the world at night. Cosmetic.</div>
               <label data-i18n="offline.winCondition" id="match-win-rule-label">Win condition</label>
               <select id="match-win-rule" class="win-rule-select">
                 <option value="standard" data-i18n="offline.win.standard">Standard (base destruction)</option>

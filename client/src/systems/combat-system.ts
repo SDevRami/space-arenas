@@ -9,6 +9,11 @@ export const applyDamage = (world: World, target: number, amount: number, attack
   const attackerUnit = world.units.get(attacker)
   const team = teamOverride >= 0 ? teamOverride : attackerUnit ? attackerUnit.team : (world.buildings.get(attacker)?.team ?? -1)
   world.emit({ type: 'combat-hit', attacker, target, damage: amount, team })
+  const b = world.buildings.get(target)
+  if (b && b.done && b.sellingUntil <= world.tick && world.teamOf(attacker) !== b.team) {
+    const t = world.transforms.get(target)
+    world.emit({ type: 'base-under-attack', building: target, team: b.team, x: t?.x ?? 0, y: t?.y ?? 0 })
+  }
   const a = world.attacks.get(target)
   const attackerKind = world.kindOf(attacker)
   if (a && (attackerKind === 'unit' || attackerKind === 'building')) {

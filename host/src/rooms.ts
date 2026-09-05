@@ -1,5 +1,6 @@
 import type WebSocket from 'ws'
 import {
+  FOG_MODES,
   mapForPreset,
   mapPreset,
   mergeMatchSettings,
@@ -60,6 +61,8 @@ const SANITIZE: Record<string, { min: number; max: number }> = {
   laserDamagePerTick: { min: 0, max: 1000000 },
   laserMaxLevel: { min: 1, max: 10 },
   fogFadeDistance: { min: 0, max: 30 },
+  dayNightCycleTicks: { min: 300, max: 36000 },
+  dayNightTransitionTicks: { min: 1, max: 6000 },
   sellRefundFraction: { min: 0, max: 1 },
   queueLimit: { min: 1, max: 50 },
   supplyFieldCapacity: { min: 0, max: 100000 },
@@ -144,6 +147,8 @@ const sanitizeSettings = (patch: Partial<MatchSettings>): Partial<MatchSettings>
       ;(out as Record<string, number>)[key] = clamp(value, min, max)
     }
   }
+  if (patch.fogMode && (FOG_MODES as readonly string[]).includes(patch.fogMode)) out.fogMode = patch.fogMode
+  if (typeof patch.dayNight === 'boolean') out.dayNight = patch.dayNight
   return { ...out, ...sanitizeOverrideMaps(patch) }
 }
 
