@@ -27,7 +27,7 @@ const refreshEffective = (): void => {
 
 const pct = (v: number): number => Math.round(v * 100)
 
-export const renderSliderRow = (labelKey: string, descKey: string, value: number, onInput: (v: number) => void): HTMLElement => {
+const renderSliderRow = (labelKey: string, descKey: string, value: number, onInput: (v: number) => void): HTMLElement => {
   const div = document.createElement('div')
   div.className = 'ctrl-row'
   const label = document.createElement('div')

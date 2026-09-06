@@ -95,6 +95,7 @@ export class Renderer {
   private flashSprites = new Map<number, Sprite>()
   private flameSprites = new Map<number, Sprite>()
   private burnProcedural: Texture[] = []
+  private hitFlashTex: Texture = Texture.EMPTY
   private teamMarkers = new Map<number, Sprite>()
   private hitboxSprites = new Map<number, Sprite>()
   private outlineTexCache = new Map<string, Texture>()
@@ -201,6 +202,19 @@ export class Renderer {
     this.burnProcedural = [makeFireTex(0), makeFireTex(1)]
     if (getGraphics().assetPaths['fx:burn']?.trim()) preloadFxFrames('burn')
 
+    // soft white blaze for the hit-flash overlay (drawn additively over the unit)
+    const flashCanvas = document.createElement('canvas')
+    flashCanvas.width = 64
+    flashCanvas.height = 64
+    const fctx = flashCanvas.getContext('2d')!
+    const fg2 = fctx.createRadialGradient(32, 32, 2, 32, 32, 30)
+    fg2.addColorStop(0, 'rgba(255,255,255,0.95)')
+    fg2.addColorStop(0.55, 'rgba(255,255,255,0.4)')
+    fg2.addColorStop(1, 'rgba(255,255,255,0)')
+    fctx.fillStyle = fg2
+    fctx.fillRect(0, 0, 64, 64)
+    this.hitFlashTex = Texture.from(flashCanvas)
+
     this.fieldTex = fieldTexture(this.app.renderer)
     this.lightningTex = lightningTexture(this.app.renderer)
 
@@ -262,13 +276,25 @@ export class Renderer {
     this.minimap = m
   }
 
-  /** Kicks a decaying sinusoidal camera shake lasting `durationTicks` from `worldTick`. */
-  startShake(worldTick: number, durationTicks: number, amplitudePx: number): void {
-    const until = worldTick + Math.max(1, durationTicks)
-    if (until > this.shakeUntil) {
+  /** Drives the camera shake from live laser strikes: hard the moment the beam
+   * starts, decaying linearly so it ends exactly when the strike finishes. */
+  private updateLaserShake(world: World): void {
+    let until = -1
+    let start = 0
+    world.lasers.forEach((_id, l) => {
+      if (world.tick < l.startTick || world.tick >= l.untilTick) return
+      // when several strikes overlap, ride the one that ends last
+      if (l.untilTick > until) {
+        until = l.untilTick
+        start = l.startTick
+      }
+    })
+    if (until >= 0) {
+      this.shakeStart = start
       this.shakeUntil = until
-      this.shakeStart = worldTick
-      this.shakeAmp = Math.max(this.shakeAmp, Math.abs(amplitudePx))
+      this.shakeAmp = 8
+    } else {
+      this.shakeAmp = 0
     }
   }
 
@@ -297,6 +323,7 @@ export class Renderer {
       this.onWindowResize()
     }
     const { camera } = this
+    this.updateLaserShake(world)
     const shake = this.shakeOffset(world.tick)
     this.localTeam = localTeam
     this.worldLayer.position.set(camera.camX * camera.zoom + shake.x, camera.camY * camera.zoom + shake.y)
@@ -1245,22 +1272,25 @@ export class Renderer {
     camera.worldToScreen(t.x, t.y, pos)
     spr.visible = this.inView(pos, id, world, camera)
 
-    // hit flash — white overlay while `tick - hitTick < 2` (cosmetic only)
+    // hit flash — additive white blaze while `tick - hitTick < 4` (cosmetic only),
+    // distinct from the small ring-shaped bullet impact sparks
     const hit = world.flashes.get(id)
-    const flashing = effectEnabled('effects') && hit !== undefined && world.tick - hit.hitTick < 2
+    const flashing = effectEnabled('effects') && hit !== undefined && world.tick - hit.hitTick < 4
     let flash = this.flashSprites.get(id)
     if (flashing) {
       if (!flash) {
-        flash = new Sprite(spr.texture)
+        flash = new Sprite(this.hitFlashTex)
         flash.anchor.set(0.5)
+        flash.blendMode = 'add'
         this.flashSprites.set(id, flash)
       }
-      if (flash.texture !== spr.texture) flash.texture = spr.texture
-      flash.tint = 0xffffff
-      flash.alpha = 1 - (world.tick - hit.hitTick) / 2
-      if (flash.scale.x !== spr.scale.x || flash.scale.y !== spr.scale.y) flash.scale.copyFrom(spr.scale)
-      if (flash.position.x !== spr.position.x || flash.position.y !== spr.position.y) flash.position.copyFrom(spr.position)
-      flash.rotation = spr.rotation
+      const delta = world.tick - hit.hitTick
+      const alpha = 1 - delta / 4
+      flash.alpha = alpha
+      const s = spr.scale.x * (1.2 + 0.6 * alpha)
+      flash.scale.set(s)
+      flash.rotation = 0
+      flash.position.copyFrom(spr.position)
       flash.visible = spr.visible
       const parent = spr.parent
       if (parent && flash.parent !== parent) parent.addChild(flash)
@@ -1269,9 +1299,11 @@ export class Renderer {
       this.flashSprites.delete(id)
     }
 
-    // burning-fire overlay for heavily damaged units (<=25% hp, visual only)
+    // burning-fire overlay for heavily damaged buildings & vehicles (<=25% hp,
+    // visual only). Troops/infantry never burn.
     let flame: Sprite | undefined
-    if (kind === 'unit' && effectEnabled('effects')) {
+    const burns = kind === 'building' || (kind === 'unit' && world.units.get(id)?.class === 'vehicle')
+    if (burns && effectEnabled('effects')) {
       const hp = world.healths.get(id)
       if (hp && hp.maxHp > 0 && hp.hp > 0 && hp.hp / hp.maxHp <= 0.25) {
         flame = this.flameSprites.get(id)
@@ -1281,17 +1313,18 @@ export class Renderer {
           this.flameSprites.set(id, flame)
         }
         const imageFrame = fxFrameTexture('burn', 1 + ((world.tick >> 2) & 1))
-        const cls = world.units.get(id)?.class ?? 'vehicle'
-        const scaleCls = cls === 'air' ? 'vehicle' : cls
-        const mult = getGraphics().unitScale[scaleCls] ?? 1
         if (imageFrame) {
           if (flame.texture !== imageFrame) flame.texture = imageFrame
-          const bw = imageFrame.frame.width || 1
-          flame.scale.set((UNIT_SPRITE_WIDTH / bw) * mult * 1.9)
         } else {
           const tex = this.burnTex(world.tick)
           if (flame.texture !== tex) flame.texture = tex
-          flame.scale.set(mult * 1.25)
+        }
+        if (kind === 'unit') {
+          const multi = getGraphics().unitScale.vehicle ?? 1
+          flame.scale.set(imageFrame ? (UNIT_SPRITE_WIDTH / (imageFrame.frame.width || 1)) * multi * 1.9 : multi * 1.25)
+        } else {
+          const bs = spr.scale.x || 1
+          flame.scale.set(bs * (imageFrame ? 1.4 : 1.7))
         }
         flame.tint = 0xffffff
         flame.rotation = 0

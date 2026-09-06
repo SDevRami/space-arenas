@@ -268,20 +268,6 @@ const audioReady = import('./ui/audio-settings.ts').then((mod) => {
   renderAudioList = mod.initAudioSettings().renderAudioList
 })
 
-// ---------- in-menu (pause) settings ----------
-
-let renderInMenuSettings: () => void = () => {}
-
-const inMenuSettingsReady = import('./ui/in-menu-settings.ts').then((mod) => {
-  renderInMenuSettings = mod.renderInMenuSettings
-  renderInMenuSettings()
-})
-
-document.getElementById('menu-ctrl-info')?.addEventListener('click', () => {
-  controlsInfoContent.innerHTML = controlsInfoHtml()
-  controlsInfoOverlay.classList.add('visible')
-})
-
 // ---------- dev settings ----------
 
 const DEV_STORAGE_KEY = 'space-arenas:dev-settings'
@@ -2124,7 +2110,6 @@ const refreshLobbyTexts = (): void => {
   renderMapBuilderTable()
   renderGraphicsList()
   renderAudioList()
-  renderInMenuSettings()
   renderWeatherOptions(startWeatherEl)
   renderWeatherOptions(matchWeatherEl)
   if (controlsOverlay.classList.contains('visible')) renderControlsList()
@@ -2147,7 +2132,7 @@ if (inviteCode) {
 
 // ---------- hide loading screen ----------
 
-void Promise.allSettled([graphicsReady, audioReady, inMenuSettingsReady, mapBuilderReady, infoCatalogReady]).then(() => {
+void Promise.allSettled([graphicsReady, audioReady, mapBuilderReady, infoCatalogReady]).then(() => {
   const el = document.getElementById('loading-screen')
   if (el) {
     el.classList.add('hidden')

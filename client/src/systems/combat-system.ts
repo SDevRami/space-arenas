@@ -33,8 +33,11 @@ export const applyDamage = (world: World, target: number, amount: number, attack
     const srcKind: 'unit' | 'building' | null = u ? 'unit' : b ? 'building' : null
     const cost = u ? getUnit(u.unitType, world.settings).cost : b ? getBuilding(b.buildingType, world.settings).cost : 0
     const value = Math.floor(cost * world.settings.wreckValueFraction)
+    // only buildings and vehicle-class units leave a collectable wreck —
+    // troops/infantry (and aircraft) just vanish
+    const canWreck = srcKind !== null && (srcKind === 'building' || (u ? u.class === 'vehicle' : false))
     world.removeEntity(target)
-    if (srcKind && value > 0 && owner >= 0) world.spawnWreck(deadX, deadY, value, owner, srcKind)
+    if (srcKind && canWreck && value > 0 && owner >= 0) world.spawnWreck(deadX, deadY, value, owner, srcKind)
   }
 }
 
