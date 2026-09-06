@@ -1099,6 +1099,20 @@ export class Renderer {
     spr.visible = camera.isInView(pos.x, pos.y)
   }
 
+  /** Ground-space on-screen width (world px) of an entity, independent of whatever
+   * texture the sprite happens to show (image or vector shape). Buildings use their
+   * footprint tiles; vehicles/infantry use the canonical unit scale. */
+  private effectWidthPx(world: World, id: number, kind: 'unit' | 'building'): number {
+    if (kind === 'building') {
+      const b = world.buildings.get(id)
+      if (b) return Math.max(1, (b.footprintW + b.footprintH) * ISO_HALF_W)
+    }
+    const cls = world.units.get(id)?.class ?? 'vehicle'
+    const scaleCls = cls === 'air' ? 'vehicle' : cls
+    const mult = getGraphics().unitScale[scaleCls] ?? 1
+    return Math.max(1, UNIT_SPRITE_WIDTH * mult)
+  }
+
   /** Animated burning-fire texture: either the 2 loaded `fx:burn` frames or a
    * 2-frame procedural flame fallback. Frame cycles roughly every 2 ticks. */
   private burnTex(tick: number): Texture {
@@ -1287,7 +1301,8 @@ export class Renderer {
       const delta = world.tick - hit.hitTick
       const alpha = 1 - delta / 4
       flash.alpha = alpha
-      const s = spr.scale.x * (1.2 + 0.6 * alpha)
+      // sized to the entity's ground footprint, not its sprite scale
+      const s = (this.effectWidthPx(world, id, kind) * 1.3 * (0.95 + 0.4 * alpha)) / 64
       flash.scale.set(s)
       flash.rotation = 0
       flash.position.copyFrom(spr.position)
@@ -1319,13 +1334,10 @@ export class Renderer {
           const tex = this.burnTex(world.tick)
           if (flame.texture !== tex) flame.texture = tex
         }
-        if (kind === 'unit') {
-          const multi = getGraphics().unitScale.vehicle ?? 1
-          flame.scale.set(imageFrame ? (UNIT_SPRITE_WIDTH / (imageFrame.frame.width || 1)) * multi * 1.9 : multi * 1.25)
-        } else {
-          const bs = spr.scale.x || 1
-          flame.scale.set(bs * (imageFrame ? 1.4 : 1.7))
-        }
+        // sized to the entity's ground footprint, not its sprite scale
+        const texW = imageFrame ? imageFrame.frame.width || 1 : 32
+        const cover = kind === 'building' ? 1.5 : 1.8
+        flame.scale.set((this.effectWidthPx(world, id, kind) * cover) / texW)
         flame.tint = 0xffffff
         flame.rotation = 0
         flame.alpha = 0.85 + Math.sin((world.tick + id) * 0.9) * 0.15
