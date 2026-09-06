@@ -6,6 +6,7 @@ export const applyDamage = (world: World, target: number, amount: number, attack
   const h = world.healths.get(target)
   if (!h) return
   h.hp -= amount
+  world.flashes.set(target, { hitTick: world.tick })
   const attackerUnit = world.units.get(attacker)
   const team = teamOverride >= 0 ? teamOverride : attackerUnit ? attackerUnit.team : (world.buildings.get(attacker)?.team ?? -1)
   world.emit({ type: 'combat-hit', attacker, target, damage: amount, team })

@@ -62,6 +62,12 @@ export interface AttackComp {
   guardPost: { x: number; y: number } | null
 }
 
+/** Cosmetic-only hit-flash marker. The renderer draws a white overlay while
+ * `tick - hitTick < 2`; it never affects the sim hash or the network protocol. */
+export interface DamageFlashComp {
+  hitTick: number
+}
+
 export interface MoveComp {
   tx: number
   ty: number
@@ -217,6 +223,7 @@ export class World {
   readonly satelliteMarkers = new SparseSet<SatelliteMarkerComp>()
   readonly planes = new SparseSet<PlaneComp>()
   readonly lasers = new SparseSet<LaserComp>()
+  readonly flashes = new SparseSet<DamageFlashComp>()
   readonly scenery = new SparseSet<SceneryComp>()
 
   readonly events: SimEvent[] = []
@@ -332,6 +339,7 @@ export class World {
     this.satelliteMarkers.delete(id)
     this.planes.delete(id)
     this.lasers.delete(id)
+    this.flashes.delete(id)
     this.scenery.delete(id)
     this.entityKinds.delete(id)
     if (kind === 'building' || kind === 'field' || kind === 'scenery') this.gridDirty = true

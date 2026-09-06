@@ -60,6 +60,8 @@ export const DEFAULT_ASSET_PATHS: Record<string, string> = {
   ...Object.fromEntries(Object.entries(UNIT_ASSET_FOLDERS).map(([id, f]) => [`unit:${id}`, `${f}/{color}/${f}_{dir}.png`])),
   obstacle: 'ao/{type}.png',
   ...Object.fromEntries(OBSTACLE_ASSET_TYPES.map((k) => [`obstacle:${k}`, `ao/${k}.png`])),
+  // empty = procedural flame fallback; a user override like `fx/burn/burn_{frame}.png` loads 2 animated frames
+  'fx:burn': '',
 }
 
 export const SUPPLY_FIELD_FRAMES = 25

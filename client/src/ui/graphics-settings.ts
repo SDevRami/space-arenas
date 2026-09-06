@@ -53,7 +53,7 @@ const renderWeatherRow = (): HTMLElement => {
   return div
 }
 
-const renderIconSizeRow = (): HTMLElement => {
+export const renderHudSizeRow = (): HTMLElement => {
   const div = document.createElement('div')
   div.className = 'ctrl-row'
   const label = document.createElement('div')
@@ -66,21 +66,27 @@ const renderIconSizeRow = (): HTMLElement => {
   label.appendChild(name)
   label.appendChild(desc)
   div.appendChild(label)
+  const wrap = document.createElement('div')
+  wrap.className = 'ctrl-range-wrap'
   const input = document.createElement('input')
-  input.type = 'number'
+  input.type = 'range'
   input.min = '8'
   input.max = '64'
   input.step = '1'
   input.value = String(getGraphics().hudIconSize)
-  input.className = 'ctrl-number'
-  input.addEventListener('change', () => {
+  input.className = 'ctrl-range'
+  const val = document.createElement('span')
+  val.className = 'ctrl-val'
+  val.textContent = `${getGraphics().hudIconSize}px`
+  input.addEventListener('input', () => {
     const v = Number(input.value)
     setHudIconSize(Number.isFinite(v) ? v : 20)
-    input.value = String(getGraphics().hudIconSize)
-    renderGraphicsList()
+    val.textContent = `${input.value}px`
     setGraphicsStatus(t('settings.graphics.saved'))
   })
-  div.appendChild(input)
+  wrap.appendChild(input)
+  wrap.appendChild(val)
+  div.appendChild(wrap)
   return div
 }
 
@@ -146,7 +152,7 @@ const renderGraphicsList = (): void => {
     graphicsEffectsEl.appendChild(div)
   }
   graphicsEffectsEl.appendChild(renderWeatherRow())
-  graphicsEffectsEl.appendChild(renderIconSizeRow())
+  graphicsEffectsEl.appendChild(renderHudSizeRow())
 }
 
 const renderWeatherOptions = (select: HTMLSelectElement): void => {

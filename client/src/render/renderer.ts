@@ -4,7 +4,7 @@ import type { World } from '../core/world.ts'
 import { Camera, ISO_HALF_H, ISO_HALF_W } from './camera.ts'
 import { addGroundTo, FogRenderer } from './ground.ts'
 import { clearShapeCache, fieldTexture, flagTexture, lightningTexture, obstacleTexture, textureFor } from './shapes.ts'
-import { buildingStatusIndex, buildingStatusTexture, obstacleImageTexture, oilFieldStatusTexture, preloadBuildingSprites, preloadFieldSprites, preloadUnitSprites, supplyFieldStatusTexture, UNIT_SPRITE_WIDTH, unitDirFromScreenAngle, unitImagesAvailable, unitTextureByName } from './building-sprites.ts'
+import { buildingStatusIndex, buildingStatusTexture, fxFrameTexture, obstacleImageTexture, oilFieldStatusTexture, preloadBuildingSprites, preloadFieldSprites, preloadFxFrames, preloadUnitSprites, supplyFieldStatusTexture, UNIT_SPRITE_WIDTH, unitDirFromScreenAngle, unitImagesAvailable, unitTextureByName } from './building-sprites.ts'
 import type { Minimap } from './minimap.ts'
 import type { BoxInfo } from '../input/input.ts'
 import { findSpawnTile } from '../systems/production-system.ts'
@@ -92,6 +92,9 @@ export class Renderer {
   readonly camera = new Camera(800, 600)
   private entitySprites = new Map<number, Sprite>()
   private unitFacing = new Map<number, string>()
+  private flashSprites = new Map<number, Sprite>()
+  private flameSprites = new Map<number, Sprite>()
+  private burnProcedural: Texture[] = []
   private teamMarkers = new Map<number, Sprite>()
   private hitboxSprites = new Map<number, Sprite>()
   private outlineTexCache = new Map<string, Texture>()
@@ -119,6 +122,10 @@ export class Renderer {
   private powerLayer = new Container()
   private lightningTex: Texture = Texture.EMPTY
   private powerIcons = new Map<number, Sprite>()
+  /** Super-weapon camera shake: world ticks during which the view oscillates. */
+  private shakeStart = 0
+  private shakeUntil = 0
+  private shakeAmp = 0
 
   private onWindowResize = (): void => {
     const w = window.innerWidth
@@ -166,6 +173,33 @@ export class Renderer {
     sctx.fillStyle = grad
     sctx.fillRect(0, 0, 64, 64)
     this.airShadowTex = Texture.from(shadowCanvas)
+
+    const makeFireTex = (variant: number): Texture => {
+      const fireCanvas = document.createElement('canvas')
+      fireCanvas.width = 32
+      fireCanvas.height = 32
+      const fctx = fireCanvas.getContext('2d')!
+      fctx.translate(16, 15)
+      const tall = variant === 0
+      const rx = tall ? 6.5 : 9.5
+      const ry = tall ? 14 : 11
+      const fg = fctx.createRadialGradient(0, tall ? 3 : 2, 2, 0, 0, Math.max(rx, ry))
+      fg.addColorStop(0, '#fff8d8')
+      fg.addColorStop(0.35, '#ffe05c')
+      fg.addColorStop(0.72, '#ff8a2a')
+      fg.addColorStop(1, 'rgba(255,60,16,0)')
+      fctx.fillStyle = fg
+      fctx.beginPath()
+      fctx.ellipse(0, tall ? 2 : 3, rx, ry, 0, 0, Math.PI * 2)
+      fctx.fill()
+      fctx.beginPath()
+      fctx.arc(0, tall ? 7 : 6, 2.6, 0, Math.PI * 2)
+      fctx.fillStyle = 'rgba(255,255,220,0.85)'
+      fctx.fill()
+      return Texture.from(fireCanvas)
+    }
+    this.burnProcedural = [makeFireTex(0), makeFireTex(1)]
+    if (getGraphics().assetPaths['fx:burn']?.trim()) preloadFxFrames('burn')
 
     this.fieldTex = fieldTexture(this.app.renderer)
     this.lightningTex = lightningTexture(this.app.renderer)
@@ -228,6 +262,25 @@ export class Renderer {
     this.minimap = m
   }
 
+  /** Kicks a decaying sinusoidal camera shake lasting `durationTicks` from `worldTick`. */
+  startShake(worldTick: number, durationTicks: number, amplitudePx: number): void {
+    const until = worldTick + Math.max(1, durationTicks)
+    if (until > this.shakeUntil) {
+      this.shakeUntil = until
+      this.shakeStart = worldTick
+      this.shakeAmp = Math.max(this.shakeAmp, Math.abs(amplitudePx))
+    }
+  }
+
+  /** Screen-space pixel offsets applied while a shake is running (world coords × zoom). */
+  shakeOffset(worldTick: number): { x: number; y: number } {
+    if (worldTick >= this.shakeUntil || this.shakeAmp <= 0) return { x: 0, y: 0 }
+    const total = this.shakeUntil - this.shakeStart
+    const t = total > 0 ? (worldTick - this.shakeStart) / total : 1
+    const amp = this.shakeAmp * (1 - t)
+    return { x: Math.sin(worldTick * 1.35) * amp, y: Math.cos(worldTick * 1.75) * amp }
+  }
+
   render(
     world: World,
     localTeam: number,
@@ -244,8 +297,9 @@ export class Renderer {
       this.onWindowResize()
     }
     const { camera } = this
+    const shake = this.shakeOffset(world.tick)
     this.localTeam = localTeam
-    this.worldLayer.position.set(camera.camX * camera.zoom, camera.camY * camera.zoom)
+    this.worldLayer.position.set(camera.camX * camera.zoom + shake.x, camera.camY * camera.zoom + shake.y)
     this.worldLayer.scale.set(camera.zoom)
     this.teamLayer.visible = this.showBases
 
@@ -265,6 +319,18 @@ export class Renderer {
         spr.parent?.removeChild(spr)
         this.entitySprites.delete(id)
         this.unitFacing.delete(id)
+      }
+    }
+    for (const [id, flash] of this.flashSprites) {
+      if (!seen.has(id)) {
+        flash.parent?.removeChild(flash)
+        this.flashSprites.delete(id)
+      }
+    }
+    for (const [id, b] of this.flameSprites) {
+      if (!seen.has(id)) {
+        b.parent?.removeChild(b)
+        this.flameSprites.delete(id)
       }
     }
     for (const [id, sh] of this.airShadows) {
@@ -1006,6 +1072,15 @@ export class Renderer {
     spr.visible = camera.isInView(pos.x, pos.y)
   }
 
+  /** Animated burning-fire texture: either the 2 loaded `fx:burn` frames or a
+   * 2-frame procedural flame fallback. Frame cycles roughly every 2 ticks. */
+  private burnTex(tick: number): Texture {
+    preloadFxFrames('burn')
+    const frame = 1 + ((tick >> 2) & 1)
+    const imgTex = fxFrameTexture('burn', frame)
+    return imgTex ?? this.burnProcedural[frame - 1] ?? this.burnProcedural[0]
+  }
+
   private syncSprite(id: number, kind: 'unit' | 'building', type: string, world: World, camera: Camera): void {
     let spr = this.entitySprites.get(id)
     if (!spr) {
@@ -1169,6 +1244,70 @@ export class Renderer {
     const pos = { x: 0, y: 0 }
     camera.worldToScreen(t.x, t.y, pos)
     spr.visible = this.inView(pos, id, world, camera)
+
+    // hit flash — white overlay while `tick - hitTick < 2` (cosmetic only)
+    const hit = world.flashes.get(id)
+    const flashing = effectEnabled('effects') && hit !== undefined && world.tick - hit.hitTick < 2
+    let flash = this.flashSprites.get(id)
+    if (flashing) {
+      if (!flash) {
+        flash = new Sprite(spr.texture)
+        flash.anchor.set(0.5)
+        this.flashSprites.set(id, flash)
+      }
+      if (flash.texture !== spr.texture) flash.texture = spr.texture
+      flash.tint = 0xffffff
+      flash.alpha = 1 - (world.tick - hit.hitTick) / 2
+      if (flash.scale.x !== spr.scale.x || flash.scale.y !== spr.scale.y) flash.scale.copyFrom(spr.scale)
+      if (flash.position.x !== spr.position.x || flash.position.y !== spr.position.y) flash.position.copyFrom(spr.position)
+      flash.rotation = spr.rotation
+      flash.visible = spr.visible
+      const parent = spr.parent
+      if (parent && flash.parent !== parent) parent.addChild(flash)
+    } else if (flash) {
+      flash.parent?.removeChild(flash)
+      this.flashSprites.delete(id)
+    }
+
+    // burning-fire overlay for heavily damaged units (<=25% hp, visual only)
+    let flame: Sprite | undefined
+    if (kind === 'unit' && effectEnabled('effects')) {
+      const hp = world.healths.get(id)
+      if (hp && hp.maxHp > 0 && hp.hp > 0 && hp.hp / hp.maxHp <= 0.25) {
+        flame = this.flameSprites.get(id)
+        if (!flame) {
+          flame = new Sprite(this.burnTex(world.tick))
+          flame.anchor.set(0.5)
+          this.flameSprites.set(id, flame)
+        }
+        const imageFrame = fxFrameTexture('burn', 1 + ((world.tick >> 2) & 1))
+        const cls = world.units.get(id)?.class ?? 'vehicle'
+        const scaleCls = cls === 'air' ? 'vehicle' : cls
+        const mult = getGraphics().unitScale[scaleCls] ?? 1
+        if (imageFrame) {
+          if (flame.texture !== imageFrame) flame.texture = imageFrame
+          const bw = imageFrame.frame.width || 1
+          flame.scale.set((UNIT_SPRITE_WIDTH / bw) * mult * 1.9)
+        } else {
+          const tex = this.burnTex(world.tick)
+          if (flame.texture !== tex) flame.texture = tex
+          flame.scale.set(mult * 1.25)
+        }
+        flame.tint = 0xffffff
+        flame.rotation = 0
+        flame.alpha = 0.85 + Math.sin((world.tick + id) * 0.9) * 0.15
+        flame.position.copyFrom(spr.position)
+        flame.position.y -= 14
+        flame.visible = spr.visible
+        const parent = spr.parent
+        if (parent && flame.parent !== parent) parent.addChild(flame)
+      }
+    }
+    const existingFlame = this.flameSprites.get(id)
+    if (existingFlame !== undefined && existingFlame !== flame) {
+      existingFlame.parent?.removeChild(existingFlame)
+      this.flameSprites.delete(id)
+    }
   }
 
   private syncTeamMarkers(world: World, camera: Camera): void {

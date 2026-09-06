@@ -117,12 +117,12 @@ Renderer + game UI.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Hit flash** — unit sprite briefly white on damage | #28a | `renderer.ts` `drawUnit`: when `damageFlash` component exists and `tick - hitTick < 2`, draw white sprite overlay. New ECS `DamageFlashComp { hitTick: number }`. |
-| 2 | **Burning fire** — below 25% HP, unit shows fire overlay; destroyed if tick reaches 0 | #28b | `renderer.ts` `drawBurning()`: when `hp < maxHp * 0.25`, draw animated fire sprite (2-frame tween). No sim change (visual only). |
-| 3 | **In-match settings** — Escape menu: volume, fog mode, keybinds, confirm-quit | #35a+b | `Game.ts` Escape menu: new overlay with settings panel (volume slider, fog dropdown, control remap link, quit confirm dialog). |
-| 4 | **Super weapon camera shake** — enemy camera shakes 0.4 s when SW fires on them | User idea | `renderer.ts`: when `laser-strike` / `satellite` command targets current team's area, apply camera shake (sinusoidal offset on `camera.x/y` for ~24 ticks). `Game.ts` detects SW command on own team, triggers `shakeUntil = tick + 24`. |
+| 1 | **Hit flash** — unit sprite briefly white on damage | #28a | `world.ts` `DamageFlashComp { hitTick }` + `world.flashes` SparseSet; stamped in `combat-system.applyDamage`; `renderer.ts` `syncSprite` draws white overlay sprite (`flashSprites` Map, alpha fade ~4 ticks). |
+| 2 | **Burning fire** — below 25% HP, unit shows animated fire overlay | #28b | `renderer.ts`: `burnTex(tick)` returns fx-frame (`fxFrameTexture('burn', 1 + ((tick>>2)&1))`, loaded via `preloadFxFrames('burn')` from dev `fx:burn` asset path) or a 2-frame procedural canvas fallback (`makeFireTex` radial-gradient ellipse, taller flicker variant). `flameSprites` child sprite at `y -= 14`, scale `(UNIT_SPRITE_WIDTH/bw) * mult * 1.9`, alpha flicker `0.85 + sin((tick+id)*0.9)*0.15`, hidden when HP recovers above 25%. |
+| 3 | **In-match settings** — Escape menu: volume, HUD size, controls link, confirm-quit | #35a+b | `Game.ts` Escape menu (`#menu-overlay` + `#menu-settings` + `#menu-actions` row). New `in-menu-settings.ts` renders Master/Effects/Ambient sliders (`renderSliderRow`, now exported from `audio-settings.ts`) + HUD-size slider (`renderHudSizeRow`, renamed+exported from `graphics-settings.ts`) into `#menu-settings`. `menu-ctrl-info` opens the controls overlay; `menu-quit` is two-click (`menuQuitArmed` → `menu.confirmQuit`). Fog mode intentionally NOT in match (lobby-only). |
+| 4 | **Super weapon camera shake** — 0.4 s sinusoidal shake when SW fires near you | User idea | `renderer.ts`: `startShake(worldTick, 24, 8)` sets `shakeStart/shakeUntil/shakeAmp`; `shakeOffset(tick)` computes a decaying sine applied to `worldLayer.position` each frame (cosmetic only, outside sim hash). `Game.ts` triggers it on `laser-strike` SimEvent when `gfx.effects.effects` is on. |
 
-**Touch points:** `renderer.ts`, `Game.ts`, `combat-system.ts` (damage flash ECS), `world.ts` (new component)
+**Touch points:** `renderer.ts`, `Game.ts`, `combat-system.ts` (damage flash stamp), `world.ts` (DamageFlashComp), `building-sprites.ts` (fx-frame preload + `fxFrameTexture`), `main.ts` (dev `fx:burn` input row + `inMenuSettingsReady` loading gate), `ui/in-menu-settings.ts` (new), `ui/audio-settings.ts` + `ui/graphics-settings.ts` (exported slider row helpers), `index.html` (menu overlay markup), `styles.css` (menu-settings/actions styles), `i18n` en/ar (menu.confirmQuit/menu.controls/menu.settings + dev assets rows)
 
 ---
 

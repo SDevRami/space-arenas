@@ -66,6 +66,17 @@
       #menu-overlay button:hover { background: var(--color-surface-hover); }
       #menu-overlay #menu-quit { background: var(--color-danger); border-color: var(--color-danger-border); }
       #menu-overlay #menu-quit:hover { background: #7a2626; }
+      #menu-overlay .menu-settings { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--color-divider); text-align: left; display: flex; flex-direction: column; gap: 8px; }
+      #menu-overlay .menu-settings-title { color: var(--color-accent); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+      #menu-overlay .menu-settings .ctrl-row { display: flex; gap: 12px; align-items: center; padding: 8px 10px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); border-radius: 4px; }
+      #menu-overlay .menu-settings .ctrl-label { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+      #menu-overlay .menu-settings .ctrl-label > div:first-child { color: var(--color-text); font-size: 12px; font-weight: 600; }
+      #menu-overlay .menu-settings .ctrl-desc { color: var(--color-text-muted); font-size: 11px; line-height: 1.4; }
+      #menu-overlay .menu-settings .ctrl-range-wrap { display: flex; align-items: center; gap: 8px; flex: 0 0 180px; }
+      #menu-overlay .menu-settings input.ctrl-range { flex: 1 1 auto; accent-color: #27a86b; cursor: pointer; }
+      #menu-overlay .menu-settings .ctrl-val { flex: 0 0 40px; text-align: right; color: var(--color-text); font-size: 12px; font-weight: 600; }
+      #menu-overlay .menu-actions { display: flex; gap: 10px; margin-top: 16px; }
+      #menu-overlay .menu-actions button { margin-top: 0; flex: 1 1 0; }
       #results-overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.75); z-index: 45; pointer-events: auto; }
       #results-overlay.visible { display: flex; }
       #results-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 20px; width: 640px; max-width: 94vw; max-height: 92vh; overflow-y: auto; border-radius: 6px; text-align: center; }

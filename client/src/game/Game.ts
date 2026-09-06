@@ -67,6 +67,7 @@ export class Game {
   private menuOverlay: HTMLDivElement
   private menuResumeBtn: HTMLButtonElement
   private menuQuitBtn: HTMLButtonElement
+  private menuQuitArmed = false
   private resultsOverlay: HTMLDivElement
   private resultsQuitBtn: HTMLButtonElement
   private menuStatsBoard: StatsBoard
@@ -198,6 +199,8 @@ export class Game {
   }
 
   private onMenuBtnClick = (): void => {
+    this.menuQuitArmed = false
+    if (this.menuQuitBtn) this.menuQuitBtn.textContent = t('menu.quit')
     if (this.mode === 'offline') this.paused = true
     const rows = this.currentStatsRows()
     if (rows) {
@@ -229,10 +232,17 @@ export class Game {
   private onMenuResumeClick = (): void => {
     this.menuOverlay.classList.remove('visible')
     this.menuStatsBoard.hide()
+    this.menuQuitArmed = false
+    if (this.menuQuitBtn) this.menuQuitBtn.textContent = t('menu.quit')
     this.paused = false
   }
 
   private onMenuQuitClick = (): void => {
+    if (!this.menuQuitArmed) {
+      this.menuQuitArmed = true
+      if (this.menuQuitBtn) this.menuQuitBtn.textContent = t('menu.confirmQuit')
+      return
+    }
     this.menuOverlay.classList.remove('visible')
     this.menuStatsBoard.hide()
     this.paused = false
@@ -598,6 +608,9 @@ export class Game {
       }
       if (e.type === 'scenery-destroyed' && e.kind === 'tree') {
         renderer.addTreeFall(e.x, e.y, e.w, e.h)
+      }
+      if (e.type === 'laser-strike' && gfx.effects.effects) {
+        renderer.startShake(world.tick, 24, 8)
       }
       if (e.type === 'unit-sold') {
         renderer.addSellFx(e.x, e.y, 1)
@@ -2178,6 +2191,8 @@ export class Game {
     this.resultsBoard.hide()
     this.menuOverlay.classList.remove('visible')
     this.menuStatsBoard.hide()
+    this.menuQuitArmed = false
+    if (this.menuQuitBtn) this.menuQuitBtn.textContent = t('menu.quit')
     this.confirmOverlay.classList.remove('visible')
     this.confirmYesBtn.removeEventListener('click', this.onConfirmYesClick)
     this.confirmNoBtn.removeEventListener('click', this.onConfirmNoClick)

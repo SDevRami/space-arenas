@@ -10,6 +10,7 @@ import { MapPreview } from './ui/map-preview.ts'
 import { createPlayerRow } from './ui/player-row.ts'
 import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
 import { initControlsSettings } from './ui/controls-settings.ts'
+import { preloadFxFrames } from './render/building-sprites.ts'
 import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setUnitScale, setAssetPath, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_UNIT_SCALE, UNIT_ASSET_IDS, OBSTACLE_ASSET_TYPES } from './ui/graphics.ts'
 import { getAudio, setOverride, type SoundId } from './audio/settings.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
@@ -265,6 +266,20 @@ let renderAudioList: () => void = () => {}
 
 const audioReady = import('./ui/audio-settings.ts').then((mod) => {
   renderAudioList = mod.initAudioSettings().renderAudioList
+})
+
+// ---------- in-menu (pause) settings ----------
+
+let renderInMenuSettings: () => void = () => {}
+
+const inMenuSettingsReady = import('./ui/in-menu-settings.ts').then((mod) => {
+  renderInMenuSettings = mod.renderInMenuSettings
+  renderInMenuSettings()
+})
+
+document.getElementById('menu-ctrl-info')?.addEventListener('click', () => {
+  controlsInfoContent.innerHTML = controlsInfoHtml()
+  controlsInfoOverlay.classList.add('visible')
 })
 
 // ---------- dev settings ----------
@@ -876,6 +891,12 @@ const buildDevForm = (): void => {
       setDevStatus(t('dev.status.assetSaved'))
     })
   }
+  appendAssetGroupLabel(t('dev.assets.fx'))
+  makeTextInput(t('dev.assets.burn'), t('dev.fields.assetBurn.desc'), g.assetPaths['fx:burn'] ?? '', (v) => {
+    setAssetPath('fx:burn', v)
+    setDevStatus(t('dev.status.assetSaved'))
+    preloadFxFrames('burn')
+  })
   appendDevSection(t('dev.sections.audio'))
   appendAssetGroupLabel(t('dev.audio.ui'))
   for (const id of ['select', 'move-bleep', 'alert'] as SoundId[]) audioPathInput(id)
@@ -2103,6 +2124,7 @@ const refreshLobbyTexts = (): void => {
   renderMapBuilderTable()
   renderGraphicsList()
   renderAudioList()
+  renderInMenuSettings()
   renderWeatherOptions(startWeatherEl)
   renderWeatherOptions(matchWeatherEl)
   if (controlsOverlay.classList.contains('visible')) renderControlsList()
@@ -2125,7 +2147,7 @@ if (inviteCode) {
 
 // ---------- hide loading screen ----------
 
-void Promise.allSettled([graphicsReady, audioReady, mapBuilderReady, infoCatalogReady]).then(() => {
+void Promise.allSettled([graphicsReady, audioReady, inMenuSettingsReady, mapBuilderReady, infoCatalogReady]).then(() => {
   const el = document.getElementById('loading-screen')
   if (el) {
     el.classList.add('hidden')

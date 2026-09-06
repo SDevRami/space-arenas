@@ -648,7 +648,9 @@
       "supplyField": "Supply field (25 fill frames: {frame} = 1-25, one step per 1/25 capacity)",
       "oilField": "Oil field (4 damage frames: {frame} = 1-4 at 100/75/50/25% health)",
       "units": "Units — moving sprites (8 directions: {dir} = north, west+north, west, west+south, south, east+south, east, north+east)",
-      "scenery": "Scenery — static objects (tree, rock, wreck)"
+      "scenery": "Scenery — static objects (tree, rock, wreck)",
+      "fx": "Effects — animated overlays",
+      "burn": "Burning fire (2 frames: {frame} = 1-2)"
     },
     "sections": {
       "economy": "Economy & production",
@@ -738,6 +740,8 @@
       "assetBuilding": { "label": "Building images path", "desc": "High-quality status image template; {frame} = image 0001-0008 (1-5 construction, 5-8 damage), {color} = player color folder. e.g. pp/1/pp_0001.png. Applied on the next match" },
       "assetUnit": { "label": "Unit image path", "desc": "High-quality directional sprite template; {dir} = one of 8 directions (north, north+east, east, …), {color} = player color folder. e.g. v_b/1/v_b_south.png. Empty = vector shape" },
       "assetObstacle": { "label": "Scenery image path", "desc": "Static object image (tree, rock, wreck), e.g. ao/tree.png — leave empty for the vector shape" },
+      "assetBurn": { "label": "Burning fire path", "desc": "Animated overlay for heavily damaged units; {frame} = 0001-0002. e.g. fx/burn/burn_{frame}.png. Empty = procedural flame" },
+      "assetFx": { "label": "Effects", "desc": "Effects — animated overlays (2 frames: {frame} = 1-2)" },
       "audioPath": { "label": "Sound override", "desc": "A single file (…/x.wav/.mp3/.ogg) OR a folder under client/dist such as sound/{id}/ holding v1.wav, v2.wav, … Ordinary sounds play a shuffled variant each time; ambient-lobby/ambient-game play their files one-after-another in a shuffled loop. Empty = default synth" },
       "fieldSupply": { "label": "Supply field image path", "desc": "Fill-level image template; {frame} = 1-25, one step per 1/25 of the stored capacity" },
       "fieldOil": { "label": "Oil field image path", "desc": "Damage image template; {frame} = 1-4 at 100/75/50/25% health" },
@@ -830,6 +834,9 @@
     "button": "Menu",
     "stats": "Match Stats",
     "resume": "Resume",
+    "controls": "Controls",
+    "settings": "Settings",
+    "confirmQuit": "Really quit? Click again to confirm",
     "quit": "Quit Game",
     "back": "Back to Menu",
     "victory": "Victory!",

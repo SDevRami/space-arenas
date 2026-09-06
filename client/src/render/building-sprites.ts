@@ -229,5 +229,43 @@ export const unitImagesAvailable = (type: string, color = DEFAULT_PLAYER_COLOR):
   return !!m && m.has(`${'south'}:${color}`) && m.size > 0
 }
 
+// ---------- effect frame images (e.g. burning-fire frames) ----------
+
+/** 4-digit zero-padded frame helper, mirroring the on-disk {frame} convention. */
+const padFrame4 = (frame: number): string => String(frame).padStart(4, '0')
+
+const fxImages = new Map<string, Texture>()
+
+const fxFrameUrl = (key: string, frame: number): string => {
+  const template = getGraphics().assetPaths[`fx:${key}`]?.trim()
+  if (!template) return ''
+  const url = template.replaceAll('{frame}', padFrame4(frame))
+  return /^https?:\/\//i.test(url) || url.startsWith('/') ? url : `${import.meta.env.BASE_URL}${url}`
+}
+
+const loadFxFrame = async (key: string, frame: number): Promise<void> => {
+  if (!fxFrameUrl(key, frame)) return
+  const slot = `fx:${key}:${frame}`
+  if (fxImages.has(slot) || pending.has(slot)) return
+  pending.add(slot)
+  try {
+    const tex = await Assets.load<Texture>(fxFrameUrl(key, frame))
+    fxImages.set(slot, tex)
+  } catch {
+    /* missing image: keep procedural fallback */
+  } finally {
+    pending.delete(slot)
+  }
+}
+
+/** Kicks off a load for effect frames `key` (e.g. 'burn'), leaving the diffuse
+ * frame textures to be picked up by `fxFrameTexture` once they resolve. */
+export const preloadFxFrames = (key: string): void => {
+  void loadFxFrame(key, 1)
+  void loadFxFrame(key, 2)
+}
+
+export const fxFrameTexture = (key: string, frame: number): Texture | null => fxImages.get(`fx:${key}:${frame}`) ?? null
+
 /** Approximate on-screen width (px) of a small vector unit shape, for image size parity. */
 export const UNIT_SPRITE_WIDTH = 26
