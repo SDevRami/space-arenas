@@ -46,7 +46,7 @@ export const spawnUnit = (
   const def = getUnit(unitType, world.settings)
   const id = world.createEntity('unit', team)
   const t: TransformComp = { x, y }
-  const u: UnitComp = { unitType, team, speed: def.speed, class: def.class, isHarvester: !!def.isHarvester }
+  const u: UnitComp = { unitType, team, speed: def.speed, class: def.class, isHarvester: !!def.isHarvester, killCount: 0, veteranRank: 0 }
   const h: HealthComp = { hp: def.hp, maxHp: def.hp }
   const v: VisionComp = { radius: def.vision }
   world.transforms.set(id, t)

@@ -7,6 +7,33 @@ import { spawnBuilding, spawnUnit } from '../entities/factories.ts'
 /** How long a ping stays visible (in sim ticks). Cosmetic-only. */
 export const PING_TICKS = 125
 
+/** Stat multipliers applied to a unit based on its veterancy rank. */
+export interface VeteranBonus {
+  damage: number
+  range: number
+  armor: number
+}
+
+/** Rank earned from a given kill total (0, 1 or 2, capped at rank 2). */
+export const veteranRankForKills = (world: World, kills: number): 0 | 1 | 2 => {
+  if (kills >= world.settings.veteranRank2Kills) return 2
+  if (kills >= world.settings.veteranRank1Kills) return 1
+  return 0
+}
+
+/** Per-rank veterancy multipliers. Rank 1 = the base values below and rank 2
+ * scales them linearly (×2). Damage/range increase, armor is damage reduction
+ * (incoming-damage multiplier, clamped to ≥ 0). */
+export const unitVeteranBonus = (world: World, rank: number): VeteranBonus => {
+  const r = Math.max(0, Math.min(2, rank | 0))
+  const s = world.settings
+  return {
+    damage: 1 + (r > 0 ? s.veteranDamagePerRank : 0) * r,
+    range: 1 + (r > 0 ? s.veteranRangePerRank : 0) * r,
+    armor: Math.max(0, 1 - (r > 0 ? s.veteranArmorPerRank : 0) * r),
+  }
+}
+
 /** Cosmetic-only player ping marker. It never affects the sim hash or the
  * network protocol — pings arrive via regular commands and are rendered from
  * this array on every client, exactly like `flashes`. */
@@ -29,6 +56,10 @@ export interface UnitComp {
   speed: number
   class: 'infantry' | 'vehicle' | 'air'
   isHarvester: boolean
+  /** Enemy units this unit has destroyed (veterancy progress). */
+  killCount: number
+  /** Veterancy level: 0 = none, 1 = veteran, 2 = elite (capped, never regresses). */
+  veteranRank: 0 | 1 | 2
 }
 
 export interface BuildingComp {

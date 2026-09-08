@@ -1,10 +1,15 @@
 import { getBuilding, getUnit, getWeapon, sqDist, tileToFx } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
+import { unitVeteranBonus, veteranRankForKills } from '../core/world.ts'
 import { setMove } from '../entities/factories.ts'
 
 export const applyDamage = (world: World, target: number, amount: number, attacker: number, teamOverride = -1): void => {
   const h = world.healths.get(target)
   if (!h) return
+  const targetUnit = world.units.get(target)
+  if (targetUnit && targetUnit.veteranRank > 0) {
+    amount *= unitVeteranBonus(world, targetUnit.veteranRank).armor
+  }
   h.hp -= amount
   world.flashes.set(target, { hitTick: world.tick })
   const attackerUnit = world.units.get(attacker)
@@ -25,6 +30,16 @@ export const applyDamage = (world: World, target: number, amount: number, attack
     }
   }
   if (h.hp <= 0) {
+    // Veterancy: only destroying an enemy unit counts as a kill. The attacker
+    // must be a unit itself (buildings/oil/wrecks never gain veterancy).
+    if (attackerUnit && targetUnit && !world.sameTeam(attackerUnit.team, targetUnit.team)) {
+      attackerUnit.killCount++
+      const newRank = veteranRankForKills(world, attackerUnit.killCount)
+      if (newRank > attackerUnit.veteranRank) {
+        attackerUnit.veteranRank = newRank as 1 | 2
+        world.emit({ type: 'unit-ranked-up', unit: attacker, rank: newRank as 1 | 2 })
+      }
+    }
     const deadX = world.transforms.get(target)?.x ?? 0
     const deadY = world.transforms.get(target)?.y ?? 0
     const u = world.units.get(target)
@@ -137,12 +152,15 @@ export const CombatSystem = {
       const t = world.transforms.get(id)
       if (!t) return
       const weapon = getWeapon(a.weaponId, world.settings)
-      const rangeFx = tileToFx(weapon.range)
+      const weaponUnit = world.units.get(id)
+      const veterancy = weaponUnit && weaponUnit.veteranRank > 0 ? unitVeteranBonus(world, weaponUnit.veteranRank) : null
+      const rangeFx = tileToFx(weapon.range) * (veterancy ? veterancy.range : 1)
       const rangeSq = rangeFx * rangeFx
       const keepSq = rangeSq * world.settings.chaseLeash * world.settings.chaseLeash
       const isBuilding = world.buildings.has(id)
       const team = isBuilding ? world.buildings.require(id).team : world.units.require(id).team
       const targetsAir = weapon.targetsAir === true
+      const damageMult = veterancy ? veterancy.damage : 1
 
       if (a.currentCooldown > 0) a.currentCooldown--
 
@@ -181,7 +199,7 @@ export const CombatSystem = {
           // In fire range: stop and shoot — don't keep advancing onto the
           // target. Re-issue the standoff move only if the target pulls away.
           if (a.currentCooldown === 0) {
-            fire(world, id, target, tp.x, tp.y, weapon.damage, weapon.splash, targetsAir)
+            fire(world, id, target, tp.x, tp.y, weapon.damage * damageMult, weapon.splash, targetsAir)
             a.currentCooldown = weapon.cooldownTicks
           }
           const m = world.moves.get(id)
@@ -266,7 +284,7 @@ export const CombatSystem = {
         const dSq = sqDist(t.x, t.y, tx, ty)
         if (dSq <= rangeSq) {
           if (a.currentCooldown === 0 && !a.guardMode) {
-            fireGround(world, id, tx, ty, weapon.damage, weapon.splash, targetsAir)
+            fireGround(world, id, tx, ty, weapon.damage * damageMult, weapon.splash, targetsAir)
             a.currentCooldown = weapon.cooldownTicks
           }
           if (!a.keepAttack && !a.guardMode) {

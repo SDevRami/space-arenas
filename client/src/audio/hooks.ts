@@ -509,6 +509,9 @@ export class AudioHooks {
       case 'game-over':
         this.playSfx('game-over', { pitch: e.winner !== null ? 1 : 0.5, gain: 0.08 })
         break
+      case 'unit-ranked-up':
+        this.playTone({ freq: 660 + e.rank * 180, dur: 0.14, type: 'triangle', gain: 0.06 })
+        break
       default:
         break
     }

@@ -679,6 +679,7 @@
       "worldFields": "World fields (0 = use the map value)",
       "movement": "Movement & separation (synced)",
       "combat": "Combat behaviour (synced)",
+      "veterancy": "Veterancy (synced)",
       "planes": "Planes (synced)",
       "pathfinding": "Pathfinding (synced)",
       "assets": "Assets — high-quality images (client-only, not synced)",
@@ -742,6 +743,11 @@
       "targetBiasFocusFire": { "label": "Target bias: focus fire", "desc": "Auto-target score bonus per friendly attacker already on that target. Higher = concentrated fire, lower = spread out" },
       "targetBiasLowHp": { "label": "Target bias: low HP", "desc": "Auto-target score bonus favoring wounded targets (scaled by missing HP). 0 = ignore target health when picking" },
       "defaultSplash": { "label": "Default splash radius", "desc": "Splash radius in cells for ground hits by weapons without explicit splash (rifle, cannon, AA, turret gun, air cannon)" },
+      "veteranRank1Kills": { "label": "Veteran kills", "desc": "Enemy units a unit must destroy to reach rank 1 (the first star)" },
+      "veteranRank2Kills": { "label": "Elite kills", "desc": "Enemy units a unit must destroy to reach rank 2 (the second star)" },
+      "veteranDamagePerRank": { "label": "Damage bonus/rank", "desc": "Extra damage fraction per veterancy rank (rank 1 = +25% at default, rank 2 = +50%)" },
+      "veteranRangePerRank": { "label": "Range bonus/rank", "desc": "Extra attack range fraction per veterancy rank (rank 1 = +10% at default, rank 2 = +20%)" },
+      "veteranArmorPerRank": { "label": "Damage reduction/rank", "desc": "Fraction of incoming damage negated per veterancy rank (rank 1 = −20% at default, rank 2 = −40%). Does not affect buildings" },
       "planeOrbitRadius": { "label": "Plane orbit radius", "desc": "Idle orbit radius around the hover point, in tiles" },
       "planeReloadRadius": { "label": "Plane reload radius", "desc": "Distance from home air force within which a plane rearms, in tiles" },
       "planeSortieMult": { "label": "Plane sortie range", "desc": "Auto-attack acquisition radius as × of weapon range/vision while idle" },
@@ -808,6 +814,7 @@
       "x": "×",
       "nodes": "nodes",
       "score": "score",
+      "kills": "kills",
       "default": "Default: {v}"
     },
     "status": {
@@ -1063,7 +1070,8 @@
       "maxPowerEnd": "Max Power over — power plant overheated to 50% HP",
       "playerLeft": "Team {t} left — ${a} distributed to supply fields",
       "destroyed": "{name} destroyed",
-      "baseAttacked": "Your base is under attack — team {t}"
+      "baseAttacked": "Your base is under attack — team {t}",
+      "rankedUp": "Unit promoted to rank {rank}!"
     },
     "noFreeDozer": "No free Bulldozer selected",
     "place": "Place {name} — click a location, Esc to cancel",

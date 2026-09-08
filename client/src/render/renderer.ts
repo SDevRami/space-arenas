@@ -68,6 +68,9 @@ export class Renderer {
   private teamFlagLayer = new Container()
   private unitFlagSprites = new Map<number, Sprite>()
   private flagDotTex: Texture = Texture.EMPTY
+  private veteranStarLayer = new Container()
+  private veteranStars = new Map<number, Sprite[]>()
+  private veteranStarTex: Texture = Texture.EMPTY
   private airShadowTex: Texture = Texture.EMPTY
   private shadowLayer = new Container()
   private airShadowTopLayer = new Container()
@@ -171,6 +174,16 @@ export class Renderer {
     this.flagDotTex = this.app.renderer.generateTexture({ target: dot, resolution: 8, antialias: true })
     dot.destroy()
 
+    const starPts: number[] = []
+    for (let k = 0; k < 10; k++) {
+      const ang = -Math.PI / 2 + (k * Math.PI) / 5
+      const r = k % 2 === 0 ? 8 : 3.6
+      starPts.push(Math.cos(ang) * r, Math.sin(ang) * r)
+    }
+    const star = new Graphics().poly(starPts).fill(0xffcf33)
+    this.veteranStarTex = this.app.renderer.generateTexture({ target: star, resolution: 8, antialias: true })
+    star.destroy()
+
     const shadowCanvas = document.createElement('canvas')
     shadowCanvas.width = 64
     shadowCanvas.height = 64
@@ -251,6 +264,7 @@ export class Renderer {
     this.ghostLayer.addChild(this.ghostOutline)
     this.ghostLayer.addChild(this.rangeRingG)
     this.worldLayer.addChild(this.barLayer)
+    this.worldLayer.addChild(this.veteranStarLayer)
     this.worldLayer.addChild(this.powerLayer)
     this.worldLayer.addChild(this.teamFlagLayer)
     this.worldLayer.addChild(this.fxLayer)
@@ -378,6 +392,7 @@ export class Renderer {
     this.syncTeamMarkers(world, camera)
     this.syncHitboxes(world, camera)
     this.syncUnitFlags(world, camera)
+    this.syncVeterancy(world, camera)
 
     const fog = world.fog.get(localTeam)
     if (this.fog) {
@@ -1553,6 +1568,51 @@ export class Renderer {
       if (!seen.has(id)) {
         this.teamFlagLayer.removeChild(spr)
         this.unitFlagSprites.delete(id)
+      }
+    }
+  }
+
+  /** Gold veterancy stars to the LEFT of the health bar (rank icons | hp bar | alliance circle). */
+  private syncVeterancy(world: World, camera: Camera): void {
+    const seen = new Set<number>()
+    world.units.forEach((id, u) => {
+      if (u.veteranRank < 1) return
+      if (!this.isEntityVisible(world, id)) return
+      const t = world.transforms.get(id)
+      if (!t) return
+      const team = world.teamOf(id)
+      if (team < 0) return
+      seen.add(id)
+      const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+      const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+      const barY = isoY - (u.class === 'vehicle' ? 18 : 14) - 8
+      let list = this.veteranStars.get(id)
+      if (!list) {
+        list = [new Sprite(this.veteranStarTex), new Sprite(this.veteranStarTex)]
+        for (const s of list) {
+          s.anchor.set(0.5)
+          this.veteranStarLayer.addChild(s)
+        }
+        this.veteranStars.set(id, list)
+      }
+      const count = Math.min(2, u.veteranRank)
+      const pos = { x: 0, y: 0 }
+      camera.worldToScreen(t.x, t.y, pos)
+      const vis = camera.isInView(pos.x, pos.y)
+      for (let i = 0; i < list.length; i++) {
+        const s = list[i]
+        if (i >= count) {
+          s.visible = false
+        } else {
+          s.position.set(isoX - BAR_W / 2 - 9 - (count - 1 - i) * 12, barY)
+          s.visible = vis
+        }
+      }
+    })
+    for (const [id, list] of this.veteranStars) {
+      if (!seen.has(id)) {
+        for (const s of list) this.veteranStarLayer.removeChild(s)
+        this.veteranStars.delete(id)
       }
     }
   }

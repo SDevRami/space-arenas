@@ -763,6 +763,8 @@ export class Game {
         const d = e.kind === 'unit' && e.typeName ? UNITS[e.typeName] : e.kind === 'building' && e.typeName ? BUILDINGS[e.typeName] : undefined
         return t('game.events.destroyed', { name: d && e.typeName ? tn(e.typeName, d.name) : e.typeName ?? e.kind })
       }
+      case 'unit-ranked-up':
+        return this.world && this.world.teamOf(e.unit) === this.localTeam ? t('game.events.rankedUp', { rank: e.rank }) : null
       case 'command-rejected':
         return t('game.rejected', { reason: e.reason })
       case 'player-left':

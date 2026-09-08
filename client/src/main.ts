@@ -317,6 +317,7 @@ const DEV_UNIT_KEYS: Record<string, string> = {
   x: 'x',
   nodes: 'nodes',
   score: 'score',
+  kills: 'kills',
 }
 
 const devUnit = (u: string): string => t(`dev.units.${DEV_UNIT_KEYS[u] ?? u}`)
@@ -413,6 +414,16 @@ const DEV_SCALAR_SECTIONS: Array<{ title: string; fields: DevFieldDef[] }> = [
       { key: 'targetBiasFocusFire', unit: 'score', min: 0, max: 10000000, step: 100000 },
       { key: 'targetBiasLowHp', unit: 'score', min: 0, max: 1000000, step: 1000 },
       { key: 'defaultSplash', unit: 'cells', min: 0, max: 10, step: 0.1 },
+    ],
+  },
+  {
+    title: 'veterancy',
+    fields: [
+      { key: 'veteranRank1Kills', unit: 'kills', min: 0, max: 100, step: 1 },
+      { key: 'veteranRank2Kills', unit: 'kills', min: 0, max: 200, step: 1 },
+      { key: 'veteranDamagePerRank', unit: 'x', min: 0, max: 2, step: 0.05 },
+      { key: 'veteranRangePerRank', unit: 'x', min: 0, max: 2, step: 0.05 },
+      { key: 'veteranArmorPerRank', unit: '0–1', min: 0, max: 1, step: 0.05 },
     ],
   },
   {
