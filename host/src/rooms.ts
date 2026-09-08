@@ -98,6 +98,14 @@ const SANITIZE: Record<string, { min: number; max: number }> = {
   workStuckTicks: { min: 5, max: 300 },
   pathBudgetPerTick: { min: 1, max: 100 },
   pathMaxNodes: { min: 100, max: 200000 },
+  veteranRank1Kills: { min: 0, max: 100 },
+  veteranRank2Kills: { min: 0, max: 200 },
+  veteranRank3Kills: { min: 0, max: 300 },
+  veteranRank4Kills: { min: 0, max: 400 },
+  veteranRank5Kills: { min: 0, max: 500 },
+  veteranDamagePerRank: { min: 0, max: 2 },
+  veteranRangePerRank: { min: 0, max: 2 },
+  veteranArmorPerRank: { min: 0, max: 1 },
 }
 
 const OVERRIDE_CLAMP: Record<string, { min: number; max: number }> = {

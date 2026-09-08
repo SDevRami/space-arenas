@@ -421,6 +421,9 @@ const DEV_SCALAR_SECTIONS: Array<{ title: string; fields: DevFieldDef[] }> = [
     fields: [
       { key: 'veteranRank1Kills', unit: 'kills', min: 0, max: 100, step: 1 },
       { key: 'veteranRank2Kills', unit: 'kills', min: 0, max: 200, step: 1 },
+      { key: 'veteranRank3Kills', unit: 'kills', min: 0, max: 300, step: 1 },
+      { key: 'veteranRank4Kills', unit: 'kills', min: 0, max: 400, step: 1 },
+      { key: 'veteranRank5Kills', unit: 'kills', min: 0, max: 500, step: 1 },
       { key: 'veteranDamagePerRank', unit: 'x', min: 0, max: 2, step: 0.05 },
       { key: 'veteranRangePerRank', unit: 'x', min: 0, max: 2, step: 0.05 },
       { key: 'veteranArmorPerRank', unit: '0–1', min: 0, max: 1, step: 0.05 },

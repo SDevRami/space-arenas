@@ -1,5 +1,5 @@
 import { SparseSet } from '../ecs/sparse-set.ts'
-import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType } from '@space-arenas/shared'
+import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR } from '@space-arenas/shared'
 import type { SimEvent } from './events.ts'
 import { rectFromCenter } from './geometry.ts'
 import { spawnBuilding, spawnUnit } from '../entities/factories.ts'
@@ -14,23 +14,30 @@ export interface VeteranBonus {
   armor: number
 }
 
-/** Rank earned from a given kill total (0, 1 or 2, capped at rank 2). */
-export const veteranRankForKills = (world: World, kills: number): 0 | 1 | 2 => {
-  if (kills >= world.settings.veteranRank2Kills) return 2
-  if (kills >= world.settings.veteranRank1Kills) return 1
+/** Rank earned from a given kill total (0–5, capped at rank 5). */
+export type VeteranRank = 0 | 1 | 2 | 3 | 4 | 5
+
+/** Rank earned from a given kill total (0–5, capped at rank 5). */
+export const veteranRankForKills = (world: World, kills: number): VeteranRank => {
+  const s = world.settings
+  if (kills >= s.veteranRank5Kills) return 5
+  if (kills >= s.veteranRank4Kills) return 4
+  if (kills >= s.veteranRank3Kills) return 3
+  if (kills >= s.veteranRank2Kills) return 2
+  if (kills >= s.veteranRank1Kills) return 1
   return 0
 }
 
-/** Per-rank veterancy multipliers. Rank 1 = the base values below and rank 2
- * scales them linearly (×2). Damage/range increase, armor is damage reduction
- * (incoming-damage multiplier, clamped to ≥ 0). */
+/** Per-rank veterancy multipliers. Rank 1 = the base values below and rank N
+ * scales them linearly (×N). Damage/range increase, armor is damage reduction
+ * (incoming-damage multiplier, clamped to ≥ VETERAN_ARMOR_FLOOR). */
 export const unitVeteranBonus = (world: World, rank: number): VeteranBonus => {
-  const r = Math.max(0, Math.min(2, rank | 0))
+  const r = Math.max(0, Math.min(VETERAN_MAX_RANK, rank | 0))
   const s = world.settings
   return {
     damage: 1 + (r > 0 ? s.veteranDamagePerRank : 0) * r,
     range: 1 + (r > 0 ? s.veteranRangePerRank : 0) * r,
-    armor: Math.max(0, 1 - (r > 0 ? s.veteranArmorPerRank : 0) * r),
+    armor: Math.max(VETERAN_ARMOR_FLOOR, 1 - (r > 0 ? s.veteranArmorPerRank : 0) * r),
   }
 }
 
@@ -58,8 +65,8 @@ export interface UnitComp {
   isHarvester: boolean
   /** Enemy units this unit has destroyed (veterancy progress). */
   killCount: number
-  /** Veterancy level: 0 = none, 1 = veteran, 2 = elite (capped, never regresses). */
-  veteranRank: 0 | 1 | 2
+  /** Veterancy level: 0 = none, 1–4 = gold pips, 5 = star (capped, never regresses). */
+  veteranRank: VeteranRank
 }
 
 export interface BuildingComp {

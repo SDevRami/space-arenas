@@ -32,6 +32,35 @@ const OBSTACLE_BASE_WIDTH = 30
 const BAR_W = 26
 const BAR_H = 4
 
+const VETERAN_PIP_COLOR = 0xffcf33
+const VETERAN_PIP_W = 3
+const VETERAN_PIP_H = 12
+const VETERAN_PIP_GAP = 3
+const VETERAN_STAR_R = 9
+
+/** Local width of the veterancy icon row for a rank (bars 1–4, star at 5). */
+const veteranPipWidth = (rank: number): number =>
+  rank >= 5 ? VETERAN_STAR_R * 2 : rank * VETERAN_PIP_W + (rank - 1) * VETERAN_PIP_GAP
+
+/** Draws the veterancy icon, centered on (0,0). Ranks 1–4 = gold bars, rank 5 = star. */
+const drawVeteranPips = (shape: Graphics, rank: number): void => {
+  shape.clear()
+  if (rank >= 5) {
+    const pts: number[] = []
+    for (let k = 0; k < 10; k++) {
+      const ang = -Math.PI / 2 + (k * Math.PI) / 5
+      const r = k % 2 === 0 ? VETERAN_STAR_R : VETERAN_STAR_R * 0.45
+      pts.push(Math.cos(ang) * r, Math.sin(ang) * r)
+    }
+    shape.poly(pts).fill(VETERAN_PIP_COLOR)
+  } else {
+    for (let i = 0; i < rank; i++) {
+      const x = -veteranPipWidth(rank) / 2 + i * (VETERAN_PIP_W + VETERAN_PIP_GAP)
+      shape.rect(x, -VETERAN_PIP_H / 2, VETERAN_PIP_W, VETERAN_PIP_H).fill(VETERAN_PIP_COLOR)
+    }
+  }
+}
+
 const OBSTRUCTION_COLORS: Record<string, number> = {
   rock: 0xffb35c,
   wreck: 0x9aa7b8,
@@ -68,9 +97,9 @@ export class Renderer {
   private teamFlagLayer = new Container()
   private unitFlagSprites = new Map<number, Sprite>()
   private flagDotTex: Texture = Texture.EMPTY
-  private veteranStarLayer = new Container()
-  private veteranStars = new Map<number, Sprite[]>()
-  private veteranStarTex: Texture = Texture.EMPTY
+  private veteranPipLayer = new Container()
+  private veteranPips = new Map<number, Graphics>()
+  private veteranPipRank = new Map<number, number>()
   private airShadowTex: Texture = Texture.EMPTY
   private shadowLayer = new Container()
   private airShadowTopLayer = new Container()
@@ -174,16 +203,6 @@ export class Renderer {
     this.flagDotTex = this.app.renderer.generateTexture({ target: dot, resolution: 8, antialias: true })
     dot.destroy()
 
-    const starPts: number[] = []
-    for (let k = 0; k < 10; k++) {
-      const ang = -Math.PI / 2 + (k * Math.PI) / 5
-      const r = k % 2 === 0 ? 8 : 3.6
-      starPts.push(Math.cos(ang) * r, Math.sin(ang) * r)
-    }
-    const star = new Graphics().poly(starPts).fill(0xffcf33)
-    this.veteranStarTex = this.app.renderer.generateTexture({ target: star, resolution: 8, antialias: true })
-    star.destroy()
-
     const shadowCanvas = document.createElement('canvas')
     shadowCanvas.width = 64
     shadowCanvas.height = 64
@@ -264,7 +283,7 @@ export class Renderer {
     this.ghostLayer.addChild(this.ghostOutline)
     this.ghostLayer.addChild(this.rangeRingG)
     this.worldLayer.addChild(this.barLayer)
-    this.worldLayer.addChild(this.veteranStarLayer)
+    this.worldLayer.addChild(this.veteranPipLayer)
     this.worldLayer.addChild(this.powerLayer)
     this.worldLayer.addChild(this.teamFlagLayer)
     this.worldLayer.addChild(this.fxLayer)
@@ -1572,7 +1591,8 @@ export class Renderer {
     }
   }
 
-  /** Gold veterancy stars to the LEFT of the health bar (rank icons | hp bar | alliance circle). */
+  /** Gold veterancy pips to the LEFT of the health bar (pips | hp bar | alliance circle).
+   * Ranks 1–4 show that many gold bars, rank 5 shows a single star. */
   private syncVeterancy(world: World, camera: Camera): void {
     const seen = new Set<number>()
     world.units.forEach((id, u) => {
@@ -1586,33 +1606,27 @@ export class Renderer {
       const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
       const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
       const barY = isoY - (u.class === 'vehicle' ? 18 : 14) - 8
-      let list = this.veteranStars.get(id)
-      if (!list) {
-        list = [new Sprite(this.veteranStarTex), new Sprite(this.veteranStarTex)]
-        for (const s of list) {
-          s.anchor.set(0.5)
-          this.veteranStarLayer.addChild(s)
-        }
-        this.veteranStars.set(id, list)
+      let g = this.veteranPips.get(id)
+      if (!g) {
+        g = new Graphics()
+        this.veteranPipLayer.addChild(g)
+        this.veteranPips.set(id, g)
       }
-      const count = Math.min(2, u.veteranRank)
+      if (this.veteranPipRank.get(id) !== u.veteranRank) {
+        this.veteranPipRank.set(id, u.veteranRank)
+        drawVeteranPips(g, u.veteranRank)
+      }
       const pos = { x: 0, y: 0 }
       camera.worldToScreen(t.x, t.y, pos)
       const vis = camera.isInView(pos.x, pos.y)
-      for (let i = 0; i < list.length; i++) {
-        const s = list[i]
-        if (i >= count) {
-          s.visible = false
-        } else {
-          s.position.set(isoX - BAR_W / 2 - 9 - (count - 1 - i) * 12, barY)
-          s.visible = vis
-        }
-      }
+      g.visible = vis
+      if (vis) g.position.set(isoX - BAR_W / 2 - 9 - veteranPipWidth(u.veteranRank) / 2, barY)
     })
-    for (const [id, list] of this.veteranStars) {
+    for (const [id, g] of this.veteranPips) {
       if (!seen.has(id)) {
-        for (const s of list) this.veteranStarLayer.removeChild(s)
-        this.veteranStars.delete(id)
+        this.veteranPipLayer.removeChild(g)
+        this.veteranPips.delete(id)
+        this.veteranPipRank.delete(id)
       }
     }
   }

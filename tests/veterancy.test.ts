@@ -45,6 +45,12 @@ describe('veterancy: kill credit and ranks', () => {
     applyDamage(sim.world, victim(5), 99999, killer)
     expect(u.killCount).toBe(6)
     expect(u.veteranRank).toBe(2)
+
+    applyDamage(sim.world, victim(6), 99999, killer)
+    applyDamage(sim.world, victim(7), 99999, killer)
+    applyDamage(sim.world, victim(8), 99999, killer)
+    expect(u.killCount).toBe(9)
+    expect(u.veteranRank).toBe(3)
   })
 
   it('never awards veterancy for building or friendly kills', () => {
@@ -66,16 +72,25 @@ describe('veterancy: stat bonuses', () => {
     expect(unitVeteranBonus(world, 1).range).toBeCloseTo(1.1)
     expect(unitVeteranBonus(world, 1).armor).toBeCloseTo(0.8)
     expect(unitVeteranBonus(world, 2).armor).toBeCloseTo(0.6)
+    expect(unitVeteranBonus(world, 3).damage).toBeCloseTo(1.75)
+    expect(unitVeteranBonus(world, 4).range).toBeCloseTo(1.4)
+    expect(unitVeteranBonus(world, 4).armor).toBeCloseTo(0.5)
+    expect(unitVeteranBonus(world, 5).damage).toBeCloseTo(2.25)
+    expect(unitVeteranBonus(world, 5).range).toBeCloseTo(1.5)
+    expect(unitVeteranBonus(world, 5).armor).toBeCloseTo(0.5)
   })
 
-  it('veteranRankForKills caps at rank 2 and respects custom thresholds', () => {
+  it('veteranRankForKills caps at rank 5 and respects custom thresholds', () => {
     const { world } = makeSim()
     expect(veteranRankForKills(world, 0)).toBe(0)
     expect(veteranRankForKills(world, 2)).toBe(0)
     expect(veteranRankForKills(world, 3)).toBe(1)
     expect(veteranRankForKills(world, 5)).toBe(1)
     expect(veteranRankForKills(world, 6)).toBe(2)
-    expect(veteranRankForKills(world, 500)).toBe(2)
+    expect(veteranRankForKills(world, 9)).toBe(3)
+    expect(veteranRankForKills(world, 12)).toBe(4)
+    expect(veteranRankForKills(world, 15)).toBe(5)
+    expect(veteranRankForKills(world, 500)).toBe(5)
   })
 
   it('armor reduces incoming damage for veteran targets', () => {

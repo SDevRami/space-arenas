@@ -85,13 +85,19 @@ export const BUILDING_MARGIN_VEHICLE = 500
 export const BUILDING_MARGIN_INFANTRY = 350
 export const FIELD_MARGIN = 400
 
-/** Veterancy: kills needed to reach ranks 1 and 2. */
+/** Veterancy: kills needed to reach ranks 1–5. */
 export const VETERAN_RANK1_KILLS = 3
 export const VETERAN_RANK2_KILLS = 6
-/** Veterancy: per-rank stat bonuses. rank 1 = listed values, rank 2 = doubled. */
+export const VETERAN_RANK3_KILLS = 9
+export const VETERAN_RANK4_KILLS = 12
+export const VETERAN_RANK5_KILLS = 15
+export const VETERAN_MAX_RANK = 5
+/** Veterancy: per-rank stat bonuses. rank 1 = listed values, rank N = N× them. */
 export const VETERAN_DAMAGE_PER_RANK = 0.25
 export const VETERAN_RANGE_PER_RANK = 0.1
 export const VETERAN_ARMOR_PER_RANK = 0.2
+/** Damage-reduction floor: no unit can ever reduce incoming damage below 50%. */
+export const VETERAN_ARMOR_FLOOR = 0.5
 
 export interface BuildingOverrides {
   cost?: number
@@ -188,6 +194,9 @@ export interface MatchSettings {
   pathMaxNodes: number
   veteranRank1Kills: number
   veteranRank2Kills: number
+  veteranRank3Kills: number
+  veteranRank4Kills: number
+  veteranRank5Kills: number
   veteranDamagePerRank: number
   veteranRangePerRank: number
   veteranArmorPerRank: number
@@ -261,6 +270,9 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   pathMaxNodes: 8000,
   veteranRank1Kills: VETERAN_RANK1_KILLS,
   veteranRank2Kills: VETERAN_RANK2_KILLS,
+  veteranRank3Kills: VETERAN_RANK3_KILLS,
+  veteranRank4Kills: VETERAN_RANK4_KILLS,
+  veteranRank5Kills: VETERAN_RANK5_KILLS,
   veteranDamagePerRank: VETERAN_DAMAGE_PER_RANK,
   veteranRangePerRank: VETERAN_RANGE_PER_RANK,
   veteranArmorPerRank: VETERAN_ARMOR_PER_RANK,

@@ -36,8 +36,9 @@ export const applyDamage = (world: World, target: number, amount: number, attack
       attackerUnit.killCount++
       const newRank = veteranRankForKills(world, attackerUnit.killCount)
       if (newRank > attackerUnit.veteranRank) {
-        attackerUnit.veteranRank = newRank as 1 | 2
-        world.emit({ type: 'unit-ranked-up', unit: attacker, rank: newRank as 1 | 2 })
+        const promotedRank = newRank as 1 | 2 | 3 | 4 | 5
+        attackerUnit.veteranRank = promotedRank
+        world.emit({ type: 'unit-ranked-up', unit: attacker, rank: promotedRank })
       }
     }
     const deadX = world.transforms.get(target)?.x ?? 0
