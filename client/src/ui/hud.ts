@@ -72,6 +72,7 @@ export class Hud {
   private fpsEl = document.getElementById('fps-info')!
   private buildMenu = document.getElementById('build-menu')!
   private selectionInfo = document.getElementById('selection-info')!
+  private selectionAchievement = document.getElementById('selection-achievement')!
   private gameLog = document.getElementById('game-log')!
   private hudEl = document.getElementById('hud')!
 
@@ -154,6 +155,7 @@ export class Hud {
     this.buildMenu.innerHTML = ''
     if (selection.size === 0) {
       this.selectionInfo.textContent = t('hud.noSelection')
+      this.selectionAchievement.style.display = 'none'
       this.hideBuildMenu()
       return
     }
@@ -182,7 +184,34 @@ export class Hud {
     } else {
       this.selectionInfo.textContent = t('hud.selected', { n: names.length, names: names.slice(0, 6).join(', ') })
     }
+    this.updaters.push(() => this.renderAchievement(world, selection))
+    this.renderAchievement(world, selection)
     this.renderMenu(world, selection, localTeam, hasBuilder, hasWorkingDozer, isMobile)
+  }
+
+  /** Kills + current rank for the selected rank-capable units (troops/vehicles/air). */
+  private renderAchievement(world: World, selection: Set<number>): void {
+    let bestRank = 0
+    let totalKills = 0
+    let found = false
+    selection.forEach((id) => {
+      const u = world.units.get(id)
+      if (!u) return
+      found = true
+      totalKills += u.killCount
+      if (u.veteranRank > bestRank) bestRank = u.veteranRank
+    })
+    if (!found) {
+      this.selectionAchievement.style.display = 'none'
+      return
+    }
+    const pips = bestRank >= 5 ? '★' : bestRank > 0 ? '|'.repeat(bestRank) : '–'
+    this.selectionAchievement.title = t('hud.achievementTitle')
+    this.selectionAchievement.innerHTML =
+      `<span class="ach-pips">${pips}</span>` +
+      `<span class="ach-rank">${t('hud.rankLevel', { rank: bestRank })}</span>` +
+      `<span class="ach-kills">${t('hud.kills', { kills: totalKills })}</span>`
+    this.selectionAchievement.style.display = ''
   }
 
   private describeEntity(world: World, id: number): string {

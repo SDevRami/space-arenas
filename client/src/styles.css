@@ -119,6 +119,10 @@
       #hud.sel-expanded .hud-build { max-height: 112px; }
 
       .selection-info { flex: 0 0 auto; min-width: 150px; max-width: 360px; padding-right: 10px; margin-right: 4px; border-right: 1px solid var(--color-border-light); line-height: 1.4; }
+      .selection-achievement { display: none; flex: 0 0 auto; align-items: center; gap: 8px; color: var(--color-gold); font-size: 13px; font-weight: 600; white-space: nowrap; padding-right: 10px; margin-right: 4px; border-right: 1px solid var(--color-border-light); cursor: help; }
+      .selection-achievement .ach-pips { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 1px; }
+      .selection-achievement .ach-rank { color: var(--color-text); }
+      .selection-achievement .ach-kills { color: var(--color-text-muted); font-size: 12px; font-weight: 400; }
       .hud-build { display: none; flex: 1 1 auto; min-width: 0; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; overflow: hidden; }
       .hud-build.visible { display: flex; }
       .hud-build h3 { color: var(--color-accent); font-size: 11px; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
@@ -180,6 +184,7 @@
       html[lang="ar"] body.mobile-mode #lobby .menu-side #tab-mobile::after { content: ' (مفعّل)'; }
       html[lang="ar"] #lobby .menu-side { border-right: none; border-left: 1px solid var(--color-divider); }
       html[lang="ar"] .selection-info { border-right: none; border-left: 1px solid var(--color-border-light); margin-right: 4px; margin-left: 0; padding-right: 0; padding-left: 10px; }
+      html[lang="ar"] .selection-achievement { border-right: none; border-left: 1px solid var(--color-border-light); margin-right: 4px; margin-left: 0; padding-right: 0; padding-left: 10px; }
       html[lang="ar"] #lobby .net-chat-history .who, html[lang="ar"] #chat-history .who { margin-right: 0; margin-left: 6px; }
       html[lang="ar"] #lobby .info-content ul, html[lang="ar"] #lobby .info-content ol { padding-left: 0; padding-right: 22px; }
       .settings-lang-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 4px; }
@@ -197,6 +202,7 @@
         .hud-top { height: auto; min-height: 40px; flex-wrap: wrap; gap: 8px; padding: 6px 8px; font-size: 12px; }
         .hud-selection { flex-wrap: wrap; }
         .selection-info { max-width: 100%; border-right: none; }
+        .selection-achievement { border-right: none; }
         .hud-build { max-height: 84px; overflow-y: auto; }
         #tools-bar { top: 56px; right: 8px; bottom: auto; }
         #mobile-controls { bottom: 220px; left: 8px; right: auto; }

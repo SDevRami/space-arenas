@@ -894,6 +894,9 @@
     "maxPowerHpDrop": "HP dropping…",
     "unitDesc": "{name} — HP {hp}% · cost ${cost} · speed {speed}",
     "buildingDesc": "{name} — {parts}",
+    "rankLevel": "Rank {rank}",
+    "kills": "{kills} kills",
+    "achievementTitle": "Achievements — kills and rank",
     "headers": {
       "command": "Command",
       "produce": "Produce",

@@ -894,6 +894,9 @@
     "maxPowerHpDrop": "الصحة تنقص…",
     "unitDesc": "{name} — الصحة {hp}% · التكلفة ${cost} · السرعة {speed}",
     "buildingDesc": "{name} — {parts}",
+    "rankLevel": "الرتبة {rank}",
+    "kills": "{kills} قتلة",
+    "achievementTitle": "الإنجازات — القتلات والرتبة",
     "headers": {
       "command": "أوامر",
       "produce": "إنتاج",
