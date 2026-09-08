@@ -1,5 +1,6 @@
-import { Terrain, type MapData, tileIndex, applyBrightness } from '@space-arenas/shared'
-import type { World } from '../core/world.ts'
+import { Terrain, type MapData, tileIndex, applyBrightness, type PingType } from '@space-arenas/shared'
+import type { World, PingComp } from '../core/world.ts'
+import { PING_TICKS } from '../core/world.ts'
 import type { Camera } from './camera.ts'
 
 const TERRAIN_COLORS: Record<number, string> = {
@@ -15,6 +16,12 @@ const FOG_DARK = 'rgba(0,0,0,0.45)'
 const FOG_LIGHT = 'rgba(0,0,0,0.22)'
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
+
+export const PING_COLORS: Record<PingType, string> = {
+  alert: '#ff5c5c',
+  assist: '#ffd45e',
+  'on-my-way': '#7cf27c',
+}
 
 export class Minimap {
   readonly canvas = document.createElement('canvas')
@@ -225,6 +232,7 @@ export class Minimap {
     }
     this.drawViewport(camera, re, offsetX, offsetY)
     this.drawFlashes(world, re, offsetX, offsetY)
+    this.drawPings(world, localTeam, re, offsetX, offsetY)
   }
 
   /** Draw decaying pulse rings at recently-attacked buildings. */
@@ -245,6 +253,37 @@ export class Minimap {
       ctx.arc((f.x / 1000) * re + offsetX, (f.y / 1000) * re + offsetY, 3 + age * 0.2, 0, Math.PI * 2)
       ctx.stroke()
     }
+  }
+
+  /** Draw expanding, fading ping markers — only for the local team's alliance. */
+  private drawPings(world: World, localTeam: number, re: number, offsetX: number, offsetY: number): void {
+    if (localTeam < 0 || world.pings.length === 0) return
+    const ctx = this.vctx
+    const myAlliance = world.allianceOf(localTeam)
+    for (const p of world.pings) {
+      if (world.allianceOf(p.team) !== myAlliance) continue
+      this.drawPing(ctx, world, p, re, offsetX, offsetY)
+    }
+  }
+
+  private drawPing(ctx: CanvasRenderingContext2D, world: World, p: PingComp, re: number, offsetX: number, offsetY: number): void {
+    const age = world.tick - p.started
+    if (age >= PING_TICKS) return
+    const a = 1 - age / PING_TICKS
+    const x = p.x * re + offsetX
+    const y = p.y * re + offsetY
+    ctx.strokeStyle = PING_COLORS[p.type]
+    ctx.globalAlpha = Math.max(a, 0.25)
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(x, y, 2 + age * 0.1, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.globalAlpha = Math.max(a * 0.9, 0.3)
+    ctx.beginPath()
+    ctx.arc(x, y, 0.8, 0, Math.PI * 2)
+    ctx.fillStyle = PING_COLORS[p.type]
+    ctx.fill()
+    ctx.globalAlpha = 1
   }
 
   private drawViewport(camera: Camera, re: number, offsetX: number, offsetY: number): void {

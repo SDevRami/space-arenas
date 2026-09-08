@@ -642,6 +642,22 @@
     "reset": "Reset to defaults",
     "saveAsDefault": "Save as default",
     "collapse": "Close all sections",
+    "overlayBtn": "Dev",
+    "overlayBtnTitle": "Open the dev popup (performance, header parts, shortcuts)",
+    "overlayH1": "Dev popup",
+    "overlayPerf": "Performance",
+    "overlayHud": "Header",
+    "overlayRender": "Render toggles",
+    "overlayShortcuts": "Dev shortcuts",
+    "overlayClose": "Close",
+    "hudFps": "Show FPS",
+    "hudTicks": "Show tick",
+    "hudSync": "Show sync status",
+    "perfFps": "FPS",
+    "perfTicks": "Tick",
+    "perfTickRate": "Tick rate",
+    "perfEntities": "Entities",
+    "perfSync": "Sync",
     "assets": {
       "buildings": "Buildings (8 status frames: 1-4 construction, 5 complete, 6-8 damage)",
       "fields": "Fields",
@@ -650,7 +666,8 @@
       "units": "Units — moving sprites (8 directions: {dir} = north, west+north, west, west+south, south, east+south, east, north+east)",
       "scenery": "Scenery — static objects (tree, rock, wreck)",
       "fx": "Effects — animated overlays",
-      "burn": "Burning fire (2 frames: {frame} = 1-2)"
+      "burn": "Burning fire (2 frames: {frame} = 1-2)",
+      "minimap": "Minimap"
     },
     "sections": {
       "economy": "Economy & production",
@@ -666,6 +683,7 @@
       "pathfinding": "Pathfinding (synced)",
       "assets": "Assets — high-quality images (client-only, not synced)",
       "audio": "Audio — asset file overrides (client-only, not synced)",
+      "match": "Match — victory cinematic (client-only, not synced)",
       "buildingFill": "Building sprite fill (client-only, not synced)",
       "buildings": "Buildings",
       "units": "Units",
@@ -746,6 +764,9 @@
       "fieldSupply": { "label": "Supply field image path", "desc": "Fill-level image template; {frame} = 1-25, one step per 1/25 of the stored capacity" },
       "fieldOil": { "label": "Oil field image path", "desc": "Damage image template; {frame} = 1-4 at 100/75/50/25% health" },
       "fieldOffset": { "label": "High-quality field offset", "desc": "Shifts the supply/oil field images down from the tile center, as a fraction of r (center-to-bottom distance)" },
+      "fxScale": { "label": "Effect size", "desc": "Size of hit flashes and burning fire as a fraction of the object's ground footprint (0.5 = half the object's size)" },
+      "minimapScale": { "label": "Minimap zoom", "desc": "How much the minimap grows when you toggle it with the Map button (1 = normal size)" },
+      "victoryCinematic": { "label": "Victory cinematic", "desc": "Seconds the victory/defeat text stays on screen (all players spectate) before the results popup. 0 = skip straight to results" },
       "unitScale": {
         "desc": "Size multiplier applied to high-quality directional sprites of that unit class (applies live)",
         "vehicle": { "label": "Vehicle sprite scale" },
@@ -881,6 +902,8 @@
     "spawnPoint": "Spawn <em>(V)</em>",
     "flag": "Flag <em>(R)</em>",
     "queueCancel": "Click to cancel this order",
+    "queueMoveLeft": "Move earlier in the queue",
+    "queueMoveRight": "Move later in the queue",
     "researchProgress": "Research in progress"
   },
   "chat": {
@@ -953,6 +976,9 @@
     "minimapTitle": "Toggle minimap size (M)",
     "homeShort": "Home",
     "homeTitle": "Center on home (H)",
+    "pingAlertTitle": "Ping alert — Alt+click to drop an alert ping",
+    "pingAssistTitle": "Ping assist — Alt+click to ask for help",
+    "pingOmwTitle": "Ping on my way — Alt+click to say you're coming",
     "satellite": "Satellite",
     "idleWorker": "Idle Worker",
     "idleDozer": "Idle Bulldozer",
@@ -1090,7 +1116,12 @@
     "expandSelection": "Expand selection bar",
     "collapseSelection": "Collapse selection bar",
     "logShown": "Game log ON (L)",
-    "logHidden": "Game log OFF (L)"
+    "logHidden": "Game log OFF (L)",
+    "pingAlert": "Ping alert — Alt+click the map",
+    "pingAssist": "Ping assist — Alt+click the map",
+    "pingOmw": "Ping on my way — Alt+click the map",
+    "pingModeOff": "Ping mode OFF, click to dismiss",
+    "pingOutOfBounds": "Cannot ping there"
   },
   "names": {
     "command-center": "Command Center",

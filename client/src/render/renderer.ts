@@ -1,6 +1,7 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
-import { BUILDINGS, PLAYER_COLOR_COUNT, PLAYER_COLORS, UNITS, getBuilding, getWeapon, type MapData } from '@space-arenas/shared'
-import type { World } from '../core/world.ts'
+import { BUILDINGS, PLAYER_COLOR_COUNT, PLAYER_COLORS, UNITS, getBuilding, getWeapon, type MapData, type PingType } from '@space-arenas/shared'
+import type { World, PingComp } from '../core/world.ts'
+import { PING_TICKS } from '../core/world.ts'
 import { Camera, ISO_HALF_H, ISO_HALF_W } from './camera.ts'
 import { addGroundTo, FogRenderer } from './ground.ts'
 import { clearShapeCache, fieldTexture, flagTexture, lightningTexture, obstacleTexture, textureFor } from './shapes.ts'
@@ -11,6 +12,12 @@ import { findSpawnTile } from '../systems/production-system.ts'
 import { rectFromCenter } from '../core/geometry.ts'
 import { t, tn } from '../i18n/index.ts'
 import { effectEnabled, getGraphics, dayNightTint } from '../ui/graphics.ts'
+
+const PING_NUM_COLORS: Record<PingType, number> = {
+  alert: 0xff5c5c,
+  assist: 0xffd45e,
+  'on-my-way': 0x7cf27c,
+}
 
 const PRODUCERS = new Set(['command-center', 'supply-dock', 'barracks', 'war-factory', 'air-force'])
 /** Weapon attack range in tiles for a building that can fire (e.g. turret), or null when it has no weapon. */
@@ -86,6 +93,7 @@ export class Renderer {
   /** Pending multi-position move waypoints (fx coords) drawn as green circles. */
   routePoints: Array<{ x: number; y: number }> | null = null
   routeIdx = 0
+  private routeLabels: Text[] = []
   private hoverWorld: { x: number; y: number } | null = null
   private hoverText: Text | null = null
   private fog: FogRenderer | null = null
@@ -790,16 +798,43 @@ export class Renderer {
       this.fxGraphics.circle(px, py, 8).fill({ color, alpha: alpha * 0.18 })
     }
     if (this.routePoints) {
-      this.routePoints.forEach((p, i) => {
-        if (i < this.routeIdx) return
-        const px = (p.x / 1000 - p.y / 1000) * ISO_HALF_W
-        const py = (p.x / 1000 + p.y / 1000) * ISO_HALF_H
-        const current = i === this.routeIdx
+      const pts = this.routePoints
+      const proj: Array<{ x: number; y: number }> = []
+      for (let i = this.routeIdx; i < pts.length; i++) {
+        proj.push({
+          x: (pts[i].x / 1000 - pts[i].y / 1000) * ISO_HALF_W,
+          y: (pts[i].x / 1000 + pts[i].y / 1000) * ISO_HALF_H,
+        })
+      }
+      // Dotted polyline connecting the unconsumed waypoints.
+      for (let i = 0; i < proj.length - 1; i++) {
+        const a = proj[i]
+        const b = proj[i + 1]
+        const dx = b.x - a.x
+        const dy = b.y - a.y
+        const len = Math.hypot(dx, dy) || 1
+        const ux = dx / len
+        const uy = dy / len
+        const dash = 9
+        const gap = 7
+        for (let s = 0; s < len; s += dash + gap) {
+          const e = Math.min(s + dash, len)
+          this.fxGraphics
+            .moveTo(a.x + ux * s, a.y + uy * s)
+            .lineTo(a.x + ux * e, a.y + uy * e)
+            .stroke({ color: 0x52e06a, width: 1.6, alpha: 0.55 })
+        }
+      }
+      // Numbered order badges, current waypoint emphasized.
+      proj.forEach((p, j) => {
+        const current = j === 0
         const r = current ? 9 : 6
         const alpha = current ? 0.95 : 0.5
-        this.fxGraphics.circle(px, py, r).stroke({ color: 0x52e06a, width: current ? 2.5 : 2, alpha })
-        this.fxGraphics.circle(px, py, r).fill({ color: 0x52e06a, alpha: alpha * 0.15 })
+        this.fxGraphics.circle(p.x, p.y, r).stroke({ color: 0x52e06a, width: current ? 2.5 : 2, alpha })
+        this.fxGraphics.circle(p.x, p.y, r).fill({ color: 0x52e06a, alpha: alpha * 0.15 })
+        this.ensureRouteLabel(j, j + this.routeIdx + 1, p.x, p.y)
       })
+      this.hideRouteLabels(proj.length)
     }
     world.satelliteMarkers.forEach((id, m) => {
       const t = world.transforms.get(id)
@@ -830,6 +865,63 @@ export class Renderer {
         this.fxGraphics.circle(px, py, r).stroke({ color: 0x4ad8ff, width: 1.4, alpha: 0.12 + pulse * 0.2 })
       }
     })
+    this.drawPings(world)
+  }
+
+  /** Reuse pooled Text badges for waypoint order numbers. */
+  private ensureRouteLabel(idx: number, number: number, x: number, y: number): void {
+    let label = this.routeLabels[idx]
+    if (!label) {
+      label = new Text({
+        text: '',
+        style: {
+          fontFamily: 'ui-monospace, monospace',
+          fontSize: 11,
+          fontWeight: '700',
+          fill: '#eaffea',
+          stroke: { color: '#06220f', width: 3 },
+        },
+      })
+      label.anchor.set(0.5)
+      this.fxLayer.addChild(label)
+      this.routeLabels[idx] = label
+    }
+    label.text = String(number)
+    label.visible = true
+    label.position.set(x, y - 18)
+  }
+
+  private hideRouteLabels(from: number): void {
+    for (let i = from; i < this.routeLabels.length; i++) this.routeLabels[i].visible = false
+  }
+
+  /** Draw allied ping markers — expanding color-coded ring + crosshair. Cosmetically
+   * reflects `world.pings`, which is populated deterministically from ping commands. */
+  private drawPings(world: World): void {
+    if (this.localTeam < 0 || world.pings.length === 0) return
+    const myAlliance = world.allianceOf(this.localTeam)
+    for (const p of world.pings) {
+      if (world.allianceOf(p.team) !== myAlliance) continue
+      this.drawPing(world, p)
+    }
+  }
+
+  private drawPing(world: World, p: PingComp): void {
+    const age = world.tick - p.started
+    if (age >= PING_TICKS) return
+    const a = 1 - age / PING_TICKS
+    const color = PING_NUM_COLORS[p.type]
+    const fx = p.x * 1000 + 500
+    const fy = p.y * 1000 + 500
+    const px = (fx / 1000 - fy / 1000) * ISO_HALF_W
+    const py = (fx / 1000 + fy / 1000) * ISO_HALF_H
+    const r = 12 + age * (84 / PING_TICKS)
+    const base = Math.max(a * 0.85, 0.3)
+    this.fxGraphics.circle(px, py, r).stroke({ color, width: 3, alpha: base })
+    this.fxGraphics.circle(px, py, r * 0.3).fill({ color, alpha: base * 0.5 })
+    const c = r * 0.55
+    this.fxGraphics.moveTo(px - c, py).lineTo(px + c, py).stroke({ color, width: 1.5, alpha: base })
+    this.fxGraphics.moveTo(px, py - c).lineTo(px, py + c).stroke({ color, width: 1.5, alpha: base })
   }
 
   private renderBox(box: BoxInfo | null): void {
@@ -1301,8 +1393,8 @@ export class Renderer {
       const delta = world.tick - hit.hitTick
       const alpha = 1 - delta / 4
       flash.alpha = alpha
-      // sized to the entity's ground footprint, not its sprite scale
-      const s = (this.effectWidthPx(world, id, kind) * 1.3 * (0.95 + 0.4 * alpha)) / 64
+      // sized to a fraction of the entity's ground footprint (see fxScale dev setting)
+      const s = (this.effectWidthPx(world, id, kind) * getGraphics().fxScale * (0.95 + 0.4 * alpha)) / 64
       flash.scale.set(s)
       flash.rotation = 0
       flash.position.copyFrom(spr.position)
@@ -1334,10 +1426,9 @@ export class Renderer {
           const tex = this.burnTex(world.tick)
           if (flame.texture !== tex) flame.texture = tex
         }
-        // sized to the entity's ground footprint, not its sprite scale
+        // sized to a fraction of the entity's ground footprint (see fxScale dev setting)
         const texW = imageFrame ? imageFrame.frame.width || 1 : 32
-        const cover = kind === 'building' ? 1.5 : 1.8
-        flame.scale.set((this.effectWidthPx(world, id, kind) * cover) / texW)
+        flame.scale.set((this.effectWidthPx(world, id, kind) * getGraphics().fxScale) / texW)
         flame.tint = 0xffffff
         flame.rotation = 0
         flame.alpha = 0.85 + Math.sin((world.tick + id) * 0.9) * 0.15

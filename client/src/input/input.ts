@@ -224,9 +224,9 @@ export class InputManager {
         if (Math.abs(dx) < 6 && Math.abs(dy) < 6) {
           this.cb.onClick({
             world: { x: this.mouseWorld.x, y: this.mouseWorld.y },
-            ctrl: this.ctrl,
-            shift: this.shift,
-            alt: this.alt,
+            ctrl: this.ctrl || e.ctrlKey,
+            shift: this.shift || e.shiftKey,
+            alt: this.alt || e.altKey,
             touch: false,
           })
         } else if (this.boxRect) {

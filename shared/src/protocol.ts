@@ -13,6 +13,7 @@ export type CommandType =
   | 'collect'
   | 'queue'
   | 'dequeue'
+  | 'reorder-queue'
   | 'attack'
   | 'research'
   | 'build'
@@ -23,6 +24,10 @@ export type CommandType =
   | 'set-flag-point'
   | 'forfeit'
   | 'max-power'
+  | 'ping'
+
+/** The three ping flavours players can drop to share intel with their team. */
+export type PingType = 'alert' | 'assist' | 'on-my-way'
 
 export interface SimCommand {
   type: CommandType
@@ -33,7 +38,9 @@ export interface SimCommand {
   unitType?: string
   target?: number
   index?: number
+  to?: number
   upgrade?: string
+  pingType?: PingType
 }
 
 export interface EnvelopeCommand {
@@ -77,6 +84,7 @@ export const CMD_TYPE_IDS: Record<CommandType, number> = {
   collect: 19,
   queue: 5,
   dequeue: 6,
+  'reorder-queue': 21,
   attack: 7,
   research: 8,
   build: 9,
@@ -87,9 +95,18 @@ export const CMD_TYPE_IDS: Record<CommandType, number> = {
   'set-flag-point': 14,
   forfeit: 15,
   'max-power': 18,
+  ping: 20,
 }
 
-const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power', 'collect']
+export const PING_TYPE_IDS: Record<PingType, number> = {
+  alert: 0,
+  assist: 1,
+  'on-my-way': 2,
+}
+
+export const PING_TYPES: PingType[] = ['alert', 'assist', 'on-my-way']
+
+const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power', 'collect', 'ping', 'reorder-queue']
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -139,6 +156,8 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
     typeName === 'place' || typeName === 'queue' ? nameSize(cmd.buildingType ?? cmd.unitType) + 2
     :     typeName === 'research' ? nameSize(cmd.upgrade) + 2
     : typeName === 'dequeue' ? 1
+    : typeName === 'reorder-queue' ? 2
+    : typeName === 'ping' ? 1
     : typeName === 'attack-move' || typeName === 'attack' || typeName === 'build' || typeName === 'collect' || typeName === 'assign-dock' || typeName === 'keep-attack' || typeName === 'guard' ? 4
     : 0
 
@@ -179,10 +198,15 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
   for (const e of cmd.entities) putI32(e)
   putI32(cmd.x)
   putI32(cmd.y)
+  if (typeName === 'ping') putU8(PING_TYPE_IDS[cmd.pingType ?? 'alert'])
   if (typeName === 'place') putStr(cmd.buildingType ?? '')
   if (typeName === 'queue') putStr(cmd.unitType ?? '')
   if (typeName === 'research') putStr(cmd.upgrade ?? '')
   if (typeName === 'dequeue') putU8(cmd.index ?? 0)
+  if (typeName === 'reorder-queue') {
+    putU8(cmd.index ?? 0)
+    putU8(cmd.to ?? 0)
+  }
   if (typeName === 'attack-move') putI32(cmd.target ?? -1)
   if (typeName === 'attack') putI32(cmd.target ?? -1)
   if (typeName === 'build') putI32(cmd.target ?? -1)
@@ -208,10 +232,15 @@ export const decodeEnvelope = (data: Uint8Array): EnvelopeCommand => {
   const y = readI32(c)
 
   const cmd: SimCommand = { type: typeName, entities, x, y }
+  if (typeName === 'ping') cmd.pingType = PING_TYPES[readU8(c)] ?? 'alert'
   if (typeName === 'place') cmd.buildingType = readStr(c)
   if (typeName === 'queue') cmd.unitType = readStr(c)
   if (typeName === 'research') cmd.upgrade = readStr(c)
   if (typeName === 'dequeue') cmd.index = readU8(c)
+  if (typeName === 'reorder-queue') {
+    cmd.index = readU8(c)
+    cmd.to = readU8(c)
+  }
   if (typeName === 'attack-move') cmd.target = readI32(c)
   if (typeName === 'attack') cmd.target = readI32(c)
   if (typeName === 'build') cmd.target = readI32(c)
@@ -302,8 +331,10 @@ const envelopeLength = (data: Uint8Array): number => {
   if (typeName === 'place' || typeName === 'queue' || typeName === 'research') {
     const len = view.getUint16(off, true)
     off += 2 + len
-  } else if (typeName === 'dequeue') {
+  } else if (typeName === 'dequeue' || typeName === 'ping') {
     off += 1
+  } else if (typeName === 'reorder-queue') {
+    off += 2
   } else if (
     typeName === 'attack-move' ||
     typeName === 'attack' ||

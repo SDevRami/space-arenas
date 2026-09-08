@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type SimCommand, type SpectateSyncMessage } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
 import { World, placementExplored, type WorldGrid } from '../core/world.ts'
 import { Simulator } from '../core/Simulator.ts'
 import { GameLoop } from '../core/loop.ts'
@@ -69,18 +69,30 @@ export class Game {
   private menuQuitBtn: HTMLButtonElement
   private resultsOverlay: HTMLDivElement
   private resultsQuitBtn: HTMLButtonElement
+  private cinematicOverlay: HTMLDivElement
+  private cinematicText: HTMLDivElement
+  private cinematicActive = false
+  private cinematicUntil = 0
+  private cinematicWinner: number | null = null
   private menuStatsBoard: StatsBoard
   private resultsBoard: StatsBoard
-  private minimapEl: HTMLElement | null = null
   private mm: Minimap | null = null
+  private mmWrap: HTMLElement | null = null
+  private pingBtns: HTMLButtonElement[] = []
+  private devBtns: HTMLButtonElement[] = []
+  private pingMode: PingType | null = null
+  private devBtn: HTMLButtonElement | null = null
+  private devOverlay: HTMLDivElement | null = null
+  private devCloseBtn: HTMLButtonElement | null = null
+  private devPerfEl: HTMLElement | null = null
+  private devShortcutsEl: HTMLElement | null = null
+  private devOverlayVisible = false
+  private hudPartToggles: Array<{ el: HTMLElement; key: string; on: boolean }> = []
   private toolsBar: HTMLElement | null = null
   private satelliteBtn: HTMLButtonElement | null = null
   private laserBtn: HTMLButtonElement | null = null
   private idleWorkerBtn: HTMLButtonElement | null = null
   private idleDozerBtn: HTMLButtonElement | null = null
-  private mmBtns: HTMLElement | null = null
-  private mmMapBtn: HTMLButtonElement | null = null
-  private mmHomeBtn: HTMLButtonElement | null = null
   private logToggle: HTMLButtonElement | null = null
   private keysToggle: HTMLButtonElement | null = null
   private groupsDoneBtn: HTMLButtonElement | null = null
@@ -112,6 +124,8 @@ export class Game {
     this.menuQuitBtn = document.getElementById('menu-quit') as HTMLButtonElement
     this.resultsOverlay = document.getElementById('results-overlay') as HTMLDivElement
     this.resultsQuitBtn = document.getElementById('results-quit') as HTMLButtonElement
+    this.cinematicOverlay = document.getElementById('cinematic-overlay') as HTMLDivElement
+    this.cinematicText = document.getElementById('cinematic-text') as HTMLDivElement
     this.confirmOverlay = document.getElementById('confirm-overlay') as HTMLDivElement
     this.confirmMessage = document.getElementById('confirm-message') as HTMLParagraphElement
     this.confirmYesBtn = document.getElementById('confirm-yes') as HTMLButtonElement
@@ -133,15 +147,22 @@ export class Game {
     this.idleWorkerBtn?.addEventListener('click', this.onIdleWorkerClick)
     this.idleDozerBtn = document.getElementById('tool-dozer') as HTMLButtonElement | null
     this.idleDozerBtn?.addEventListener('click', this.onIdleDozerClick)
-    this.mmBtns = document.getElementById('mm-btns')
-    this.mmMapBtn = document.getElementById('mm-btn-m') as HTMLButtonElement | null
-    this.mmMapBtn?.addEventListener('click', this.onMmMapClick)
-    this.mmHomeBtn = document.getElementById('mm-btn-h') as HTMLButtonElement | null
-    this.mmHomeBtn?.addEventListener('click', this.onMmHomeClick)
     this.logToggle = document.getElementById('log-toggle') as HTMLButtonElement | null
     this.logToggle?.addEventListener('click', this.onLogToggleClick)
     this.keysToggle = document.getElementById('keys-toggle') as HTMLButtonElement | null
     this.keysToggle?.addEventListener('click', this.onKeysToggleClick)
+    this.devBtn = document.getElementById('dev-btn') as HTMLButtonElement | null
+    this.devBtn?.addEventListener('click', this.onDevClick)
+    this.devOverlay = document.getElementById('dev-overlay') as HTMLDivElement | null
+    this.devPerfEl = document.getElementById('dev-perf') as HTMLElement | null
+    this.devShortcutsEl = document.getElementById('dev-shortcuts') as HTMLElement | null
+    this.devCloseBtn = document.getElementById('dev-close') as HTMLButtonElement | null
+    this.devCloseBtn?.addEventListener('click', this.closeDevOverlay)
+    this.buildDevRenderButtons()
+    this.devOverlay?.addEventListener('click', (e) => {
+      if (e.target === this.devOverlay) this.closeDevOverlay()
+    })
+    this.buildHudPartToggles()
     this.groupsDoneBtn = document.getElementById('groups-done') as HTMLButtonElement | null
     this.groupsDoneBtn?.addEventListener('click', this.onGroupsDoneClick)
 
@@ -158,6 +179,7 @@ export class Game {
       onBuildClick: (type) => this.startPlacement(type),
       onQueueClick: (unitType) => this.queueUnit(unitType),
       onDequeueClick: (buildingId, index) => this.dequeueUnit(buildingId, index),
+      onReorderClick: (buildingId, from, to) => this.reorderQueue(buildingId, from, to),
       onResearchClick: (upgrade) => this.researchUpgrade(upgrade),
       onStopClick: () => this.onStopCommand(),
       onDestroyClick: () => this.destroySelection(),
@@ -272,9 +294,32 @@ export class Game {
     return t('menu.draw')
   }
 
+  /** Victory cinematic: all players spectate for a few seconds with only the result text, then the results popup. */
+  private beginCinematic(winner: number | null): void {
+    if (this.resultShown()) return
+    this.finished = true
+    this.paused = true
+    const secs = getGraphics().victoryCinematicSec
+    if (secs <= 0) {
+      this.showResults(winner)
+      return
+    }
+    this.cinematicActive = true
+    this.cinematicWinner = winner
+    this.cinematicUntil = performance.now() + secs * 1000
+    const title = this.netTitle(winner)
+    this.cinematicText.textContent = title
+    this.cinematicText.classList.toggle('defeat', title === t('menu.defeat'))
+    this.cinematicOverlay.classList.add('visible')
+  }
+
+  private resultShown(): boolean {
+    return this.resultsShown || this.cinematicActive
+  }
+
   onNetGameOver(winner: number | null): void {
     if (this.mode !== 'net') return
-    this.showResults(winner)
+    this.beginCinematic(winner)
   }
 
   async startOffline(cfg: MatchConfig): Promise<void> {
@@ -285,6 +330,8 @@ export class Game {
     this.bots = []
     this.finished = false
     this.resultsShown = false
+    this.cinematicOverlay.classList.remove('visible')
+    this.cinematicActive = false
     await this.boot(null, cfg)
   }
 
@@ -299,6 +346,8 @@ export class Game {
     this.bots = []
     this.finished = false
     this.resultsShown = false
+    this.cinematicOverlay.classList.remove('visible')
+    this.cinematicActive = false
     await this.boot(msg)
   }
 
@@ -361,28 +410,25 @@ export class Game {
     const isMobile = this.isMobileView()
     const mm = new Minimap(map, isMobile ? 0.72 : 1)
     const mmEl = mm.canvas
-    mmEl.style.position = 'absolute'
-    mmEl.style.right = isMobile ? '8px' : '12px'
-    if (isMobile) {
-      mmEl.style.top = '56px'
-    } else {
-      mmEl.style.bottom = '76px'
-    }
     mmEl.style.border = '1px solid #26304a'
     mmEl.style.cursor = 'pointer'
     mmEl.style.pointerEvents = 'auto'
-    document.getElementById('hud')!.appendChild(mmEl)
     const mmOverlay = mm.viewport
+    const mmInner = document.createElement('div')
+    mmInner.className = 'mm-inner'
+    mmInner.appendChild(mmEl)
     mmOverlay.style.position = 'absolute'
-    mmOverlay.style.right = isMobile ? '8px' : '12px'
-    if (isMobile) {
-      mmOverlay.style.top = '56px'
-    } else {
-      mmOverlay.style.bottom = '76px'
-    }
-    document.getElementById('hud')!.appendChild(mmOverlay)
-    this.minimapEl = mmEl
+    mmOverlay.style.top = '0'
+    mmOverlay.style.left = '0'
+    mmInner.appendChild(mmOverlay)
+    const mmWrap = document.createElement('div')
+    mmWrap.className = 'mm-wrap'
+    mmWrap.appendChild(this.buildMinimapRail())
+    mmWrap.appendChild(mmInner)
+    document.getElementById('selection-bar')?.appendChild(mmWrap)
+    this.mmWrap = mmWrap
     this.mm = mm
+    this.pingMode = null
     this.layoutToolsBar()
     renderer.setMinimap(mm)
     let mmDragging = false
@@ -413,6 +459,11 @@ export class Game {
       if (Math.hypot(e.clientX - mmDown.x, e.clientY - mmDown.y) < 5) {
         const rect = mmEl.getBoundingClientRect()
         const t = mm.toTile(e.clientX - rect.left, e.clientY - rect.top)
+        if (this.pingMode) {
+          this.issue({ type: 'ping', entities: [], x: t.x, y: t.y, pingType: this.pingMode })
+          this.audio.uiClick()
+          return
+        }
         renderer.camera.centerOn(tileToFx(t.x) + 500, tileToFx(t.y) + 500)
       }
     })
@@ -542,6 +593,12 @@ export class Game {
     const input = this.input
     if (!world || !renderer || !input) return
 
+    if (this.cinematicActive && performance.now() >= this.cinematicUntil) {
+      this.cinematicActive = false
+      this.cinematicOverlay.classList.remove('visible')
+      this.showResults(this.cinematicWinner)
+    }
+
     const camCenter = renderer.camera.screenToWorldExact(renderer.camera.viewWidth / 2, renderer.camera.viewHeight / 2)
     this.audio.listenerX = camCenter.x
     this.audio.listenerY = camCenter.y
@@ -569,6 +626,7 @@ export class Game {
     this.updateSatelliteButton(world)
     this.updateLaserButton(world)
     this.updateLaserTarget(renderer)
+    if (this.devOverlayVisible) this.updateDevOverlay()
 
     const gfx = getGraphics()
     for (const e of world.drainEvents()) {
@@ -604,7 +662,7 @@ export class Game {
       }
       if (e.type === 'game-over') {
         this.hud.toast(this.netTitle(e.winner))
-        this.showResults(e.winner)
+        this.beginCinematic(e.winner)
         if (this.mode === 'net') this.net?.gameOver(e.winner)
       }
       if (e.type === 'command-rejected') {
@@ -796,6 +854,18 @@ export class Game {
     this.audio.uiClick()
   }
 
+  private reorderQueue(buildingId: number, from: number, to: number): void {
+    const world = this.world
+    if (!world) return
+    if (from === to) return
+    const b = world.buildings.get(buildingId)
+    if (!b || b.team !== this.localTeam) return
+    const q = world.queues.get(buildingId)
+    if (!q || from < 0 || from >= q.queue.length || to < 0 || to >= q.queue.length) return
+    this.issue({ type: 'reorder-queue', entities: [buildingId], x: 0, y: 0, index: from, to })
+    this.audio.uiClick()
+  }
+
   private researchUpgrade(upgrade: string): void {
     const world = this.world
     if (!world) return
@@ -910,6 +980,10 @@ export class Game {
   private onClick(info: ClickInfo): void {
     const world = this.world
     if (!world) return
+    if (this.pingMode) {
+      this.placePing({ x: info.world.x, y: info.world.y })
+      return
+    }
     if (this.pendingLaser) {
       const tx = Math.floor(info.world.x / 1000)
       const ty = Math.floor(info.world.y / 1000)
@@ -1089,14 +1163,6 @@ export class Game {
     this.centerOnIdleWorker('bulldozer')
   }
 
-  private onMmMapClick = (): void => {
-    this.toggleMinimapScale()
-  }
-
-  private onMmHomeClick = (): void => {
-    this.centerHome()
-  }
-
   private onLogToggleClick = (): void => {
     this.toggleGameLog()
   }
@@ -1140,7 +1206,6 @@ export class Game {
   }
 
   private onMobileToolClick = (tool: string): void => {
-    const renderer = this.renderer
     const input = this.input
     switch (tool) {
       case 'X':
@@ -1150,28 +1215,16 @@ export class Game {
         }
         break
       case 'B':
-        if (renderer) {
-          renderer.showBorders = !renderer.showBorders
-          this.hud.toast(renderer.showBorders ? t('game.bordersOn') : t('game.bordersOff'))
-        }
+        this.toggleDevOption('borders')
         break
       case 'P':
-        if (renderer) {
-          renderer.showPaths = !renderer.showPaths
-          this.hud.toast(renderer.showPaths ? t('game.pathsOn') : t('game.pathsOff'))
-        }
+        this.toggleDevOption('paths')
         break
       case 'F':
-        if (renderer) {
-          renderer.showAll = !renderer.showAll
-          this.hud.toast(renderer.showAll ? t('game.revealOn') : t('game.revealOff'))
-        }
+        this.toggleDevOption('reveal')
         break
       case 'N':
-        if (renderer) {
-          renderer.showBases = !renderer.showBases
-          this.hud.toast(renderer.showBases ? t('game.basesOn') : t('game.basesOff'))
-        }
+        this.toggleDevOption('bases')
         break
       case 'M':
         this.toggleMinimapScale()
@@ -1222,6 +1275,8 @@ export class Game {
       else if (tool === 'L') active = this.logVisible
       btn.classList.toggle('active', active)
     }
+    this.syncPingButtons()
+    this.syncDevButtons()
   }
 
   private mobileToolRelevant(_tool: string, _hasCombatUnits: boolean, _hasUnits: boolean): boolean {
@@ -1389,33 +1444,285 @@ export class Game {
 
   private toggleMinimapScale(): void {
     if (!this.mm) return
-    const next = this.mm.displayScale > 1 ? 1 : 1.6
+    const next = this.mm.displayScale > 1 ? 1 : getGraphics().minimapScale
     this.mm.setDisplayScale(next)
     this.layoutToolsBar()
     this.hud.toast(next > 1 ? t('game.minimapEnlarged') : t('game.minimapNormal'))
   }
 
   private layoutToolsBar(): void {
-    if (!this.toolsBar || !this.mm) return
-    const mmBtns = this.mmBtns
-    const hudRect = document.getElementById('hud')?.getBoundingClientRect()
-    const mmRect = this.mm.canvas.getBoundingClientRect()
+    if (!this.toolsBar) return
     if (this.isMobileView()) {
-      const rect = this.mm.viewport.getBoundingClientRect()
-      const top = rect.bottom - (hudRect?.top ?? 0) + 8
-      this.toolsBar.style.top = `${top}px`
+      this.toolsBar.style.top = '56px'
       this.toolsBar.style.bottom = 'auto'
       this.toolsBar.style.right = '8px'
-      if (mmBtns) mmBtns.style.display = 'none'
     } else {
       this.toolsBar.style.top = '48px'
       this.toolsBar.style.right = '12px'
       this.toolsBar.style.bottom = 'auto'
-      if (mmBtns) {
-        mmBtns.style.display = 'flex'
-        mmBtns.style.right = '12px'
-        const bottom = Math.max(90, (hudRect?.bottom ?? 0) - mmRect.top + 10)
-        mmBtns.style.bottom = `${bottom}px`
+    }
+  }
+
+  /** Toggle the Alt+click ping mode to the given flavour (clicking the active
+   * flavour again turns the mode off). » Ping » (6.1/6.2). */
+  private togglePing(type: PingType): void {
+    this.pingMode = this.pingMode === type ? null : type
+    this.audio.uiClick()
+    if (this.pingMode === null) {
+      this.hud.toast(t('game.pingModeOff'))
+    } else if (type === 'alert') {
+      this.hud.toast(t('game.pingAlert'))
+    } else if (type === 'assist') {
+      this.hud.toast(t('game.pingAssist'))
+    } else {
+      this.hud.toast(t('game.pingOmw'))
+    }
+    this.syncPingButtons()
+  }
+
+  private syncPingButtons(): void {
+    for (const btn of this.pingBtns) {
+      btn.classList.toggle('active', btn.dataset.ping === this.pingMode)
+    }
+  }
+
+  /** Send a ping command at a world point (fx units); clamped tile coordinates. */
+  private placePing(worldPt: { x: number; y: number }): void {
+    const world = this.world
+    if (!world || !this.pingMode) return
+    const tx = Math.floor(worldPt.x / 1000)
+    const ty = Math.floor(worldPt.y / 1000)
+    if (tx < 0 || ty < 0 || tx >= world.width || ty >= world.height) return
+    this.issue({ type: 'ping', entities: [], x: tx, y: ty, pingType: this.pingMode })
+    this.audio.uiClick()
+  }
+
+  private toggleDevOption(opt: 'borders' | 'paths' | 'reveal' | 'bases'): void {
+    const renderer = this.renderer
+    if (!renderer) return
+    if (opt === 'borders') {
+      renderer.showBorders = !renderer.showBorders
+      this.hud.toast(renderer.showBorders ? t('game.bordersOn') : t('game.bordersOff'))
+    } else if (opt === 'paths') {
+      renderer.showPaths = !renderer.showPaths
+      this.hud.toast(renderer.showPaths ? t('game.pathsOn') : t('game.pathsOff'))
+    } else if (opt === 'reveal') {
+      renderer.showAll = !renderer.showAll
+      this.hud.toast(renderer.showAll ? t('game.revealOn') : t('game.revealOff'))
+    } else {
+      renderer.showBases = !renderer.showBases
+      this.hud.toast(renderer.showBases ? t('game.basesOn') : t('game.basesOff'))
+    }
+    this.syncMobileToolButtons()
+    this.syncDevButtons()
+  }
+
+  private devOptionActive(opt: 'borders' | 'paths' | 'reveal' | 'bases'): boolean {
+    const renderer = this.renderer
+    if (!renderer) return false
+    if (opt === 'borders') return renderer.showBorders
+    if (opt === 'paths') return renderer.showPaths
+    if (opt === 'reveal') return renderer.showAll
+    return renderer.showBases
+  }
+
+  private syncDevButtons(): void {
+    for (const btn of this.devBtns) {
+      const opt = (btn.dataset.dev ?? '') as 'borders' | 'paths' | 'reveal' | 'bases' | ''
+      if (opt) btn.classList.toggle('active', this.devOptionActive(opt))
+    }
+  }
+
+  /** The vertical button rail next to the minimap: pings, dev toggles, map & home. */
+  private buildMinimapRail(): HTMLElement {
+    const rail = document.createElement('div')
+    rail.className = 'mm-rail'
+    this.pingBtns = []
+    const pingSpecs: Array<{ type: PingType; glyph: string }> = [
+      { type: 'alert', glyph: '!' },
+      { type: 'assist', glyph: '+' },
+      { type: 'on-my-way', glyph: '→' },
+    ]
+    for (const spec of pingSpecs) {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mm-rail-btn ping ping-' + spec.type
+      btn.dataset.ping = spec.type
+      btn.textContent = spec.glyph
+      btn.title = spec.type === 'alert' ? t('tools.pingAlertTitle') : spec.type === 'assist' ? t('tools.pingAssistTitle') : t('tools.pingOmwTitle')
+      btn.addEventListener('click', () => this.togglePing(spec.type))
+      rail.appendChild(btn)
+      this.pingBtns.push(btn)
+    }
+    const sep = document.createElement('div')
+    sep.className = 'mm-rail-sep'
+    rail.appendChild(sep)
+    const mapBtn = document.createElement('button')
+    mapBtn.type = 'button'
+    mapBtn.className = 'mm-rail-btn mm-btn'
+    mapBtn.textContent = t('tools.minimapShort')
+    mapBtn.title = t('tools.minimapTitle')
+    mapBtn.addEventListener('click', () => this.toggleMinimapScale())
+    rail.appendChild(mapBtn)
+    const homeBtn = document.createElement('button')
+    homeBtn.type = 'button'
+    homeBtn.className = 'mm-rail-btn mm-btn'
+    homeBtn.textContent = t('tools.homeShort')
+    homeBtn.title = t('tools.homeTitle')
+    homeBtn.addEventListener('click', () => this.centerHome())
+    rail.appendChild(homeBtn)
+    return rail
+  }
+
+  /** Render the B/P/F/N dev-render toggle buttons inside the dev popup (6.3/6.4). */
+  private buildDevRenderButtons(): void {
+    const container = document.getElementById('dev-render-btns')
+    if (!container) return
+    container.textContent = ''
+    this.devBtns = []
+    const devSpecs: Array<{ opt: 'borders' | 'paths' | 'reveal' | 'bases'; glyph: string }> = [
+      { opt: 'borders', glyph: 'B' },
+      { opt: 'paths', glyph: 'P' },
+      { opt: 'reveal', glyph: 'F' },
+      { opt: 'bases', glyph: 'N' },
+    ]
+    for (const spec of devSpecs) {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'dev-render-btn dev-' + spec.opt
+      btn.dataset.dev = spec.opt
+      btn.textContent = spec.glyph
+      btn.title =
+        spec.opt === 'borders' ? t('mobile.btns.B') : spec.opt === 'paths' ? t('mobile.btns.P') : spec.opt === 'reveal' ? t('mobile.btns.F') : t('mobile.btns.N')
+      btn.addEventListener('click', () => this.toggleDevOption(spec.opt))
+      container.appendChild(btn)
+      this.devBtns.push(btn)
+    }
+    this.syncDevButtons()
+  }
+
+  /** Build the header-part visibility toggles used by the dev popup (6.5). */
+  private buildHudPartToggles(): void {
+    const container = document.getElementById('dev-hud-toggles')
+    if (!container) return
+    container.textContent = ''
+    const parts: Array<{ id: string; key: string; label: () => string }> = [
+      { id: 'fps-info', key: 'fps', label: () => t('dev.hudFps') },
+      { id: 'tick-info', key: 'ticks', label: () => t('dev.hudTicks') },
+      { id: 'sync-info', key: 'sync', label: () => t('dev.hudSync') },
+    ]
+    let saved: Record<string, boolean> = {}
+    try {
+      saved = JSON.parse(localStorage.getItem('space-arenas:hud-parts') ?? '{}') as Record<string, boolean>
+    } catch {
+      saved = {}
+    }
+    for (const part of parts) {
+      const wrap = document.createElement('label')
+      wrap.className = 'dev-toggle-row'
+      const cb = document.createElement('input')
+      cb.type = 'checkbox'
+      const on = saved[part.key] ?? true
+      cb.checked = on
+      const span = document.createElement('span')
+      span.textContent = part.label()
+      wrap.appendChild(cb)
+      wrap.appendChild(span)
+      container.appendChild(wrap)
+      this.hudPartToggles.push({ el: cb, key: part.key, on })
+      cb.addEventListener('change', () => {
+        const tgl = this.hudPartToggles.find((x) => x.key === part.key)
+        if (tgl) {
+          tgl.on = cb.checked
+          this.applyHudPart(part.key, cb.checked)
+          this.persistHudParts()
+        }
+      })
+    }
+    this.applyHudParts()
+  }
+
+  private applyHudParts(): void {
+    for (const tgl of this.hudPartToggles) {
+      this.applyHudPart(tgl.key, tgl.on)
+    }
+  }
+
+  private applyHudPart(key: string, on: boolean): void {
+    const el = document.getElementById(key === 'fps' ? 'fps-info' : key === 'ticks' ? 'tick-info' : 'sync-info')
+    if (el) el.style.display = on ? '' : 'none'
+  }
+
+  private persistHudParts(): void {
+    const out: Record<string, boolean> = {}
+    for (const tgl of this.hudPartToggles) out[tgl.key] = tgl.on
+    try {
+      localStorage.setItem('space-arenas:hud-parts', JSON.stringify(out))
+    } catch {
+      /* storage unavailable */
+    }
+  }
+
+  private onDevClick = (): void => {
+    this.devOverlayVisible = !this.devOverlayVisible
+    this.devOverlay?.classList.toggle('visible', this.devOverlayVisible)
+    this.devBtn?.classList.toggle('active', this.devOverlayVisible)
+    if (this.devOverlayVisible) {
+      this.updateDevOverlay()
+    }
+  }
+
+  private closeDevOverlay = (): void => {
+    this.devOverlayVisible = false
+    this.devOverlay?.classList.remove('visible')
+    this.devBtn?.classList.remove('active')
+  }
+
+  /** Live perf readout for the dev popup (6.5). */
+  private updateDevOverlay(): void {
+    const world = this.world
+    const el = this.devPerfEl
+    if (!el) return
+    const rows: Array<[string, string]> = [
+      [t('dev.perfFps'), String(this.hud.fps)],
+      [t('dev.perfTicks'), world ? String(world.tick) : '—'],
+      [t('dev.perfTickRate'), `${SIM_TICK_HZ} ts/s`],
+      [t('dev.perfEntities'), world ? String(world.units.size + world.buildings.size) : '—'],
+      [t('dev.perfSync'), this.localHash !== 0 ? (this.syncOk ? t('hud.inSync') : t('hud.desync')) : '—'],
+    ]
+    el.textContent = ''
+    for (const [label, value] of rows) {
+      const row = document.createElement('div')
+      row.className = 'dev-perf-row'
+      const l = document.createElement('span')
+      l.textContent = label
+      const v = document.createElement('b')
+      v.textContent = value
+      row.appendChild(l)
+      row.appendChild(v)
+      el.appendChild(row)
+    }
+    const sh = this.devShortcutsEl
+    if (sh) {
+      sh.textContent = ''
+      const ctrl = getControls()
+      const keyFor = (id: string): string => ctrl[id] ?? '-'
+      const items: Array<[string, string]> = [
+        [t('mobile.btns.B'), keyFor('borders')],
+        [t('mobile.btns.P'), keyFor('paths')],
+        [t('mobile.btns.F'), keyFor('reveal')],
+        [t('mobile.btns.N'), keyFor('bases')],
+      ]
+      for (const [label, key] of items) {
+        const row = document.createElement('div')
+        row.className = 'dev-perf-row'
+        const l = document.createElement('span')
+        l.textContent = label
+        const v = document.createElement('b')
+        v.textContent = key.toUpperCase()
+        row.appendChild(l)
+        row.appendChild(v)
+        sh.appendChild(row)
       }
     }
   }
@@ -1913,10 +2220,16 @@ export class Game {
         this.onMenuResumeClick()
         return
       }
+      if (this.devOverlayVisible) {
+        this.closeDevOverlay()
+        return
+      }
       this.pendingPlace = null
       this.pendingLaser = false
       this.pendingSpawnPoint = false
       this.pendingFlag = false
+      this.pingMode = null
+      this.syncPingButtons()
       this.holdPlaced = false
       if (this.input) {
         this.input.keepAttackKey = false
@@ -1943,35 +2256,19 @@ export class Game {
       return
     }
     if (this.keyMatch(e, 'borders')) {
-      if (this.renderer) {
-        this.renderer.showBorders = !this.renderer.showBorders
-        this.hud.toast(this.renderer.showBorders ? t('game.bordersOn') : t('game.bordersOff'))
-      }
-      this.syncMobileToolButtons()
+      this.toggleDevOption('borders')
       return
     }
     if (this.keyMatch(e, 'paths')) {
-      if (this.renderer) {
-        this.renderer.showPaths = !this.renderer.showPaths
-        this.hud.toast(this.renderer.showPaths ? t('game.pathsOn') : t('game.pathsOff'))
-      }
-      this.syncMobileToolButtons()
+      this.toggleDevOption('paths')
       return
     }
     if (this.keyMatch(e, 'reveal')) {
-      if (this.renderer) {
-        this.renderer.showAll = !this.renderer.showAll
-        this.hud.toast(this.renderer.showAll ? t('game.revealOn') : t('game.revealOff'))
-      }
-      this.syncMobileToolButtons()
+      this.toggleDevOption('reveal')
       return
     }
     if (this.keyMatch(e, 'bases')) {
-      if (this.renderer) {
-        this.renderer.showBases = !this.renderer.showBases
-        this.hud.toast(this.renderer.showBases ? t('game.basesOn') : t('game.basesOff'))
-      }
-      this.syncMobileToolButtons()
+      this.toggleDevOption('bases')
       return
     }
     if (this.keyMatch(e, 'spawnPoint')) {
@@ -2137,9 +2434,12 @@ export class Game {
     window.removeEventListener('pointerdown', this.onPointerDown, true)
     this.net?.close()
     this.net = null
-    if (this.minimapEl?.parentNode) this.minimapEl.parentNode.removeChild(this.minimapEl)
-    this.minimapEl = null
+    if (this.mmWrap?.parentNode) this.mmWrap.parentNode.removeChild(this.mmWrap)
+    this.mmWrap = null
     this.mm = null
+    this.pingBtns = []
+    this.pingMode = null
+    this.closeDevOverlay()
     this.satelliteBtn?.removeEventListener('click', this.onSatelliteClick)
     this.satelliteBtn = null
     this.laserBtn?.removeEventListener('click', this.onLaserClick)
@@ -2149,10 +2449,6 @@ export class Game {
     this.idleWorkerBtn = null
     this.idleDozerBtn?.removeEventListener('click', this.onIdleDozerClick)
     this.idleDozerBtn = null
-    this.mmMapBtn?.removeEventListener('click', this.onMmMapClick)
-    this.mmMapBtn = null
-    this.mmHomeBtn?.removeEventListener('click', this.onMmHomeClick)
-    this.mmHomeBtn = null
     this.logToggle?.removeEventListener('click', this.onLogToggleClick)
     this.logToggle = null
     this.keysToggle?.removeEventListener('click', this.onKeysToggleClick)
@@ -2176,6 +2472,8 @@ export class Game {
     }
     this.resultsOverlay.classList.remove('visible')
     this.resultsBoard.hide()
+    this.cinematicOverlay.classList.remove('visible')
+    this.cinematicActive = false
     this.menuOverlay.classList.remove('visible')
     this.menuStatsBoard.hide()
     this.confirmOverlay.classList.remove('visible')

@@ -11,7 +11,7 @@ import { createPlayerRow } from './ui/player-row.ts'
 import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
 import { initControlsSettings } from './ui/controls-settings.ts'
 import { preloadFxFrames } from './render/building-sprites.ts'
-import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setUnitScale, setAssetPath, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_UNIT_SCALE, UNIT_ASSET_IDS, OBSTACLE_ASSET_TYPES } from './ui/graphics.ts'
+import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setUnitScale, setAssetPath, setFxScale, setMinimapScale, setVictoryCinematicSec, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_FX_SCALE, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, UNIT_ASSET_IDS, OBSTACLE_ASSET_TYPES } from './ui/graphics.ts'
 import { getAudio, setOverride, type SoundId } from './audio/settings.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
 import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, type MapEntry } from './mapbuilder/library.ts'
@@ -883,6 +883,53 @@ const buildDevForm = (): void => {
     setDevStatus(t('dev.status.assetSaved'))
     preloadFxFrames('burn')
   })
+  makeNumberInput(
+    t('dev.fields.fxScale.label'),
+    t('dev.fields.fxScale.desc'),
+    devUnit('x'),
+    g.fxScale,
+    DEFAULT_FX_SCALE,
+    0.05,
+    3,
+    0.05,
+    Math.abs(g.fxScale - DEFAULT_FX_SCALE) >= 1e-9,
+    (v) => {
+      setFxScale(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  appendAssetGroupLabel(t('dev.assets.minimap'))
+  makeNumberInput(
+    t('dev.fields.minimapScale.label'),
+    t('dev.fields.minimapScale.desc'),
+    devUnit('x'),
+    g.minimapScale,
+    DEFAULT_MINIMAP_SCALE,
+    1.2,
+    4,
+    0.1,
+    Math.abs(g.minimapScale - DEFAULT_MINIMAP_SCALE) >= 1e-9,
+    (v) => {
+      setMinimapScale(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  appendDevSection(t('dev.sections.match'))
+  makeNumberInput(
+    t('dev.fields.victoryCinematic.label'),
+    t('dev.fields.victoryCinematic.desc'),
+    devUnit('sec'),
+    g.victoryCinematicSec,
+    DEFAULT_VICTORY_CINEMATIC,
+    0,
+    30,
+    1,
+    g.victoryCinematicSec !== DEFAULT_VICTORY_CINEMATIC,
+    (v) => {
+      setVictoryCinematicSec(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
   appendDevSection(t('dev.sections.audio'))
   appendAssetGroupLabel(t('dev.audio.ui'))
   for (const id of ['select', 'move-bleep', 'alert'] as SoundId[]) audioPathInput(id)

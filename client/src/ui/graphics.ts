@@ -13,6 +13,12 @@ export interface BuildingFillRatios {
 export const DEFAULT_BUILDING_FILL: BuildingFillRatios = { medium: 0.3, high: 0.5 }
 export const DEFAULT_BUILDING_OFFSET: BuildingFillRatios = { medium: 0.2, high: 0 }
 export const DEFAULT_FIELD_OFFSET = 0
+/** Hit-flash / burning-fire size as a fraction of the object's ground footprint (0.5 = half the object's size). */
+export const DEFAULT_FX_SCALE = 0.5
+/** Zoom factor the minimap jumps to when the Map button toggles it (1 = normal size). */
+export const DEFAULT_MINIMAP_SCALE = 1.6
+/** Seconds the victory cinematic stays on screen before the results popup. */
+export const DEFAULT_VICTORY_CINEMATIC = 6
 
 export type UnitScaleClass = 'vehicle' | 'infantry' | 'air'
 export const DEFAULT_UNIT_SCALE: Record<UnitScaleClass, number> = { vehicle: 1, infantry: 1, air: 1 }
@@ -84,6 +90,12 @@ export interface GraphicsSettings {
   assetPaths: Record<string, string>
   /** Selection-bar thumbnail size in px. */
   hudIconSize: number
+  /** Hit-flash / burning-fire size as a fraction of the object's ground footprint. */
+  fxScale: number
+  /** Zoom factor for the enlargable minimap (Map button); 1 = normal size. */
+  minimapScale: number
+  /** Seconds the victory cinematic stays before the results popup (0 = skip). */
+  victoryCinematicSec: number
 }
 
 export interface EffectRowDef {
@@ -113,6 +125,9 @@ const load = (): GraphicsSettings => {
     unitScale: { ...DEFAULT_UNIT_SCALE },
     assetPaths: { ...DEFAULT_ASSET_PATHS },
     hudIconSize: 20,
+    fxScale: DEFAULT_FX_SCALE,
+    minimapScale: DEFAULT_MINIMAP_SCALE,
+    victoryCinematicSec: DEFAULT_VICTORY_CINEMATIC,
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -162,6 +177,15 @@ const load = (): GraphicsSettings => {
       }
       if (parsed && typeof parsed.hudIconSize === 'number' && Number.isFinite(parsed.hudIconSize)) {
         base.hudIconSize = Math.max(8, Math.min(64, parsed.hudIconSize))
+      }
+      if (parsed && typeof parsed.fxScale === 'number' && Number.isFinite(parsed.fxScale)) {
+        base.fxScale = Math.max(0.05, Math.min(3, parsed.fxScale))
+      }
+      if (parsed && typeof parsed.minimapScale === 'number' && Number.isFinite(parsed.minimapScale)) {
+        base.minimapScale = Math.max(1.2, Math.min(4, parsed.minimapScale))
+      }
+      if (parsed && typeof parsed.victoryCinematicSec === 'number' && Number.isFinite(parsed.victoryCinematicSec)) {
+        base.victoryCinematicSec = Math.max(0, Math.min(30, Math.round(parsed.victoryCinematicSec)))
       }
       if (parsed && parsed.assetPaths && typeof parsed.assetPaths === 'object') {
         // migration: the color slot moved from a filename suffix to a subfolder
@@ -245,6 +269,21 @@ export const setWeather = (id: WeatherId): void => {
 
 export const setHudIconSize = (px: number): void => {
   state.hudIconSize = Math.max(8, Math.min(64, Math.round(px)))
+  save(state)
+}
+
+export const setFxScale = (v: number): void => {
+  state.fxScale = Math.max(0.05, Math.min(3, v))
+  save(state)
+}
+
+export const setMinimapScale = (v: number): void => {
+  state.minimapScale = Math.max(1.2, Math.min(4, v))
+  save(state)
+}
+
+export const setVictoryCinematicSec = (v: number): void => {
+  state.victoryCinematicSec = Math.max(0, Math.min(30, Math.round(v)))
   save(state)
 }
 

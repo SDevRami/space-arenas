@@ -213,7 +213,7 @@ export const WorkSystem = {
             const list = q ? q.queue : []
             if (list.length < world.settings.queueLimit) {
               const hud = getUnit('harvester', world.settings)
-              list.push({ unitType: 'harvester', remainingTicks: hud.buildTimeTicks })
+              list.push({ id: world.allocId(), unitType: 'harvester', remainingTicks: hud.buildTimeTicks })
               world.queues.set(w.building, { queue: list })
             }
           }

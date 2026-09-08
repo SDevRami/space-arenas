@@ -18,20 +18,26 @@ import {
 } from '@space-arenas/shared'
 import { generateDefaultMap } from '@space-arenas/shared'
 
-const ALL_TYPES: CommandType[] = ['move', 'attack-move', 'keep-attack', 'guard', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'set-flag-point', 'assign-dock', 'satellite', 'laser', 'forfeit', 'max-power']
+const ALL_TYPES: CommandType[] = ['move', 'attack-move', 'keep-attack', 'guard', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'set-flag-point', 'assign-dock', 'satellite', 'laser', 'forfeit', 'max-power', 'collect', 'ping', 'reorder-queue']
 
 const makeEnv = (type: CommandType): EnvelopeCommand => {
   const cmd: EnvelopeCommand['cmd'] = { type, entities: [1, 2, 3], x: -12345, y: 67890 }
   if (type === 'place') cmd.buildingType = 'barracks'
   if (type === 'queue') cmd.unitType = 'rifleman'
   if (type === 'dequeue') cmd.index = 2
+  if (type === 'reorder-queue') {
+    cmd.index = 2
+    cmd.to = 4
+  }
   if (type === 'attack') cmd.target = 42
   if (type === 'attack-move') cmd.target = 42
   if (type === 'keep-attack') cmd.target = 42
   if (type === 'guard') cmd.target = 42
   if (type === 'build') cmd.target = 99
   if (type === 'assign-dock') cmd.target = 77
+  if (type === 'collect') cmd.target = 55
   if (type === 'research') cmd.upgrade = 'radar'
+  if (type === 'ping') cmd.pingType = 'alert'
   return { player: 1, seq: 987654321, tick: 123456, cmd }
 }
 
@@ -49,9 +55,11 @@ describe('protocol: envelope round-trip', () => {
       expect(out.cmd.y).toBe(env.cmd.y)
       expect(out.cmd.buildingType).toBe(type === 'place' ? 'barracks' : undefined)
       expect(out.cmd.unitType).toBe(type === 'queue' ? 'rifleman' : undefined)
-      expect(out.cmd.index).toBe(type === 'dequeue' ? 2 : undefined)
-      expect(out.cmd.target).toBe(type === 'attack' || type === 'attack-move' || type === 'keep-attack' || type === 'guard' ? 42 : type === 'build' ? 99 : type === 'assign-dock' ? 77 : undefined)
+      expect(out.cmd.index).toBe(type === 'dequeue' || type === 'reorder-queue' ? 2 : undefined)
+      expect(out.cmd.to).toBe(type === 'reorder-queue' ? 4 : undefined)
+      expect(out.cmd.target).toBe(type === 'attack' || type === 'attack-move' || type === 'keep-attack' || type === 'guard' ? 42 : type === 'build' ? 99 : type === 'assign-dock' ? 77 : type === 'collect' ? 55 : undefined)
       expect(out.cmd.upgrade).toBe(type === 'research' ? 'radar' : undefined)
+      expect(out.cmd.pingType).toBe(type === 'ping' ? 'alert' : undefined)
     }
   })
 
@@ -134,6 +142,8 @@ describe('protocol: type ids are stable', () => {
       forfeit: 15,
       'max-power': 18,
       collect: 19,
+      ping: 20,
+      'reorder-queue': 21,
     })
   })
 })

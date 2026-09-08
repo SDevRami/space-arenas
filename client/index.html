@@ -26,6 +26,7 @@
           <span id="fps-info" class="fps-info"></span>
           <button class="menu-btn" id="log-toggle" data-i18n-title="tools.logTitle" data-i18n="tools.log">Log</button>
           <button class="menu-btn" id="keys-toggle" data-i18n-title="tools.keysTitle" data-i18n="tools.keys">Keys</button>
+          <button class="menu-btn" id="dev-btn" data-i18n-title="dev.overlayBtnTitle" data-i18n="dev.overlayBtn">Dev</button>
           <button class="menu-btn hud-chat-btn" id="chat-btn" data-i18n-title="chat.buttonTitle"><span data-i18n="chat.button">Chat</span><span class="badge"></span></button>
           <button class="menu-btn" id="menu-btn" data-i18n="menu.button">Menu</button>
         </div>
@@ -41,10 +42,6 @@
             <input id="chat-input" maxlength="200" placeholder="Message…" autocomplete="off" data-i18n-placeholder="chat.inputPlaceholder" />
             <button id="chat-send" data-i18n="chat.send">Send</button>
           </div>
-        </div>
-        <div id="mm-btns">
-          <button class="tool-btn" id="mm-btn-m" data-i18n-title="tools.minimapTitle" data-i18n="tools.minimapShort">Map</button>
-          <button class="tool-btn" id="mm-btn-h" data-i18n-title="tools.homeTitle" data-i18n="tools.homeShort">Home</button>
         </div>
         <div id="tools-bar">
           <span class="tools-label" data-i18n="tools.label">Tools</span>
@@ -77,11 +74,30 @@
             <button id="menu-quit" data-i18n="menu.quit">Quit Game</button>
           </div>
         </div>
+        <div id="dev-overlay">
+          <div class="panel dev-panel">
+            <h2 data-i18n="dev.overlayH1">Dev</h2>
+            <h3 data-i18n="dev.overlayPerf">Performance</h3>
+            <div id="dev-perf"></div>
+            <h3 data-i18n="dev.overlayHud">Header</h3>
+            <div id="dev-hud-toggles"></div>
+            <h3 data-i18n="dev.overlayRender">Render</h3>
+            <div id="dev-render-btns"></div>
+            <h3 data-i18n="dev.overlayShortcuts">Dev shortcuts</h3>
+            <div id="dev-shortcuts"></div>
+            <div class="row">
+              <button class="danger" id="dev-close" data-i18n="dev.overlayClose">Close</button>
+            </div>
+          </div>
+        </div>
         <div class="hud-selection" id="selection-bar">
           <button class="hud-toggle" id="selection-toggle" title="Expand selection bar" data-i18n-title="game.expandSelection">▲</button>
           <div class="hud-build" id="build-menu"></div>
           <span class="selection-info" id="selection-info" data-i18n="hud.noSelection">No selection</span>
         </div>
+      </div>
+      <div id="cinematic-overlay">
+        <div id="cinematic-text"></div>
       </div>
       <div id="results-overlay">
         <div class="panel">

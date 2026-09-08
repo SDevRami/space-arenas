@@ -1,7 +1,7 @@
 import type { EnvelopeCommand } from '@space-arenas/shared'
 import { getBuilding, getUnit, getUpgrade } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
-import { placementExplored } from '../core/world.ts'
+import { placementExplored, PING_TICKS } from '../core/world.ts'
 import { nearestPassablePoint } from '../core/pathfinding.ts'
 import { buildingRect, setMove, spawnBuilding } from '../entities/factories.ts'
 import { dockArrivePoint } from './economy-system.ts'
@@ -169,6 +169,15 @@ const distributeRefundToFields = (world: World, amount: number): void => {
 export const InputSystem = {
   name: 'Input',
   update(world: World, commands: EnvelopeCommand[]): void {
+    if (world.pings.length > 0) {
+      const cutoff = world.tick - PING_TICKS
+      const pings = world.pings
+      let w = 0
+      for (let r = 0; r < pings.length; r++) {
+        if (pings[r].started >= cutoff) pings[w++] = pings[r]
+      }
+      pings.length = w
+    }
     for (const env of commands) {
       const player = env.player
       const cmd = env.cmd
@@ -658,7 +667,7 @@ export const InputSystem = {
             break
           }
           teamState.credits -= ud.cost
-          q.queue.push({ unitType, remainingTicks: ud.buildTimeTicks })
+          q.queue.push({ id: world.allocId(), unitType, remainingTicks: ud.buildTimeTicks })
           world.queues.set(id, q)
           world.emit({ type: 'order-queued', building: id, unitType, team: player })
           break
@@ -675,6 +684,35 @@ export const InputSystem = {
             teamState.credits += ud.cost
             world.emit({ type: 'order-dequeued', building: id, unitType: removed.unitType, team: player })
           }
+          break
+        }
+        case 'reorder-queue': {
+          const id = cmd.entities[0]
+          if (id === undefined || !ownedBuilding(world, player, id)) break
+          const q = world.queues.get(id)
+          if (!q) break
+          const from = cmd.index ?? 0
+          const to = cmd.to ?? 0
+          if (from === to) break
+          if (from < 0 || from >= q.queue.length) break
+          if (to < 0 || to >= q.queue.length) break
+          const [moved] = q.queue.splice(from, 1)
+          q.queue.splice(to, 0, moved)
+          // Reordering restarts production: the (new) front order's build progress goes back to the start.
+          for (const o of q.queue) o.remainingTicks = getUnit(o.unitType, world.settings).buildTimeTicks
+          world.emit({ type: 'order-reordered', building: id, from, to, team: player })
+          break
+        }
+        case 'ping': {
+          const type = cmd.pingType ?? 'alert'
+          const x = Math.floor(cmd.x)
+          const y = Math.floor(cmd.y)
+          if (x < 0 || y < 0 || x >= world.width || y >= world.height) {
+            world.emit({ type: 'command-rejected', player, reason: 'ping out of bounds' })
+            break
+          }
+          world.addPing(player, x, y, type)
+          world.emit({ type: 'ping-point', team: player, x, y, pingType: type })
           break
         }
         case 'research': {

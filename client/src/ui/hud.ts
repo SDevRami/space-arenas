@@ -8,6 +8,7 @@ export interface HudActions {
   onBuildClick: (type: string) => void
   onQueueClick: (type: string) => void
   onDequeueClick: (buildingId: number, index: number) => void
+  onReorderClick: (buildingId: number, from: number, to: number) => void
   onResearchClick: (upgrade: string) => void
   onStopClick: () => void
   onDestroyClick: () => void
@@ -79,16 +80,23 @@ export class Hud {
   private lastWorkSig: string | null = null
   private lastResearchSig: string | null = null
   private updaters: Array<() => void> = []
+  private dragState: { btn: HTMLButtonElement; container: HTMLElement; wrap: HTMLElement; from: number; buildingId: number; moved: boolean; startX: number; startY: number } | null = null
   private hotkeySlots: Array<{ key: string; enabled: () => boolean; act: () => void }> = []
   private usedHotkeys = new Set<string>()
 
   private fpsFrames = 0
   private fpsTime = performance.now()
+  private lastFps = 0
 
   constructor(private actions: HudActions) {}
 
   show(): void {
     this.hudEl.style.display = 'block'
+  }
+
+  /** The most recently measured frames-per-second (updated every ~500 ms). */
+  get fps(): number {
+    return this.lastFps
   }
 
   hide(): void {
@@ -122,7 +130,8 @@ export class Hud {
     const now = performance.now()
     this.fpsFrames++
     if (now - this.fpsTime >= 500) {
-      this.fpsEl.textContent = t('hud.fps', { fps: Math.round((this.fpsFrames * 1000) / (now - this.fpsTime)) })
+      this.lastFps = Math.round((this.fpsFrames * 1000) / (now - this.fpsTime))
+      this.fpsEl.textContent = t('hud.fps', { fps: this.lastFps })
       this.fpsFrames = 0
       this.fpsTime = now
     }
@@ -214,7 +223,7 @@ export class Hud {
       if (!b || !getBuilding(b.buildingType, world.settings).producesUnit) continue
       const q = world.queues.get(id)
       if (!q || q.queue.length === 0) continue
-      parts.push(`${id}:${q.queue.map((o) => o.unitType).join(',')}`)
+      parts.push(`${id}:${q.queue.map((o) => o.id).join(',')}`)
     }
     return parts.join('|')
   }
@@ -375,7 +384,7 @@ export class Hud {
       this.buildMenu.appendChild(scroll)
       q.queue.forEach((order, i) => {
         const ud = getUnit(order.unitType, world.settings)
-        this.addQueueCard(scroll, bd.id, i, order, tn(order.unitType, ud.name), ud.buildTimeTicks)
+        this.addQueueCard(scroll, bd.id, i, order, tn(order.unitType, ud.name), ud.buildTimeTicks, q.queue.length)
       })
     }
 
@@ -594,9 +603,20 @@ export class Hud {
     return false
   }
 
-  private addQueueCard(parent: HTMLElement, buildingId: number, index: number, order: ProductionOrder, name: string, totalTicks: number): void {
+  private addQueueCard(parent: HTMLElement, buildingId: number, index: number, order: ProductionOrder, name: string, totalTicks: number, count: number): void {
+    const wrap = document.createElement('div')
+    wrap.className = 'queue-item'
+    const moveLeft = document.createElement('button')
+    moveLeft.type = 'button'
+    moveLeft.className = 'q-arrow q-left'
+    moveLeft.textContent = '◀'
+    moveLeft.disabled = index === 0
+    moveLeft.title = t('hud.queueMoveLeft')
+    moveLeft.addEventListener('click', () => this.actions.onReorderClick(buildingId, index, index - 1))
     const btn = document.createElement('button')
     btn.className = 'queue-card'
+    btn.type = 'button'
+    btn.dataset.index = String(index)
     const label = document.createElement('span')
     label.className = 'qc-label'
     label.textContent = name
@@ -608,12 +628,88 @@ export class Hud {
     btn.appendChild(label)
     btn.appendChild(bar)
     btn.title = t('hud.queueCancel')
-    btn.addEventListener('click', () => this.actions.onDequeueClick(buildingId, index))
-    parent.appendChild(btn)
+    btn.addEventListener('click', () => {
+      if (btn.dataset.suppressClick === '1') {
+        delete btn.dataset.suppressClick
+        return
+      }
+      this.actions.onDequeueClick(buildingId, index)
+    })
+    const moveRight = document.createElement('button')
+    moveRight.type = 'button'
+    moveRight.className = 'q-arrow q-right'
+    moveRight.textContent = '▶'
+    moveRight.disabled = index >= count - 1
+    moveRight.title = t('hud.queueMoveRight')
+    moveRight.addEventListener('click', () => this.actions.onReorderClick(buildingId, index, index + 1))
+    wrap.appendChild(moveLeft)
+    wrap.appendChild(btn)
+    wrap.appendChild(moveRight)
+    this.attachQueueDrag(btn, parent, wrap, buildingId, index)
+    parent.appendChild(wrap)
     this.updaters.push(() => {
       const p = index === 0 ? Math.max(0, Math.min(1, 1 - order.remainingTicks / totalTicks)) : 0
       fill.style.width = `${(p * 100).toFixed(1)}%`
     })
+  }
+
+  /** Drag + drop reorder (Day 7): pointer-drag a queue card (wrapper) to a new slot, commit on release. */
+  private attachQueueDrag(btn: HTMLButtonElement, container: HTMLElement, wrap: HTMLElement, buildingId: number, index: number): void {
+    const startDrag = (e: PointerEvent): void => {
+      if (e.button !== 0) return
+      this.dragState = { btn, container, wrap, from: index, buildingId, moved: false, startX: e.clientX, startY: e.clientY }
+      try {
+        btn.setPointerCapture(e.pointerId)
+      } catch {
+        /* pointer capture unavailable */
+      }
+    }
+    const move = (e: PointerEvent): void => {
+      const ds = this.dragState
+      if (!ds || ds.btn !== btn) return
+      if (!ds.moved && Math.hypot(e.clientX - ds.startX, e.clientY - ds.startY) > 6) ds.moved = true
+      if (!ds.moved) return
+      e.preventDefault()
+      btn.classList.add('dragging')
+      container.querySelectorAll('.queue-card.drag-over').forEach((c) => c.classList.remove('drag-over'))
+      let anchor: HTMLElement | null = null
+      for (const c of Array.from(container.children) as HTMLElement[]) {
+        if (c === ds.wrap) continue
+        const r = c.getBoundingClientRect()
+        if (e.clientX < r.left + r.width / 2) {
+          anchor = c
+          break
+        }
+      }
+      if (anchor) {
+        container.insertBefore(ds.wrap, anchor)
+        anchor.querySelector('.queue-card')?.classList.add('drag-over')
+      } else {
+        container.appendChild(ds.wrap)
+      }
+    }
+    const end = (): void => {
+      const ds = this.dragState
+      if (!ds || ds.btn !== btn) return
+      btn.classList.remove('dragging')
+      container.querySelectorAll('.queue-card.drag-over').forEach((c) => c.classList.remove('drag-over'))
+      if (ds.moved) {
+        const to = Array.from(container.children).indexOf(ds.wrap)
+        if (to !== ds.from) {
+          btn.dataset.suppressClick = '1'
+          this.actions.onReorderClick(ds.buildingId, ds.from, to)
+        }
+      }
+      this.dragState = null
+    }
+    const cancel = (): void => {
+      if (this.dragState?.btn === btn) this.dragState = null
+      btn.classList.remove('dragging')
+    }
+    btn.addEventListener('pointerdown', startDrag)
+    btn.addEventListener('pointermove', move)
+    btn.addEventListener('pointerup', end)
+    btn.addEventListener('pointercancel', cancel)
   }
 
   private addResearchCard(parent: HTMLElement, name: string, getRemaining: () => number, totalTicks: number): void {

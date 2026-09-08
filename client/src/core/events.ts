@@ -1,3 +1,5 @@
+import type { PingType } from '@space-arenas/shared'
+
 export type SimEvent =
   | { type: 'entity-created'; entity: number; kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck'; team: number }
   | { type: 'entity-destroyed'; entity: number; kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck'; team: number; typeName?: string; x?: number; y?: number }
@@ -15,6 +17,7 @@ export type SimEvent =
   | { type: 'scenery-destroyed'; entity: number; kind: 'rock' | 'tree'; x: number; y: number; w: number; h: number }
   | { type: 'order-queued'; building: number; unitType: string; team: number }
   | { type: 'order-dequeued'; building: number; unitType: string; team: number }
+  | { type: 'order-reordered'; building: number; from: number; to: number; team: number }
   | { type: 'research-started'; building: number; upgrade: string; team: number }
   | { type: 'building-sold'; entity: number; buildingType: string; team: number; refund: number; x: number; y: number }
   | { type: 'unit-sold'; entity: number; unitType: string; team: number; refund: number; x: number; y: number }
@@ -26,6 +29,7 @@ export type SimEvent =
   | { type: 'harvester-dock-assigned'; entity: number; building: number; team: number }
   | { type: 'satellite-used'; team: number }
   | { type: 'laser-strike'; team: number; x: number; y: number }
+  | { type: 'ping-point'; team: number; x: number; y: number; pingType: PingType }
   | { type: 'player-left'; team: number; amount: number }
   | { type: 'game-over'; winner: number | null; eliminated: number[] }
   | { type: 'power-down'; team: number }

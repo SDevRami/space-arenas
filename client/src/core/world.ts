@@ -1,8 +1,22 @@
 import { SparseSet } from '../ecs/sparse-set.ts'
-import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings } from '@space-arenas/shared'
+import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType } from '@space-arenas/shared'
 import type { SimEvent } from './events.ts'
 import { rectFromCenter } from './geometry.ts'
 import { spawnBuilding, spawnUnit } from '../entities/factories.ts'
+
+/** How long a ping stays visible (in sim ticks). Cosmetic-only. */
+export const PING_TICKS = 125
+
+/** Cosmetic-only player ping marker. It never affects the sim hash or the
+ * network protocol — pings arrive via regular commands and are rendered from
+ * this array on every client, exactly like `flashes`. */
+export interface PingComp {
+  team: number
+  x: number
+  y: number
+  type: PingType
+  started: number
+}
 
 export interface TransformComp {
   x: number
@@ -80,6 +94,8 @@ export interface MoveComp {
 }
 
 export interface ProductionOrder {
+  /** Stable identity, unique per order — lets the HUD detect reorders even among identical unit types. */
+  id: number
   unitType: string
   remainingTicks: number
 }
@@ -225,6 +241,7 @@ export class World {
   readonly lasers = new SparseSet<LaserComp>()
   readonly flashes = new SparseSet<DamageFlashComp>()
   readonly scenery = new SparseSet<SceneryComp>()
+  readonly pings: PingComp[] = []
 
   readonly events: SimEvent[] = []
   private readonly entityKinds = new Map<number, 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck'>()
@@ -308,6 +325,11 @@ export class World {
     this.entityKinds.set(id, kind)
     if (team >= 0) this.events.push({ type: 'entity-created', entity: id, kind, team })
     return id
+  }
+
+  /** Allocate a stable, deterministic id without side effects (used for production order identities). */
+  allocId(): number {
+    return this.nextId++
   }
 
   removeEntity(id: number): void {
@@ -491,6 +513,11 @@ export class World {
 
   emit(event: SimEvent): void {
     this.events.push(event)
+  }
+
+  /** Record a team ping (visible to allies). Cosmetic-only; see `PingComp`. */
+  addPing(team: number, x: number, y: number, type: PingType): void {
+    this.pings.push({ team, x, y, type, started: this.tick })
   }
 
   drainEvents(): SimEvent[] {
