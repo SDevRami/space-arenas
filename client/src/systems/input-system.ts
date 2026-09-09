@@ -232,18 +232,27 @@ export const InputSystem = {
         case 'keep-attack': {
           const target = cmd.target ?? -1
           const mp = resolveMovePoint(world, cmd.x, cmd.y)
+          const explicit =
+            target >= 0 && world.isAlive(target) && !world.sameTeam(player, world.teamOf(target))
           for (const id of cmd.entities) {
             if (!ownedUnit(world, player, id)) continue
             const a = world.attacks.get(id)
             if (!a) continue
+            if (explicit) {
+              // An explicit order on a specific enemy overrides the keep-attack
+              // stance: chase the target for real instead of only engaging it
+              // inside the leash around the spot.
+              a.keepAttack = null
+              a.guardMode = false
+              a.guardPost = null
+              a.target = target
+              a.targetPos = null
+              continue
+            }
             a.keepAttack = { x: mp.x, y: mp.y }
             a.guardMode = false
             a.guardPost = null
-            if (target >= 0 && world.isAlive(target) && !world.sameTeam(player, world.teamOf(target))) {
-              a.target = target
-            } else {
-              a.target = null
-            }
+            a.target = null
             // the spot stays "hot"; the unit advances only to shooting range
             a.targetPos = { x: mp.x, y: mp.y }
             const pl = world.planes.get(id)
@@ -255,7 +264,25 @@ export const InputSystem = {
           break
         }
         case 'guard': {
+          const target = cmd.target ?? -1
           const mp = resolveMovePoint(world, cmd.x, cmd.y)
+          const explicit =
+            target >= 0 && world.isAlive(target) && !world.sameTeam(player, world.teamOf(target))
+          if (explicit) {
+            // An explicit order on a specific enemy overrides the guard stance:
+            // march onto it instead of holding the post.
+            for (const id of cmd.entities) {
+              if (!ownedUnit(world, player, id)) continue
+              const a = world.attacks.get(id)
+              if (!a) continue
+              a.keepAttack = null
+              a.guardMode = false
+              a.guardPost = null
+              a.target = target
+              a.targetPos = null
+            }
+            break
+          }
           const guardIds = cmd.entities.filter(
             (id) => ownedUnit(world, player, id) && world.attacks.has(id) && !world.planes.has(id),
           )
