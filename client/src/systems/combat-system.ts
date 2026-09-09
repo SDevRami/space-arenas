@@ -67,9 +67,16 @@ export const setChase = (world: World, id: number, tx: number, ty: number): void
     if (m.tx !== tx || m.ty !== ty) {
       m.tx = tx
       m.ty = ty
+      // A MOVING target (e.g. a fleeing enemy troop) changes position every
+      // tick. Marking needsPath=true here made the unit halt — movement skips
+      // while a path is pending, and combat re-clears the path next tick, so a
+      // pursuit of anything that moves froze on the spot. Instead drop the stale
+      // path and keep needsPath=false so the unit DIRECTLY marches at the prey's
+      // current position every tick; if the straight step is impassable,
+      // movement itself re-engages pathfinding around the obstacle.
       m.path = []
       m.pathIndex = 0
-      m.needsPath = true
+      m.needsPath = false
       m.repathCooldown = 0
     }
   }
