@@ -1035,6 +1035,17 @@ export class Game {
       if (info.ctrl) {
         if (this.selection.has(hit)) this.selection.delete(hit)
         else this.selection.add(hit)
+      } else if (
+        !info.touch &&
+        this.selection.size > 0 &&
+        this.isEnemy(hit) &&
+        [...this.selection].some((id) => world.units.has(id))
+      ) {
+        // Clicking an enemy while friendly units are selected issues an attack
+        // order (mirrors the touch/tap path) instead of just re-selecting the
+        // enemy — so a single click on a far-away troop reliably engages it.
+        this.onCommand('attack', info.world)
+        return
       } else {
         this.selection = new Set([hit])
       }
@@ -1092,7 +1103,7 @@ export class Game {
     world.units.forEach((id, u) => {
       if (!world.isVisibleTo(this.localTeam, id, revealAll)) return
       const t = world.transforms.require(id)
-      const r = u.class === 'vehicle' ? 1.3 : 0.9
+      const r = u.class === 'vehicle' ? 1.3 : 1.1
       const dx = tileX - t.x / 1000
       const dy = tileY - t.y / 1000
       if (dx * dx + dy * dy <= r * r) {

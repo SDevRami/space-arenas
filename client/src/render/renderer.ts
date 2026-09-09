@@ -580,7 +580,7 @@ export class Renderer {
       if (!this.isEntityVisible(world, id)) return
       const t = world.transforms.get(id)
       if (!t) return
-      const r = u.class === 'vehicle' ? 1.3 : 0.9
+      const r = u.class === 'vehicle' ? 1.3 : 1.1
       const dx = wx - t.x / 1000
       const dy = wy - t.y / 1000
       if (dx * dx + dy * dy <= r * r) {
