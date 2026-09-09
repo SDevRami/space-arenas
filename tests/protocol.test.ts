@@ -144,6 +144,9 @@ describe('protocol: type ids are stable', () => {
       collect: 19,
       ping: 20,
       'reorder-queue': 21,
+      grenade: 22,
+      smoke: 23,
+      'set-detector': 24,
     })
   })
 })

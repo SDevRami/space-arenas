@@ -1,5 +1,5 @@
 import type { EnvelopeCommand } from '@space-arenas/shared'
-import { getBuilding, getUnit, getUpgrade } from '@space-arenas/shared'
+import { getBuilding, getUnit, getUpgrade, sqDist, tileToFx } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { placementExplored, PING_TICKS } from '../core/world.ts'
 import { nearestPassablePoint } from '../core/pathfinding.ts'
@@ -316,6 +316,91 @@ export const InputSystem = {
             pl.hoverX = mp.x
             pl.hoverY = mp.y
           }
+          break
+        }
+        case 'grenade': {
+          for (const id of cmd.entities) {
+            const u = world.units.get(id)
+            if (!u || u.team !== player) continue
+            if (u.abilityCooldown > world.tick) {
+              world.emit({ type: 'command-rejected', player, reason: 'ability on cooldown' })
+              continue
+            }
+            const t = world.transforms.get(id)
+            if (!t) continue
+            const rangeFx = tileToFx(world.settings.grenadeRange)
+            if (sqDist(t.x, t.y, cmd.x, cmd.y) > rangeFx * rangeFx) {
+              world.emit({ type: 'command-rejected', player, reason: 'target out of throw range' })
+              continue
+            }
+            u.abilityCooldown = world.tick + world.settings.grenadeCooldownTicks
+            const gid = world.createEntity('marker', player)
+            world.transforms.set(gid, { x: cmd.x, y: cmd.y })
+            world.grenades.set(gid, {
+              team: player,
+              fromX: t.x,
+              fromY: t.y,
+              x: cmd.x,
+              y: cmd.y,
+              startTick: world.tick,
+              explodeAt: world.tick + world.settings.grenadeFuseTicks,
+              radius: world.settings.grenadeBlastRadius,
+              damage: world.settings.grenadeDamage,
+            })
+          }
+          break
+        }
+        case 'smoke': {
+          for (const id of cmd.entities) {
+            const u = world.units.get(id)
+            if (!u || u.team !== player) continue
+            if (u.abilityCooldown > world.tick) {
+              world.emit({ type: 'command-rejected', player, reason: 'ability on cooldown' })
+              continue
+            }
+            const t = world.transforms.get(id)
+            if (!t) continue
+            const rangeFx = tileToFx(world.settings.smokeRange)
+            if (sqDist(t.x, t.y, cmd.x, cmd.y) > rangeFx * rangeFx) {
+              world.emit({ type: 'command-rejected', player, reason: 'target out of throw range' })
+              continue
+            }
+            u.abilityCooldown = world.tick + world.settings.smokeCooldownTicks
+            const sid = world.createEntity('marker', player)
+            world.transforms.set(sid, { x: cmd.x, y: cmd.y })
+            world.smokes.set(sid, {
+              team: player,
+              x: cmd.x,
+              y: cmd.y,
+              radius: world.settings.smokeRadius,
+              untilTick: world.tick + world.settings.smokeDurationTicks,
+            })
+          }
+          break
+        }
+        case 'set-detector': {
+          const id = cmd.entities[0]
+          if (id === undefined || !ownedBuilding(world, player, id)) break
+          const b = world.buildings.require(id)
+          if (!b.done) {
+            world.emit({ type: 'command-rejected', player, reason: 'building not finished' })
+            break
+          }
+          if (!teamState.detectorUnlocked) {
+            world.emit({ type: 'command-rejected', player, reason: 'detector upgrade not researched' })
+            break
+          }
+          if (b.detector) {
+            world.emit({ type: 'command-rejected', player, reason: 'building already has a detector' })
+            break
+          }
+          if (teamState.credits < world.settings.detectorCost) {
+            world.emit({ type: 'command-rejected', player, reason: 'insufficient credits' })
+            break
+          }
+          teamState.credits -= world.settings.detectorCost
+          b.detector = true
+          world.emit({ type: 'detector-bought', building: id, team: player })
           break
         }
         case 'stop': {
@@ -767,6 +852,14 @@ export const InputSystem = {
           const cost = up.id === 'space-laser' ? world.laserUpgradeCost(player, up.cost) : up.cost
           if (up.id === 'space-laser' && world.laserLevel(player) >= world.laserMaxLevel()) {
             world.emit({ type: 'command-rejected', player, reason: 'laser maxed' })
+            break
+          }
+          if (up.id === 'stealth-tech' && teamState.stealthTech) {
+            world.emit({ type: 'command-rejected', player, reason: 'stealth tech already researched' })
+            break
+          }
+          if (up.id === 'detector-upgrade' && teamState.detectorUnlocked) {
+            world.emit({ type: 'command-rejected', player, reason: 'detector already researched' })
             break
           }
           if (teamState.credits < cost) {

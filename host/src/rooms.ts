@@ -106,6 +106,19 @@ const SANITIZE: Record<string, { min: number; max: number }> = {
   veteranDamagePerRank: { min: 0, max: 2 },
   veteranRangePerRank: { min: 0, max: 2 },
   veteranArmorPerRank: { min: 0, max: 1 },
+  grenadeRange: { min: 1, max: 30 },
+  grenadeBlastRadius: { min: 0.5, max: 10 },
+  grenadeDamage: { min: 0, max: 100000 },
+  grenadeFuseTicks: { min: 1, max: 100000 },
+  grenadeCooldownTicks: { min: 1, max: 100000 },
+  smokeRange: { min: 1, max: 30 },
+  smokeRadius: { min: 0.5, max: 10 },
+  smokeDurationTicks: { min: 1, max: 100000 },
+  smokeMissChance: { min: 0, max: 1 },
+  smokeCooldownTicks: { min: 1, max: 100000 },
+  detectorCost: { min: 0, max: 100000 },
+  detectorRange: { min: 1, max: 100 },
+  stealthRevealTicks: { min: 1, max: 100000 },
 }
 
 const OVERRIDE_CLAMP: Record<string, { min: number; max: number }> = {

@@ -173,17 +173,18 @@ New ECS component + combat-system + renderer.
 
 ---
 
-## Day 9 — Unit Abilities: Grenade/Smoke + Stealth (M)
+## Day 9 — Unit Abilities: Grenade/Smoke + Stealth ✅ DONE
 
-Tech-center research, new SimCommand + ECS components. Both gated by research.
+Tech-center research, two new SimCommands + ECS components. Both gated by research.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Grenade ability** — selected units auto-throw at structures, cooldown | #1a partial | New SimCommand `ability-grenade { unitId, targetId }`. `combat-system.ts`: grenade deals 3× weapon damage to buildings only. `ability-system.ts` new: cooldown per-unit (`abilityCooldown: number`). HUD button in tools bar. |
-| 2 | **Smoke ability** — 3 s fog-blocker cloud at target point | #1a partial | New SimCommand `ability-smoke { x, y, team }`. `fog-system.ts` stamps fog `= 2` in 3×3 area for 75 ticks (3 s). Renderer: draw translucent gray overlay at (x, y). |
-| 3 | **Stealth upgrade** — invisibility + detector counter | #5a | New `UnitComp.stealth: boolean`, `detector: boolean`. `vision-system.ts`: stealth units hidden unless in range of detector unit or radar building. Research at tech center (`upgrades.ts` new `stealth-tech`). `hash.ts` includes stealth state. |
+| 1 | **Grenade ability** — toggle throw with range ring, fuse → red blast | #1a partial | **Done.** HUD toggle button (commands section when units selected) arms a `pendingAbility` in `Game.ts`; right-click inside the throw-ring issues the new `grenade` SimCommand (CMD id 22). `input-system.ts` validates ownership, per-unit `abilityCooldown` (0 = ready, else absolute tick; `grenadeCooldownTicks` default 2.5 s), and `grenadeRange` (default 6 cells) — reasons `ability on cooldown` / `target out of throw range`. Thrown grenades are ECS marker entities with `GrenadeComp` { team, fromX/fromY, x, y, startTick, explodeAt, radius, damage }; new `AbilitiesSystem` (runs right after Combat in the registry) detonates them at `explodeAt` via `explodeAt()` (splash gather + `applyDamage` with teamOverride) and emits `grenade-exploded`. Renderer draws the throw arc + pulsing red blast ring; settings fields `grenadeRange/BlastRadius/Damage/FuseTicks/CooldownTicks`. |
+| 2 | **Smoke ability** — cloud makes shots crossing it miss by RNG | #1a partial | **Done.** Same toggle + `smoke` SimCommand (id 23). `input-system.ts` places a `SmokeComp` marker (team, x, y, radius=2 cells, `untilTick`) for `smokeDurationTicks` (12 s). `combat-system.ts` `fire`/`fireGround` check `shotBlockedBySmoke` (shot segment vs cloud circle) then roll `world.rng.next()` (deterministic, one draw) against `smokeMissChance` (0.6) → `shot-missed` event, zero damage. Cloud fades near expiry in the renderer. Settings: `smokeRange/Radius/DurationTicks/MissChance/CooldownTicks`. |
+| 3 | **Stealth upgrade** — invisibility + per-building detector | #5a | **Done.** New research `stealth-tech` (tech center, 400/20 s) sets `TeamState.stealthTech`; spawned units start `stealth: true` (retroactively applied to existing units on research complete). Stealthed units are invisible (`isVisibleTo` gate) until they fire → `revealedUntil = tick + stealthRevealTicks` (3 s), or until covered by a detector. `detector-upgrade` research (300/15 s) unlocks `set-detector` SimCommand (id 24): buys a detector for `detectorCost` (200) on any finished owned building (`BuildingComp.detector`), which reveals stealth in `detectorRange` (12 cells) via `detectorNear`. HUD detector buy-button section + `detector-bought` event. Settings: `detectorCost/Range`, `stealthRevealTicks`. |
+| 4 | **Dev settings + sync** | — | `DEV_SCALAR_SECTIONS` gets `abilities` + `stealth` sections (13 synced fields), host `SANITIZE` covers all new keys, hash covers team flags + grenades/smokes comps + unit/building fields, `PROTOCOL_VERSION` at 5, i18n en/ar for hud + dev + toasts. `tests/abilities.test.ts` (11 tests: explode, cooldown, range, smoke miss / no-miss, cloud expiry, stealth reveal, detector buy + research gate, determinism). |
 
-**Touch points:** `protocol.ts`, `combat-system.ts`, new `ability-system.ts`, `world.ts`, `vision-system.ts`, `upgrades.ts`, `hash.ts`, `hud.ts` (ability buttons)
+**Touch points:** `protocol.ts` (3 new Commands + ids 22–24), `const-ants.ts`/`upgrades.ts`, `world.ts` (stealth/flags/sets + `isVisibleTo` gate + `detectorNear`), `combat-system.ts` (smoke miss + reveal-on-fire + `explodeAt`), new `abilities-system.ts`, `input-system.ts` (3 handlers + research guards), `factories.ts`, `placing-system.ts` (research finalizers), `hash.ts`, `renderer.ts` (ability ring + arc/blast/smoke FX), `Game.ts` + `hud.ts` (toggles + detector section), `main.ts` + i18n (dev sections), `host/rooms.ts` (SANITIZE), `tests/abilities.test.ts`
 
 ---
 

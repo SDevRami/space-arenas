@@ -8,7 +8,7 @@ export interface UpgradeDef {
   availableAt: string
 }
 
-export const UPGRADE_IDS = ['radar', 'satellite', 'space-laser'] as const
+export const UPGRADE_IDS = ['radar', 'satellite', 'space-laser', 'stealth-tech', 'detector-upgrade'] as const
 
 export type UpgradeId = (typeof UPGRADE_IDS)[number]
 
@@ -33,6 +33,20 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     cost: 1000,
     researchTimeTicks: SECONDS_TO_TICKS(40),
     availableAt: 'super-weapon',
+  },
+  'stealth-tech': {
+    id: 'stealth-tech',
+    name: 'Stealth Tech',
+    cost: 400,
+    researchTimeTicks: SECONDS_TO_TICKS(20),
+    availableAt: 'tech-center',
+  },
+  'detector-upgrade': {
+    id: 'detector-upgrade',
+    name: 'Detector Upgrade',
+    cost: 300,
+    researchTimeTicks: SECONDS_TO_TICKS(15),
+    availableAt: 'tech-center',
   },
 }
 

@@ -341,6 +341,12 @@ export const fire = (
 ): void => {
   const team = world.teamOf(attacker)
   world.emit({ type: 'shot-fired', attacker, x: tx, y: ty, team })
+  revealIfStealthed(world, attacker)
+  const at = world.transforms.get(attacker)
+  if (at && shotBlockedBySmoke(world, at.x, at.y, tx, ty) && world.rng.next() / 4294967296 < world.settings.smokeMissChance) {
+    world.emit({ type: 'shot-missed', attacker, x: tx, y: ty, team })
+    return
+  }
   const targets: Array<[number, number, number]> = []
   if (splash && splash > 0) {
     splashDamage(world, team, tx, ty, splash, targets, targetsAir)
@@ -361,9 +367,51 @@ export const fireGround = (
 ): void => {
   const team = world.teamOf(attacker)
   world.emit({ type: 'shot-fired', attacker, x: tx, y: ty, team })
+  revealIfStealthed(world, attacker)
+  const at = world.transforms.get(attacker)
+  if (at && shotBlockedBySmoke(world, at.x, at.y, tx, ty) && world.rng.next() / 4294967296 < world.settings.smokeMissChance) {
+    world.emit({ type: 'shot-missed', attacker, x: tx, y: ty, team })
+    return
+  }
   const targets: Array<[number, number, number]> = []
   splashDamage(world, team, tx, ty, splash && splash > 0 ? splash : world.settings.defaultSplash, targets, targetsAir)
   for (const [tid] of targets) applyDamage(world, tid, damage, attacker)
+}
+
+/** Firing gives a stealthed unit away: it stays revealed for `stealthRevealTicks`. */
+const revealIfStealthed = (world: World, attacker: number): void => {
+  const u = world.units.get(attacker)
+  if (u && u.stealth) u.revealedUntil = world.tick + world.settings.stealthRevealTicks
+}
+
+/** Whether the shot line from (ax,ay) to (bx,by) passes through a smoke cloud. */
+const shotBlockedBySmoke = (world: World, ax: number, ay: number, bx: number, by: number): boolean => {
+  let blocked = false
+  world.smokes.forEach((_id, s) => {
+    if (blocked) return
+    const dx = bx - ax
+    const dy = by - ay
+    const lenSq = dx * dx + dy * dy
+    const r = s.radius * 1000
+    const rSq = r * r
+    if (lenSq === 0) {
+      if (sqDist(ax, ay, s.x, s.y) <= rSq) blocked = true
+      return
+    }
+    let t = ((s.x - ax) * dx + (s.y - ay) * dy) / lenSq
+    t = Math.max(0, Math.min(1, t))
+    const px = ax + dx * t
+    const py = ay + dy * t
+    if (sqDist(px, py, s.x, s.y) <= rSq) blocked = true
+  })
+  return blocked
+}
+
+/** Area damage at a point for an ability (grenade): enemy units/buildings/oil/scenery. */
+export const explodeAt = (world: World, team: number, x: number, y: number, radiusTiles: number, damage: number): void => {
+  const targets: Array<[number, number, number]> = []
+  splashDamage(world, team, x, y, radiusTiles, targets)
+  for (const [tid] of targets) applyDamage(world, tid, damage, -1, team)
 }
 
 const splashDamage = (

@@ -67,6 +67,12 @@ export interface UnitComp {
   killCount: number
   /** Veterancy level: 0 = none, 1–4 = gold pips, 5 = star (capped, never regresses). */
   veteranRank: VeteranRank
+  /** Stealthed units are invisible to enemies until they fire (or a detector reveals them). */
+  stealth: boolean
+  /** Tick until a sneak-attack reveal expires (0 = not currently revealed). */
+  revealedUntil: number
+  /** Ticks left before the unit can throw another grenade/smoke (0 = ready). */
+  abilityCooldown: number
 }
 
 export interface BuildingComp {
@@ -91,6 +97,8 @@ export interface BuildingComp {
    * building animates its status frames in reverse and can still be attacked; if
    * destroyed before this tick the owner is denied the refund. */
   sellingUntil: number
+  /** Bought per-building detector ability: reveals enemy stealthed units in range. */
+  detector: boolean
 }
 
 export interface HealthComp {
@@ -212,6 +220,10 @@ export interface TeamState {
   laserLevel: number
   alliance: number
   color: number
+  /** Stealth Tech researched: the team's units are invisible until they fire. */
+  stealthTech: boolean
+  /** Detector Upgrade researched: buildings can buy the Detector ability. */
+  detectorUnlocked: boolean
 }
 
 export type PlaneState = 'idle' | 'attacking' | 'returning'
@@ -234,6 +246,30 @@ export interface LaserComp {
 
 export interface SatelliteMarkerComp {
   team: number
+  untilTick: number
+}
+
+/** A grenade in flight/landed, waiting out its fuse before exploding. */
+export interface GrenadeComp {
+  team: number
+  /** Thrower position at launch — the renderer draws the arc from here. */
+  fromX: number
+  fromY: number
+  x: number
+  y: number
+  startTick: number
+  explodeAt: number
+  /** Blast radius in tiles. */
+  radius: number
+  damage: number
+}
+
+/** A lingering smoke cloud that makes shots crossing it miss. */
+export interface SmokeComp {
+  team: number
+  x: number
+  y: number
+  radius: number
   untilTick: number
 }
 
@@ -275,6 +311,8 @@ export class World {
   readonly works = new SparseSet<WorkComp>()
   readonly wrecks = new SparseSet<WreckComp>()
   readonly satelliteMarkers = new SparseSet<SatelliteMarkerComp>()
+  readonly grenades = new SparseSet<GrenadeComp>()
+  readonly smokes = new SparseSet<SmokeComp>()
   readonly planes = new SparseSet<PlaneComp>()
   readonly lasers = new SparseSet<LaserComp>()
   readonly flashes = new SparseSet<DamageFlashComp>()
@@ -298,7 +336,7 @@ export class World {
     this.settings = mergeMatchSettings(settings)
     this.rng = new RNG(seed)
     for (const p of players) {
-      this.teams.set(p, { credits: this.settings.startingCredits, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: p, color: p })
+      this.teams.set(p, { credits: this.settings.startingCredits, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: p, color: p, stealthTech: false, detectorUnlocked: false })
       this.fog.set(p, new Uint8Array(map.width * map.height))
     }
     this.initStatic(map)
@@ -397,6 +435,8 @@ export class World {
     this.works.delete(id)
     this.wrecks.delete(id)
     this.satelliteMarkers.delete(id)
+    this.grenades.delete(id)
+    this.smokes.delete(id)
     this.planes.delete(id)
     this.lasers.delete(id)
     this.flashes.delete(id)
@@ -443,6 +483,14 @@ export class World {
     const eTeam = this.teamOf(entityId)
     if (eTeam < 0) return true
     if (this.sameTeam(team, eTeam)) return true
+    const targetUnit = this.units.get(entityId)
+    if (targetUnit && targetUnit.stealth) {
+      // Stealth: invisible until the unit fires (then it is briefly revealed)
+      // or comes within range of a detector building of the viewing team.
+      if (this.detectorNear(team, entityId)) return true
+      if (targetUnit.revealedUntil < this.tick) return false
+      // recently revealed by firing: fall through to normal fog visibility
+    }
     const s = this.teams.get(team)
     if (s && s.satelliteRevealUntil >= this.tick) return true
     const f = this.fog.get(team)
@@ -468,6 +516,24 @@ export class World {
       }
     }
     return false
+  }
+
+  /** Whether one of `team`'s done detector buildings covers the entity's tile. */
+  detectorNear(team: number, entityId: number): boolean {
+    const t = this.transforms.get(entityId)
+    if (!t) return false
+    const rangeSq = (this.settings.detectorRange * 1000) ** 2
+    let found = false
+    this.buildings.forEach((id, b) => {
+      if (found) return
+      if (b.team !== team || !b.done || !b.detector) return
+      const pos = this.transforms.get(id)
+      if (!pos) return
+      const dx = pos.x - t.x
+      const dy = pos.y - t.y
+      if (dx * dx + dy * dy <= rangeSq) found = true
+    })
+    return found
   }
 
   addSatelliteMarker(team: number, x: number, y: number, untilTick: number): void {
@@ -498,7 +564,7 @@ export class World {
 
   teamState(team: number): TeamState {    let s = this.teams.get(team)
     if (!s) {
-      s = { credits: 0, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: team, color: team }
+      s = { credits: 0, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: team, color: team, stealthTech: false, detectorUnlocked: false }
       this.teams.set(team, s)
     }
     return s

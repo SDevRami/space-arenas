@@ -125,6 +125,8 @@ export class Renderer {
   /** Pending multi-position move waypoints (fx coords) drawn as green circles. */
   routePoints: Array<{ x: number; y: number }> | null = null
   routeIdx = 0
+  /** When a grenade/smoke toggle is armed, draws a throw-range ring around each selected unit. */
+  abilityRing: { radiusTiles: number; color: number } | null = null
   private routeLabels: Text[] = []
   private hoverWorld: { x: number; y: number } | null = null
   private hoverText: Text | null = null
@@ -518,6 +520,19 @@ export class Renderer {
       })
     }
 
+    const ability = this.abilityRing
+    if (ability) {
+      selection.forEach((id) => {
+        const u = world.units.get(id)
+        if (!u) return
+        const t = world.transforms.get(id)
+        if (!t) return
+        const ix = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+        const iy = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+        this.drawRangeRing(this.rangeRingG, ix, iy, ability.radiusTiles, ability.color, 0.5, 2, 0.05)
+      })
+    }
+
     this.debugLayer.visible = this.showBorders
 
     this.syncBars(world, camera, selection)
@@ -879,6 +894,35 @@ export class Renderer {
       const py = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
       this.fxGraphics.circle(px, py, 100).stroke({ color: 0x4ad8ff, width: 2, alpha })
       this.fxGraphics.circle(px, py, 100).fill({ color: 0x4ad8ff, alpha: alpha * 0.05 })
+    })
+    // grenades: arc from the thrower to the target, with a pulsing red blast
+    // ring at the landing point while waiting out the fuse
+    world.grenades.forEach((id, g) => {
+      const t = world.transforms.get(id)
+      if (!t) return
+      const total = g.explodeAt - g.startTick
+      const frac = Math.max(0, Math.min(1, total > 0 ? (world.tick - g.startTick) / total : 1))
+      const cx = g.fromX + (t.x - g.fromX) * frac
+      const cy = g.fromY + (t.y - g.fromY) * frac
+      const px = (cx / 1000 - cy / 1000) * ISO_HALF_W
+      const py = (cx / 1000 + cy / 1000) * ISO_HALF_H
+      this.fxGraphics.circle(px, py, 4 + Math.sin(world.tick * 0.6) * 1.2).fill({ color: 0x333a3d, alpha: 0.95 })
+      const tx = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+      const ty = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+      const pulse = 0.5 + Math.sin(world.tick * 0.35) * 0.3
+      this.fxGraphics.circle(tx, ty, g.radius * 32).stroke({ color: 0xff4a3a, width: 2, alpha: 0.4 + pulse * 0.35 })
+    })
+    // smoke: soft grey clouds that linger, making shots through them miss
+    world.smokes.forEach((id, s) => {
+      const t = world.transforms.get(id)
+      if (!t) return
+      const left = s.untilTick - world.tick
+      const px = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+      const py = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+      const r = s.radius * 32
+      const alpha = Math.min(1, left / 30) * 0.5
+      this.fxGraphics.circle(px, py, r).fill({ color: 0x9aa0aa, alpha })
+      this.fxGraphics.circle(px, py, r).stroke({ color: 0xe6e8ee, width: 1.5, alpha: alpha * 0.8 })
     })
     // keep-attack and guard position markers for selected units
     world.attacks.forEach((id, a) => {

@@ -26,6 +26,11 @@ export interface HudActions {
   isMoveModeActive: () => boolean
   onMaxPowerClick: (buildingIds: number[]) => void
   onDeselectClick: () => void
+  onGrenadeToggle: () => void
+  isGrenadeActive: () => boolean
+  onSmokeToggle: () => void
+  isSmokeActive: () => boolean
+  onDetectorClick: (buildingIds: number[]) => void
 }
 
 const BUILDER_BUILDABLES = ['command-center', 'power-plant', 'supply-dock', 'barracks', 'war-factory', 'turret', 'tech-center', 'air-force', 'super-weapon'] as const
@@ -296,6 +301,10 @@ export class Hud {
       this.appendHeader(t('hud.headers.command'))
       this.addButton(t('hud.stop'), () => true, () => this.actions.onStopClick())
       this.addToggleButton(t('hud.multiPos'), () => this.actions.onMoveModeToggle(), () => this.actions.isMoveModeActive())
+      if (hasMovable) {
+        this.addToggleButton(t('hud.grenade'), () => this.actions.onGrenadeToggle(), () => this.actions.isGrenadeActive())
+        this.addToggleButton(t('hud.smoke'), () => this.actions.onSmokeToggle(), () => this.actions.isSmokeActive())
+      }
       anySection = true
     }
 
@@ -479,6 +488,36 @@ export class Hud {
           this.assignUniqueHotkey(tn(up.id, upDef.name)),
         )
       }
+    }
+
+    let detectorShown = false
+    for (const bd of buildings) {
+      if (bd.team !== localTeam) continue
+      const ts = world.teamState(bd.team)
+      if (!ts.detectorUnlocked) continue
+      const b = world.buildings.get(bd.id)
+      if (!b || !b.done) continue
+      if (!detectorShown) {
+        this.appendHeader(t('hud.headers.detector'))
+        detectorShown = true
+        anySection = true
+      }
+      if (b.detector) continue
+      const detectorCost = world.settings.detectorCost
+      this.addButton(
+        `${t('hud.detector')} <span class="cost">$${detectorCost}</span>`,
+        () => {
+          const ts2 = world.teamState(bd.team)
+          if (ts2.credits < detectorCost) return false
+          const b2 = world.buildings.get(bd.id)
+          if (!b2 || !b2.done || b2.detector) return false
+          return true
+        },
+        () => this.actions.onDetectorClick([bd.id]),
+        undefined,
+        undefined,
+        this.assignUniqueHotkey(t('hud.detector')),
+      )
     }
 
     let maxPowerShown = false

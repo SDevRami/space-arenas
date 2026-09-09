@@ -101,6 +101,7 @@ export class Game {
   private groupsSig = ''
   private groupModDown = false
   private pendingLaser = false
+  private pendingAbility: 'grenade' | 'smoke' | null = null
   private pendingSpawnPoint = false
   private pendingFlag = false
   private holdPlaced = false
@@ -198,6 +199,11 @@ export class Game {
       isMoveModeActive: () => this.multiPosMode,
       onMaxPowerClick: (ids) => this.maxPower(ids),
       onDeselectClick: () => this.onDeselectClick(),
+      onGrenadeToggle: () => this.toggleAbility('grenade'),
+      isGrenadeActive: () => this.pendingAbility === 'grenade',
+      onSmokeToggle: () => this.toggleAbility('smoke'),
+      isSmokeActive: () => this.pendingAbility === 'smoke',
+      onDetectorClick: (ids) => this.buyDetector(ids),
     })
   }
 
@@ -205,6 +211,33 @@ export class Game {
     this.multiPosMode = !this.multiPosMode
     this.multiRoute = null
     this.hud.toast(this.multiPosMode ? t('game.multiPosOn') : t('game.multiPosOff'))
+  }
+
+  private toggleAbility(kind: 'grenade' | 'smoke'): void {
+    if (this.pendingAbility === kind) {
+      this.pendingAbility = null
+    } else {
+      this.pendingAbility = kind
+      this.multiPosMode = false
+      this.multiRoute = null
+      this.pendingLaser = false
+      this.pendingPlace = null
+    }
+    this.hud.toast(
+      kind === 'grenade'
+        ? this.pendingAbility
+          ? t('game.grenadeOn')
+          : t('game.grenadeOff')
+        : this.pendingAbility
+          ? t('game.smokeOn')
+          : t('game.smokeOff'),
+    )
+  }
+
+  private buyDetector(buildingIds: number[]): void {
+    if (buildingIds.length === 0) return
+    this.issue({ type: 'set-detector', entities: buildingIds, x: 0, y: 0 })
+    this.audio.uiClick()
   }
 
   private isMobileView(): boolean {
@@ -620,6 +653,12 @@ export class Game {
     else renderer.setHoverWorld(null)
 
     const ghost = this.computeGhost()
+    renderer.abilityRing = this.pendingAbility
+      ? {
+          radiusTiles: this.pendingAbility === 'grenade' ? world.settings.grenadeRange : world.settings.smokeRange,
+          color: this.pendingAbility === 'grenade' ? 0xff6a3a : 0x9ad1f5,
+        }
+      : null
     renderer.render(world, this.localTeam, this.selection, ghost, input.boxRect, this.moveMarker)
     renderer.setDayNight(world.settings.dayNight ? this.dayPhase(world) : 0)
     if (!this.paused) this.weather?.step()
@@ -934,6 +973,7 @@ export class Game {
 
   private onDeselectClick(): void {
     this.selection.clear()
+    this.pendingAbility = null
     this.audio.uiClick()
   }
 
@@ -1870,6 +1910,28 @@ export class Game {
     if (!world || this.selection.size === 0) return
     hapticAction()
     const ids = [...this.selection]
+
+    // Bandolier toggles: while grenade/smoke mode is active, right-click throws
+    // to the clicked point (in-range units only). The mode stays armed.
+    if (this.pendingAbility) {
+      const ability = this.pendingAbility
+      const unitIds = ids.filter((id) => world.units.has(id))
+      if (unitIds.length > 0) {
+        const fired = [] as number[]
+        const range = ability === 'grenade' ? tileToFx(world.settings.grenadeRange) : tileToFx(world.settings.smokeRange)
+        for (const uid of unitIds) {
+          const t = world.transforms.get(uid)
+          if (!t) continue
+          if ((t.x - worldPt.x) ** 2 + (t.y - worldPt.y) ** 2 > range * range) continue
+          fired.push(uid)
+        }
+        if (fired.length > 0) {
+          this.issue({ type: ability, entities: fired, x: Math.floor(worldPt.x), y: Math.floor(worldPt.y) })
+          hapticAction()
+        }
+      }
+      return
+    }
 
     // Combat modes (attack / keep-attack / guard) only apply when the selection
     // contains shooting units. If none are selected (e.g. only buildings), fall

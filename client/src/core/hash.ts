@@ -35,6 +35,8 @@ export const hashWorld = (world: World): number => {
       addNumber(bytes, s.laserFreeShotUsed ? 1 : 0)
       addNumber(bytes, s.laserLevel)
       addNumber(bytes, s.alliance)
+      addNumber(bytes, s.stealthTech ? 1 : 0)
+      addNumber(bytes, s.detectorUnlocked ? 1 : 0)
     }
   }
 
@@ -89,6 +91,8 @@ export const hashWorld = (world: World): number => {
   addComp(world.works, (id) => world.works.require(id))
   addComp(world.wrecks, (id) => world.wrecks.require(id))
   addComp(world.satelliteMarkers, (id) => world.satelliteMarkers.require(id))
+  addComp(world.grenades, (id) => world.grenades.require(id))
+  addComp(world.smokes, (id) => world.smokes.require(id))
   addComp(world.planes, (id) => world.planes.require(id))
   addComp(world.lasers, (id) => world.lasers.require(id))
   addComp(world.scenery, (id) => world.scenery.require(id))

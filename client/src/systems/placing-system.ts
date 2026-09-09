@@ -24,6 +24,20 @@ export const PlacingSystem = {
         s.laserLevel = (s.laserLevel ?? 0) + 1
         world.teams.get(b.team)!.laserLastUsed = world.tick
       }
+      if (upgradeType === 'stealth-tech') {
+        const s = world.teamState(b.team)
+        s.stealthTech = true
+        // retroactive cloaking: every existing unit of the team becomes
+        // stealthed too, not just the ones trained after the research finished
+        world.units.forEach((id) => {
+          const u = world.units.get(id)
+          if (u && u.team === b.team) u.stealth = true
+        })
+      }
+      if (upgradeType === 'detector-upgrade') {
+        const s = world.teamState(b.team)
+        s.detectorUnlocked = true
+      }
       world.emit({ type: 'upgrade-completed', building: id, upgrade: upgradeType, team: b.team })
     })
 

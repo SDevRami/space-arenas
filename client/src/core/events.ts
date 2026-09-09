@@ -11,6 +11,9 @@ export type SimEvent =
   | { type: 'unit-ranked-up'; unit: number; rank: 1 | 2 | 3 | 4 | 5 }
   | { type: 'base-under-attack'; building: number; team: number; x: number; y: number }
   | { type: 'shot-fired'; attacker: number; x: number; y: number; team: number }
+  | { type: 'shot-missed'; attacker: number; x: number; y: number; team: number }
+  | { type: 'grenade-exploded'; team: number; x: number; y: number }
+  | { type: 'detector-bought'; building: number; team: number }
   | { type: 'supply-harvested'; team: number; amount: number }
   | { type: 'oil-claiming'; field: number; entity: number; team: number }
   | { type: 'oil-claimed'; field: number; entity: number; team: number }

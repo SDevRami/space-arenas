@@ -369,6 +369,29 @@ const DEV_SCALAR_SECTIONS: Array<{ title: string; fields: DevFieldDef[] }> = [
     fields: [{ key: 'fogFadeDistance', unit: 'cells', min: 0, max: 30, step: 1 }],
   },
   {
+    title: 'abilities',
+    fields: [
+      { key: 'grenadeRange', unit: 'cells', min: 1, max: 30, step: 1 },
+      { key: 'grenadeBlastRadius', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
+      { key: 'grenadeDamage', unit: 'dmg', min: 0, max: 100000, step: 10 },
+      { key: 'grenadeFuseTicks', unit: 'sec', min: 0.2, max: 30, step: 0.2, seconds: true },
+      { key: 'grenadeCooldownTicks', unit: 'sec', min: 0.1, max: 120, step: 0.5, seconds: true },
+      { key: 'smokeRange', unit: 'cells', min: 1, max: 30, step: 1 },
+      { key: 'smokeRadius', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
+      { key: 'smokeDurationTicks', unit: 'sec', min: 1, max: 120, step: 1, seconds: true },
+      { key: 'smokeMissChance', unit: '0–1', min: 0, max: 1, step: 0.05 },
+      { key: 'smokeCooldownTicks', unit: 'sec', min: 0.1, max: 120, step: 0.5, seconds: true },
+    ],
+  },
+  {
+    title: 'stealth',
+    fields: [
+      { key: 'detectorCost', unit: 'credits', min: 0, max: 100000, step: 50 },
+      { key: 'detectorRange', unit: 'cells', min: 1, max: 100, step: 1 },
+      { key: 'stealthRevealTicks', unit: 'sec', min: 0.1, max: 120, step: 0.5, seconds: true },
+    ],
+  },
+  {
     title: 'dayNight',
     fields: [
       { key: 'dayNightCycleTicks', unit: 'sec', min: 30, max: 3600, step: 5, seconds: true },

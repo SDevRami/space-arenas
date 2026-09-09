@@ -25,6 +25,9 @@ export type CommandType =
   | 'forfeit'
   | 'max-power'
   | 'ping'
+  | 'grenade'
+  | 'smoke'
+  | 'set-detector'
 
 /** The three ping flavours players can drop to share intel with their team. */
 export type PingType = 'alert' | 'assist' | 'on-my-way'
@@ -96,6 +99,9 @@ export const CMD_TYPE_IDS: Record<CommandType, number> = {
   forfeit: 15,
   'max-power': 18,
   ping: 20,
+  grenade: 22,
+  smoke: 23,
+  'set-detector': 24,
 }
 
 export const PING_TYPE_IDS: Record<PingType, number> = {
@@ -106,7 +112,7 @@ export const PING_TYPE_IDS: Record<PingType, number> = {
 
 export const PING_TYPES: PingType[] = ['alert', 'assist', 'on-my-way']
 
-const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power', 'collect', 'ping', 'reorder-queue']
+const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector']
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
