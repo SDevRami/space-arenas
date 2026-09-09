@@ -159,7 +159,7 @@ Economy + renderer.
 
 ---
 
-## Day 8 — Veterancy System (M)
+## Day 8 — Veterancy System (M) ✅ DONE
 
 New ECS component + combat-system + renderer.
 
@@ -374,7 +374,7 @@ New game mode overlay with guided walkthrough.
 | 5 | Damage feedback + settings + shake | S | No | |
 | 6 | Pings + spectator + perf | M | Yes | |
 | 7 | Build queue + waypoint + victory | M | Yes (reorder) | ✅ (feature 2 postponed) |
-| 8 | Veterancy | M | Yes | |
+| 8 | Veterancy | M | Yes | ✅ |
 | 9 | Abilities + stealth | M | Yes | |
 | 10 | Engineer + mines | M | Yes | |
 | 11 | APC transport | M | Yes | |
