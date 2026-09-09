@@ -40,8 +40,21 @@ export const PathfindingSystem = {
       const startIdx = sy * grid.width + sx
       const goalIdx = ty * grid.width + tx
       const inBounds = tx >= 0 && ty >= 0 && tx < grid.width && ty < grid.height
+      const marchDirect = (): void => {
+        // Unreachable goal (start and target sit on separate land masses, e.g.
+        // the target is across impassable water, or the goal tile is fully
+        // walled off). Deleting the move froze units in place — combat kept
+        // re-creating a chase move every tick while pathfinding deleted it, so
+        // the unit never advanced. March straight toward the target instead:
+        // the unit gets as close as the terrain allows and then stops at the
+        // obstacle, re-attempting a real path once the way opens up.
+        m.path = []
+        m.pathIndex = 0
+        m.needsPath = false
+        m.repathCooldown = CAP_RETRY_TICKS
+      }
       if (inBounds && grid.passable[goalIdx] && grid.component[startIdx] !== grid.component[goalIdx]) {
-        world.moves.delete(id)
+        marchDirect()
         return
       }
       if (budget <= 0) return
@@ -52,7 +65,7 @@ export const PathfindingSystem = {
         return
       }
       if (path === null || path.length === 0) {
-        world.moves.delete(id)
+        marchDirect()
         return
       }
       m.path = path

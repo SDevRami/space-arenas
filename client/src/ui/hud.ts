@@ -211,7 +211,7 @@ export class Hud {
       `<span class="ach-pips">${pips}</span>` +
       `<span class="ach-rank">${t('hud.rankLevel', { rank: bestRank })}</span>` +
       `<span class="ach-kills">${t('hud.kills', { kills: totalKills })}</span>`
-    this.selectionAchievement.style.display = ''
+    this.selectionAchievement.style.display = 'flex'
   }
 
   private describeEntity(world: World, id: number): string {
@@ -220,7 +220,7 @@ export class Hud {
       const def = getUnit(u.unitType, world.settings)
       const h = world.healths.get(id)
       const hp = h && h.maxHp > 0 ? Math.round((h.hp / h.maxHp) * 100) : 100
-      return t('hud.unitDesc', { name: tn(u.unitType, def.name), hp, cost: def.cost, speed: def.speed })
+      return t('hud.unitDesc', { name: tn(u.unitType, def.name), hp, speed: def.speed })
     }
     const b = world.buildings.get(id)
     if (b) {
@@ -229,19 +229,17 @@ export class Hud {
       const hp = h && h.maxHp > 0 ? Math.round((h.hp / h.maxHp) * 100) : 100
       const parts: string[] = []
       if (!b.done) parts.push(t('hud.buildingPct', { p: Math.round(b.buildProgress * 100) }))
-      parts.push(t('hud.hp', { p: hp }))
-      parts.push(t('hud.cost', { c: def.cost }))
       if (def.powerGen > 0) parts.push(t('hud.powerPlus', { p: def.powerGen }))
       if (def.powerUse > 0) parts.push(t('hud.powerMinus', { p: def.powerUse }))
       if (b.done && def.powerUse > 0 && world.teamState(b.team).powerDown) parts.push(t('hud.powerDownNote'))
       if (b.maxPowerUntil > world.tick) parts.push(t('hud.maxPowerActive', { s: Math.max(1, Math.ceil((b.maxPowerUntil - world.tick) / SIM_TICK_HZ)) }))
       if (b.maxPowerHpTarget >= 0) parts.push(t('hud.maxPowerHpDrop'))
-      if (def.producesUnit) parts.push(t('hud.makes', { name: tn(def.producesUnit, UNITS[def.producesUnit]?.name ?? def.producesUnit) }))
       if (b.researching !== '') {
         const up = getUpgrade(b.researching, world.settings)
         parts.push(t('hud.researching', { name: tn(b.researching, up.name) }))
       }
-      return t('hud.buildingDesc', { name: tn(b.buildingType, def.name), parts: parts.join(' · ') })
+      const head = t('hud.buildingDesc', { name: tn(b.buildingType, def.name), p: hp })
+      return parts.length ? `${head}\n${parts.join(' · ')}` : head
     }
     return ''
   }
@@ -561,10 +559,7 @@ export class Hud {
     this.buildMenu.appendChild(b)
     if (hotkey) {
       this.hotkeySlots.push({ key: hotkey, enabled: isEnabled, act: onClick })
-      const hint = document.createElement('span')
-      hint.className = 'hud-hotkey'
-      hint.textContent = `${modifierLabel()}+${hotkey.toUpperCase()}`
-      b.appendChild(hint)
+      b.title = `${label.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()} (${modifierLabel()}+${hotkey.toUpperCase()})`
     }
     this.updaters.push(() => {
       b.disabled = !isEnabled()
@@ -649,13 +644,10 @@ export class Hud {
     const label = document.createElement('span')
     label.className = 'qc-label'
     label.textContent = name
-    const bar = document.createElement('span')
-    bar.className = 'qc-bar'
     const fill = document.createElement('span')
     fill.className = 'qc-fill'
-    bar.appendChild(fill)
+    btn.appendChild(fill)
     btn.appendChild(label)
-    btn.appendChild(bar)
     btn.title = t('hud.queueCancel')
     btn.addEventListener('click', () => {
       if (btn.dataset.suppressClick === '1') {
@@ -748,13 +740,10 @@ export class Hud {
     const label = document.createElement('span')
     label.className = 'qc-label'
     label.textContent = name
-    const bar = document.createElement('span')
-    bar.className = 'qc-bar'
     const fill = document.createElement('span')
     fill.className = 'qc-fill research'
-    bar.appendChild(fill)
+    card.appendChild(fill)
     card.appendChild(label)
-    card.appendChild(bar)
     card.title = t('hud.researchProgress')
     parent.appendChild(card)
     this.updaters.push(() => {

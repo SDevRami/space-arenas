@@ -78,6 +78,7 @@ export class Game {
   private resultsBoard: StatsBoard
   private mm: Minimap | null = null
   private mmWrap: HTMLElement | null = null
+  private mmResizeObserver: ResizeObserver | null = null
   private pingBtns: HTMLButtonElement[] = []
   private devBtns: HTMLButtonElement[] = []
   private pingMode: PingType | null = null
@@ -213,6 +214,7 @@ export class Game {
   private onSelectionToggleClick = (): void => {
     const hud = document.getElementById('hud')
     const expanded = hud?.classList.toggle('sel-expanded') ?? false
+    this.layoutSelectionBarHeight()
     if (this.selectionToggle) {
       this.selectionToggle.textContent = expanded ? '▼' : '▲'
       this.selectionToggle.title = expanded ? t('game.collapseSelection') : t('game.expandSelection')
@@ -428,6 +430,9 @@ export class Game {
     document.getElementById('selection-bar')?.appendChild(mmWrap)
     this.mmWrap = mmWrap
     this.mm = mm
+    this.mmResizeObserver = new ResizeObserver(() => this.layoutSelectionBarHeight())
+    this.mmResizeObserver.observe(mmWrap)
+    this.layoutSelectionBarHeight()
     this.pingMode = null
     this.layoutToolsBar()
     renderer.setMinimap(mm)
@@ -1465,6 +1470,18 @@ export class Game {
     }
   }
 
+  /** Keep the selection bar at 75% of the minimap wrap height so the minimap
+   * overhangs above the bar (visual trick). Sets `--sel-bar-h` on #hud;
+   * the build menu / stat text stay inside that height via CSS. */
+  private layoutSelectionBarHeight(): void {
+    const hud = document.getElementById('hud')
+    const wrap = this.mmWrap
+    if (!hud || !wrap) return
+    let h = Math.max(64, Math.round(wrap.offsetHeight * 0.75))
+    if (hud.classList.contains('sel-expanded')) h = Math.max(h, 128)
+    hud.style.setProperty('--sel-bar-h', `${h}px`)
+  }
+
   /** Toggle the Alt+click ping mode to the given flavour (clicking the active
    * flavour again turns the mode off). » Ping » (6.1/6.2). */
   private togglePing(type: PingType): void {
@@ -2430,6 +2447,8 @@ export class Game {
     this.audio.stopAmbient()
     this.input?.detach()
     this.input = null
+    this.mmResizeObserver?.disconnect()
+    this.mmResizeObserver = null
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
     window.removeEventListener('blur', this.onWindowBlur)
