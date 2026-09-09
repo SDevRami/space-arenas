@@ -14,6 +14,7 @@ export type SimEvent =
   | { type: 'shot-missed'; attacker: number; x: number; y: number; team: number }
   | { type: 'grenade-exploded'; team: number; x: number; y: number }
   | { type: 'detector-bought'; building: number; team: number }
+  | { type: 'stealth-bought'; team: number }
   | { type: 'supply-harvested'; team: number; amount: number }
   | { type: 'oil-claiming'; field: number; entity: number; team: number }
   | { type: 'oil-claimed'; field: number; entity: number; team: number }

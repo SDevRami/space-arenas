@@ -31,6 +31,7 @@ export interface HudActions {
   onSmokeToggle: () => void
   isSmokeActive: () => boolean
   onDetectorClick: (buildingIds: number[]) => void
+  onStealthClick: (unitIds: number[]) => void
 }
 
 const BUILDER_BUILDABLES = ['command-center', 'power-plant', 'supply-dock', 'barracks', 'war-factory', 'turret', 'tech-center', 'air-force', 'super-weapon'] as const
@@ -304,6 +305,27 @@ export class Hud {
       if (hasMovable) {
         this.addToggleButton(t('hud.grenade'), () => this.actions.onGrenadeToggle(), () => this.actions.isGrenadeActive())
         this.addToggleButton(t('hud.smoke'), () => this.actions.onSmokeToggle(), () => this.actions.isSmokeActive())
+      }
+      if (hasMovable && world.teamState(localTeam).stealthTech) {
+        const stealthEligible: number[] = []
+        selection.forEach((id) => {
+          const u = world.units.get(id)
+          if (!u || u.team !== localTeam) return
+          if (u.class !== 'infantry' && u.class !== 'vehicle') return
+          if (u.stealth) return
+          stealthEligible.push(id)
+        })
+        if (stealthEligible.length > 0) {
+          const stealthCost = world.settings.stealthCost
+          this.addButton(
+            `${t('hud.stealth')} <span class="cost">$${stealthCost}</span>`,
+            () => world.teamState(localTeam).credits >= stealthCost,
+            () => this.actions.onStealthClick(stealthEligible),
+            undefined,
+            undefined,
+            this.assignUniqueHotkey(t('hud.stealth')),
+          )
+        }
       }
       anySection = true
     }

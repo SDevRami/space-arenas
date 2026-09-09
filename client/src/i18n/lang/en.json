@@ -927,6 +927,7 @@
     "grenade": "Grenade",
     "smoke": "Smoke",
     "detector": "Detector",
+    "stealth": "Stealth",
     "attack": "Attack <em>(A)</em>",
     "keepAttack": "Keep Attack",
     "multiPos": "Multi Pos",

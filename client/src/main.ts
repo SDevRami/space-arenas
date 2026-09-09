@@ -388,6 +388,7 @@ const DEV_SCALAR_SECTIONS: Array<{ title: string; fields: DevFieldDef[] }> = [
     fields: [
       { key: 'detectorCost', unit: 'credits', min: 0, max: 100000, step: 50 },
       { key: 'detectorRange', unit: 'cells', min: 1, max: 100, step: 1 },
+      { key: 'stealthCost', unit: 'credits', min: 0, max: 100000, step: 50 },
       { key: 'stealthRevealTicks', unit: 'sec', min: 0.1, max: 120, step: 0.5, seconds: true },
     ],
   },

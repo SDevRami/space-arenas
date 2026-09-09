@@ -100,6 +100,8 @@ export class Renderer {
   private veteranPipLayer = new Container()
   private veteranPips = new Map<number, Graphics>()
   private veteranPipRank = new Map<number, number>()
+  private stealthHatLayer = new Container()
+  private stealthHats = new Map<number, Graphics>()
   private airShadowTex: Texture = Texture.EMPTY
   private shadowLayer = new Container()
   private airShadowTopLayer = new Container()
@@ -286,6 +288,7 @@ export class Renderer {
     this.ghostLayer.addChild(this.rangeRingG)
     this.worldLayer.addChild(this.barLayer)
     this.worldLayer.addChild(this.veteranPipLayer)
+    this.worldLayer.addChild(this.stealthHatLayer)
     this.worldLayer.addChild(this.powerLayer)
     this.worldLayer.addChild(this.teamFlagLayer)
     this.worldLayer.addChild(this.fxLayer)
@@ -414,6 +417,7 @@ export class Renderer {
     this.syncHitboxes(world, camera)
     this.syncUnitFlags(world, camera)
     this.syncVeterancy(world, camera)
+    this.syncStealthHats(world, camera)
 
     const fog = world.fog.get(localTeam)
     if (this.fog) {
@@ -1671,6 +1675,42 @@ export class Renderer {
         this.veteranPipLayer.removeChild(g)
         this.veteranPips.delete(id)
         this.veteranPipRank.delete(id)
+      }
+    }
+  }
+
+  /** Small gold top-hat above the hp bar for units wearing a bought stealth camo. */
+  private syncStealthHats(world: World, camera: Camera): void {
+    const seen = new Set<number>()
+    world.units.forEach((id, u) => {
+      if (!u.stealth) return
+      if (u.revealedUntil > world.tick) return
+      if (!this.isEntityVisible(world, id)) return
+      const t = world.transforms.get(id)
+      if (!t) return
+      seen.add(id)
+      let g = this.stealthHats.get(id)
+      if (!g) {
+        g = new Graphics()
+        g.rect(-6.5, 2, 13, 3).fill({ color: 0xe8d24a, alpha: 0.95 })
+        g.rect(-3.7, -9, 7.4, 11).fill({ color: 0x23272e, alpha: 0.95 })
+        g.rect(-3.7, -9, 7.4, 11).stroke({ color: 0xe8d24a, width: 0.8 })
+        this.stealthHatLayer.addChild(g)
+        this.stealthHats.set(id, g)
+      }
+      const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+      const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+      const barY = isoY - (u.class === 'vehicle' ? 18 : 14) - 8
+      const pos = { x: 0, y: 0 }
+      camera.worldToScreen(t.x, t.y, pos)
+      const vis = camera.isInView(pos.x, pos.y)
+      g.visible = vis
+      if (vis) g.position.set(isoX, barY - 10)
+    })
+    for (const [id, g] of this.stealthHats) {
+      if (!seen.has(id)) {
+        this.stealthHatLayer.removeChild(g)
+        this.stealthHats.delete(id)
       }
     }
   }

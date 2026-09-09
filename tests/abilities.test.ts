@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createEmptyMap, tileToFx, type MatchSettings } from '@space-arenas/shared'
+import { createEmptyMap, tileToFx, GRENADE_BLAST_RADIUS, SMOKE_RADIUS, DEFAULT_MATCH_SETTINGS, type MatchSettings } from '@space-arenas/shared'
 import { Simulator } from '../client/src/core/Simulator.ts'
 import { hashWorld } from '../client/src/core/hash.ts'
 import { spawnBuilding, spawnUnit } from '../client/src/entities/factories.ts'
@@ -17,7 +17,8 @@ describe('grenade throw', () => {
   it('lands a grenade that explodes after the fuse and damages the blast area', () => {
     const sim = makeSim()
     const { world } = sim
-    const thrower = spawnUnit(world, 'rifleman', 0, 10000, 10000)
+    // unarmed thrower so only the grenade itself damages the blast area
+    const thrower = spawnUnit(world, 'bulldozer', 0, 10000, 10000)
     const near = spawnUnit(world, 'rifleman', 1, 12200, 10000)
     const far = spawnUnit(world, 'rifleman', 1, 14500, 10000)
     const beforeNear = world.healths.require(near).hp
@@ -33,7 +34,8 @@ describe('grenade throw', () => {
 
     expect(sim.drainEvents().some((e) => e.type === 'grenade-exploded')).toBe(true)
     expect(world.grenades.size).toBe(0)
-    expect(world.healths.require(near).hp).toBeLessThan(beforeNear)
+    // The enemy standing in the blast radius takes the full grenade damage.
+    expect(world.healths.require(near).hp).toBe(beforeNear - world.settings.grenadeDamage)
     expect(world.healths.require(far).hp).toBe(beforeFar)
   })
 
@@ -116,16 +118,25 @@ describe('smoke throw', () => {
     sim.advance(world.settings.smokeDurationTicks)
     expect(world.smokes.size).toBe(0)
   })
+
+  it('the smoke cloud radius is 1.5x the grenade blast radius by default', () => {
+    expect(SMOKE_RADIUS).toBe(GRENADE_BLAST_RADIUS * 1.5)
+    expect(DEFAULT_MATCH_SETTINGS.smokeRadius).toBe(SMOKE_RADIUS)
+  })
 })
 
 describe('stealth', () => {
-  it('hides units until they fire, then reveals them briefly', () => {
+  it('hides a purchased-stealth unit until it fires, then reveals it briefly', () => {
     const sim = makeSim()
     const { world } = sim
     world.teamState(0).stealthTech = true
+    world.teamState(0).credits = 100000
     const spy = spawnUnit(world, 'rifleman', 0, 10000, 10000)
     const victim = spawnUnit(world, 'rifleman', 1, 11500, 10000)
     const u = world.units.require(spy)
+    expect(u.stealth).toBe(false)
+
+    sim.step([sim.makeCommand(0, { type: 'set-stealth', entities: [spy], x: 0, y: 0 })])
     expect(u.stealth).toBe(true)
 
     sim.step()
@@ -146,6 +157,79 @@ describe('stealth', () => {
     expect(world.isVisibleTo(1, guard)).toBe(false) // fogged until the scout's vision applies
     sim.step()
     expect(world.isVisibleTo(1, guard)).toBe(true)
+  })
+
+  it('buys stealth per-unit for infantry and vehicles, deducting the cost', () => {
+    const sim = makeSim()
+    const { world } = sim
+    world.teamState(0).stealthTech = true
+    world.teamState(0).credits = 10000
+    const infantry = spawnUnit(world, 'rifleman', 0, 10000, 10000)
+    const vehicle = spawnUnit(world, 'bulldozer', 0, 11000, 10000)
+    const creditsBefore = world.teamState(0).credits
+
+    sim.step([sim.makeCommand(0, { type: 'set-stealth', entities: [infantry, vehicle], x: 0, y: 0 })])
+
+    expect(world.units.require(infantry).stealth).toBe(true)
+    expect(world.units.require(vehicle).stealth).toBe(true)
+    expect(world.teamState(0).credits).toBe(creditsBefore - 2 * world.settings.stealthCost)
+    expect(sim.drainEvents().some((e) => e.type === 'stealth-bought')).toBe(true)
+  })
+
+  it('rejects the buy without the stealth-tech research', () => {
+    const sim = makeSim()
+    const { world } = sim
+    world.teamState(0).credits = 10000
+    const infantry = spawnUnit(world, 'rifleman', 0, 10000, 10000)
+
+    sim.step([sim.makeCommand(0, { type: 'set-stealth', entities: [infantry], x: 0, y: 0 })])
+
+    expect(world.units.require(infantry).stealth).toBe(false)
+    expect(drainRejected(sim, 'stealth upgrade not researched')).toBe(true)
+  })
+
+  it('rejects the buy on air units', () => {
+    const sim = makeSim()
+    const { world } = sim
+    world.teamState(0).stealthTech = true
+    world.teamState(0).credits = 10000
+    const fighter = spawnUnit(world, 'fighter', 0, 10000, 10000)
+
+    sim.step([sim.makeCommand(0, { type: 'set-stealth', entities: [fighter], x: 0, y: 0 })])
+
+    expect(world.units.require(fighter).stealth).toBe(false)
+    expect(drainRejected(sim, 'cannot stealth this unit')).toBe(true)
+  })
+
+  it('rejects the buy without enough credits', () => {
+    const sim = makeSim()
+    const { world } = sim
+    world.teamState(0).stealthTech = true
+    world.teamState(0).credits = 0
+    const infantry = spawnUnit(world, 'rifleman', 0, 10000, 10000)
+
+    sim.step([sim.makeCommand(0, { type: 'set-stealth', entities: [infantry], x: 0, y: 0 })])
+
+    expect(world.units.require(infantry).stealth).toBe(false)
+    expect(drainRejected(sim, 'insufficient credits')).toBe(true)
+  })
+
+  it('rejects a second buy on an already-stealthed unit', () => {
+    const sim = makeSim()
+    const { world } = sim
+    world.teamState(0).stealthTech = true
+    world.teamState(0).credits = 10000
+    const infantry = spawnUnit(world, 'rifleman', 0, 10000, 10000)
+
+    sim.step([sim.makeCommand(0, { type: 'set-stealth', entities: [infantry], x: 0, y: 0 })])
+    expect(world.units.require(infantry).stealth).toBe(true)
+    sim.drainEvents()
+    const creditsAfter = world.teamState(0).credits
+
+    sim.step([sim.makeCommand(0, { type: 'set-stealth', entities: [infantry], x: 0, y: 0 })])
+
+    expect(world.teamState(0).credits).toBe(creditsAfter)
+    expect(drainRejected(sim, 'unit already stealthed')).toBe(true)
   })
 })
 

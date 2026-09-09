@@ -204,6 +204,7 @@ export class Game {
       onSmokeToggle: () => this.toggleAbility('smoke'),
       isSmokeActive: () => this.pendingAbility === 'smoke',
       onDetectorClick: (ids) => this.buyDetector(ids),
+      onStealthClick: (ids) => this.buyStealth(ids),
     })
   }
 
@@ -237,6 +238,12 @@ export class Game {
   private buyDetector(buildingIds: number[]): void {
     if (buildingIds.length === 0) return
     this.issue({ type: 'set-detector', entities: buildingIds, x: 0, y: 0 })
+    this.audio.uiClick()
+  }
+
+  private buyStealth(unitIds: number[]): void {
+    if (unitIds.length === 0) return
+    this.issue({ type: 'set-stealth', entities: unitIds, x: 0, y: 0 })
     this.audio.uiClick()
   }
 

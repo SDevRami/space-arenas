@@ -188,6 +188,22 @@ Tech-center research, two new SimCommands + ECS components. Both gated by resear
 
 ---
 
+## Day 9.1 — Follow-ups: grenade AoE, smoke radius, per-unit stealth ✅ DONE
+
+Three follow-up fixes on top of Day 9.
+
+| # | Feature | Notes |
+|---|---------|-------|
+| 1 | **Grenade AoE verification** | The grenade already damages every enemy within `grenadeBlastRadius` of the landing point (`explodeAt` → `splashDamage` → `applyDamage`). Regression test now pins the exact repro: an enemy inside the blast takes exactly `grenadeDamage` (45) HP. Any in-guilt "no damage" reports stem from the target walking out of the 1.5-cell blast during the 1 s fuse (units move several cells/sec), from throwing out of `grenadeRange`, or from air targets (splash skips `class: 'air'`). |
+| 2 | **Smoke radius = 1.5 × grenade blast** | `SMOKE_RADIUS` is now derived (`GRENADE_BLAST_RADIUS * 1.5` = 2.25 cells, up from 2). `MatchSettings.smokeRadius` default updates automatically; test asserts the ratio. |
+| 3 | **Per-unit stealth buy** | New `set-stealth` SimCommand (id 25). `stealth-tech` research now only *unlocks* the buy (no retroactive cloaking; `factories.ts` spawns units with `stealth: false`). HUD shows a **Stealth $** button in the command bar for selected owned infantry/vehicle units (`stealthCost` = 200, default, `MatchSettings.stealthCost`); owner must have researched `stealth-tech` and enough credits. Rejects: `cannot stealth this unit` (air), `stealth upgrade not researched`, `unit already stealthed`, `insufficient credits`. Stealthed units render a **gold hat icon above their hp bar** (hidden while revealed). New `stealth-bought` event + hashed via the generic unit-component hash. |
+
+**Touch points:** `shared/constants.ts` (stealthCost field/default, smoke radius derived), `shared/protocol.ts` (`set-stealth` id 25), `host/rooms.ts` + `client/main.ts` (SANITIZE/dev section), `core/events.ts` (`stealth-bought`), `entities/factories.ts` (spawn `stealth: false`), `placing-system.ts` (research = unlock), `input-system.ts` (`set-stealth` handler), `Game.ts` + `hud.ts` (Stealth button), `renderer.ts` (hat layer), i18n en/ar, `tests/abilities.test.ts` (purchase gates + AoE + smoke ratio), `tests/protocol.test.ts` (id 25). `PROTOCOL_VERSION` → 6.
+
+---
+
+---
+
 ## Day 10 — Engineer Unit + Mines (M)
 
 New unit type + placement system. Mines have friendly-fire toggle.
@@ -376,7 +392,7 @@ New game mode overlay with guided walkthrough.
 | 6 | Pings + spectator + perf | M | Yes | |
 | 7 | Build queue + waypoint + victory | M | Yes (reorder) | ✅ (feature 2 postponed) |
 | 8 | Veterancy | M | Yes | ✅ |
-| 9 | Abilities + stealth | M | Yes | |
+| 9 | Abilities + stealth | M | Yes | ✅ (9.1: AoE test, smoke radius, per-unit stealth) |
 | 10 | Engineer + mines | M | Yes | |
 | 11 | APC transport | M | Yes | |
 | 12 | Dome + walls + weapon upgrade | M | Yes | |

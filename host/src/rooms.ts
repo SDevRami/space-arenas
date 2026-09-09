@@ -118,6 +118,7 @@ const SANITIZE: Record<string, { min: number; max: number }> = {
   smokeCooldownTicks: { min: 1, max: 100000 },
   detectorCost: { min: 0, max: 100000 },
   detectorRange: { min: 1, max: 100 },
+  stealthCost: { min: 0, max: 100000 },
   stealthRevealTicks: { min: 1, max: 100000 },
 }
 

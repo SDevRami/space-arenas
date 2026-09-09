@@ -27,12 +27,8 @@ export const PlacingSystem = {
       if (upgradeType === 'stealth-tech') {
         const s = world.teamState(b.team)
         s.stealthTech = true
-        // retroactive cloaking: every existing unit of the team becomes
-        // stealthed too, not just the ones trained after the research finished
-        world.units.forEach((id) => {
-          const u = world.units.get(id)
-          if (u && u.team === b.team) u.stealth = true
-        })
+        // research only unlocks the per-unit stealth purchase; individual
+        // units are cloaked via the 'set-stealth' command (HUD button)
       }
       if (upgradeType === 'detector-upgrade') {
         const s = world.teamState(b.team)

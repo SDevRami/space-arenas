@@ -5,7 +5,7 @@ export const SECONDS_TO_TICKS = (seconds: number): number => Math.round(seconds 
 
 export const DEFAULT_PORT = 17321
 export const DEFAULT_MAX_PLAYERS = 8
-export const PROTOCOL_VERSION = 5
+export const PROTOCOL_VERSION = 6
 
 /** Number of selectable per-player colors. */
 export const PLAYER_COLOR_COUNT = 10
@@ -61,7 +61,7 @@ export const GRENADE_COOLDOWN_TICKS = SECONDS_TO_TICKS(2.5)
 
 /** Smoke canister: throw range, cloud radius/duration, + how shots miss. */
 export const SMOKE_RANGE = 6
-export const SMOKE_RADIUS = 2
+export const SMOKE_RADIUS = GRENADE_BLAST_RADIUS * 1.5
 export const SMOKE_DURATION_TICKS = SECONDS_TO_TICKS(12)
 export const SMOKE_MISS_CHANCE = 0.6
 export const SMOKE_COOLDOWN_TICKS = SECONDS_TO_TICKS(4)
@@ -69,6 +69,7 @@ export const SMOKE_COOLDOWN_TICKS = SECONDS_TO_TICKS(4)
 /** Stealth & detection. */
 export const DETECTOR_COST = 200
 export const DETECTOR_RANGE = 12
+export const STEALTH_COST = 200
 export const STEALTH_REVEAL_TICKS = SECONDS_TO_TICKS(3)
 
 /** How far (in cells) an enemy entity stays visible past the edge of the currently-visible area. */
@@ -231,6 +232,7 @@ export interface MatchSettings {
   smokeCooldownTicks: number
   detectorCost: number
   detectorRange: number
+  stealthCost: number
   stealthRevealTicks: number
   buildingOverrides: Record<string, BuildingOverrides>
   unitOverrides: Record<string, UnitOverrides>
@@ -320,6 +322,7 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   smokeCooldownTicks: SMOKE_COOLDOWN_TICKS,
   detectorCost: DETECTOR_COST,
   detectorRange: DETECTOR_RANGE,
+  stealthCost: STEALTH_COST,
   stealthRevealTicks: STEALTH_REVEAL_TICKS,
   buildingOverrides: {},
   unitOverrides: {},

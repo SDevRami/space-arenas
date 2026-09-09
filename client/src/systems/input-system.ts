@@ -403,6 +403,34 @@ export const InputSystem = {
           world.emit({ type: 'detector-bought', building: id, team: player })
           break
         }
+        case 'set-stealth': {
+          let bought = false
+          for (const id of cmd.entities) {
+            if (!ownedUnit(world, player, id)) continue
+            const u = world.units.require(id)
+            if (u.class !== 'infantry' && u.class !== 'vehicle') {
+              world.emit({ type: 'command-rejected', player, reason: 'cannot stealth this unit' })
+              continue
+            }
+            if (!teamState.stealthTech) {
+              world.emit({ type: 'command-rejected', player, reason: 'stealth upgrade not researched' })
+              continue
+            }
+            if (u.stealth) {
+              world.emit({ type: 'command-rejected', player, reason: 'unit already stealthed' })
+              continue
+            }
+            if (teamState.credits < world.settings.stealthCost) {
+              world.emit({ type: 'command-rejected', player, reason: 'insufficient credits' })
+              continue
+            }
+            teamState.credits -= world.settings.stealthCost
+            u.stealth = true
+            bought = true
+          }
+          if (bought) world.emit({ type: 'stealth-bought', team: player })
+          break
+        }
         case 'stop': {
           for (const id of cmd.entities) {
             if (!ownedUnit(world, player, id)) continue
