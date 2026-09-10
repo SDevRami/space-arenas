@@ -264,12 +264,21 @@ export interface GrenadeComp {
   damage: number
 }
 
-/** A lingering smoke cloud that makes shots crossing it miss. */
+/** A thrown smoke canister that arcs from the thrower (like a grenade) and,
+ * once landed, billows into a lingering cloud that makes shots crossing it
+ * miss. The cloud grows after landing and shrinks as it fades near expiry. */
 export interface SmokeComp {
   team: number
+  /** Thrower position at launch — the renderer draws the arc from here. */
+  fromX: number
+  fromY: number
   x: number
   y: number
+  startTick: number
+  /** Tick the canister lands and the cloud starts billowing out. */
+  landTick: number
   radius: number
+  /** Cloud expiry; the cloud shrinks over the last moments before it. */
   untilTick: number
 }
 

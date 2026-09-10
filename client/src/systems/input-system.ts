@@ -376,12 +376,20 @@ export const InputSystem = {
             u.abilityCooldown = world.tick + world.settings.smokeCooldownTicks
             const sid = world.createEntity('marker', player)
             world.transforms.set(sid, { x: cmd.x, y: cmd.y })
+            // Thrown like a grenade: the canister arcs over `grenadeFuseTicks`
+            // and only then starts billowing into a cloud that lasts
+            // `smokeDurationTicks`.
+            const landTick = world.tick + world.settings.grenadeFuseTicks
             world.smokes.set(sid, {
               team: player,
+              fromX: t.x,
+              fromY: t.y,
               x: cmd.x,
               y: cmd.y,
+              startTick: world.tick,
+              landTick,
               radius: world.settings.smokeRadius,
-              untilTick: world.tick + world.settings.smokeDurationTicks,
+              untilTick: landTick + world.settings.smokeDurationTicks,
             })
           }
           break

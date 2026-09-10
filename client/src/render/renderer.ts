@@ -9,6 +9,7 @@ import { buildingStatusIndex, buildingStatusTexture, fxFrameTexture, obstacleIma
 import type { Minimap } from './minimap.ts'
 import type { BoxInfo } from '../input/input.ts'
 import { findSpawnTile } from '../systems/production-system.ts'
+import { smokeRadiusAt } from '../systems/combat-system.ts'
 import { rectFromCenter } from '../core/geometry.ts'
 import { t, tn } from '../i18n/index.ts'
 import { effectEnabled, getGraphics, dayNightTint } from '../ui/graphics.ts'
@@ -916,17 +917,31 @@ export class Renderer {
       const pulse = 0.5 + Math.sin(world.tick * 0.35) * 0.3
       this.fxGraphics.circle(tx, ty, g.radius * 32).stroke({ color: 0xff4a3a, width: 2, alpha: 0.4 + pulse * 0.35 })
     })
-    // smoke: soft grey clouds that linger, making shots through them miss
+    // smoke: thrown canisters arc to their landing point (like grenades), then
+    // billow into soft grey clouds that grow after landing and shrink as they
+    // fade — shots through them miss
     world.smokes.forEach((id, s) => {
       const t = world.transforms.get(id)
       if (!t) return
-      const left = s.untilTick - world.tick
       const px = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
       const py = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
-      const r = s.radius * 32
-      const alpha = Math.min(1, left / 30) * 0.5
-      this.fxGraphics.circle(px, py, r).fill({ color: 0x9aa0aa, alpha })
-      this.fxGraphics.circle(px, py, r).stroke({ color: 0xe6e8ee, width: 1.5, alpha: alpha * 0.8 })
+      if (world.tick < s.landTick) {
+        const total = s.landTick - s.startTick
+        const frac = Math.max(0, Math.min(1, total > 0 ? (world.tick - s.startTick) / total : 1))
+        const cx = s.fromX + (t.x - s.fromX) * frac
+        const cy = s.fromY + (t.y - s.fromY) * frac
+        const cpx = (cx / 1000 - cy / 1000) * ISO_HALF_W
+        const cpy = (cx / 1000 + cy / 1000) * ISO_HALF_H
+        this.fxGraphics.circle(cpx, cpy, 4 + Math.sin(world.tick * 0.6) * 1.2).fill({ color: 0x333a3d, alpha: 0.95 })
+      } else {
+        const r = smokeRadiusAt(world.tick, s) * 32
+        if (r > 0.5) {
+          const left = s.untilTick - world.tick
+          const alpha = Math.min(1, left / 30) * 0.5
+          this.fxGraphics.circle(px, py, r).fill({ color: 0x9aa0aa, alpha })
+          this.fxGraphics.circle(px, py, r).stroke({ color: 0xe6e8ee, width: 1.5, alpha: alpha * 0.8 })
+        }
+      }
     })
     // keep-attack and guard position markers for selected units
     world.attacks.forEach((id, a) => {

@@ -384,16 +384,32 @@ const revealIfStealthed = (world: World, attacker: number): void => {
   if (u && u.stealth) u.revealedUntil = world.tick + world.settings.stealthRevealTicks
 }
 
+/**
+ * Current effective radius (tiles) of a smoke cloud: 0 while the canister is
+ * still arcing to the landing point, growing as it billows out, and shrinking
+ * again as it fades just before expiry. Deterministic in `tick`, so shots and
+ * the renderer always agree on the cloud's size.
+ */
+export const smokeRadiusAt = (tick: number, s: { landTick: number; untilTick: number; radius: number }): number => {
+  if (tick < s.landTick) return 0
+  const life = s.untilTick - s.landTick
+  if (life <= 0) return s.radius
+  const grow = Math.min(1, (tick - s.landTick) / Math.max(1, life * 0.25))
+  const fade = Math.min(1, Math.max(0, (s.untilTick - tick) / Math.max(1, life * 0.15)))
+  return s.radius * grow * fade
+}
+
 /** Whether the shot line from (ax,ay) to (bx,by) passes through a smoke cloud. */
 const shotBlockedBySmoke = (world: World, ax: number, ay: number, bx: number, by: number): boolean => {
   let blocked = false
   world.smokes.forEach((_id, s) => {
     if (blocked) return
+    const r = smokeRadiusAt(world.tick, s) * 1000
+    if (r <= 0) return
+    const rSq = r * r
     const dx = bx - ax
     const dy = by - ay
     const lenSq = dx * dx + dy * dy
-    const r = s.radius * 1000
-    const rSq = r * r
     if (lenSq === 0) {
       if (sqDist(ax, ay, s.x, s.y) <= rSq) blocked = true
       return

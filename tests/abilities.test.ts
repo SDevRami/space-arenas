@@ -3,7 +3,7 @@ import { createEmptyMap, tileToFx, GRENADE_BLAST_RADIUS, SMOKE_RADIUS, DEFAULT_M
 import { Simulator } from '../client/src/core/Simulator.ts'
 import { hashWorld } from '../client/src/core/hash.ts'
 import { spawnBuilding, spawnUnit } from '../client/src/entities/factories.ts'
-import { fire } from '../client/src/systems/combat-system.ts'
+import { fire, smokeRadiusAt } from '../client/src/systems/combat-system.ts'
 
 const MAP = createEmptyMap(64, 64)
 const SEED = 0xc0ffee
@@ -118,20 +118,49 @@ describe('ability eligibility', () => {
 })
 
 describe('smoke throw', () => {
-  it('lets a cloud make shots through it miss', () => {
+  // Attacker and target sit outside rifle range (6 cells) so the manual fire()
+  // calls below are the only shots — auto-fire during sim.advance would damage
+  // the target before we compare HP. The cloud always lands on the shot line.
+  const LINE = { attacker: 9000, target: 15200, cloud: 12100, y: 10000 }
+
+  it('throws the canister first, and only a landed cloud blocks shots', () => {
     const sim = makeSim({ smokeMissChance: 1 })
     const { world } = sim
-    const attacker = spawnUnit(world, 'rifleman', 0, 10000, 10000)
-    const target = spawnUnit(world, 'rifleman', 1, 13000, 10000)
-    const thrower = spawnUnit(world, 'rifleman', 0, 12000, 14000)
+    const attacker = spawnUnit(world, 'rifleman', 0, LINE.attacker, LINE.y)
+    const target = spawnUnit(world, 'rifleman', 1, LINE.target, LINE.y)
+    const thrower = spawnUnit(world, 'rifleman', 0, 11000, 14000)
 
-    // Cloud lands exactly on the straight line between attacker and target.
-    sim.step([sim.makeCommand(0, { type: 'smoke', entities: [thrower], x: 11500, y: 10000 })])
+    // Right after the throw the canister is still arcing: no cloud yet, and a
+    // shot right through the landing point goes through untouched.
+    sim.step([sim.makeCommand(0, { type: 'smoke', entities: [thrower], x: LINE.cloud, y: LINE.y })])
     expect(world.smokes.size).toBe(1)
+    const hpInFlight = world.healths.require(target).hp
+    fire(world, attacker, target, LINE.target, LINE.y, 10)
+    expect(sim.drainEvents().some((e) => e.type === 'shot-missed')).toBe(false)
+    expect(world.healths.require(target).hp).toBe(hpInFlight - 10)
 
-    sim.drainEvents() // drop any auto-shot events from the placement tick
+    // Once the canister lands and billows out, the same line is blocked.
+    sim.advance(world.settings.grenadeFuseTicks)
+    sim.drainEvents()
     const hpBefore = world.healths.require(target).hp
-    fire(world, attacker, target, 13000, 10000, 10)
+    fire(world, attacker, target, LINE.target, LINE.y, 10)
+    expect(sim.drainEvents().some((e) => e.type === 'shot-missed')).toBe(true)
+    expect(world.healths.require(target).hp).toBe(hpBefore)
+  })
+
+  it('lets a landed cloud make shots through it miss', () => {
+    const sim = makeSim({ smokeMissChance: 1 })
+    const { world } = sim
+    const attacker = spawnUnit(world, 'rifleman', 0, LINE.attacker, LINE.y)
+    const target = spawnUnit(world, 'rifleman', 1, LINE.target, LINE.y)
+    const thrower = spawnUnit(world, 'rifleman', 0, 11000, 14000)
+
+    sim.step([sim.makeCommand(0, { type: 'smoke', entities: [thrower], x: LINE.cloud, y: LINE.y })])
+    expect(world.smokes.size).toBe(1)
+    sim.advance(world.settings.grenadeFuseTicks)
+    sim.drainEvents()
+    const hpBefore = world.healths.require(target).hp
+    fire(world, attacker, target, LINE.target, LINE.y, 10)
 
     expect(sim.drainEvents().some((e) => e.type === 'shot-missed')).toBe(true)
     expect(world.healths.require(target).hp).toBe(hpBefore)
@@ -140,18 +169,57 @@ describe('smoke throw', () => {
   it('a cloud does not force a miss when the miss chance is zero', () => {
     const sim = makeSim({ smokeMissChance: 0 })
     const { world } = sim
-    const attacker = spawnUnit(world, 'rifleman', 0, 10000, 10000)
-    const target = spawnUnit(world, 'rifleman', 1, 13000, 10000)
-    const thrower = spawnUnit(world, 'rifleman', 0, 12000, 14000)
+    const attacker = spawnUnit(world, 'rifleman', 0, LINE.attacker, LINE.y)
+    const target = spawnUnit(world, 'rifleman', 1, LINE.target, LINE.y)
+    const thrower = spawnUnit(world, 'rifleman', 0, 11000, 14000)
 
-    sim.step([sim.makeCommand(0, { type: 'smoke', entities: [thrower], x: 11500, y: 10000 })])
+    sim.step([sim.makeCommand(0, { type: 'smoke', entities: [thrower], x: LINE.cloud, y: LINE.y })])
+    sim.advance(world.settings.grenadeFuseTicks)
     sim.drainEvents()
     const hpBefore = world.healths.require(target).hp
-    fire(world, attacker, target, 13000, 10000, 10)
+    fire(world, attacker, target, LINE.target, LINE.y, 10)
 
     const events = sim.drainEvents()
     expect(events.some((e) => e.type === 'shot-missed')).toBe(false)
     expect(world.healths.require(target).hp).toBeLessThan(hpBefore)
+  })
+
+  it('billows out after landing and shrinks as it fades', () => {
+    const sim = makeSim()
+    const { world } = sim
+    const thrower = spawnUnit(world, 'rifleman', 0, 10000, 10000)
+
+    sim.step([sim.makeCommand(0, { type: 'smoke', entities: [thrower], x: 10500, y: 10000 })])
+    let sid = -1
+    world.smokes.forEach((id) => {
+      sid = id
+    })
+    const s = world.smokes.require(sid)
+
+    // Thrown like a grenade: lands after the grenade fuse, then lasts the
+    // smoke-duration window from that landing point.
+    expect(s.fromX).toBe(10000)
+    expect(s.fromY).toBe(10000)
+    expect(s.landTick - s.startTick).toBe(world.settings.grenadeFuseTicks)
+    expect(s.untilTick - s.landTick).toBe(world.settings.smokeDurationTicks)
+
+    // In flight: no cloud at all.
+    expect(smokeRadiusAt(world.tick, s)).toBe(0)
+
+    // Shortly after landing it has begun to fill out but hasn't peaked.
+    sim.advance(world.settings.grenadeFuseTicks)
+    expect(smokeRadiusAt(world.tick, s)).toBeGreaterThan(0)
+    expect(smokeRadiusAt(world.tick, s)).toBeLessThan(s.radius)
+
+    // After the full grow-in window the cloud is at its full radius.
+    sim.advance(Math.ceil(world.settings.smokeDurationTicks * 0.25))
+    expect(smokeRadiusAt(world.tick, s)).toBeCloseTo(s.radius, 5)
+
+    // As it fades near expiry the radius collapses back toward zero.
+    sim.advance(world.settings.smokeDurationTicks - Math.ceil(world.settings.smokeDurationTicks * 0.25) - 2)
+    expect(smokeRadiusAt(world.tick, s)).toBeGreaterThan(0)
+    expect(smokeRadiusAt(world.tick, s)).toBeLessThan(s.radius)
+    expect(smokeRadiusAt(s.untilTick, s)).toBe(0)
   })
 
   it('expires the cloud once the duration passes', () => {
@@ -162,7 +230,7 @@ describe('smoke throw', () => {
     sim.step([sim.makeCommand(0, { type: 'smoke', entities: [thrower], x: 10500, y: 10000 })])
     expect(world.smokes.size).toBe(1)
 
-    sim.advance(world.settings.smokeDurationTicks)
+    sim.advance(world.settings.grenadeFuseTicks + world.settings.smokeDurationTicks)
     expect(world.smokes.size).toBe(0)
   })
 
