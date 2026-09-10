@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
 import { World, placementExplored, type WorldGrid } from '../core/world.ts'
 import { Simulator } from '../core/Simulator.ts'
 import { GameLoop } from '../core/loop.ts'
@@ -1922,7 +1922,10 @@ export class Game {
     // to the clicked point (in-range units only). The mode stays armed.
     if (this.pendingAbility) {
       const ability = this.pendingAbility
-      const unitIds = ids.filter((id) => world.units.has(id))
+      const unitIds = ids.filter((id) => {
+        const u = world.units.get(id)
+        return u !== undefined && canThrowBandolier({ id: u.unitType, class: u.class })
+      })
       if (unitIds.length > 0) {
         const fired = [] as number[]
         const range = ability === 'grenade' ? tileToFx(world.settings.grenadeRange) : tileToFx(world.settings.smokeRange)

@@ -34,7 +34,7 @@ export const validateBalance = (): string[] => {
 
 export { BUILDINGS, UNITS, WEAPONS, UPGRADES }
 export { getBuilding } from './buildings.ts'
-export { getUnit } from './units.ts'
+export { getUnit, canThrowBandolier } from './units.ts'
 export { getWeapon } from './weapons.ts'
 export { getUpgrade } from './upgrades.ts'
 export { UNIT_IDS, type UnitId } from './units.ts'

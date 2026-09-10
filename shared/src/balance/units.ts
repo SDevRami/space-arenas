@@ -148,3 +148,7 @@ export const getUnit = (id: string, settings?: Pick<MatchSettings, 'unitOverride
   if (!def) throw new Error(`unknown unit: ${id}`)
   return { ...def, ...(settings?.unitOverrides?.[id] ?? {}) }
 }
+
+/** Grenades/smoke are a ground-combat ability: aircraft and the construction bulldozer cannot throw. */
+export const canThrowBandolier = (u: Pick<UnitDef, 'id' | 'class'>): boolean =>
+  u.class !== 'air' && u.id !== 'bulldozer'

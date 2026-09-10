@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, getBuilding, getUnit, getUpgrade, type UpgradeDef } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, canThrowBandolier, getBuilding, getUnit, getUpgrade, type UpgradeDef } from '@space-arenas/shared'
 import type { ProductionOrder, World } from '../core/world.ts'
 import { t, tn } from '../i18n/index.ts'
 import { getGraphics } from './graphics.ts'
@@ -298,28 +298,37 @@ export class Hud {
       })
       return any
     })()
+    const hasThrower = (() => {
+      let any = false
+      selection.forEach((id) => {
+        const u = world.units.get(id)
+        if (u && u.team === localTeam && canThrowBandolier({ id: u.unitType, class: u.class })) any = true
+      })
+      return any
+    })()
     if (hasWorkingDozer || hasMovable) {
       this.appendHeader(t('hud.headers.command'))
       this.addButton(t('hud.stop'), () => true, () => this.actions.onStopClick())
       this.addToggleButton(t('hud.multiPos'), () => this.actions.onMoveModeToggle(), () => this.actions.isMoveModeActive())
-      if (hasMovable) {
+      if (hasThrower) {
         this.addToggleButton(t('hud.grenade'), () => this.actions.onGrenadeToggle(), () => this.actions.isGrenadeActive())
         this.addToggleButton(t('hud.smoke'), () => this.actions.onSmokeToggle(), () => this.actions.isSmokeActive())
       }
       if (hasMovable && world.teamState(localTeam).stealthTech) {
+        let anyEligible = false
         const stealthEligible: number[] = []
         selection.forEach((id) => {
           const u = world.units.get(id)
           if (!u || u.team !== localTeam) return
           if (u.class !== 'infantry' && u.class !== 'vehicle') return
-          if (u.stealth) return
-          stealthEligible.push(id)
+          anyEligible = true
+          if (!u.stealth) stealthEligible.push(id)
         })
-        if (stealthEligible.length > 0) {
+        if (anyEligible) {
           const stealthCost = world.settings.stealthCost
           this.addButton(
             `${t('hud.stealth')} <span class="cost">$${stealthCost}</span>`,
-            () => world.teamState(localTeam).credits >= stealthCost,
+            () => stealthEligible.length > 0 && world.teamState(localTeam).credits >= stealthCost,
             () => this.actions.onStealthClick(stealthEligible),
             undefined,
             undefined,
@@ -470,9 +479,8 @@ export class Hud {
         if (up.id === 'space-laser') {
           const maxLv = world.laserMaxLevel()
           const lv = world.laserLevel(bd.team)
-          if (lv >= maxLv) continue
           const upCost = world.laserUpgradeCost(bd.team, upDef.cost)
-          const tag = t('tools.laserLevel', { lv: lv + 1 })
+          const tag = lv >= maxLv ? 'Max' : t('tools.laserLevel', { lv: lv + 1 })
           this.addButton(
             `${tn(up.id, upDef.name)} (${tag}) <span class="cost">$${upCost}</span>`,
             () => {
@@ -502,6 +510,8 @@ export class Hud {
             if (b2.researching !== '') return false
             if (up.id === 'radar' && ts2.radar) return false
             if (up.id === 'satellite' && ts2.satellite) return false
+            if (up.id === 'stealth-tech' && ts2.stealthTech) return false
+            if (up.id === 'detector-upgrade' && ts2.detectorUnlocked) return false
             return true
           },
           () => this.actions.onResearchClick(up.id),
@@ -524,7 +534,6 @@ export class Hud {
         detectorShown = true
         anySection = true
       }
-      if (b.detector) continue
       const detectorCost = world.settings.detectorCost
       this.addButton(
         `${t('hud.detector')} <span class="cost">$${detectorCost}</span>`,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '@space-arenas/shared'
 import { Simulator } from '../client/src/core/Simulator.ts'
-import { spawnUnit } from '../client/src/entities/factories.ts'
+import { spawnUnit, spawnBuilding } from '../client/src/entities/factories.ts'
 import { fire, applyDamage } from '../client/src/systems/combat-system.ts'
 
 const MAP = createEmptyMap(64, 64)
@@ -82,6 +82,22 @@ describe('applyDamage', () => {
     expect(world.isAlive(target)).toBe(true)
     applyDamage(world, target, 9999, attacker)
     expect(world.isAlive(target)).toBe(false)
+  })
+
+  it('damages a building still under construction without altering build progress', () => {
+    const { world } = makeSim()
+    const attacker = spawnUnit(world, 'rifleman', 0, 10000, 10000)
+    const site = spawnBuilding(world, 'power-plant', 1, 10, 10, false)
+    world.buildings.require(site).buildProgress = 0.4
+    const hpBefore = world.healths.require(site).hp
+
+    applyDamage(world, site, 50, attacker)
+
+    const b = world.buildings.require(site)
+    expect(world.healths.require(site).hp).toBe(hpBefore - 50)
+    expect(world.isAlive(site)).toBe(true)
+    expect(b.done).toBe(false)
+    expect(b.buildProgress).toBe(0.4)
   })
 
   it('does not remove entity when HP > 0', () => {

@@ -1,5 +1,5 @@
 import type { EnvelopeCommand } from '@space-arenas/shared'
-import { getBuilding, getUnit, getUpgrade, sqDist, tileToFx } from '@space-arenas/shared'
+import { canThrowBandolier, getBuilding, getUnit, getUpgrade, sqDist, tileToFx } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { placementExplored, PING_TICKS } from '../core/world.ts'
 import { nearestPassablePoint } from '../core/pathfinding.ts'
@@ -322,6 +322,10 @@ export const InputSystem = {
           for (const id of cmd.entities) {
             const u = world.units.get(id)
             if (!u || u.team !== player) continue
+            if (!canThrowBandolier({ id: u.unitType, class: u.class })) {
+              world.emit({ type: 'command-rejected', player, reason: 'unit cannot use ability' })
+              continue
+            }
             if (u.abilityCooldown > world.tick) {
               world.emit({ type: 'command-rejected', player, reason: 'ability on cooldown' })
               continue
@@ -354,6 +358,10 @@ export const InputSystem = {
           for (const id of cmd.entities) {
             const u = world.units.get(id)
             if (!u || u.team !== player) continue
+            if (!canThrowBandolier({ id: u.unitType, class: u.class })) {
+              world.emit({ type: 'command-rejected', player, reason: 'unit cannot use ability' })
+              continue
+            }
             if (u.abilityCooldown > world.tick) {
               world.emit({ type: 'command-rejected', player, reason: 'ability on cooldown' })
               continue

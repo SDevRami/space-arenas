@@ -17,8 +17,8 @@ describe('grenade throw', () => {
   it('lands a grenade that explodes after the fuse and damages the blast area', () => {
     const sim = makeSim()
     const { world } = sim
-    // unarmed thrower so only the grenade itself damages the blast area
-    const thrower = spawnUnit(world, 'bulldozer', 0, 10000, 10000)
+    // unarmed thrower (scout carries no weapon) so only the grenade damages the blast area
+    const thrower = spawnUnit(world, 'scout', 0, 10000, 10000)
     const near = spawnUnit(world, 'rifleman', 1, 12200, 10000)
     const far = spawnUnit(world, 'rifleman', 1, 14500, 10000)
     const beforeNear = world.healths.require(near).hp
@@ -67,6 +67,53 @@ describe('grenade throw', () => {
     sim.advance(world.settings.grenadeCooldownTicks)
     sim.step([sim.makeCommand(0, { type: 'grenade', entities: [thrower], x: 10800, y: 10000 })])
     expect(world.grenades.size).toBe(1)
+  })
+})
+
+describe('ability eligibility', () => {
+  it('rejects a grenade throw from a bulldozer', () => {
+    const sim = makeSim()
+    const { world } = sim
+    const dozer = spawnUnit(world, 'bulldozer', 0, 10000, 10000)
+
+    sim.step([sim.makeCommand(0, { type: 'grenade', entities: [dozer], x: 10500, y: 10000 })])
+
+    expect(drainRejected(sim, 'unit cannot use ability')).toBe(true)
+    expect(world.grenades.size).toBe(0)
+    expect(world.units.require(dozer).abilityCooldown).toBe(0)
+  })
+
+  it('rejects a smoke throw from a bulldozer', () => {
+    const sim = makeSim()
+    const { world } = sim
+    const dozer = spawnUnit(world, 'bulldozer', 0, 10000, 10000)
+
+    sim.step([sim.makeCommand(0, { type: 'smoke', entities: [dozer], x: 10500, y: 10000 })])
+
+    expect(drainRejected(sim, 'unit cannot use ability')).toBe(true)
+    expect(world.smokes.size).toBe(0)
+  })
+
+  it('rejects a grenade throw from an air unit', () => {
+    const sim = makeSim()
+    const { world } = sim
+    const fighter = spawnUnit(world, 'fighter', 0, 10000, 10000)
+
+    sim.step([sim.makeCommand(0, { type: 'grenade', entities: [fighter], x: 10500, y: 10000 })])
+
+    expect(drainRejected(sim, 'unit cannot use ability')).toBe(true)
+    expect(world.grenades.size).toBe(0)
+  })
+
+  it('rejects a smoke throw from an air unit', () => {
+    const sim = makeSim()
+    const { world } = sim
+    const fighter = spawnUnit(world, 'fighter', 0, 10000, 10000)
+
+    sim.step([sim.makeCommand(0, { type: 'smoke', entities: [fighter], x: 10500, y: 10000 })])
+
+    expect(drainRejected(sim, 'unit cannot use ability')).toBe(true)
+    expect(world.smokes.size).toBe(0)
   })
 })
 

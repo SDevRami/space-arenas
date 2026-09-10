@@ -148,7 +148,7 @@ export class Renderer {
   private spawnTex: Texture = Texture.EMPTY
   private flagMarkers = new Map<number, Sprite>()
   private flagTex: Texture = Texture.EMPTY
-  private barSprites = new Map<number, { bg: Sprite; fill: Sprite }>()
+  private barSprites = new Map<number, { bg: Sprite; fill: Sprite; hpBg?: Sprite; hpFill?: Sprite }>()
   private barBgTex: Texture = Texture.EMPTY
   private wreckBars = new Map<number, { bg: Sprite; fill: Sprite }>()
   private fieldSprites = new Map<number, Sprite>()
@@ -1125,6 +1125,8 @@ export class Renderer {
       if (!seen.has(id)) {
         this.barLayer.removeChild(pair.bg)
         this.barLayer.removeChild(pair.fill)
+        if (pair.hpBg) this.barLayer.removeChild(pair.hpBg)
+        if (pair.hpFill) this.barLayer.removeChild(pair.hpFill)
         this.barSprites.delete(id)
       }
     }
@@ -1144,6 +1146,8 @@ export class Renderer {
       if (pair) {
         this.barLayer.removeChild(pair.bg)
         this.barLayer.removeChild(pair.fill)
+        if (pair.hpBg) this.barLayer.removeChild(pair.hpBg)
+        if (pair.hpFill) this.barLayer.removeChild(pair.hpFill)
         this.barSprites.delete(id)
       }
       return
@@ -1174,6 +1178,31 @@ export class Renderer {
     const vis = this.inView(pos, id, world, camera)
     pair.bg.visible = vis
     pair.fill.visible = vis
+    // When a building is still under construction AND damaged (e.g. the enemy
+    // attacks it mid-build), show a second red hp bar tucked directly under the
+    // blue build-progress bar so both progress and remaining health are visible.
+    const showHpBar = showBuild && hpFrac < 1
+    if (showHpBar) {
+      if (!pair.hpBg || !pair.hpFill) {
+        pair.hpBg = new Sprite(this.barBgTex)
+        pair.hpBg.anchor.set(0.5)
+        const hpFill = new Sprite(Texture.WHITE)
+        hpFill.anchor.set(0, 0.5)
+        hpFill.scale.y = BAR_H
+        this.barLayer.addChild(pair.hpBg)
+        this.barLayer.addChild(hpFill)
+        pair.hpFill = hpFill
+      }
+      const hpBarY = barY + BAR_H + 1
+      pair.hpBg.position.set(isoX, hpBarY)
+      pair.hpFill.position.set(isoX - BAR_W / 2, hpBarY)
+      pair.hpFill.scale.x = Math.max(0.001, BAR_W * hpFrac)
+      pair.hpFill.tint = hpFrac > 0.5 ? 0x4ade6a : hpFrac > 0.25 ? 0xe8d24a : 0xe84a4a
+      pair.hpBg.visible = pair.hpFill.visible = vis
+    } else if (pair.hpBg || pair.hpFill) {
+      if (pair.hpBg) pair.hpBg.visible = false
+      if (pair.hpFill) pair.hpFill.visible = false
+    }
   }
 
   private syncSpawnMarkers(world: World, camera: Camera, selection: Set<number>): void {
