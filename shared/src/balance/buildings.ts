@@ -12,6 +12,8 @@ export interface BuildingDef {
   weapon?: string
   producesUnit?: string
   countLimit?: number
+  /** How many infantry a finished building can garrison (bunker). 0/undefined = not a garrison. */
+  transportCapacity?: number
 }
 
 export const BUILDING_IDS = [
@@ -24,6 +26,7 @@ export const BUILDING_IDS = [
   'tech-center',
   'air-force',
   'super-weapon',
+  'bunker',
 ] as const
 
 export type BuildingId = (typeof BUILDING_IDS)[number]
@@ -126,6 +129,18 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     powerGen: 0,
     powerUse: 100,
     countLimit: 1,
+  },
+  bunker: {
+    id: 'bunker',
+    name: 'Bunker',
+    footprint: [2, 2],
+    cost: 250,
+    buildTimeTicks: SECONDS_TO_TICKS(20),
+    hp: 700,
+    powerGen: 0,
+    powerUse: 5,
+    weapon: 'bunker-gun',
+    transportCapacity: 5,
   },
 }
 

@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, canThrowBandolier, getBuilding, getUnit, getUpgrade, type UpgradeDef } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, SHIELD_MAX_HP, SW_CHOICES, canThrowBandolier, getBuilding, getUnit, getUpgrade, type UpgradeDef, type SwChoice } from '@space-arenas/shared'
 import type { ProductionOrder, World } from '../core/world.ts'
 import { t, tn } from '../i18n/index.ts'
 import { getGraphics } from './graphics.ts'
@@ -10,6 +10,7 @@ export interface HudActions {
   onDequeueClick: (buildingId: number, index: number) => void
   onReorderClick: (buildingId: number, from: number, to: number) => void
   onResearchClick: (upgrade: string) => void
+  onDequeueResearch: (buildingId: number, index: number) => void
   onStopClick: () => void
   onDestroyClick: () => void
   onAttackToggle: () => void
@@ -30,11 +31,19 @@ export interface HudActions {
   isGrenadeActive: () => boolean
   onSmokeToggle: () => void
   isSmokeActive: () => boolean
+  onPlaceMineToggle: () => void
+  isPlaceMineActive: () => boolean
+  onRemoveMineToggle: () => void
+  isRemoveMineActive: () => boolean
   onDetectorClick: (buildingIds: number[]) => void
   onStealthClick: (unitIds: number[]) => void
+  onUnloadToggle: () => void
+  isUnloadActive: () => boolean
+  /** One-time Super Weapon strike choice (Laser / Airstrike / EMP). */
+  onSwChoose: (choice: SwChoice) => void
 }
 
-const BUILDER_BUILDABLES = ['command-center', 'power-plant', 'supply-dock', 'barracks', 'war-factory', 'turret', 'tech-center', 'air-force', 'super-weapon'] as const
+const BUILDER_BUILDABLES = ['command-center', 'power-plant', 'supply-dock', 'barracks', 'war-factory', 'turret', 'bunker', 'tech-center', 'air-force', 'super-weapon'] as const
 
 const UPGRADES_BY_BUILDING: Record<string, UpgradeDef[]> = {}
 for (const u of Object.values(UPGRADES)) {
@@ -48,7 +57,8 @@ function assetIconUrl(kind: 'unit' | 'building', type: string): string {
   const raw =
     kind === 'building'
       ? tpl.replaceAll('{color}', '1').replaceAll('{frame}', '0005')
-      : tpl.replaceAll('{color}', '1').replaceAll('{dir}', 'south')
+      : tpl.replaceAll('{color}', '1').replaceAll('{frame}', '0002')
+  if (raw.includes('{')) return ''
   if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) return raw
   return `${import.meta.env.BASE_URL}${raw}`
 }
@@ -86,6 +96,7 @@ export class Hud {
   private lastQueueSig: string | null = null
   private lastWorkSig: string | null = null
   private lastResearchSig: string | null = null
+  private lastGarrisonSig: string | null = null
   private updaters: Array<() => void> = []
   private dragState: { btn: HTMLButtonElement; container: HTMLElement; wrap: HTMLElement; from: number; buildingId: number; moved: boolean; startX: number; startY: number } | null = null
   private hotkeySlots: Array<{ key: string; enabled: () => boolean; act: () => void }> = []
@@ -149,7 +160,8 @@ export class Hud {
     const queueSig = this.queueSignature(world, selection)
     const workSig = this.workSignature(world, selection)
     const researchSig = this.researchSignature(world, selection)
-    if (sig === this.lastSelSig && queueSig === this.lastQueueSig && workSig === this.lastWorkSig && researchSig === this.lastResearchSig) {
+    const garrisonSig = this.garrisonSignature(world, selection)
+    if (sig === this.lastSelSig && queueSig === this.lastQueueSig && workSig === this.lastWorkSig && researchSig === this.lastResearchSig && garrisonSig === this.lastGarrisonSig) {
       for (const updater of this.updaters) updater()
       return
     }
@@ -157,6 +169,7 @@ export class Hud {
     this.lastQueueSig = queueSig
     this.lastWorkSig = workSig
     this.lastResearchSig = researchSig
+    this.lastGarrisonSig = garrisonSig
     this.updaters = []
     this.buildMenu.innerHTML = ''
     if (selection.size === 0) {
@@ -240,10 +253,12 @@ export class Hud {
       if (b.done && def.powerUse > 0 && world.teamState(b.team).powerDown) parts.push(t('hud.powerDownNote'))
       if (b.maxPowerUntil > world.tick) parts.push(t('hud.maxPowerActive', { s: Math.max(1, Math.ceil((b.maxPowerUntil - world.tick) / SIM_TICK_HZ)) }))
       if (b.maxPowerHpTarget >= 0) parts.push(t('hud.maxPowerHpDrop'))
-      if (b.researching !== '') {
-        const up = getUpgrade(b.researching, world.settings)
-        parts.push(t('hud.researching', { name: tn(b.researching, up.name) }))
+      if (b.researchQueue.length > 0) {
+        const top = b.researchQueue[0]
+        const up = getUpgrade(top.upgrade, world.settings)
+        parts.push(t('hud.researching', { name: tn(top.upgrade, up.name) }))
       }
+      if (b.shieldHp > 0) parts.push(t('hud.shieldStatus', { p: Math.round((b.shieldHp / SHIELD_MAX_HP) * 100) }))
       const head = t('hud.buildingDesc', { name: tn(b.buildingType, def.name), p: hp })
       return parts.length ? `${head}\n${parts.join(' · ')}` : head
     }
@@ -274,7 +289,18 @@ export class Hud {
     const parts: string[] = []
     for (const id of selection) {
       const b = world.buildings.get(id)
-      if (b && b.researching !== '') parts.push(`${id}:${b.researching}`)
+      if (b && b.researchQueue.length > 0) parts.push(`${id}:${b.researchQueue.map((o) => o.id).join(',')}`)
+    }
+    return parts.sort().join('|')
+  }
+
+  /** Passenger contents of every selected transport, so the list refreshes as riders board/unload. */
+  private garrisonSignature(world: World, selection: Set<number>): string {
+    const parts: string[] = []
+    for (const id of selection) {
+      const tc = world.transports.get(id)
+      if (!tc) continue
+      parts.push(`${id}:${tc.passengers.map((p) => p.unitType).join(',')}`)
     }
     return parts.sort().join('|')
   }
@@ -298,6 +324,14 @@ export class Hud {
       })
       return any
     })()
+    const hasLoadedTransport = (() => {
+      let any = false
+      selection.forEach((id) => {
+        const tc = world.transports.get(id)
+        if (tc && tc.team === localTeam && tc.passengers.length > 0) any = true
+      })
+      return any
+    })()
     const hasThrower = (() => {
       let any = false
       selection.forEach((id) => {
@@ -306,13 +340,42 @@ export class Hud {
       })
       return any
     })()
-    if (hasWorkingDozer || hasMovable) {
+    if (hasWorkingDozer || hasMovable || hasLoadedTransport) {
       this.appendHeader(t('hud.headers.command'))
       this.addButton(t('hud.stop'), () => true, () => this.actions.onStopClick())
       this.addToggleButton(t('hud.multiPos'), () => this.actions.onMoveModeToggle(), () => this.actions.isMoveModeActive())
-      if (hasThrower) {
+      if (hasThrower && world.teamState(localTeam).abilitiesUnlocked) {
         this.addToggleButton(t('hud.grenade'), () => this.actions.onGrenadeToggle(), () => this.actions.isGrenadeActive())
         this.addToggleButton(t('hud.smoke'), () => this.actions.onSmokeToggle(), () => this.actions.isSmokeActive())
+      }
+      if (hasMovable && world.teamState(localTeam).mineTech) {
+        let hasEngineer = false
+        let hasMineRemover = false
+        selection.forEach((id) => {
+          const u = world.units.get(id)
+          if (!u || u.team !== localTeam) return
+          if (u.unitType === 'engineer') {
+            hasEngineer = true
+            hasMineRemover = true
+          }
+          if (u.unitType === 'bulldozer') hasMineRemover = true
+        })
+        if (hasEngineer) {
+          this.addToggleButton(
+            `${t('hud.placeMine')} <span class="cost">$${world.settings.mineCost}</span>`,
+            () => this.actions.onPlaceMineToggle(),
+            () => this.actions.isPlaceMineActive(),
+            this.assignUniqueHotkey(t('hud.placeMine')),
+          )
+        }
+        if (hasMineRemover) {
+          this.addToggleButton(
+            t('hud.removeMine'),
+            () => this.actions.onRemoveMineToggle(),
+            () => this.actions.isRemoveMineActive(),
+            this.assignUniqueHotkey(t('hud.removeMine')),
+          )
+        }
       }
       if (hasMovable && world.teamState(localTeam).stealthTech) {
         let anyEligible = false
@@ -335,6 +398,9 @@ export class Hud {
             this.assignUniqueHotkey(t('hud.stealth')),
           )
         }
+      }
+      if (hasLoadedTransport) {
+        this.addToggleButton(t('hud.unload'), () => this.actions.onUnloadToggle(), () => this.actions.isUnloadActive())
       }
       anySection = true
     }
@@ -466,13 +532,15 @@ export class Hud {
         anySection = true
       }
       const b = world.buildings.get(bd.id)
-      if (b && b.researching !== '') {
-        const up = getUpgrade(b.researching, world.settings)
+      if (b && b.researchQueue.length > 0) {
         const scroll = document.createElement('div')
         scroll.className = 'queue-scroll'
         this.buildMenu.appendChild(scroll)
-        this.addResearchCard(scroll, tn(up.id, up.name), () => world.buildings.get(bd.id)?.researchTicks ?? 0, up.researchTimeTicks)
-        continue
+        b.researchQueue.forEach((ord, i) => {
+          const up = getUpgrade(ord.upgrade, world.settings)
+          const isHead = i === 0
+          this.addResearchCard(scroll, bd.id, i, tn(ord.upgrade, up.name), () => world.buildings.get(bd.id)?.researchQueue[i]?.remainingTicks ?? 0, up.researchTimeTicks, isHead)
+        })
       }
       for (const up of ups) {
         const upDef = getUpgrade(up.id, world.settings)
@@ -488,8 +556,31 @@ export class Hud {
               if (ts2.credits < upCost) return false
               const b2 = world.buildings.get(bd.id)
               if (!b2 || !b2.done) return false
-              if (b2.researching !== '') return false
+              if (b2.researchQueue.length >= world.settings.queueLimit) return false
               if (world.laserLevel(bd.team) >= maxLv) return false
+              return true
+            },
+            () => this.actions.onResearchClick(up.id),
+            undefined,
+            undefined,
+            this.assignUniqueHotkey(tn(up.id, upDef.name)),
+          )
+          continue
+        }
+        if (up.id === 'weapon-upgrade') {
+          const maxLv = world.weaponMaxLevel()
+          const lv = world.weaponUpgradeLevel(bd.team)
+          const upCost = world.weaponUpgradeCost(bd.team, upDef.cost)
+          const tag = lv >= maxLv ? 'Max' : t('tools.weaponLevel', { lv: lv + 1 })
+          this.addButton(
+            `${tn(up.id, upDef.name)} (${tag}) <span class="cost">$${upCost}</span>`,
+            () => {
+              const ts2 = world.teamState(bd.team)
+              if (ts2.credits < upCost) return false
+              const b2 = world.buildings.get(bd.id)
+              if (!b2 || !b2.done) return false
+              if (b2.researchQueue.length >= world.settings.queueLimit) return false
+              if (world.weaponUpgradeLevel(bd.team) >= maxLv) return false
               return true
             },
             () => this.actions.onResearchClick(up.id),
@@ -507,17 +598,43 @@ export class Hud {
             if (ts2.credits < upCost) return false
             const b2 = world.buildings.get(bd.id)
             if (!b2 || !b2.done) return false
-            if (b2.researching !== '') return false
+            if (b2.researchQueue.length >= world.settings.queueLimit) return false
             if (up.id === 'radar' && ts2.radar) return false
             if (up.id === 'satellite' && ts2.satellite) return false
             if (up.id === 'stealth-tech' && ts2.stealthTech) return false
             if (up.id === 'detector-upgrade' && ts2.detectorUnlocked) return false
+            if (up.id === 'mine-tech' && ts2.mineTech) return false
+            if (up.id === 'abilities-tech' && ts2.abilitiesUnlocked) return false
+            if (up.id === 'defense-dome' && ts2.defenseDome) return false
             return true
           },
           () => this.actions.onResearchClick(up.id),
           undefined,
           undefined,
           this.assignUniqueHotkey(tn(up.id, upDef.name)),
+        )
+      }
+    }
+
+    let swShown = false
+    for (const bd of buildings) {
+      if (bd.team !== localTeam || bd.type !== 'super-weapon') continue
+      const b = world.buildings.get(bd.id)
+      if (!b || !b.done) continue
+      const ts = world.teamState(bd.team)
+      if (!swShown) {
+        this.appendHeader(t('hud.headers.superWeapon'))
+        swShown = true
+        anySection = true
+      }
+      const chosen = ts.swChoice
+      for (const choice of SW_CHOICES) {
+        const labelKey = choice === 'laser' ? 'tools.swLaser' : choice === 'airstrike' ? 'tools.swAirstrike' : 'tools.swEmp'
+        const isChosen = chosen === choice
+        this.addButton(
+          `${t(labelKey)}${isChosen ? ' ✓' : ''}`,
+          () => chosen === null,
+          () => this.actions.onSwChoose(choice),
         )
       }
     }
@@ -607,12 +724,56 @@ export class Hud {
       }
     }
 
+    if (this.renderPassengers(world, selection, localTeam)) {
+      anySection = true
+    }
+
     if (!anySection) {
       this.hideBuildMenu()
       return
     }
     this.buildMenu.classList.add('visible')
     for (const updater of this.updaters) updater()
+  }
+
+  /** Lists the units riding inside every selected local transport (APC or bunker garrison). */
+  private renderPassengers(world: World, selection: Set<number>, localTeam: number): boolean {
+    const transports: number[] = []
+    selection.forEach((id) => {
+      const tc = world.transports.get(id)
+      if (tc && tc.team === localTeam && tc.passengers.length > 0) transports.push(id)
+    })
+    if (transports.length === 0) return false
+
+    this.appendHeader(t('hud.headers.garrison'))
+    const scroll = document.createElement('div')
+    scroll.className = 'queue-scroll load-scroll'
+    this.buildMenu.appendChild(scroll)
+    for (const id of transports) {
+      const tc = world.transports.get(id)
+      if (!tc) continue
+      const carrierName = (() => {
+        const u = world.units.get(id)
+        if (u) return tn(u.unitType, UNITS[u.unitType]?.name ?? u.unitType)
+        const b = world.buildings.get(id)
+        if (b) return tn(b.buildingType, BUILDINGS[b.buildingType]?.name ?? b.buildingType)
+        return ''
+      })()
+      if (transports.length > 1) {
+        const group = document.createElement('div')
+        group.className = 'load-group'
+        group.textContent = carrierName
+        scroll.appendChild(group)
+      }
+      for (const p of tc.passengers) {
+        const def = getUnit(p.unitType, world.settings)
+        const row = document.createElement('div')
+        row.className = 'load-row'
+        row.innerHTML = `${hudIconHtml('unit', p.unitType, tn(p.unitType, def.name))}<span>${tn(p.unitType, def.name)}</span>`
+        scroll.appendChild(row)
+      }
+    }
+    return true
   }
 
   private addButton(label: string, isEnabled: () => boolean, onClick: () => void, className?: string, iconHtml = '', hotkey?: string, hover?: { onEnter: () => void; onLeave: () => void }): void {
@@ -670,11 +831,16 @@ export class Hud {
     return false
   }
 
-  private addToggleButton(label: string, onToggle: () => void, isActive: () => boolean): void {
+  private addToggleButton(label: string, onToggle: () => void, isActive: () => boolean, hotkey?: string): void {
     const b = document.createElement('button')
+    b.type = 'button'
     b.innerHTML = label
     b.addEventListener('click', onToggle)
     this.buildMenu.appendChild(b)
+    if (hotkey) {
+      this.hotkeySlots.push({ key: hotkey, enabled: () => true, act: onToggle })
+      b.title = `${label.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()} (${modifierLabel()}+${hotkey.toUpperCase()})`
+    }
     this.updaters.push(() => {
       b.classList.toggle('active', isActive())
     })
@@ -803,7 +969,7 @@ export class Hud {
     btn.addEventListener('pointercancel', cancel)
   }
 
-  private addResearchCard(parent: HTMLElement, name: string, getRemaining: () => number, totalTicks: number): void {
+  private addResearchCard(parent: HTMLElement, buildingId: number, index: number, name: string, getRemaining: () => number, totalTicks: number, isHead: boolean): void {
     const card = document.createElement('button')
     card.type = 'button'
     card.className = 'queue-card'
@@ -814,10 +980,11 @@ export class Hud {
     fill.className = 'qc-fill research'
     card.appendChild(fill)
     card.appendChild(label)
-    card.title = t('hud.researchProgress')
+    card.title = t('hud.queueCancel')
+    card.addEventListener('click', () => this.actions.onDequeueResearch(buildingId, index))
     parent.appendChild(card)
     this.updaters.push(() => {
-      const p = Math.max(0, Math.min(1, 1 - getRemaining() / totalTicks))
+      const p = isHead ? Math.max(0, Math.min(1, 1 - getRemaining() / totalTicks)) : 0
       fill.style.width = `${(p * 100).toFixed(1)}%`
     })
   }

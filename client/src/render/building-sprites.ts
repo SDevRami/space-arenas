@@ -25,6 +25,10 @@ const padFrame = (frame: number): string => String(frame).padStart(4, '0')
 const sprites = new Map<string, Texture>()
 const pending = new Set<string>()
 
+/** URLs resolved out of asset-path templates; Assets owns these textures, so a
+ * tidy teardown must `Assets.unload` them rather than destroying them directly. */
+const loadedUrls = new Set<string>()
+
 const frameUrl = (type: string, folder: string, frame: number, color: number): string => {
   const override = getGraphics().assetPaths[`building:${type}`]?.trim()
   if (override) {
@@ -42,6 +46,7 @@ const loadFrame = async (type: string, folder: string, frame: number, color = DE
   try {
     const tex = await Assets.load<Texture>(frameUrl(type, folder, frame, color))
     sprites.set(slot, tex)
+    loadedUrls.add(frameUrl(type, folder, frame, color))
   } catch {
     /* missing image: keep vector fallback */
   } finally {
@@ -102,11 +107,12 @@ const resolveAssetUrl = (key: string, fallback: string): string => {
 const loadInto = async (map: Map<string, Texture[]>, key: string, urlKey: string, fallback: string, frame: number): Promise<void> => {
   if (map.get(key)?.[frame - 1]) return
   try {
-    const url = resolveAssetUrl(urlKey, fallback).replaceAll('{frame}', String(frame))
+    const url = resolveAssetUrl(urlKey, fallback).replaceAll('{frame}', padFrame(frame))
     const tex = await Assets.load<Texture>(url)
     const list = map.get(key) ?? []
     list[frame - 1] = tex
     map.set(key, list)
+    loadedUrls.add(url)
   } catch {
     /* missing image: keep vector fallback */
   }
@@ -121,6 +127,7 @@ const loadObstacleImage = async (type: string): Promise<void> => {
     const url = resolveAssetUrl(`obstacle:${type}`, `ao/${type}.png`).replaceAll('{type}', type).replaceAll('{frame}', '1')
     const tex = await Assets.load<Texture>(url)
     obstacleImages.set(type, tex)
+    loadedUrls.add(url)
   } catch {
     /* missing image */
   }
@@ -131,7 +138,7 @@ export const preloadFieldSprites = async (): Promise<void> => {
   const jobs: Promise<void>[] = []
   for (let f = 1; f <= SUPPLY_FIELD_FRAMES; f++) jobs.push(loadInto(fieldSprites, 'supply', 'field:supply', 'sf/sf_{frame}.png', f))
   for (let f = 1; f <= OIL_FIELD_FRAMES; f++) jobs.push(loadInto(fieldSprites, 'oil', 'field:oil', 'of/of_{frame}.png', f))
-  for (const t of ['rock', 'tree', 'wreck']) jobs.push(loadObstacleImage(t))
+  for (const t of ['rock', 'tree', 'wreck', 'mine']) jobs.push(loadObstacleImage(t))
   await Promise.all(jobs)
 }
 
@@ -151,7 +158,7 @@ export const obstacleImageTexture = (type: string): Texture | null => obstacleIm
 
 // ---------- directional unit sprites (high quality) ----------
 
-// frame/direction naming order as authored on disk
+// canonical direction name list; on-disk heading frames 0001-0008 resolve via FRAME_TO_DIR
 export const UNIT_DIRECTION_NAMES = [
   'north',
   'west+north',
@@ -175,6 +182,18 @@ const ANGLE_TO_DIR: string[] = [
   'north+east',
 ]
 
+// 4-digit heading frame order as authored on disk (v_<id>_0001.png…v_<id>_0008.png)
+export const FRAME_TO_DIR: string[] = [
+  'west+south',
+  'south',
+  'east+south',
+  'east',
+  'north+east',
+  'north',
+  'west+north',
+  'west',
+]
+
 const unitSprites = new Map<string, Map<string, Texture>>()
 const pendingUnits = new Set<string>()
 
@@ -183,12 +202,16 @@ const loadUnitDir = async (type: string, template: string, dir: string, color = 
   if (unitSprites.get(type)?.has(key) || pendingUnits.has(`${type}:${key}`)) return
   pendingUnits.add(`${type}:${key}`)
   try {
-    const raw = template.replaceAll('{dir}', dir).replaceAll('{frame}', String(UNIT_DIRECTION_NAMES.indexOf(dir as never) + 1)).replaceAll('{color}', String(fileColor(color)))
+    const raw = template
+      .replaceAll('{dir}', dir)
+      .replaceAll('{frame}', padFrame4(FRAME_TO_DIR.indexOf(dir as never) + 1))
+      .replaceAll('{color}', String(fileColor(color)))
     const url = /^https?:\/\//i.test(raw) || raw.startsWith('/') ? raw : `${import.meta.env.BASE_URL}${raw}`
     const tex = await Assets.load<Texture>(url)
     const map = unitSprites.get(type) ?? new Map<string, Texture>()
     map.set(key, tex)
     unitSprites.set(type, map)
+    loadedUrls.add(url)
   } catch {
     /* missing image: keep vector fallback */
   } finally {
@@ -251,6 +274,7 @@ const loadFxFrame = async (key: string, frame: number): Promise<void> => {
   try {
     const tex = await Assets.load<Texture>(fxFrameUrl(key, frame))
     fxImages.set(slot, tex)
+    loadedUrls.add(fxFrameUrl(key, frame))
   } catch {
     /* missing image: keep procedural fallback */
   } finally {
@@ -266,6 +290,26 @@ export const preloadFxFrames = (key: string): void => {
 }
 
 export const fxFrameTexture = (key: string, frame: number): Texture | null => fxImages.get(`fx:${key}:${frame}`) ?? null
+
+/** Releases every Assets-managed texture this module loaded and drops the
+ * caches, so the app can be torn down without destroying Assets-owned
+ * textures directly (which would trigger the PixiJS unload warning). */
+export const unloadAllAssetTextures = async (): Promise<void> => {
+  const urls = [...loadedUrls]
+  loadedUrls.clear()
+  sprites.clear()
+  pending.clear()
+  fieldSprites.clear()
+  obstacleImages.clear()
+  unitSprites.clear()
+  pendingUnits.clear()
+  fxImages.clear()
+  try {
+    if (urls.length > 0) await Assets.unload(urls)
+  } catch {
+    /* already released */
+  }
+}
 
 /** Approximate on-screen width (px) of a small vector unit shape, for image size parity. */
 export const UNIT_SPRITE_WIDTH = 26

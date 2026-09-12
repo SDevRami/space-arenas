@@ -75,6 +75,46 @@ export const VisionSystem = {
       }
     })
 
+    world.airstrikes.forEach((pid, a) => {
+      const t = world.transforms.get(pid)
+      if (!t) return
+      const fog = world.fog.get(a.team)
+      if (!fog) return
+      const r = 6
+      const cx = Math.floor(t.x / 1000)
+      const cy = Math.floor(t.y / 1000)
+      const rSq = r * r
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dy * dy > rSq) continue
+          const x = cx + dx
+          const y = cy + dy
+          if (x < 0 || y < 0 || x >= width || y >= height) continue
+          fog[y * width + x] = 2
+        }
+      }
+    })
+
+    world.empPulses.forEach((pid, p) => {
+      const t = world.transforms.get(pid)
+      if (!t) return
+      const fog = world.fog.get(p.team)
+      if (!fog) return
+      const r = Math.ceil(p.radius)
+      const cx = Math.floor(t.x / 1000)
+      const cy = Math.floor(t.y / 1000)
+      const rSq = r * r
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dy * dy > rSq) continue
+          const x = cx + dx
+          const y = cy + dy
+          if (x < 0 || y < 0 || x >= width || y >= height) continue
+          fog[y * width + x] = 2
+        }
+      }
+    })
+
     const alliances = new Map<number, number[]>()
     for (const team of world.teams.keys()) {
       const a = world.allianceOf(team)

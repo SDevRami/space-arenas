@@ -8,7 +8,16 @@ import { fire, smokeRadiusAt } from '../client/src/systems/combat-system.ts'
 const MAP = createEmptyMap(64, 64)
 const SEED = 0xc0ffee
 
-const makeSim = (settings?: Partial<MatchSettings>): Simulator => new Simulator(MAP, SEED, [0, 1], settings)
+const makeSim = (settings?: Partial<MatchSettings>, unlockAbilities = true): Simulator => {
+  const sim = new Simulator(MAP, SEED, [0, 1], settings)
+  // Bandolier abilities are research-gated; these tests exercise the abilities
+  // themselves, so unlock Abilities Tech for every team up front.
+  if (unlockAbilities) {
+    sim.world.teamState(0).abilitiesUnlocked = true
+    sim.world.teamState(1).abilitiesUnlocked = true
+  }
+  return sim
+}
 
 const drainRejected = (sim: Simulator, reason: string): boolean =>
   sim.drainEvents().some((e) => e.type === 'command-rejected' && e.reason === reason)
@@ -114,6 +123,41 @@ describe('ability eligibility', () => {
 
     expect(drainRejected(sim, 'unit cannot use ability')).toBe(true)
     expect(world.smokes.size).toBe(0)
+  })
+})
+
+describe('abilities research gate', () => {
+  it('rejects a grenade before Abilities Tech is researched', () => {
+    const sim = makeSim(undefined, false)
+    const { world } = sim
+    const thrower = spawnUnit(world, 'rifleman', 0, 10000, 10000)
+
+    sim.step([sim.makeCommand(0, { type: 'grenade', entities: [thrower], x: 10500, y: 10000 })])
+
+    expect(drainRejected(sim, 'abilities tech not researched')).toBe(true)
+    expect(world.grenades.size).toBe(0)
+  })
+
+  it('rejects smoke before Abilities Tech is researched', () => {
+    const sim = makeSim(undefined, false)
+    const { world } = sim
+    const thrower = spawnUnit(world, 'rifleman', 0, 10000, 10000)
+
+    sim.step([sim.makeCommand(0, { type: 'smoke', entities: [thrower], x: 10500, y: 10000 })])
+
+    expect(drainRejected(sim, 'abilities tech not researched')).toBe(true)
+    expect(world.smokes.size).toBe(0)
+  })
+
+  it('lets a team throw once Abilities Tech is researched', () => {
+    const sim = makeSim(undefined, false)
+    const { world } = sim
+    const thrower = spawnUnit(world, 'rifleman', 0, 10000, 10000)
+    world.teamState(0).abilitiesUnlocked = true
+
+    sim.step([sim.makeCommand(0, { type: 'grenade', entities: [thrower], x: 10500, y: 10000 })])
+
+    expect(world.grenades.size).toBe(1)
   })
 })
 

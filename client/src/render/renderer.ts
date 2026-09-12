@@ -1,11 +1,11 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
-import { BUILDINGS, PLAYER_COLOR_COUNT, PLAYER_COLORS, UNITS, getBuilding, getWeapon, type MapData, type PingType } from '@space-arenas/shared'
+import { BUILDINGS, PLAYER_COLOR_COUNT, PLAYER_COLORS, UNITS, getBuilding, getWeapon, type MapData, type PingType, SHIELD_MAX_HP, EMP_DURATION_TICKS } from '@space-arenas/shared'
 import type { World, PingComp } from '../core/world.ts'
 import { PING_TICKS } from '../core/world.ts'
 import { Camera, ISO_HALF_H, ISO_HALF_W } from './camera.ts'
 import { addGroundTo, FogRenderer } from './ground.ts'
 import { clearShapeCache, fieldTexture, flagTexture, lightningTexture, obstacleTexture, textureFor } from './shapes.ts'
-import { buildingStatusIndex, buildingStatusTexture, fxFrameTexture, obstacleImageTexture, oilFieldStatusTexture, preloadBuildingSprites, preloadFieldSprites, preloadFxFrames, preloadUnitSprites, supplyFieldStatusTexture, UNIT_SPRITE_WIDTH, unitDirFromScreenAngle, unitImagesAvailable, unitTextureByName } from './building-sprites.ts'
+import { buildingStatusIndex, buildingStatusTexture, fxFrameTexture, obstacleImageTexture, oilFieldStatusTexture, preloadBuildingSprites, preloadFieldSprites, preloadFxFrames, preloadUnitSprites, supplyFieldStatusTexture, unloadAllAssetTextures, UNIT_SPRITE_WIDTH, unitDirFromScreenAngle, unitImagesAvailable, unitTextureByName } from './building-sprites.ts'
 import type { Minimap } from './minimap.ts'
 import type { BoxInfo } from '../input/input.ts'
 import { findSpawnTile } from '../systems/production-system.ts'
@@ -122,14 +122,18 @@ export class Renderer {
   private ghostSprite: Sprite | null = null
   private ghostOutline = new Graphics()
   private rangeRingG = new Graphics()
-  private impacts: Array<{ x: number; y: number; age: number }> = []
+  private impacts: Array<{ x: number; y: number; age: number; color?: number }> = []
   private projectiles: Array<{ x0: number; y0: number; x1: number; y1: number; age: number; team: number }> = []
-  laserTarget: { x: number; y: number; valid: boolean } | null = null
+  laserTarget: { x: number; y: number; valid: boolean; radius?: number; color?: number } | null = null
   /** Pending multi-position move waypoints (fx coords) drawn as green circles. */
   routePoints: Array<{ x: number; y: number }> | null = null
   routeIdx = 0
   /** When a grenade/smoke toggle is armed, draws a throw-range ring around each selected unit. */
-  abilityRing: { radiusTiles: number; color: number } | null = null
+  /** Per-unit range rings (grenade/smoke/mine): unit id → ring. Only selected armed units render one. */
+  abilityRings: Map<number, { radiusTiles: number; color: number }> = new Map()
+
+  /** Passive-heal aura ring shown while an aura-capable engineer is selected (dotted). */
+  healAuraRing: { radiusTiles: number; color: number } | null = null
   private routeLabels: Text[] = []
   private hoverWorld: { x: number; y: number } | null = null
   private hoverText: Text | null = null
@@ -161,6 +165,9 @@ export class Renderer {
   private oilFieldLabels = new Map<number, Text>()
   private scenerySprites = new Map<number, Sprite>()
   private sceneryBars = new Map<number, { bg: Sprite; fill: Sprite }>()
+  private mineSprites = new Map<number, Sprite>()
+  private healFlashSprites = new Map<number, Sprite>()
+  private healFlashTex: Texture = Texture.EMPTY
   private treeFalls: Array<{ spr: Sprite; isoX: number; isoY: number; age: number }> = []
   private wreckEntitySprites = new Map<number, Sprite>()
   private sellFx: Array<{ spr: Sprite; isoX: number; isoY: number; scale: number; age: number }> = []
@@ -259,6 +266,20 @@ export class Renderer {
     fctx.fillStyle = fg2
     fctx.fillRect(0, 0, 64, 64)
     this.hitFlashTex = Texture.from(flashCanvas)
+
+    const healCanvas = document.createElement('canvas')
+    healCanvas.width = 16
+    healCanvas.height = 16
+    const hctx = healCanvas.getContext('2d')!
+    hctx.strokeStyle = 'rgba(82,255,122,1)'
+    hctx.lineWidth = 2
+    hctx.beginPath()
+    hctx.moveTo(8, 2)
+    hctx.lineTo(8, 14)
+    hctx.moveTo(2, 8)
+    hctx.lineTo(14, 8)
+    hctx.stroke()
+    this.healFlashTex = Texture.from(healCanvas)
 
     this.fieldTex = fieldTexture(this.app.renderer)
     this.lightningTex = lightningTexture(this.app.renderer)
@@ -525,16 +546,29 @@ export class Renderer {
       })
     }
 
-    const ability = this.abilityRing
-    if (ability) {
+    selection.forEach((id) => {
+      const ring = this.abilityRings.get(id)
+      if (!ring) return
+      const u = world.units.get(id)
+      if (!u) return
+      const t = world.transforms.get(id)
+      if (!t) return
+      const ix = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+      const iy = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+      this.drawRangeRing(this.rangeRingG, ix, iy, ring.radiusTiles, ring.color, 0.5, 2, 0.05)
+    })
+
+    const aura = this.healAuraRing
+    if (aura) {
       selection.forEach((id) => {
         const u = world.units.get(id)
-        if (!u) return
+        if (!u || u.unitType !== 'engineer') return
+        if (u.veteranRank < world.settings.engineerHealRank) return
         const t = world.transforms.get(id)
         if (!t) return
         const ix = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
         const iy = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
-        this.drawRangeRing(this.rangeRingG, ix, iy, ability.radiusTiles, ability.color, 0.5, 2, 0.05)
+        this.drawDottedRangeRing(this.rangeRingG, ix, iy, aura.radiusTiles, aura.color, 0.55, 1.6)
       })
     }
 
@@ -545,6 +579,8 @@ export class Renderer {
     this.syncFlagMarkers(world, camera, selection)
     this.syncFields(world, camera)
     this.syncScenery(world, camera)
+    this.syncMines(world, localTeam, camera)
+    this.syncHealFlashes(world, camera)
     this.syncWrecks(world)
     this.syncWreckBars(world, camera)
     this.syncPowerIcons(world, camera)
@@ -568,8 +604,24 @@ export class Renderer {
     g.ellipse(cx, cy, ax, ay).stroke({ color, width, alpha: strokeAlpha })
   }
 
-  addImpact(x: number, y: number): void {
-    this.impacts.push({ x, y, age: 0 })
+  /** Draws a dotted iso-ellipse ring, to distinguish passive/heal ranges from attack ranges. */
+  private drawDottedRangeRing(g: Graphics, cx: number, cy: number, rangeTiles: number, color: number, strokeAlpha: number, width: number): void {
+    const ax = rangeTiles * Math.SQRT2 * ISO_HALF_W
+    const ay = rangeTiles * Math.SQRT2 * ISO_HALF_H
+    const dash = 9
+    const gap = 7
+    const seg = dash + gap
+    for (let a = 0; a < Math.PI * 2; a += seg / Math.sqrt(ax * ax + ay * ay)) {
+      const a0 = a
+      const a1 = Math.min(a + dash / Math.sqrt(ax * ax + ay * ay), Math.PI * 2)
+      g.moveTo(cx + ax * Math.cos(a0), cy + ay * Math.sin(a0))
+        .lineTo(cx + ax * Math.cos(a1), cy + ay * Math.sin(a1))
+        .stroke({ color, width, alpha: strokeAlpha })
+    }
+  }
+
+  addImpact(x: number, y: number, color?: number): void {
+    this.impacts.push({ x, y, age: 0, color })
   }
 
   addProjectile(x0: number, y0: number, x1: number, y1: number, team: number): void {
@@ -783,16 +835,17 @@ export class Renderer {
       const py = (imp.x / 1000 + imp.y / 1000) * ISO_HALF_H
       const r = 3 + t * 17
       const alpha = 1 - t
-      this.fxGraphics.circle(px, py, r).stroke({ color: 0xffe08a, width: 2, alpha: alpha * 0.9 })
-      this.fxGraphics.circle(px, py, r * 0.5).fill({ color: 0xffd06a, alpha: alpha * 0.35 })
+      const color = imp.color ?? 0xffe08a
+      this.fxGraphics.circle(px, py, r).stroke({ color, width: 2, alpha: alpha * 0.9 })
+      this.fxGraphics.circle(px, py, r * 0.5).fill({ color, alpha: alpha * 0.35 })
       imp.age++
     }
     this.impacts = this.impacts.filter((i) => i.age < 14)
     if (this.laserTarget) {
-      const r = world.laserStrikeRadius(this.localTeam) * 32
+      const r = (this.laserTarget.radius ?? world.laserStrikeRadius(this.localTeam)) * 32
       const px = (this.laserTarget.x / 1000 - this.laserTarget.y / 1000) * ISO_HALF_W
       const py = (this.laserTarget.x / 1000 + this.laserTarget.y / 1000) * ISO_HALF_H
-      const color = this.laserTarget.valid ? 0xff4a5a : 0xff4040
+      const color = this.laserTarget.valid ? (this.laserTarget.color ?? 0xff4a5a) : 0xff4040
       this.fxGraphics.circle(px, py, r).stroke({ color, width: 2, alpha: 0.9 })
       this.fxGraphics.circle(px, py, r).fill({ color, alpha: 0.08 })
     }
@@ -841,6 +894,40 @@ export class Renderer {
           this.fxGraphics.circle(bpx, bpy, 16).fill({ color: 0xff4a5a, alpha: 0.15 * frac })
         }
       }
+    })
+    world.airstrikes.forEach((pid) => {
+      const t = world.transforms.get(pid)
+      if (!t) return
+      const px = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+      const py = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+      const shape = 0.8 + Math.sin(world.tick * 0.4 + pid) * 0.2
+      this.fxGraphics.circle(px, py, 5 * shape).stroke({ color: 0xff5540, width: 2, alpha: 0.9 })
+      this.fxGraphics.circle(px, py, 2.2 * shape).fill({ color: 0xff8870, alpha: 0.9 })
+    })
+    world.empPulses.forEach((pid, p) => {
+      const t = world.transforms.get(pid)
+      if (!t) return
+      const left = p.untilTick - world.tick
+      const frac = Math.max(0, Math.min(1, left / EMP_DURATION_TICKS))
+      const pulse = 0.5 + Math.sin(world.tick * 0.35 + pid) * 0.5
+      const px = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+      const py = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+      const r = p.radius * 32
+      this.fxGraphics.circle(px, py, r * (0.55 + pulse * 0.45)).stroke({ color: 0xc070ff, width: 3, alpha: 0.8 * frac })
+      this.fxGraphics.circle(px, py, r).fill({ color: 0x7a30ff, alpha: 0.08 * frac })
+    })
+    world.buildings.forEach((bid, b) => {
+      if (!b.done || b.shieldHp <= 0) return
+      const bt = world.transforms.get(bid)
+      if (!bt) return
+      const frac = b.shieldHp / SHIELD_MAX_HP
+      const r = (b.footprintW + b.footprintH) * 22 + 18
+      const px = (bt.x / 1000 - bt.y / 1000) * ISO_HALF_W
+      const py = (bt.x / 1000 + bt.y / 1000) * ISO_HALF_H
+      const pulse = 0.85 + Math.sin(world.tick * 0.07 + bid) * 0.15
+      this.fxGraphics.circle(px, py, r).fill({ color: 0x4aa8ff, alpha: 0.05 + 0.08 * frac })
+      this.fxGraphics.circle(px, py, r).stroke({ color: 0x6cc8ff, width: 2, alpha: (0.25 + 0.3 * frac) * pulse })
+      this.fxGraphics.circle(px, py, r * 0.45).fill({ color: 0xaee4ff, alpha: 0.05 * frac })
     })
     if (moveMarker && world.tick < moveMarker.until) {
       const left = moveMarker.until - world.tick
@@ -2170,6 +2257,85 @@ export class Renderer {
     }
   }
 
+  /** Lays mine sprites out on the obstacle layer. Mines are only ever visible to the team that owns them. */
+  private syncMines(world: World, localTeam: number, camera: Camera): void {
+    const seen = new Set<number>()
+    world.mines.forEach((id, m) => {
+      if (m.team !== localTeam) return
+      seen.add(id)
+      const t = world.transforms.get(id)
+      if (!t) return
+      let spr = this.mineSprites.get(id)
+      if (!spr) {
+        spr = new Sprite(obstacleTexture('mine', this.app.renderer))
+        spr.anchor.set(0.5)
+        this.obstacleLayer.addChild(spr)
+        this.mineSprites.set(id, spr)
+      }
+      const aoTex = obstacleImageTexture('mine')
+      if (aoTex) {
+        if (spr.texture !== aoTex) spr.texture = aoTex
+        spr.tint = 0xffffff
+        spr.alpha = 1
+        const baseW = aoTex.frame.width || 1
+        spr.scale.set(OBSTACLE_BASE_WIDTH / baseW)
+      } else {
+        spr.scale.set(1)
+        spr.tint = OBSTRUCTION_COLORS['mine'] ?? 0xffffff
+        spr.alpha = 0.95
+      }
+      const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+      const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+      spr.position.set(isoX, isoY)
+      const pos = { x: 0, y: 0 }
+      camera.worldToScreen(t.x, t.y, pos)
+      spr.visible = camera.isInView(pos.x, pos.y, 120)
+    })
+    for (const [id, spr] of this.mineSprites) {
+      if (!seen.has(id)) {
+        this.obstacleLayer.removeChild(spr)
+        this.mineSprites.delete(id)
+      }
+    }
+  }
+
+  /** Small green cross over units being healed — cosmetic, matches the healFlashes set by HealSystem. */
+  private syncHealFlashes(world: World, camera: Camera): void {
+    const seen = new Set<number>()
+    world.healFlashes.forEach((id, hf) => {
+      seen.add(id)
+      const entHit = world.flashes.get(id)
+      if (entHit !== undefined && world.tick - entHit.hitTick < 4) return
+      if (world.tick - hf.healTick > 3) return
+      const t = world.transforms.get(id)
+      if (!t) return
+      let spr = this.healFlashSprites.get(id)
+      if (!spr) {
+        spr = new Sprite(this.healFlashTex)
+        spr.anchor.set(0.5)
+        spr.blendMode = 'add'
+        this.fxLayer.addChild(spr)
+        this.healFlashSprites.set(id, spr)
+      }
+      const delta = world.tick - hf.healTick
+      spr.alpha = 1 - delta / 4
+      spr.tint = 0x8aff9c
+      spr.scale.set(1 + 0.5 * delta)
+      const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
+      const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
+      spr.position.set(isoX, isoY - 20)
+      const pos = { x: 0, y: 0 }
+      camera.worldToScreen(t.x, t.y, pos)
+      spr.visible = camera.isInView(pos.x, pos.y, 60)
+    })
+    for (const [id, spr] of this.healFlashSprites) {
+      if (!seen.has(id)) {
+        spr.parent?.removeChild(spr)
+        this.healFlashSprites.delete(id)
+      }
+    }
+  }
+
   private stepTreeFalls(): void {
     for (const f of this.treeFalls) {
       const t = f.age / 40
@@ -2327,6 +2493,16 @@ export class Renderer {
       this.barLayer.removeChild(pair.fill)
     }
     this.sceneryBars.clear()
+    for (const spr of this.mineSprites.values()) {
+      this.obstacleLayer.removeChild(spr)
+      spr.destroy()
+    }
+    this.mineSprites.clear()
+    for (const spr of this.healFlashSprites.values()) {
+      spr.parent?.removeChild(spr)
+      spr.destroy()
+    }
+    this.healFlashSprites.clear()
     for (const f of this.treeFalls) {
       this.fxLayer.removeChild(f.spr)
       f.spr.destroy()
@@ -2343,6 +2519,7 @@ export class Renderer {
     }
     this.sellFx = []
     clearShapeCache()
-    this.app.destroy(true, { children: true, texture: true })
+    void unloadAllAssetTextures()
+    this.app.destroy(true, { children: true })
   }
 }

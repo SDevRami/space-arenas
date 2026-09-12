@@ -1,7 +1,6 @@
 import { fxToTile, isqrt, sqDist } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { rectFromCenter } from '../core/geometry.ts'
-
 const centerOf = (tile: number, width: number): { x: number; y: number } => {
   const tx = tile % width
   const ty = Math.floor(tile / width)
@@ -269,6 +268,10 @@ export const MovementSystem = {
       const u = world.units.get(id)
       const t = world.transforms.get(id)
       if (!u || !t) return
+      if (world.empStunned(id)) {
+        world.moves.delete(id)
+        return
+      }
       if (m.needsPath) return
       const isAir = u.class === 'air'
 

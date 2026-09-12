@@ -62,6 +62,16 @@ function unitShape(kind: string, g: Graphics): Graphics {
       rect(g, -14, -4, 28, 8)
       rect(g, -10, -4, 6, 5)
       return g
+    case 'engineer':
+      rect(g, -10, -5, 20, 10)
+      rect(g, -4, -8, 5, 4)
+      rect(g, 6, -9, 2, 6)
+      return g
+    case 'apc':
+      rect(g, -13, -7, 26, 14)
+      rect(g, -9, -5, 18, 10)
+      rect(g, 8, -3, 5, 6)
+      return g
     case 'fighter':
       g.poly([-14, 0, -7, -6, 10, -6, 14, 0, 10, 6, -7, 6]).fill(0xffffff)
       circle(g, 0, 0, 3)
@@ -110,6 +120,11 @@ function buildingShape(kind: string, g: Graphics): Graphics {
       rect(g, -12, -12, 24, 24)
       circle(g, 0, 0, 7)
       return g
+    case 'bunker':
+      rect(g, -9, -9, 18, 18)
+      rect(g, -5, 1, 10, 7)
+      circle(g, 0, -3, 4)
+      return g
     default:
       rect(g, -8, -8, 16, 16)
       return g
@@ -120,6 +135,10 @@ function obstacleShape(kind: string, g: Graphics): Graphics {
   switch (kind) {
     case 'rock':
       g.poly([-14, -3, -9, -10, 0, -12, 10, -9, 14, -2, 10, 7, -1, 10, -12, 7]).fill(0xffffff)
+      return g
+    case 'mine':
+      circle(g, 0, 0, 4)
+      rect(g, -2, -4, 4, 8)
       return g
     case 'wreck':
       rect(g, -13, -6, 9, 12)
@@ -268,6 +287,43 @@ function mediumUnitShape(kind: string, g: Graphics): Graphics {
       circleC(g, 10, 1.4, 1, DARK)
       circleC(g, -4, 1.4, 1, DARK)
       circleC(g, -10, 1.4, 1, DARK)
+      return g
+    }
+    case 'engineer': {
+      rectC(g, -11, -2, 22, 6, 0xffffff)
+      rectC(g, -3, 2, 14, 3, MID)
+      rectC(g, -8, -6, 8, 6, 0xffffff)
+      rectC(g, -7, -5, 5, 3, DARK)
+      rectC(g, -3, -4, 3, 2, DARK)
+      circleC(g, -3, -4, 0.6, 0xffffff)
+      rectC(g, 1, -6, 6, 4, 0xffffff)
+      rectC(g, 6, -9, 2, 6, MID)
+      circleC(g, 7, -10, 1.5, 0xffffff)
+      rectC(g, -9, 2, 3, 1, LIGHT)
+      circleC(g, -5, 0.8, 2, 0xffffff)
+      circleC(g, 0, 0.8, 2, 0xffffff)
+      circleC(g, 5, 0.8, 2, 0xffffff)
+      circleC(g, 9, 0.8, 2, 0xffffff)
+      circleC(g, 5, 0.8, 1, DARK)
+      circleC(g, -5, 0.8, 1, DARK)
+      circleC(g, 0, 0.8, 1, DARK)
+      return g
+    }
+    case 'apc': {
+      rectC(g, -13, -4, 26, 8, 0xffffff)
+      rectC(g, -12, -3, 24, 5, MID)
+      rectC(g, -9, -8, 16, 5, 0xffffff)
+      rectC(g, -8, -7, 7, 4, DARK)
+      rectC(g, -8, -6, 5, 1, LIGHT)
+      rectC(g, 1, -7, 6, 4, 0xffffff)
+      rectC(g, 2, -6, 3, 2, DARK)
+      circleC(g, 7, -2.5, 1.6, 0xffffff)
+      rectC(g, 10, -3, 3, 5, 0xffffff)
+      rectC(g, -11, 2, 5, 1, LIGHT)
+      circleC(g, -3, 3, 2, 0xffffff)
+      circleC(g, 2, 3, 2, 0xffffff)
+      circleC(g, -3, 3, 1, DARK)
+      circleC(g, 2, 3, 1, DARK)
       return g
     }
     case 'fighter': {
@@ -483,6 +539,14 @@ function mediumObstacleShape(kind: string, g: Graphics): Graphics {
       rectC(g, -5, 10, 3, 2, DARK)
       rectC(g, 2, 10, 3, 2, DARK)
       circleC(g, 1, 4, 1.2, LIGHT)
+      return g
+    }
+    case 'mine': {
+      circleC(g, 0, 0, 5.5, 0xffffff)
+      circleC(g, 0, 0, 3.6, MID)
+      rectC(g, -2, -4, 4, 8, DARK)
+      circleC(g, -2.4, -1.4, 1.2, LIGHT)
+      circleC(g, 2.4, -1.4, 1.2, LIGHT)
       return g
     }
     default:

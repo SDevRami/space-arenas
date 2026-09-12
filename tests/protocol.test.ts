@@ -18,13 +18,14 @@ import {
 } from '@space-arenas/shared'
 import { generateDefaultMap } from '@space-arenas/shared'
 
-const ALL_TYPES: CommandType[] = ['move', 'attack-move', 'keep-attack', 'guard', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'set-flag-point', 'assign-dock', 'satellite', 'laser', 'forfeit', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth']
+const ALL_TYPES: CommandType[] = ['move', 'attack-move', 'keep-attack', 'guard', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'set-flag-point', 'assign-dock', 'satellite', 'laser', 'sw-choose', 'sw-airstrike', 'sw-emp', 'forfeit', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload']
 
 const makeEnv = (type: CommandType): EnvelopeCommand => {
   const cmd: EnvelopeCommand['cmd'] = { type, entities: [1, 2, 3], x: -12345, y: 67890 }
   if (type === 'place') cmd.buildingType = 'barracks'
   if (type === 'queue') cmd.unitType = 'rifleman'
   if (type === 'dequeue') cmd.index = 2
+  if (type === 'dequeue-research') cmd.index = 2
   if (type === 'reorder-queue') {
     cmd.index = 2
     cmd.to = 4
@@ -36,8 +37,13 @@ const makeEnv = (type: CommandType): EnvelopeCommand => {
   if (type === 'build') cmd.target = 99
   if (type === 'assign-dock') cmd.target = 77
   if (type === 'collect') cmd.target = 55
+  if (type === 'remove-mine') cmd.target = 12
+  if (type === 'repair-unit') cmd.target = 13
+  if (type === 'transport-load') cmd.transportId = 61
+  if (type === 'transport-unload') cmd.transportId = 62
   if (type === 'research') cmd.upgrade = 'radar'
   if (type === 'ping') cmd.pingType = 'alert'
+  if (type === 'sw-choose') cmd.choice = 'emp'
   return { player: 1, seq: 987654321, tick: 123456, cmd }
 }
 
@@ -55,11 +61,13 @@ describe('protocol: envelope round-trip', () => {
       expect(out.cmd.y).toBe(env.cmd.y)
       expect(out.cmd.buildingType).toBe(type === 'place' ? 'barracks' : undefined)
       expect(out.cmd.unitType).toBe(type === 'queue' ? 'rifleman' : undefined)
-      expect(out.cmd.index).toBe(type === 'dequeue' || type === 'reorder-queue' ? 2 : undefined)
+      expect(out.cmd.index).toBe(type === 'dequeue' || type === 'dequeue-research' || type === 'reorder-queue' ? 2 : undefined)
       expect(out.cmd.to).toBe(type === 'reorder-queue' ? 4 : undefined)
-      expect(out.cmd.target).toBe(type === 'attack' || type === 'attack-move' || type === 'keep-attack' || type === 'guard' ? 42 : type === 'build' ? 99 : type === 'assign-dock' ? 77 : type === 'collect' ? 55 : undefined)
+      expect(out.cmd.target).toBe(type === 'attack' || type === 'attack-move' || type === 'keep-attack' || type === 'guard' ? 42 : type === 'build' ? 99 : type === 'assign-dock' ? 77 : type === 'collect' ? 55 : type === 'remove-mine' ? 12 : type === 'repair-unit' ? 13 : undefined)
       expect(out.cmd.upgrade).toBe(type === 'research' ? 'radar' : undefined)
+      expect(out.cmd.transportId).toBe(type === 'transport-load' || type === 'transport-unload' ? (type === 'transport-load' ? 61 : 62) : undefined)
       expect(out.cmd.pingType).toBe(type === 'ping' ? 'alert' : undefined)
+      expect(out.cmd.choice).toBe(type === 'sw-choose' ? 'emp' : undefined)
     }
   })
 
@@ -148,6 +156,15 @@ describe('protocol: type ids are stable', () => {
       smoke: 23,
       'set-detector': 24,
       'set-stealth': 25,
+      'place-mine': 26,
+      'remove-mine': 27,
+      'repair-unit': 28,
+      'dequeue-research': 29,
+      'transport-load': 30,
+      'transport-unload': 31,
+      'sw-choose': 32,
+      'sw-airstrike': 33,
+      'sw-emp': 34,
     })
   })
 })

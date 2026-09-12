@@ -1,10 +1,11 @@
 import type { EnvelopeCommand } from '@space-arenas/shared'
-import { canThrowBandolier, getBuilding, getUnit, getUpgrade, sqDist, tileToFx } from '@space-arenas/shared'
+import { canThrowBandolier, getBuilding, getUnit, getUpgrade, sqDist, tileToFx, SW_CHOICES, EMP_RADIUS_TILES, EMP_PULSE_TICKS } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { placementExplored, PING_TICKS } from '../core/world.ts'
 import { nearestPassablePoint } from '../core/pathfinding.ts'
 import { buildingRect, setMove, spawnBuilding } from '../entities/factories.ts'
 import { dockArrivePoint } from './economy-system.ts'
+import { spawnAirstrike } from './airstrike-system.ts'
 
 const SPAWN_POINT_RADIUS_DEFAULT = 2
 
@@ -319,6 +320,10 @@ export const InputSystem = {
           break
         }
         case 'grenade': {
+          if (!teamState.abilitiesUnlocked) {
+            world.emit({ type: 'command-rejected', player, reason: 'abilities tech not researched' })
+            break
+          }
           for (const id of cmd.entities) {
             const u = world.units.get(id)
             if (!u || u.team !== player) continue
@@ -355,6 +360,10 @@ export const InputSystem = {
           break
         }
         case 'smoke': {
+          if (!teamState.abilitiesUnlocked) {
+            world.emit({ type: 'command-rejected', player, reason: 'abilities tech not researched' })
+            break
+          }
           for (const id of cmd.entities) {
             const u = world.units.get(id)
             if (!u || u.team !== player) continue
@@ -445,6 +454,182 @@ export const InputSystem = {
             bought = true
           }
           if (bought) world.emit({ type: 'stealth-bought', team: player })
+          break
+        }
+        case 'place-mine': {
+          if (!teamState.mineTech) {
+            world.emit({ type: 'command-rejected', player, reason: 'mine tech not researched' })
+            break
+          }
+          let mineCount = 0
+          world.mines.forEach((_id, m) => {
+            if (m.team === player) mineCount++
+          })
+          const tx = Math.floor(cmd.x / 1000)
+          const ty = Math.floor(cmd.y / 1000)
+          const committer = cmd.entities.find((id) => {
+            const u = world.units.get(id)
+            return !!u && u.team === player && u.unitType === 'engineer'
+          })
+          if (committer === undefined) {
+            world.emit({ type: 'command-rejected', player, reason: 'no engineer selected' })
+            break
+          }
+          const ct = world.transforms.require(committer)
+          const rangeFx = tileToFx(world.settings.minePlaceRange)
+          if (sqDist(ct.x, ct.y, cmd.x, cmd.y) > rangeFx * rangeFx) {
+            world.emit({ type: 'command-rejected', player, reason: 'mine out of range' })
+            break
+          }
+          if (mineCount >= world.settings.mineLimit) {
+            world.emit({ type: 'command-rejected', player, reason: 'mine limit reached' })
+            break
+          }
+          if (teamState.credits < world.settings.mineCost) {
+            world.emit({ type: 'command-rejected', player, reason: 'insufficient credits' })
+            break
+          }
+          if (tx < 0 || ty < 0 || tx >= world.width || ty >= world.height) {
+            world.emit({ type: 'command-rejected', player, reason: 'mine out of bounds' })
+            break
+          }
+          world.rebuildGridIfDirty()
+          const grid = world.grid
+          if (!grid || !grid.passable[ty * world.width + tx]) {
+            world.emit({ type: 'command-rejected', player, reason: 'cannot place mine there' })
+            break
+          }
+          teamState.credits -= world.settings.mineCost
+          const mid = world.createEntity('mine', player)
+          world.transforms.set(mid, { x: tx * 1000 + 500, y: ty * 1000 + 500 })
+          world.mines.set(mid, {
+            team: player,
+            owner: committer,
+            armTick: world.tick + world.settings.mineArmTicks,
+            triggerRadius: world.settings.mineTriggerRadius,
+            blastRadius: world.settings.mineBlastRadius,
+            damage: world.settings.mineDamage,
+          })
+          world.emit({ type: 'mine-placed', entity: mid, team: player, x: tx * 1000 + 500, y: ty * 1000 + 500 })
+          break
+        }
+        case 'remove-mine': {
+          if (!teamState.mineTech) {
+            world.emit({ type: 'command-rejected', player, reason: 'mine tech not researched' })
+            break
+          }
+          const target = cmd.target ?? -1
+          if (target < 0) break
+          const mine = world.mines.get(target)
+          const mt = world.transforms.get(target)
+          if (!mine || mine.team !== player || !mt) {
+            world.emit({ type: 'command-rejected', player, reason: 'no mine there' })
+            break
+          }
+          let removed = false
+          for (const id of cmd.entities) {
+            const u = world.units.get(id)
+            if (!u || u.team !== player) continue
+            if (u.unitType !== 'engineer' && u.unitType !== 'bulldozer') continue
+            if (world.works.has(id)) continue
+            const ut = world.transforms.get(id)
+            if (!ut) continue
+            const rangeFx = tileToFx(world.settings.minePlaceRange)
+            if (sqDist(ut.x, ut.y, mt.x, mt.y) > rangeFx * rangeFx) continue
+            world.removeEntity(target)
+            world.emit({ type: 'mine-removed', entity: target, team: player })
+            removed = true
+            break
+          }
+          if (!removed) world.emit({ type: 'command-rejected', player, reason: 'mine out of range' })
+          break
+        }
+        case 'repair-unit': {
+          const target = cmd.target ?? -1
+          if (target < 0) break
+          const tu = world.units.get(target)
+          if (!tu || tu.team !== player) break
+          if (tu.class === 'air') {
+            world.emit({ type: 'command-rejected', player, reason: 'cannot repair air units' })
+            break
+          }
+          const th = world.healths.get(target)
+          if (!th || th.hp >= th.maxHp) {
+            world.emit({ type: 'command-rejected', player, reason: 'target already at full health' })
+            break
+          }
+          let assigned = false
+          for (const id of cmd.entities) {
+            const u = world.units.get(id)
+            if (!u || u.team !== player) continue
+            if (u.unitType !== 'engineer') continue
+            if (world.works.has(id)) continue
+            world.works.set(id, { kind: 'repair-unit', building: target })
+            world.moves.delete(id)
+            assigned = true
+            world.emit({ type: 'repair-target-assigned', entity: id, target, team: player })
+          }
+          if (!assigned) world.emit({ type: 'command-rejected', player, reason: 'no available engineer' })
+          break
+        }
+        case 'transport-load': {
+          const transportId = cmd.transportId ?? -1
+          if (transportId < 0) break
+          const tu = world.units.get(transportId)
+          const tb = tu ? null : world.buildings.get(transportId)
+          const owner = tu ? tu.team : tb ? tb.team : -1
+          if (owner !== player) {
+            world.emit({ type: 'command-rejected', player, reason: 'no transport selected' })
+            break
+          }
+          const capacity = world.transportCapacityOf(transportId)
+          if (capacity <= 0) {
+            world.emit({ type: 'command-rejected', player, reason: 'unit cannot carry passengers' })
+            break
+          }
+          // Queued riders stay alive and walk to the APC, boarding one per tick in
+          // TransportSystem; here we only validate and reserve their slots so the
+          // APC (and its riders) visibly converge before disappearing inside.
+          const t =
+            world.transports.get(transportId) ??
+            { team: player, passengers: [], loadQueue: [], unloadX: 0, unloadY: 0, pendingUnload: false, unloadCount: 0 }
+          let queued = false
+          for (const id of cmd.entities) {
+            if (id === transportId) continue
+            const u = world.units.get(id)
+            if (!u || u.team !== player) continue
+            if (u.class === 'air') {
+              world.emit({ type: 'command-rejected', player, reason: 'cannot transport air units' })
+              continue
+            }
+            if (t.loadQueue.includes(id)) continue
+            if (t.passengers.length + t.loadQueue.length >= capacity) {
+              world.emit({ type: 'command-rejected', player, reason: 'transport is full' })
+              break
+            }
+            t.loadQueue.push(id)
+            queued = true
+          }
+          if (queued) world.transports.set(transportId, t)
+          break
+        }
+        case 'transport-unload': {
+          const transportId = cmd.transportId ?? -1
+          if (transportId < 0) break
+          const tc = world.transports.get(transportId)
+          if (!tc || tc.team !== player) {
+            world.emit({ type: 'command-rejected', player, reason: 'no transport selected' })
+            break
+          }
+          if (tc.passengers.length === 0) {
+            world.emit({ type: 'command-rejected', player, reason: 'transport is empty' })
+            break
+          }
+          tc.unloadX = cmd.x
+          tc.unloadY = cmd.y
+          tc.pendingUnload = true
+          tc.unloadCount = 0
+          world.emit({ type: 'unload-ordered', entity: transportId, x: cmd.x, y: cmd.y, team: player })
           break
         }
         case 'stop': {
@@ -679,6 +864,84 @@ export const InputSystem = {
           world.emit({ type: 'laser-strike', team: player, x: laserTx * 1000 + 500, y: laserTy * 1000 + 500 })
           break
         }
+        case 'sw-choose': {
+          if (!world.hasDoneBuilding(player, 'super-weapon')) {
+            world.emit({ type: 'command-rejected', player, reason: 'super weapon destroyed' })
+            break
+          }
+          const choice = cmd.choice
+          if (!choice || !SW_CHOICES.includes(choice)) {
+            world.emit({ type: 'command-rejected', player, reason: 'invalid strike choice' })
+            break
+          }
+          if (teamState.swChoice !== null) {
+            world.emit({ type: 'command-rejected', player, reason: 'super weapon already armed' })
+            break
+          }
+          teamState.swChoice = choice
+          world.emit({ type: 'sw-chosen', team: player, choice })
+          break
+        }
+        case 'sw-airstrike': {
+          if (teamState.swChoice !== 'airstrike') {
+            world.emit({ type: 'command-rejected', player, reason: 'airstrike not armed — choose it at the super weapon first' })
+            break
+          }
+          if (!world.hasDoneBuilding(player, 'super-weapon')) {
+            world.emit({ type: 'command-rejected', player, reason: 'super weapon destroyed' })
+            break
+          }
+          if (teamState.powerDown) {
+            world.emit({ type: 'command-rejected', player, reason: 'insufficient power' })
+            break
+          }
+          if (world.tick - teamState.airstrikeLastUsed < world.settings.airstrikeCooldownTicks) {
+            world.emit({ type: 'command-rejected', player, reason: 'airstrike on cooldown' })
+            break
+          }
+          const airTx = Math.floor(cmd.x)
+          const airTy = Math.floor(cmd.y)
+          if (airTx < 0 || airTy < 0 || airTx >= world.width || airTy >= world.height) {
+            world.emit({ type: 'command-rejected', player, reason: 'airstrike target out of bounds' })
+            break
+          }
+          teamState.airstrikeLastUsed = world.tick
+          spawnAirstrike(world, player, airTx, airTy)
+          world.emit({ type: 'airstrike-called', team: player, x: airTx * 1000 + 500, y: airTy * 1000 + 500 })
+          break
+        }
+        case 'sw-emp': {
+          if (teamState.swChoice !== 'emp') {
+            world.emit({ type: 'command-rejected', player, reason: 'emp not armed — choose it at the super weapon first' })
+            break
+          }
+          if (!world.hasDoneBuilding(player, 'super-weapon')) {
+            world.emit({ type: 'command-rejected', player, reason: 'super weapon destroyed' })
+            break
+          }
+          if (teamState.powerDown) {
+            world.emit({ type: 'command-rejected', player, reason: 'insufficient power' })
+            break
+          }
+          if (world.tick - teamState.empLastUsed < world.settings.empCooldownTicks) {
+            world.emit({ type: 'command-rejected', player, reason: 'emp on cooldown' })
+            break
+          }
+          const empTx = Math.floor(cmd.x)
+          const empTy = Math.floor(cmd.y)
+          if (empTx < 0 || empTy < 0 || empTx >= world.width || empTy >= world.height) {
+            world.emit({ type: 'command-rejected', player, reason: 'emp target out of bounds' })
+            break
+          }
+          teamState.empLastUsed = world.tick
+          const empId = world.createEntity('marker', player)
+          const empX = empTx * 1000 + 500
+          const empY = empTy * 1000 + 500
+          world.transforms.set(empId, { x: empX, y: empY })
+          world.empPulses.set(empId, { team: player, radius: EMP_RADIUS_TILES, untilTick: world.tick + EMP_PULSE_TICKS })
+          world.emit({ type: 'emp-strike', team: player, x: empX, y: empY, radius: EMP_RADIUS_TILES })
+          break
+        }
         case 'max-power': {
           for (const id of cmd.entities) {
             const b = world.buildings.get(id)
@@ -721,7 +984,7 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'no available bulldozer' })
             break
           }
-  const def = getBuilding(buildingType, world.settings)
+          const def = getBuilding(buildingType, world.settings)
           if (teamState.credits < def.cost) {
             world.emit({ type: 'command-rejected', player, reason: 'insufficient credits' })
             break
@@ -761,8 +1024,7 @@ export const InputSystem = {
                 b.assignedDozer = 0
               }
               world.queues.delete(id)
-              b.researching = ''
-              b.researchTicks = 0
+              b.researchQueue = []
               continue
             }
             const u = world.units.get(id)
@@ -871,6 +1133,19 @@ export const InputSystem = {
           world.emit({ type: 'ping-point', team: player, x, y, pingType: type })
           break
         }
+        case 'dequeue-research': {
+          const id = cmd.entities[0]
+          if (id === undefined || !ownedBuilding(world, player, id)) break
+          const b = world.buildings.get(id)
+          if (!b) break
+          const index = cmd.index ?? 0
+          if (index >= 0 && index < b.researchQueue.length) {
+            const removed = b.researchQueue.splice(index, 1)[0]
+            teamState.credits += removed.cost
+            world.emit({ type: 'research-cancelled', building: id, upgrade: removed.upgrade, team: player })
+          }
+          break
+        }
         case 'research': {
           const id = cmd.entities[0]
           if (id === undefined || !ownedBuilding(world, player, id)) break
@@ -879,8 +1154,8 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'building not finished' })
             break
           }
-          if (b.researching !== '') {
-            world.emit({ type: 'command-rejected', player, reason: 'already researching' })
+          if (b.researchQueue.length >= world.settings.queueLimit) {
+            world.emit({ type: 'command-rejected', player, reason: 'research queue full' })
             break
           }
           const upgradeType = cmd.upgrade ?? ''
@@ -893,9 +1168,13 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'wrong building' })
             break
           }
-          const cost = up.id === 'space-laser' ? world.laserUpgradeCost(player, up.cost) : up.cost
+          const cost = up.id === 'space-laser' ? world.laserUpgradeCost(player, up.cost) : up.id === 'weapon-upgrade' ? world.weaponUpgradeCost(player, up.cost) : up.cost
           if (up.id === 'space-laser' && world.laserLevel(player) >= world.laserMaxLevel()) {
             world.emit({ type: 'command-rejected', player, reason: 'laser maxed' })
+            break
+          }
+          if (up.id === 'weapon-upgrade' && world.weaponUpgradeLevel(player) >= world.weaponMaxLevel()) {
+            world.emit({ type: 'command-rejected', player, reason: 'weapon upgrade maxed' })
             break
           }
           if (up.id === 'stealth-tech' && teamState.stealthTech) {
@@ -906,14 +1185,37 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'detector already researched' })
             break
           }
+          if (up.id === 'radar' && teamState.radar) {
+            world.emit({ type: 'command-rejected', player, reason: 'radar already researched' })
+            break
+          }
+          if (up.id === 'satellite' && teamState.satellite) {
+            world.emit({ type: 'command-rejected', player, reason: 'satellite already researched' })
+            break
+          }
+          if (up.id === 'mine-tech' && teamState.mineTech) {
+            world.emit({ type: 'command-rejected', player, reason: 'mine tech already researched' })
+            break
+          }
+          if (up.id === 'abilities-tech' && teamState.abilitiesUnlocked) {
+            world.emit({ type: 'command-rejected', player, reason: 'abilities tech already researched' })
+            break
+          }
+          if (up.id === 'defense-dome' && teamState.defenseDome) {
+            world.emit({ type: 'command-rejected', player, reason: 'defense dome already researched' })
+            break
+          }
           if (teamState.credits < cost) {
             world.emit({ type: 'command-rejected', player, reason: 'insufficient credits' })
             break
           }
           teamState.credits -= cost
-          b.researching = upgradeType
-          b.researchTicks = up.researchTimeTicks
-          world.emit({ type: 'research-started', building: id, upgrade: upgradeType, team: player })
+          b.researchQueue.push({ id: world.allocId(), upgrade: upgradeType, remainingTicks: up.researchTimeTicks, cost })
+          world.emit(
+            b.researchQueue.length === 1
+              ? { type: 'research-started', building: id, upgrade: upgradeType, team: player }
+              : { type: 'research-queued', building: id, upgrade: upgradeType, team: player },
+          )
           break
         }
       }

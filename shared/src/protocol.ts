@@ -21,6 +21,9 @@ export type CommandType =
   | 'assign-dock'
   | 'satellite'
   | 'laser'
+  | 'sw-choose'
+  | 'sw-airstrike'
+  | 'sw-emp'
   | 'set-flag-point'
   | 'forfeit'
   | 'max-power'
@@ -29,9 +32,20 @@ export type CommandType =
   | 'smoke'
   | 'set-detector'
   | 'set-stealth'
+  | 'place-mine'
+  | 'remove-mine'
+  | 'repair-unit'
+  | 'dequeue-research'
+  | 'transport-load'
+  | 'transport-unload'
 
 /** The three ping flavours players can drop to share intel with their team. */
 export type PingType = 'alert' | 'assist' | 'on-my-way'
+
+/** The one-time Super Weapon strike choice a team makes at its SP building. */
+export type SwChoice = 'laser' | 'airstrike' | 'emp'
+
+export const SW_CHOICES: SwChoice[] = ['laser', 'airstrike', 'emp']
 
 export interface SimCommand {
   type: CommandType
@@ -45,6 +59,10 @@ export interface SimCommand {
   to?: number
   upgrade?: string
   pingType?: PingType
+  /** The APC carrying (or about to carry) units for the transport commands. */
+  transportId?: number
+  /** Super Weapon strike choice for the `sw-choose` command. */
+  choice?: SwChoice
 }
 
 export interface EnvelopeCommand {
@@ -96,6 +114,9 @@ export const CMD_TYPE_IDS: Record<CommandType, number> = {
   'assign-dock': 11,
   satellite: 12,
   laser: 13,
+  'sw-choose': 32,
+  'sw-airstrike': 33,
+  'sw-emp': 34,
   'set-flag-point': 14,
   forfeit: 15,
   'max-power': 18,
@@ -104,6 +125,12 @@ export const CMD_TYPE_IDS: Record<CommandType, number> = {
   smoke: 23,
   'set-detector': 24,
   'set-stealth': 25,
+  'place-mine': 26,
+  'remove-mine': 27,
+  'repair-unit': 28,
+  'dequeue-research': 29,
+  'transport-load': 30,
+  'transport-unload': 31,
 }
 
 export const PING_TYPE_IDS: Record<PingType, number> = {
@@ -114,7 +141,7 @@ export const PING_TYPE_IDS: Record<PingType, number> = {
 
 export const PING_TYPES: PingType[] = ['alert', 'assist', 'on-my-way']
 
-const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth']
+const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload', 'sw-choose', 'sw-airstrike', 'sw-emp']
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -163,10 +190,11 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
   const extra =
     typeName === 'place' || typeName === 'queue' ? nameSize(cmd.buildingType ?? cmd.unitType) + 2
     :     typeName === 'research' ? nameSize(cmd.upgrade) + 2
-    : typeName === 'dequeue' ? 1
+    : typeName === 'sw-choose' ? nameSize(cmd.choice) + 2
+    : typeName === 'dequeue' || typeName === 'dequeue-research' ? 1
     : typeName === 'reorder-queue' ? 2
     : typeName === 'ping' ? 1
-    : typeName === 'attack-move' || typeName === 'attack' || typeName === 'build' || typeName === 'collect' || typeName === 'assign-dock' || typeName === 'keep-attack' || typeName === 'guard' ? 4
+    : typeName === 'attack-move' || typeName === 'attack' || typeName === 'build' || typeName === 'collect' || typeName === 'assign-dock' || typeName === 'keep-attack' || typeName === 'guard' || typeName === 'remove-mine' || typeName === 'repair-unit' || typeName === 'transport-load' || typeName === 'transport-unload' ? 4
     : 0
 
   let buf = new Uint8Array(4 + 4 + 1 + 4 + 2 + cmd.entities.length * 4 + 8 + extra)
@@ -210,7 +238,9 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
   if (typeName === 'place') putStr(cmd.buildingType ?? '')
   if (typeName === 'queue') putStr(cmd.unitType ?? '')
   if (typeName === 'research') putStr(cmd.upgrade ?? '')
+  if (typeName === 'sw-choose') putStr(cmd.choice ?? '')
   if (typeName === 'dequeue') putU8(cmd.index ?? 0)
+  if (typeName === 'dequeue-research') putU8(cmd.index ?? 0)
   if (typeName === 'reorder-queue') {
     putU8(cmd.index ?? 0)
     putU8(cmd.to ?? 0)
@@ -222,6 +252,10 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
   if (typeName === 'assign-dock') putI32(cmd.target ?? -1)
   if (typeName === 'keep-attack') putI32(cmd.target ?? -1)
   if (typeName === 'guard') putI32(cmd.target ?? -1)
+  if (typeName === 'remove-mine') putI32(cmd.target ?? -1)
+  if (typeName === 'repair-unit') putI32(cmd.target ?? -1)
+  if (typeName === 'transport-load') putI32(cmd.transportId ?? -1)
+  if (typeName === 'transport-unload') putI32(cmd.transportId ?? -1)
 
   return buf.slice(0, off)
 }
@@ -244,7 +278,12 @@ export const decodeEnvelope = (data: Uint8Array): EnvelopeCommand => {
   if (typeName === 'place') cmd.buildingType = readStr(c)
   if (typeName === 'queue') cmd.unitType = readStr(c)
   if (typeName === 'research') cmd.upgrade = readStr(c)
+  if (typeName === 'sw-choose') {
+    const s = readStr(c)
+    cmd.choice = s === 'laser' || s === 'airstrike' || s === 'emp' ? s : undefined
+  }
   if (typeName === 'dequeue') cmd.index = readU8(c)
+  if (typeName === 'dequeue-research') cmd.index = readU8(c)
   if (typeName === 'reorder-queue') {
     cmd.index = readU8(c)
     cmd.to = readU8(c)
@@ -256,6 +295,10 @@ export const decodeEnvelope = (data: Uint8Array): EnvelopeCommand => {
   if (typeName === 'assign-dock') cmd.target = readI32(c)
   if (typeName === 'keep-attack') cmd.target = readI32(c)
   if (typeName === 'guard') cmd.target = readI32(c)
+  if (typeName === 'remove-mine') cmd.target = readI32(c)
+  if (typeName === 'repair-unit') cmd.target = readI32(c)
+  if (typeName === 'transport-load') cmd.transportId = readI32(c)
+  if (typeName === 'transport-unload') cmd.transportId = readI32(c)
 
   return { player, seq, tick, cmd }
 }
@@ -336,10 +379,10 @@ const envelopeLength = (data: Uint8Array): number => {
   off += entityCount * 4 + 8
   const typeId = data[0]
   const typeName = CMD_TYPES[typeId] ?? 'stop'
-  if (typeName === 'place' || typeName === 'queue' || typeName === 'research') {
+  if (typeName === 'place' || typeName === 'queue' || typeName === 'research' || typeName === 'sw-choose') {
     const len = view.getUint16(off, true)
     off += 2 + len
-  } else if (typeName === 'dequeue' || typeName === 'ping') {
+  } else if (typeName === 'dequeue' || typeName === 'ping' || typeName === 'dequeue-research') {
     off += 1
   } else if (typeName === 'reorder-queue') {
     off += 2
@@ -350,7 +393,11 @@ const envelopeLength = (data: Uint8Array): number => {
     typeName === 'collect' ||
     typeName === 'assign-dock' ||
     typeName === 'keep-attack' ||
-    typeName === 'guard'
+    typeName === 'guard' ||
+    typeName === 'remove-mine' ||
+    typeName === 'repair-unit' ||
+    typeName === 'transport-load' ||
+    typeName === 'transport-unload'
   ) {
     off += 4
   }

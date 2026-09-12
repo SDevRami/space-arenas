@@ -16,6 +16,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   aa: { id: 'aa', damage: 18, cooldownTicks: 10, range: 8, targetsAir: true },
   artillery: { id: 'artillery', damage: 60, cooldownTicks: 45, range: 12, splash: 1.5 },
   'turret-gun': { id: 'turret-gun', damage: 20, cooldownTicks: 12, range: 8, targetsAir: true },
+  'bunker-gun': { id: 'bunker-gun', damage: 22, cooldownTicks: 12, range: 8, targetsAir: true },
   'air-cannon': { id: 'air-cannon', damage: 45, cooldownTicks: 30, range: 7 },
 }
 

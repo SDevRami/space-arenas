@@ -261,6 +261,18 @@ export class AudioHooks {
         this.playTone({ freq: 90, dur: 0.9, type: 'sawtooth', gain: g })
         this.playTone({ freq: 180, dur: 0.5, type: 'square', gain: g * 0.6 })
         break
+      case 'sw-chosen':
+        this.playTone({ freq: 620, dur: 0.12, type: 'triangle', gain: g })
+        this.playTone({ freq: 880, dur: 0.18, type: 'triangle', gain: g * 0.7 })
+        break
+      case 'airstrike-bomb':
+        this.playTone({ freq: 70, dur: 0.8, type: 'sawtooth', gain: g })
+        this.playTone({ freq: 140, dur: 0.5, type: 'square', gain: g * 0.55 })
+        break
+      case 'emp-strike':
+        this.playTone({ freq: 220, dur: 0.6, type: 'triangle', gain: g * 0.7 })
+        this.playTone({ freq: 660, dur: 0.35, type: 'sine', gain: g * 0.5 })
+        break
       case 'power-down':
         this.playTone({ freq: 140, dur: 0.25, type: 'sawtooth', gain: g })
         break
@@ -500,8 +512,20 @@ export class AudioHooks {
       case 'combat-hit':
         this.playSfx('combat-hit', { pitch: e.damage, gain: 0.025 })
         break
+      case 'shield-hit':
+        this.playTone({ freq: 320, dur: 0.09, type: 'sine', gain: 0.045 })
+        break
       case 'laser-strike':
         this.playSfx('laser-strike', { gain: 0.07 })
+        break
+      case 'sw-chosen':
+        this.playSfx('select', { gain: 0.05 })
+        break
+      case 'airstrike-bomb':
+        this.playSfx('bomb-strike', { gain: 0.07 })
+        break
+      case 'emp-strike':
+        this.playSfx('emp-strike', { gain: 0.06 })
         break
       case 'power-down':
         this.playSfx('power-down', { gain: 0.06 })

@@ -40,6 +40,7 @@ export const ProductionSystem = {
       const b = world.buildings.get(id)
       if (!b || !b.done) return
       if (b.team < 0) return
+      if (world.empStunned(id)) return
       const s = world.teams.get(b.team)
       if (!s || s.powerDown) return
       if (q.queue.length === 0) return

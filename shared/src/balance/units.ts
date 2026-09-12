@@ -13,6 +13,8 @@ export interface UnitDef {
   producedBy: string
   isHarvester?: boolean
   capacity?: number
+  /** How many ground units this unit can carry (APC). 0/undefined = not a transport. */
+  transportCapacity?: number
   maxAmmo?: number
   reloadTicks?: number
 }
@@ -26,6 +28,8 @@ export const UNIT_IDS = [
   'assault-walker',
   'aa-platform',
   'artillery',
+  'engineer',
+  'apc',
   'fighter',
 ] as const
 
@@ -126,6 +130,29 @@ export const UNITS: Record<string, UnitDef> = {
     weapon: 'artillery',
     producedBy: 'war-factory',
   },
+  engineer: {
+    id: 'engineer',
+    name: 'Engineer',
+    class: 'vehicle',
+    cost: 150,
+    buildTimeTicks: SECONDS_TO_TICKS(12),
+    hp: 150,
+    vision: 6,
+    speed: 90,
+    producedBy: 'war-factory',
+  },
+  apc: {
+    id: 'apc',
+    name: 'APC',
+    class: 'vehicle',
+    cost: 200,
+    buildTimeTicks: SECONDS_TO_TICKS(10),
+    hp: 250,
+    vision: 7,
+    speed: 78,
+    producedBy: 'war-factory',
+    transportCapacity: 10,
+  },
   fighter: {
     id: 'fighter',
     name: 'Fighter',
@@ -149,6 +176,6 @@ export const getUnit = (id: string, settings?: Pick<MatchSettings, 'unitOverride
   return { ...def, ...(settings?.unitOverrides?.[id] ?? {}) }
 }
 
-/** Grenades/smoke are a ground-combat ability: aircraft and the construction bulldozer cannot throw. */
+/** Grenades/smoke are a ground-combat ability: aircraft, the construction bulldozer and the support engineer cannot throw. */
 export const canThrowBandolier = (u: Pick<UnitDef, 'id' | 'class'>): boolean =>
-  u.class !== 'air' && u.id !== 'bulldozer'
+  u.class !== 'air' && u.id !== 'bulldozer' && u.id !== 'engineer'

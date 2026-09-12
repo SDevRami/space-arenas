@@ -44,10 +44,12 @@ export const UNIT_ASSET_IDS = [
   'assault-walker',
   'aa-platform',
   'artillery',
+  'engineer',
+  'apc',
   'fighter',
 ]
 
-export const OBSTACLE_ASSET_TYPES = ['rock', 'tree', 'wreck']
+export const OBSTACLE_ASSET_TYPES = ['rock', 'tree', 'wreck', 'mine']
 
 const UNIT_ASSET_FOLDERS: Record<string, string> = {
   bulldozer: 'v_b',
@@ -55,15 +57,16 @@ const UNIT_ASSET_FOLDERS: Record<string, string> = {
   'assault-walker': 'v_aw',
   'aa-platform': 'v_aa',
   artillery: 'v_a',
+  engineer: 'v_e',
   fighter: 'v_f',
 }
 
-/** Client-only high-quality asset path templates; {frame} is replaced with the 4-digit image number, {dir} with a direction name, {color} with the player's 1-based color folder. */
+/** Client-only high-quality asset path templates; {frame} is replaced with the 4-digit image number, {color} with the player's 1-based color folder. Units are rendered in 8 heading frames (0001-0008); {dir} is kept for legacy user overrides. */
 export const DEFAULT_ASSET_PATHS: Record<string, string> = {
   ...Object.fromEntries(Object.entries(BUILDING_ASSET_FOLDERS).map(([id, f]) => [`building:${id}`, `${f}/{color}/${f}_{frame}.png`])),
   'field:supply': 'sf/sf_{frame}.png',
   'field:oil': 'of/of_{frame}.png',
-  ...Object.fromEntries(Object.entries(UNIT_ASSET_FOLDERS).map(([id, f]) => [`unit:${id}`, `${f}/{color}/${f}_{dir}.png`])),
+  ...Object.fromEntries(Object.entries(UNIT_ASSET_FOLDERS).map(([id, f]) => [`unit:${id}`, `${f}/{color}/${f}_{frame}.png`])),
   obstacle: 'ao/{type}.png',
   ...Object.fromEntries(OBSTACLE_ASSET_TYPES.map((k) => [`obstacle:${k}`, `ao/${k}.png`])),
   // empty = procedural flame fallback; a user override like `fx/burn/burn_{frame}.png` loads 2 animated frames
@@ -198,7 +201,7 @@ const load = (): GraphicsSettings => {
             if (f && (v === '' || v === `${f}/${f}_{frame}_{color}.png`)) return adopt()
           } else if (k.startsWith('unit:')) {
             const f = UNIT_ASSET_FOLDERS[k.slice('unit:'.length)]
-            if (f && (v === '' || v === `${f}/${f}_{dir}_{color}.png`)) return adopt()
+            if (f && (v === '' || v === `${f}/${f}_{dir}.png` || v === `${f}/${f}_{dir}_{color}.png` || v.includes('{dir}'))) return adopt()
           }
           return v === '' && DEFAULT_ASSET_PATHS[k] ? adopt() : v
         }

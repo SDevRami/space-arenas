@@ -3,9 +3,21 @@ export const SIM_TICK_MS = 1000 / SIM_TICK_HZ
 export const TICKS_PER_SECOND = SIM_TICK_HZ
 export const SECONDS_TO_TICKS = (seconds: number): number => Math.round(seconds * SIM_TICK_HZ)
 
+/** Extra transport slots granted by each Tech-Center "Troop Capacity" research. */
+export const TRANSPORT_CAPACITY_PER_LEVEL = 3
+
+/** Defense Dome (Day 12): max shield HP per building, regen per powered tick, and power drained per active shield. */
+export const SHIELD_MAX_HP = 200
+export const SHIELD_REGEN_PER_TICK = 1
+export const SHIELD_POWER_DRAIN_PER_TICK = 1
+
+/** Weapon Upgrade research (Day 12): max research levels and damage per level, applied only to max-rank (level 5) veterans. */
+export const WEAPON_UPGRADE_MAX_LEVEL = 3
+export const WEAPON_UPGRADE_DAMAGE_PER_LEVEL = 0.25
+
 export const DEFAULT_PORT = 17321
 export const DEFAULT_MAX_PLAYERS = 8
-export const PROTOCOL_VERSION = 6
+export const PROTOCOL_VERSION = 11
 
 /** Number of selectable per-player colors. */
 export const PLAYER_COLOR_COUNT = 10
@@ -37,6 +49,25 @@ export const MAX_POWER_TICKS = SECONDS_TO_TICKS(30)
 export const FOG_MODES = ['memory', 'classic', 'hard'] as const
 export type FogMode = (typeof FOG_MODES)[number]
 export const FOG_MODE_DEFAULT: FogMode = 'memory'
+
+/** Day 13 — Super Weapon random strikes, chosen once at the Super Weapon.
+ * Airstrike: a squadron of kamikaze planes bombs the target point in sequence.
+ * EMP: disables every enemy unit/building in a radius for a few seconds. */
+export const AIRSTRIKE_PLANES = 4
+/** Kamikaze plane cruise speed, in fx units per tick (~0.5 tiles/tick). */
+export const AIRSTRIKE_PLANE_SPEED = 500
+/** Delay between consecutive kamikaze bombs reaching the target. */
+export const AIRSTRIKE_PLANE_STAGGER_TICKS = SECONDS_TO_TICKS(0.3)
+export const AIRSTRIKE_BOMB_DAMAGE = 50
+export const AIRSTRIKE_BOMB_RADIUS = 3
+export const AIRSTRIKE_COOLDOWN_TICKS = SECONDS_TO_TICKS(60)
+
+export const EMP_RADIUS_TILES = 8
+/** How long the EMP zone disables enemy units/buildings. */
+export const EMP_DURATION_TICKS = SECONDS_TO_TICKS(5)
+/** How long the purple pulse visual stays up (same window as the disable). */
+export const EMP_PULSE_TICKS = EMP_DURATION_TICKS
+export const EMP_COOLDOWN_TICKS = SECONDS_TO_TICKS(60)
 
 /** Length of one full day/night cycle, in game ticks, when dayNight is enabled. */
 export const DAY_NIGHT_CYCLE_TICKS = SECONDS_TO_TICKS(310)
@@ -71,6 +102,21 @@ export const DETECTOR_COST = 200
 export const DETECTOR_RANGE = 12
 export const STEALTH_COST = 200
 export const STEALTH_REVEAL_TICKS = SECONDS_TO_TICKS(3)
+
+/** Mines: place/remove range, proximity trigger, blast, cost & arming delay. */
+export const MINE_COST = 50
+export const MINE_PLACE_RANGE = 4
+export const MINE_TRIGGER_RADIUS = 1
+export const MINE_BLAST_RADIUS = 2
+export const MINE_DAMAGE = 60
+export const MINE_ARM_TICKS = SECONDS_TO_TICKS(1.5)
+export const TEAM_MINE_LIMIT = 30
+
+/** Engineer: single-target heal per tick, aura radius/kill-rank once veteran. */
+export const ENGINEER_HEAL_PER_TICK = 4
+export const ENGINEER_HEAL_RANGE = 2
+export const ENGINEER_HEAL_AURA_RADIUS = 2
+export const ENGINEER_HEAL_RANK = 3
 
 /** How far (in cells) an enemy entity stays visible past the edge of the currently-visible area. */
 export const FOG_FADE_DISTANCE = 3
@@ -167,6 +213,8 @@ export interface MatchSettings {
   laserMaxLevel: number
   laserDelayTicksLv1: number
   laserDelayTicksLv2: number
+  airstrikeCooldownTicks: number
+  empCooldownTicks: number
   maxPowerTicks: number
   fogFadeDistance: number
   fogMode: FogMode
@@ -234,6 +282,18 @@ export interface MatchSettings {
   detectorRange: number
   stealthCost: number
   stealthRevealTicks: number
+  mineCost: number
+  minePlaceRange: number
+  mineTriggerRadius: number
+  mineBlastRadius: number
+  mineDamage: number
+  mineArmTicks: number
+  mineLimit: number
+  friendlyMineDamage: boolean
+  engineerHealPerTick: number
+  engineerHealRange: number
+  engineerHealAuraRadius: number
+  engineerHealRank: number
   buildingOverrides: Record<string, BuildingOverrides>
   unitOverrides: Record<string, UnitOverrides>
   weaponOverrides: Record<string, WeaponOverrides>
@@ -257,6 +317,8 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   laserMaxLevel: LASER_MAX_LEVEL,
   laserDelayTicksLv1: LASER_DELAY_TICKS_LV1,
   laserDelayTicksLv2: LASER_DELAY_TICKS_LV2,
+  airstrikeCooldownTicks: AIRSTRIKE_COOLDOWN_TICKS,
+  empCooldownTicks: EMP_COOLDOWN_TICKS,
   maxPowerTicks: MAX_POWER_TICKS,
   fogFadeDistance: FOG_FADE_DISTANCE,
   fogMode: FOG_MODE_DEFAULT,
@@ -324,6 +386,18 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   detectorRange: DETECTOR_RANGE,
   stealthCost: STEALTH_COST,
   stealthRevealTicks: STEALTH_REVEAL_TICKS,
+  mineCost: MINE_COST,
+  minePlaceRange: MINE_PLACE_RANGE,
+  mineTriggerRadius: MINE_TRIGGER_RADIUS,
+  mineBlastRadius: MINE_BLAST_RADIUS,
+  mineDamage: MINE_DAMAGE,
+  mineArmTicks: MINE_ARM_TICKS,
+  mineLimit: TEAM_MINE_LIMIT,
+  friendlyMineDamage: false,
+  engineerHealPerTick: ENGINEER_HEAL_PER_TICK,
+  engineerHealRange: ENGINEER_HEAL_RANGE,
+  engineerHealAuraRadius: ENGINEER_HEAL_AURA_RADIUS,
+  engineerHealRank: ENGINEER_HEAL_RANK,
   buildingOverrides: {},
   unitOverrides: {},
   weaponOverrides: {},

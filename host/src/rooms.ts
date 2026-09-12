@@ -55,6 +55,8 @@ const SANITIZE: Record<string, { min: number; max: number }> = {
   builderRepairPerTick: { min: 0, max: 100000 },
   satelliteRevealTicks: { min: 1, max: 100000 },
   satelliteCooldownTicks: { min: 0, max: 100000 },
+  airstrikeCooldownTicks: { min: 0, max: 100000 },
+  empCooldownTicks: { min: 0, max: 100000 },
   laserCooldownTicks: { min: 1, max: 100000 },
   laserRadius: { min: 1, max: 100 },
   laserDurationTicks: { min: 1, max: 100000 },
@@ -120,6 +122,18 @@ const SANITIZE: Record<string, { min: number; max: number }> = {
   detectorRange: { min: 1, max: 100 },
   stealthCost: { min: 0, max: 100000 },
   stealthRevealTicks: { min: 1, max: 100000 },
+  mineCost: { min: 0, max: 100000 },
+  minePlaceRange: { min: 0.5, max: 30 },
+  mineTriggerRadius: { min: 0.1, max: 5 },
+  mineBlastRadius: { min: 0.5, max: 10 },
+  mineDamage: { min: 0, max: 100000 },
+  mineArmTicks: { min: 1, max: 100000 },
+  mineLimit: { min: 1, max: 1000 },
+  friendlyMineDamage: { min: 0, max: 1 },
+  engineerHealPerTick: { min: 0, max: 1000 },
+  engineerHealRange: { min: 0.5, max: 10 },
+  engineerHealAuraRadius: { min: 0.5, max: 10 },
+  engineerHealRank: { min: 1, max: 5 },
 }
 
 const OVERRIDE_CLAMP: Record<string, { min: number; max: number }> = {

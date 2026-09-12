@@ -192,35 +192,46 @@ Tech-center research, two new SimCommands + ECS components. Follow-up fixes fold
 
 ---
 
-## Day 10 — Engineer Unit + Mines (M)
+## Day 10 — Engineer + Mines + Research Queue + Abilities Tech + Assets + Per-Unit Toggles (M) ✅ DONE
 
-New unit type + placement system. Mines have friendly-fire toggle.
+Engineer (vehicle, war factory, unarmed) with default single-target heal + rank-3 aura ring, `mine-tech`-gated proximity mines, and vehicle run-over — plus a follow-up bundle fused in after the crush rework: tech-center multi-research queue, `abilities-tech` gating grenade/smoke, 4-digit frame + 10-color asset templates, per-unit grenade/mine toggle state, and two asset-path fixes. All 12 new settings mirrored to dev panel + host sanitize.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Engineer unit** — war factory unit, can repair vehicles by right-clicking | #3a | New unit type in `units.ts`: `engineer { hp: 120, speed: 2.2, buildTime: 40, cost: 100, armor: 2, power: 0, range: 0, damage: 0, production: 'war-factory', tech: null }`. `work-system.ts` extends: `UnitRepairJob` for vehicle entities. Right-click on damaged unit → engineer moves to it, heals 2 HP/tick. |
-| 2 | **Mines** — engineer can place mine at position, proximity trigger, 4-cell range | #6 | New SimCommand `place-mine { unitId, x, y, team }`. New ECS `MineComp { range: 4, damage: 60, team: number }`. `mine-system.ts` new: check enemy units within range → detonate (deal damage, destroy self). `renderer.ts`: small circular sprite at (x, y). |
-| 3 | **Friendly-fire toggle** — lobby option controls whether mines damage own team | #6 | `MatchSettings.friendlyMineDamage: boolean`. `mine-system.ts` checks team match + setting before dealing damage. Lobby checkbox in match options. |
+| 1 | **Engineer unit** — war factory unit, heals by right-clicking | #3a | **Done.** New `engineer` unit (vehicle class, hp 150, speed 90, cost 150, 12 s build, produced by `war-factory`, no weapon → never in `world.attacks`). `repair-unit` SimCommand (CMD id 28, uses the standard 4-arg codec) in `input-system.ts`: no research gate, `no engineer selected`/`can't repair`/`target in full health`/`no engineers in range` rejects. `work-system.ts` gained a `repair-unit` job that chases the ally within `engineerHealRange` (2) then heals `engineerHealPerTick` (4) each tick; `healFlashes` cosmetic. |
+| 2 | **Mines** — engineer places + removes proximity mines | #6 | **Done.** `place-mine` (CMD 26) + `remove-mine` (CMD 27, target: entity, 4-arg codec). Fixed-point fx→tile fix in input-system (`Math.floor(cmd.x / 1000)`); mines sit at tile centers, arm after `mineArmTicks` (1.5 s), trip on a ground enemy within `mineTriggerRadius` (1), blast `mineBlastRadius` (2) for `mineDamage` (60), kills credited to the placing engineer (`m.owner`). `MinesSystem` + `MineComp`, `mine-exploded` event, `TEAM_MINE_LIMIT` (30), `hash.ts` covers mines. Removal by an idle engineer or bulldozer within `minePlaceRange` (4), gates: research → target exists/ownership → remover class → range. Own team sees own mines (never enemies). |
+| 3 | **Friendly-fire toggle** — setting for whether mines damage own team | #6 | **Done.** `MatchSettings.friendlyMineDamage` (default false, dev setting numeric 0/1). When on, own mines trip on, and blast, allied ground units; enemies always trigger. Toasts `minePlaceOn/Off`, `mineRemoveOn/Off`. |
+| 4 | **`mine-tech` research** — gates mine placement/removal | — | **Done.** New `mine-tech` upgrade (tech center, 400/20 s) finalizes in `placing-system.ts` → `TeamState.mineTech`; `remove-mine` command rejects `mine tech not researched`, HUD button disabled once researched. i18n `upgrades.names` entries. |
+| 5 | **Heal aura at veteran rank** | — | **Done.** `HealSystem` passively heals allied ground units within `engineerHealAuraRadius` (2) once the engineer reaches `engineerHealRank` (3); air never healed; flashes left of the sim hash. Follow-up: selected rank-3+ engineers draw a dotted green ring (`renderer.healAuraRing` + `drawDottedRangeRing`), driven from `Game.onFrame`. |
+| 6 | **Vehicle run-over** | — | **Done.** `CrushSystem` (runs with Mines before scenery): a vehicle that steps onto an enemy troop's tile deals `CRUSH_DAMAGE` (20) once on entry; a parked vehicle stops grinding and pairs re-arm after separating — keeps foot soldiers a threat and restored the bot combat tests (grind version collapsed the hard bot's damage to 0). Never crushes allies/air/infantry-only. |
+| 7 | **HUD + i18n + dev/sanitize + protocol** | — | **Done.** HUD Place Mine / Remove Mine toggles (Ctrl+`m`, Ctrl+`k`) via `addToggleButton(hotkey?)`; own-mine rendering (`syncMines`, obstacle texture) + green-cross heal flash (`syncHealFlashes`). Dev sections `mines` + `heal` (12 fields), host `SANITIZE` extended, `PROTOCOL_VERSION` → 7, `CMD_TYPE_IDS` 26–29 reflected in protocol test. |
+| 8 | **Tech-center multi-research queue** | — | **Done.** `BuildingComp.researchQueue: ResearchOrder[]` (unique `allocId()` per order); head decrements in `placing-system.ts`, `shift()` on complete; `research` command dedupes every researched upgrade, enforces `queueLimit`, emits `research-started`/`research-queued`; new `dequeue-research` command (protocol id 29) refunds and emits `research-cancelled`; `sell` wipes the queue; HUD renders queue-scroll cards with progress fill + cancel-on-click. |
+| 9 | **Grenade/smoke behind a tech-center upgrade** | — | **Done.** New `abilities-tech` upgrade (400/20 s) → `TeamState.abilitiesUnlocked` (hashed); `grenade`/`smoke` commands reject with `abilities tech not researched`; `Game.toggleAbility` + right-click throw + HUD buttons all gated; i18n added (en+ar). |
+| 10 | **4-digit frames + 10 color folders** | — | **Done.** `graphics.ts` templates `{folder}/{color}/{folder}_{frame}.png`, fields `sf_`/`of_`; `FRAME_TO_DIR` (0001=west+south … 0008=west); `loadUnitDir` replaces `{frame}`; `hud.assetIconUrl` uses frame 0002; on-disk `sd_*` renamed to `sf_*`. |
+| 11 | **Per-unit toggle state** | — | **Done.** grenade/smoke/place-mine/remove-mine are now keyed per unit id (`Game.abilityModes`/`mineModes`) instead of a global pending mode; HUD buttons + rings reflect only armed selected units; right-click acts only on armed units; armed state persists per unit across reselection; toggling on a mixed selection arms all eligible (disarms when all already armed); deselect clears maps; dead units pruned each frame. Renderer `abilityRing` → per-unit `abilityRings: Map`. spawn-point/flag remain one-shot input modes. |
+| 12 | **`{dir}` asset 404** | — | **Done.** `graphics.ts` migration now adopts ANY legacy unit template containing `{dir}` (caught `v_h/{color}/v_h_{dir}.png` variants); `hud.assetIconUrl` guards against any unresolved `{...}` placeholder. |
+| 13 | **PixiJS texture-unload warning** | — | **Done.** `building-sprites.ts` tracks loaded URLs and adds `unloadAllAssetTextures()` (clears caches + `Assets.unload`); `renderer.destroy()` no longer destroys Assets-owned textures directly. |
 
-**Touch points:** `units.ts`, `protocol.ts`, `work-system.ts`, new `mine-system.ts`, `world.ts`, `renderer.ts`, `constants.ts`, `index.html` (lobby checkbox)
+**Touch points:** `protocol.ts` (5 Commands + ids 26–29), `shared/constants.ts` (mine/heal/crush settings), `shared/balance/units.ts` (engineer, `canThrowBandolier` excludes it), `shared/balance/upgrades.ts` (`mine-tech`, `abilities-tech`), `world.ts` (`MineComp`, `crushPairs`, `healFlashes`, `researchQueue`, `abilitiesUnlocked`), new `mines-system.ts` / `crush-system.ts` / `heal-system.ts`, `work-system.ts` (repair-unit), `input-system.ts` (handlers + fx→tile fix + rejects), `placing-system.ts` (research finalizers/queue), `registry.ts`, `hash.ts`, `renderer.ts` (mines + heal flash + heal aura ring + per-unit ability rings + teardown), `Game.ts` + `hud.ts` (toggles + hotkeys + research queue UI + per-unit modes), `graphics.ts` / `building-sprites.ts` (4-digit/10-color templates + unload), `main.ts` + i18n (dev sections), `host/rooms.ts` (SANITIZE), `events.ts` (`mine-exploded`, `research-queued`, `research-cancelled`), `tests/{mines,engineer,crush,abilities,protocol,bot}.test.ts`
 
 ---
 
-## Day 11 — APC Transport (M)
+## Day 11 — APC Transport (M) ✅ DONE
 
 New unit + transport ECS + load/unload commands.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **APC vehicle** — war factory unit, carries 10 infantry | #7a | New unit type in `units.ts`: `apc { hp: 250, speed: 3.0, buildTime: 60, cost: 200, armor: 4, power: 0, range: 0, damage: 0, production: 'war-factory', tech: null, transportCapacity: 10 }`. |
-| 2 | **Load units** — select troops, click APC → they enter it | #7a | New SimCommand `transport-load { transportId, unitIds: number[] }`. `transport-system.ts` new: validates capacity, moves units into `TransportComp.passengers[]`, units invisible while inside. |
-| 3 | **Unload button** — APC selection bar has "Unload Here" button → click position to drop all | #7a | New SimCommand `transport-unload { transportId, x, y }`. `transport-system.ts`: spawns each passenger at offset positions around (x, y). HUD button in `unitSlotRows` when APC is selected. |
+| 1 | **APC vehicle** — war factory unit, carries 10 infantry | #7a | Shipped. New `apc` in `units.ts`: cost 200, HP 250, build 10 s, speed 78, vision 7, war-factory, `transportCapacity: 10`. Vector mini/medium shapes + `UNIT_ASSET_IDS` entry (`v_apc` folder optional). Speed uses game scale (spec `3.0` out of scale); armor/power/range/damage N/A (UnitDef has no such fields). |
+| 2 | **Load units** — select troops, click APC → they enter it | #7a | Shipped. `transport-load` (id 30) carries `transportId`; InputSystem validates + queues riders into `TransportComp.loadQueue[]` (no instant removal); `TransportSystem` makes riders walk to the APC while it drives out to meet them, boarding **one per tick** when within `BOARD_RANGE` (2400 fx, above the vehicle/infantry separation floor), taking a full stat snapshot at boarding. Queued riders stay alive until they board, so an APC destroyed mid-load no longer kills them. `hash.ts` + teams-loop hash cover comp + `transportCapacityLevel`; `PROTOCOL_VERSION 7→8`. Boarded passengers die with the APC (11.2). |
+| 3 | **Unload button** — APC selection bar has "Unload Here" button → click position to drop all | #7a | Shipped. `transport-unload` (id 31) + `onUnloadClick`/`isUnloadActive` HUD actions; `Game.ts` `pendingUnload` one-shot mode (modeled on pendingFlag); `TransportSystem` (registered after `CrushSystem`) drives to the point (`UNLOAD_RANGE` 2800 fx, also above the separation floor) then disembarks **one passenger per tick** into a stable grid around the point, stats restored. |
+| 4 | **Troop Capacity research** — Tech Center upgrade grants +3 slots/level | #7a | Shipped. `transport-capacity` upgrade (cost 300, tech-center) → `TeamState.transportCapacityLevel`; capacity = `10 + level × 3` (`TRANSPORT_CAPACITY_PER_LEVEL`). |
 
-**Touch points:** `units.ts`, `protocol.ts`, new `transport-system.ts`, `world.ts`, `hud.ts` (unload button), `Game.ts`
+**Touch points:** `units.ts`, `upgrades.ts`, `protocol.ts`, `constants.ts`, new `transport-system.ts` + `transport-system.ts` in `registry.ts`, `world.ts` (TransportComp), `hash.ts`, `input-system.ts`, `placing-system.ts`, `events.ts`, `hud.ts`, `graphics.ts`, `Game.ts`, `shapes.ts`, i18n `en/ar.json`, `tests/transport.test.ts`, `tests/protocol.test.ts` (ALL_TYPES/CMD_TYPE_IDS/round-trip).
 
 ---
 
-## Day 12 — Defense Buildings + Weapon Research (S–M)
+## Day 12 — Defense Buildings + Weapon Research (S–M) ✅ DONE
 
 Building types + combat + research. Counterplay triangle: dome counters laser, EMP counters power.
 
@@ -234,7 +245,7 @@ Building types + combat + research. Counterplay triangle: dome counters laser, E
 
 ---
 
-## Day 13 — Super Weapon Variants (M)
+## Day 13 — Super Weapon Variants (M) ✅ DONE
 
 Three strike types player chooses once at the SW building.
 

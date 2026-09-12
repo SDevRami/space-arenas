@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, EMP_RADIUS_TILES, AIRSTRIKE_BOMB_RADIUS, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
 import { World, placementExplored, type WorldGrid } from '../core/world.ts'
 import { Simulator } from '../core/Simulator.ts'
 import { GameLoop } from '../core/loop.ts'
@@ -92,6 +92,7 @@ export class Game {
   private toolsBar: HTMLElement | null = null
   private satelliteBtn: HTMLButtonElement | null = null
   private laserBtn: HTMLButtonElement | null = null
+  private strikeBtn: HTMLButtonElement | null = null
   private idleWorkerBtn: HTMLButtonElement | null = null
   private idleDozerBtn: HTMLButtonElement | null = null
   private logToggle: HTMLButtonElement | null = null
@@ -101,9 +102,17 @@ export class Game {
   private groupsSig = ''
   private groupModDown = false
   private pendingLaser = false
-  private pendingAbility: 'grenade' | 'smoke' | null = null
+  private pendingAirstrike = false
+  private pendingEmp = false
+  /** Per-unit armed toggles: unit id → grenade or smoke throw. Selection only
+   * drives the HUD buttons/rings; each unit keeps its own armed state. */
+  private abilityModes = new Map<number, 'grenade' | 'smoke'>()
+  /** Per-unit mine toggles: unit id → place or remove. Same per-unit rule. */
+  private mineModes = new Map<number, 'place' | 'remove'>()
   private pendingSpawnPoint = false
   private pendingFlag = false
+  /** Unload Here mode: next click unloads every selected loaded transport at the point. */
+  private pendingUnload = false
   private holdPlaced = false
   private multiPosMode = false
   private multiRoute: { ids: number[]; pts: Array<{ x: number; y: number }>; idx: number } | null = null
@@ -145,6 +154,8 @@ export class Game {
     this.satelliteBtn?.addEventListener('click', this.onSatelliteClick)
     this.laserBtn = document.getElementById('tool-laser') as HTMLButtonElement | null
     this.laserBtn?.addEventListener('click', this.onLaserClick)
+    this.strikeBtn = document.getElementById('tool-strike') as HTMLButtonElement | null
+    this.strikeBtn?.addEventListener('click', this.onStrikeClick)
     this.idleWorkerBtn = document.getElementById('tool-idle') as HTMLButtonElement | null
     this.idleWorkerBtn?.addEventListener('click', this.onIdleWorkerClick)
     this.idleDozerBtn = document.getElementById('tool-dozer') as HTMLButtonElement | null
@@ -183,6 +194,7 @@ export class Game {
       onDequeueClick: (buildingId, index) => this.dequeueUnit(buildingId, index),
       onReorderClick: (buildingId, from, to) => this.reorderQueue(buildingId, from, to),
       onResearchClick: (upgrade) => this.researchUpgrade(upgrade),
+      onDequeueResearch: (buildingId, index) => this.dequeueResearch(buildingId, index),
       onStopClick: () => this.onStopCommand(),
       onDestroyClick: () => this.destroySelection(),
       onAttackToggle: () => this.toggleAttackMove(),
@@ -200,11 +212,21 @@ export class Game {
       onMaxPowerClick: (ids) => this.maxPower(ids),
       onDeselectClick: () => this.onDeselectClick(),
       onGrenadeToggle: () => this.toggleAbility('grenade'),
-      isGrenadeActive: () => this.pendingAbility === 'grenade',
+      isGrenadeActive: () => this.anySelectionArmed('grenade'),
       onSmokeToggle: () => this.toggleAbility('smoke'),
-      isSmokeActive: () => this.pendingAbility === 'smoke',
+      isSmokeActive: () => this.anySelectionArmed('smoke'),
+      onPlaceMineToggle: () => this.toggleMineMode('place'),
+      isPlaceMineActive: () => this.anyMineArmed('place'),
+      onRemoveMineToggle: () => this.toggleMineMode('remove'),
+      isRemoveMineActive: () => this.anyMineArmed('remove'),
       onDetectorClick: (ids) => this.buyDetector(ids),
       onStealthClick: (ids) => this.buyStealth(ids),
+      onUnloadToggle: () => this.toggleUnload(),
+      isUnloadActive: () => this.pendingUnload,
+      onSwChoose: (choice) => {
+        if (!this.world) return
+        this.issue({ type: 'sw-choose', entities: [], x: 0, y: 0, choice })
+      },
     })
   }
 
@@ -214,25 +236,126 @@ export class Game {
     this.hud.toast(this.multiPosMode ? t('game.multiPosOn') : t('game.multiPosOff'))
   }
 
+  private anySelectionArmed(kind: 'grenade' | 'smoke'): boolean {
+    for (const id of this.selection) {
+      if (this.abilityModes.get(id) === kind) return true
+    }
+    return false
+  }
+
+  private anyMineArmed(kind: 'place' | 'remove'): boolean {
+    for (const id of this.selection) {
+      if (this.mineModes.get(id) === kind) return true
+    }
+    return false
+  }
+
   private toggleAbility(kind: 'grenade' | 'smoke'): void {
-    if (this.pendingAbility === kind) {
-      this.pendingAbility = null
+    const unitIds = this.abilityEligible()
+    if (unitIds.length === 0) {
+      this.hud.toast(t('game.noThrower'))
+      return
+    }
+    const ts = this.world?.teamState(this.localTeam)
+    if (!ts?.abilitiesUnlocked) {
+      this.hud.toast(t('game.abilitiesLocked'))
+      return
+    }
+    // All eligible selected units armed with this throw → disarm; else arm them.
+    const allArmed = unitIds.every((id) => this.abilityModes.get(id) === kind)
+    let on: boolean
+    if (allArmed) {
+      for (const id of unitIds) this.abilityModes.delete(id)
+      on = false
     } else {
-      this.pendingAbility = kind
-      this.multiPosMode = false
-      this.multiRoute = null
-      this.pendingLaser = false
-      this.pendingPlace = null
+      for (const id of unitIds) {
+        this.abilityModes.set(id, kind)
+        this.mineModes.delete(id)
+      }
+      this.exitUnitRings()
+      on = true
     }
     this.hud.toast(
-      kind === 'grenade'
-        ? this.pendingAbility
-          ? t('game.grenadeOn')
-          : t('game.grenadeOff')
-        : this.pendingAbility
-          ? t('game.smokeOn')
-          : t('game.smokeOff'),
+      kind === 'grenade' ? (on ? t('game.grenadeOn') : t('game.grenadeOff')) : on ? t('game.smokeOn') : t('game.smokeOff'),
     )
+  }
+
+  private toggleMineMode(kind: 'place' | 'remove'): void {
+    const unitIds = this.mineEligible(kind)
+    if (unitIds.length === 0) {
+      this.hud.toast(t('game.noMineUnit'))
+      return
+    }
+    const allArmed = unitIds.every((id) => this.mineModes.get(id) === kind)
+    let on: boolean
+    if (allArmed) {
+      for (const id of unitIds) this.mineModes.delete(id)
+      on = false
+    } else {
+      for (const id of unitIds) {
+        this.mineModes.set(id, kind)
+        this.abilityModes.delete(id)
+      }
+      this.exitUnitRings()
+      on = true
+    }
+    this.hud.toast(
+      kind === 'place' ? (on ? t('game.minePlaceOn') : t('game.minePlaceOff')) : on ? t('game.mineRemoveOn') : t('game.mineRemoveOff'),
+    )
+  }
+
+  /** Ends the other armed toggle: arming a throw disarms mine modes on those units and vice versa. */
+  private exitUnitRings(): void {
+    this.pendingPlace = null
+    this.cancelStrikeTargeting(true)
+    this.multiPosMode = false
+    this.multiRoute = null
+  }
+
+  /** Selected bandolier-capable units of the local team. */
+  private abilityEligible(): number[] {
+    const world = this.world
+    const out: number[] = []
+    for (const id of this.selection) {
+      const u = world?.units.get(id)
+      if (u && u.team === this.localTeam && canThrowBandolier({ id: u.unitType, class: u.class })) out.push(id)
+    }
+    return out
+  }
+
+  /** Selected units that can carry the given mine mode. */
+  private mineEligible(kind: 'place' | 'remove'): number[] {
+    const world = this.world
+    const out: number[] = []
+    for (const id of this.selection) {
+      const u = world?.units.get(id)
+      if (!u || u.team !== this.localTeam) continue
+      if (kind === 'place' ? u.unitType === 'engineer' : u.unitType === 'engineer' || u.unitType === 'bulldozer') out.push(id)
+    }
+    return out
+  }
+
+  /** Pick an owned mine under the clicked point (returns its entity id, or null). */
+  private pickMine(worldX: number, worldY: number): number | null {
+    const world = this.world
+    if (!world) return null
+    let best: number | null = null
+    let bestDist = Infinity
+    const tileX = worldX / 1000
+    const tileY = worldY / 1000
+    world.mines.forEach((id, m) => {
+      if (m.team !== this.localTeam) return
+      const t = world.transforms.get(id)
+      if (!t) return
+      const dx = tileX - t.x / 1000
+      const dy = tileY - t.y / 1000
+      const d = dx * dx + dy * dy
+      if (d <= 0.64 && d < bestDist) {
+        bestDist = d
+        best = id
+      }
+    })
+    return best
   }
 
   private buyDetector(buildingIds: number[]): void {
@@ -660,12 +783,41 @@ export class Game {
     else renderer.setHoverWorld(null)
 
     const ghost = this.computeGhost()
-    renderer.abilityRing = this.pendingAbility
-      ? {
-          radiusTiles: this.pendingAbility === 'grenade' ? world.settings.grenadeRange : world.settings.smokeRange,
-          color: this.pendingAbility === 'grenade' ? 0xff6a3a : 0x9ad1f5,
-        }
-      : null
+    const rings = new Map<number, { radiusTiles: number; color: number }>()
+    for (const [id, mode] of this.abilityModes) {
+      if (!world.units.has(id)) {
+        this.abilityModes.delete(id)
+        continue
+      }
+      if (!this.selection.has(id)) continue
+      rings.set(
+        id,
+        mode === 'grenade'
+          ? { radiusTiles: world.settings.grenadeRange, color: 0xff6a3a }
+          : { radiusTiles: world.settings.smokeRange, color: 0x9ad1f5 },
+      )
+    }
+    for (const [id, mode] of this.mineModes) {
+      if (!world.units.has(id)) {
+        this.mineModes.delete(id)
+        continue
+      }
+      if (!this.selection.has(id)) continue
+      rings.set(id, {
+        radiusTiles: world.settings.minePlaceRange,
+        color: mode === 'place' ? 0xffa843 : 0xff5068,
+      })
+    }
+    renderer.abilityRings = rings
+    let healAura = null as { radiusTiles: number; color: number } | null
+    for (const id of this.selection) {
+      const u = world.units.get(id)
+      if (u && u.unitType === 'engineer' && u.veteranRank >= world.settings.engineerHealRank) {
+        healAura = { radiusTiles: world.settings.engineerHealAuraRadius, color: 0x52e06a }
+        break
+      }
+    }
+    renderer.healAuraRing = healAura
     renderer.render(world, this.localTeam, this.selection, ghost, input.boxRect, this.moveMarker)
     renderer.setDayNight(world.settings.dayNight ? this.dayPhase(world) : 0)
     if (!this.paused) this.weather?.step()
@@ -676,6 +828,7 @@ export class Game {
     this.syncMobileToolButtonsForSelection()
     this.updateSatelliteButton(world)
     this.updateLaserButton(world)
+    this.updateStrikeButton(world)
     this.updateLaserTarget(renderer)
     if (this.devOverlayVisible) this.updateDevOverlay()
 
@@ -694,8 +847,19 @@ export class Game {
         const atkW = world.attacks.get(e.attacker)
         if (atkW) this.audio.playWeaponSfx(atkW.weaponId, e.x, e.y)
       }
+      if (e.type === 'airstrike-bomb') {
+        if (gfx.effects.effects) renderer.addImpact(e.x, e.y, 0xffb050)
+      }
+      if (e.type === 'emp-strike') {
+        if (gfx.effects.effects) renderer.addImpact(e.x, e.y, 0xc070ff)
+      }
       if (e.type === 'combat-hit' && world.teamOf(e.target) === this.localTeam) {
         hapticDamaged()
+      }
+      if (e.type === 'shield-hit') {
+        const tt = world.transforms.get(e.target)
+        if (tt && gfx.effects.effects) renderer.addImpact(tt.x, tt.y)
+        if (world.teamOf(e.target) === this.localTeam) hapticDamaged()
       }
       if (e.type === 'base-under-attack' && e.team === this.localTeam) {
         const last = this.baseAlertCooldowns.get(e.team) ?? -Infinity
@@ -762,6 +926,14 @@ export class Game {
         const d = UPGRADES[e.upgrade]
         return t('game.events.researchStarted', { name: d ? tn(e.upgrade, d.name) : e.upgrade })
       }
+      case 'research-queued': {
+        const d = UPGRADES[e.upgrade]
+        return t('game.events.researchQueued', { name: d ? tn(e.upgrade, d.name) : e.upgrade })
+      }
+      case 'research-cancelled': {
+        const d = UPGRADES[e.upgrade]
+        return t('game.events.researchCancelled', { name: d ? tn(e.upgrade, d.name) : e.upgrade })
+      }
       case 'upgrade-completed': {
         const d = UPGRADES[e.upgrade]
         return t('game.events.researchDone', { name: d ? tn(e.upgrade, d.name) : e.upgrade })
@@ -793,6 +965,16 @@ export class Game {
         return e.team === this.localTeam ? t('game.events.satelliteLaunched') : null
       case 'laser-strike':
         return e.team === this.localTeam ? t('game.events.laserStrike') : t('game.events.laserStrikeTeam', { t: e.team })
+      case 'sw-chosen':
+        return e.team === this.localTeam
+          ? t('game.events.swChosen', { name: e.choice === 'laser' ? t('tools.swLaser') : e.choice === 'airstrike' ? t('tools.swAirstrike') : t('tools.swEmp') })
+          : null
+      case 'airstrike-called':
+        return e.team === this.localTeam ? t('game.events.airstrikeCalled') : null
+      case 'airstrike-bomb':
+        return e.team === this.localTeam ? null : t('game.events.airstrikeBombTeam', { t: e.team })
+      case 'emp-strike':
+        return e.team === this.localTeam ? t('game.events.empStrike') : t('game.events.empStrikeTeam', { t: e.team })
       case 'supply-harvested':
         return t('game.events.supply', { a: e.amount })
       case 'oil-claiming':
@@ -907,6 +1089,16 @@ export class Game {
     this.audio.uiClick()
   }
 
+  private dequeueResearch(buildingId: number, index: number): void {
+    const world = this.world
+    if (!world) return
+    const b = world.buildings.get(buildingId)
+    if (!b || b.team !== this.localTeam) return
+    if (index < 0 || index >= b.researchQueue.length) return
+    this.issue({ type: 'dequeue-research', entities: [buildingId], x: 0, y: 0, index })
+    this.audio.uiClick()
+  }
+
   private reorderQueue(buildingId: number, from: number, to: number): void {
     const world = this.world
     if (!world) return
@@ -980,7 +1172,9 @@ export class Game {
 
   private onDeselectClick(): void {
     this.selection.clear()
-    this.pendingAbility = null
+    this.abilityModes.clear()
+    this.mineModes.clear()
+    this.pendingUnload = false
     this.audio.uiClick()
   }
 
@@ -1038,12 +1232,14 @@ export class Game {
       this.placePing({ x: info.world.x, y: info.world.y })
       return
     }
-    if (this.pendingLaser) {
+    if (this.pendingLaser || this.pendingAirstrike || this.pendingEmp) {
       const tx = Math.floor(info.world.x / 1000)
       const ty = Math.floor(info.world.y / 1000)
       if (tx >= 0 && ty >= 0 && tx < world.width && ty < world.height) {
-        this.issue({ type: 'laser', entities: [], x: tx, y: ty })
-        this.pendingLaser = false
+        if (this.pendingLaser) this.issue({ type: 'laser', entities: [], x: tx, y: ty })
+        else if (this.pendingAirstrike) this.issue({ type: 'sw-airstrike', entities: [], x: tx, y: ty })
+        else this.issue({ type: 'sw-emp', entities: [], x: tx, y: ty })
+        this.cancelStrikeTargeting(true)
       } else {
         this.hud.toast(t('game.laserInvalid'))
       }
@@ -1220,6 +1416,31 @@ export class Game {
     this.audio.uiClick()
   }
 
+  private onStrikeClick = (): void => {
+    const world = this.world
+    if (!world) return
+    if (world.airstrikeAvailable(this.localTeam)) {
+      this.pendingAirstrike = true
+      this.pendingLaser = false
+      this.hud.toast(t('game.airstrikeTarget'))
+    } else if (world.empAvailable(this.localTeam)) {
+      this.pendingEmp = true
+      this.pendingLaser = false
+      this.hud.toast(t('game.empTarget'))
+    } else {
+      this.hud.toast(t('game.laserUnavailable'))
+    }
+    this.audio.uiClick()
+  }
+
+  private cancelStrikeTargeting(quiet: boolean): void {
+    const armed = this.pendingLaser || this.pendingAirstrike || this.pendingEmp
+    this.pendingLaser = false
+    this.pendingAirstrike = false
+    this.pendingEmp = false
+    if (armed && !quiet) this.hud.toast(t('game.laserCancelled'))
+  }
+
   private onIdleWorkerClick = (): void => {
     this.centerOnIdleWorker('harvester')
   }
@@ -1394,17 +1615,37 @@ export class Game {
   private updateLaserTarget(renderer: Renderer): void {
     const world = this.world
     const input = this.input
-    if (!world || !input || !this.pendingLaser) {
+    if (!world || !input || (!this.pendingLaser && !this.pendingAirstrike && !this.pendingEmp)) {
       renderer.laserTarget = null
       return
     }
     const tx = Math.floor(input.mouseWorld.x / 1000)
     const ty = Math.floor(input.mouseWorld.y / 1000)
+    const isEmp = this.pendingEmp
     renderer.laserTarget = {
       x: tx * 1000 + 500,
       y: ty * 1000 + 500,
       valid: tx >= 0 && ty >= 0 && tx < world.width && ty < world.height,
+      radius: isEmp ? EMP_RADIUS_TILES : this.pendingAirstrike ? AIRSTRIKE_BOMB_RADIUS : undefined,
+      color: isEmp ? 0xc070ff : this.pendingAirstrike ? 0xffa050 : undefined,
     }
+  }
+
+  private updateStrikeButton(world: World): void {
+    const btn = this.strikeBtn
+    if (!btn) return
+    const choice = world.teamState(this.localTeam).swChoice
+    if (choice !== 'airstrike' && choice !== 'emp') {
+      btn.hidden = true
+      return
+    }
+    btn.hidden = false
+    const ready = choice === 'airstrike' ? world.airstrikeAvailable(this.localTeam) : world.empAvailable(this.localTeam)
+    const cooldown = choice === 'airstrike' ? world.airstrikeCooldownRemaining(this.localTeam) : world.empCooldownRemaining(this.localTeam)
+    const label = choice === 'airstrike' ? t('tools.swAirstrike') : t('tools.swEmp')
+    btn.disabled = !ready
+    btn.textContent = ready ? label : t('tools.laserCountdown', { s: Math.ceil(cooldown / SIM_TICK_HZ) })
+    btn.title = ready ? t('tools.strikeReady') : t('tools.laserUnavailable')
   }
 
   private selectedProducer(): number | null {
@@ -1420,6 +1661,26 @@ export class Game {
   private placePendingMarker(worldPt: { x: number; y: number }): boolean {
     const world = this.world
     if (!world) return true
+    if (this.pendingUnload) {
+      const transports: number[] = []
+      for (const id of this.selection) {
+        const tc = world.transports.get(id)
+        if (tc && tc.team === this.localTeam && tc.passengers.length > 0) transports.push(id)
+      }
+      if (transports.length > 0) {
+        const cmds = transports.map((id) => ({
+          type: 'transport-unload' as const,
+          entities: [],
+          x: Math.floor(worldPt.x),
+          y: Math.floor(worldPt.y),
+          transportId: id,
+        }))
+        this.issueBatch(cmds)
+      }
+      this.pendingUnload = false
+      this.hud.toast(t('game.unloadOrdered'))
+      return true
+    }
     if (this.pendingSpawnPoint) {
       const producer = this.selectedProducer()
       if (producer !== null) {
@@ -1451,12 +1712,12 @@ export class Game {
     if (kind === 'spawn') {
       this.pendingSpawnPoint = true
       this.pendingPlace = null
-      this.pendingLaser = false
+      this.cancelStrikeTargeting(true)
       this.hud.toast(t('game.spawnTarget'))
     } else {
       this.pendingFlag = true
       this.pendingPlace = null
-      this.pendingLaser = false
+      this.cancelStrikeTargeting(true)
       this.hud.toast(t('game.flagTarget'))
     }
     this.audio.uiClick()
@@ -1496,6 +1757,38 @@ export class Game {
       this.holdPlaced = false
       return
     }
+    if (this.keyMatch(e, 'esc') && this.pendingUnload) {
+      this.pendingUnload = false
+      this.hud.toast(t('game.unloadCancelled'))
+      return
+    }
+  }
+
+  private toggleUnload(): void {
+    const world = this.world
+    if (!world) return
+    let anyLoaded = false
+    for (const id of this.selection) {
+      const tc = world.transports.get(id)
+      if (tc && tc.team === this.localTeam && tc.passengers.length > 0) {
+        anyLoaded = true
+        break
+      }
+    }
+    if (!anyLoaded) {
+      this.hud.toast(t('game.selectLoadedTransport'))
+      return
+    }
+    this.pendingUnload = !this.pendingUnload
+    this.holdPlaced = false
+    if (this.pendingUnload) {
+      this.pendingPlace = null
+      this.cancelStrikeTargeting(true)
+      this.hud.toast(t('game.unloadTarget'))
+    } else {
+      this.hud.toast(t('game.unloadCancelled'))
+    }
+    this.audio.uiClick()
   }
 
   private toggleGameLog(): void {
@@ -1902,9 +2195,8 @@ export class Game {
 
   private onCommand(kind: CommandKind, worldPt: { x: number; y: number }): void {
     if (kind !== 'move') this.multiRoute = null
-    if (this.pendingLaser) {
-      this.pendingLaser = false
-      this.hud.toast(t('game.laserCancelled'))
+    if (this.pendingLaser || this.pendingAirstrike || this.pendingEmp) {
+      this.cancelStrikeTargeting(false)
       return
     }
     if (this.pendingPlace) {
@@ -1913,28 +2205,64 @@ export class Game {
       return
     }
     if (this.placePendingMarker(worldPt)) return
+    if (this.pendingUnload) {
+      this.pendingUnload = false
+      this.hud.toast(t('game.unloadCancelled'))
+    }
     const world = this.world
     if (!world || this.selection.size === 0) return
     hapticAction()
     const ids = [...this.selection]
 
-    // Bandolier toggles: while grenade/smoke mode is active, right-click throws
-    // to the clicked point (in-range units only). The mode stays armed.
-    if (this.pendingAbility) {
-      const ability = this.pendingAbility
-      const unitIds = ids.filter((id) => {
-        const u = world.units.get(id)
-        return u !== undefined && canThrowBandolier({ id: u.unitType, class: u.class })
+    // Mine modes: selected units armed with place-mine plant a mine at the
+    // point (engineers within range). Units armed with remove-mine sweep the
+    // owned mine under the cursor (engineers + bulldozers). The per-unit modes
+    // stay armed for repeat use until toggled off or cleared.
+    const placers = ids.filter((id) => {
+      const u = world.units.get(id)
+      return !!u && u.unitType === 'engineer' && this.mineModes.get(id) === 'place'
+    })
+    if (placers.length > 0) {
+      const range = tileToFx(world.settings.minePlaceRange)
+      const placed = placers.filter((id) => {
+        const t = world.transforms.get(id)
+        return !!t && (t.x - worldPt.x) ** 2 + (t.y - worldPt.y) ** 2 <= range * range
       })
-      if (unitIds.length > 0) {
-        const fired = [] as number[]
+      if (placed.length > 0) {
+        this.issue({ type: 'place-mine', entities: placed, x: Math.floor(worldPt.x), y: Math.floor(worldPt.y) })
+        hapticAction()
+      }
+      return
+    }
+    const removers = ids.filter((id) => {
+      const u = world.units.get(id)
+      return !!u && (u.unitType === 'engineer' || u.unitType === 'bulldozer') && this.mineModes.get(id) === 'remove'
+    })
+    if (removers.length > 0) {
+      const mineId = this.pickMine(worldPt.x, worldPt.y)
+      if (mineId !== null) {
+        this.issue({ type: 'remove-mine', entities: removers, x: 0, y: 0, target: mineId })
+        hapticAction()
+      }
+      return
+    }
+
+    // Bandolier toggles: selected units armed with grenade/smoke throw their
+    // own ability to the clicked point (in-range units only). The modes stay armed.
+    const throwers = ids.filter((id) => {
+      const u = world.units.get(id)
+      return !!u && canThrowBandolier({ id: u.unitType, class: u.class }) && this.abilityModes.has(id)
+    })
+    if (throwers.length > 0) {
+      if (!this.world?.teamState(this.localTeam).abilitiesUnlocked) return
+      for (const ability of ['grenade', 'smoke'] as const) {
+        const group = throwers.filter((id) => this.abilityModes.get(id) === ability)
+        if (group.length === 0) continue
         const range = ability === 'grenade' ? tileToFx(world.settings.grenadeRange) : tileToFx(world.settings.smokeRange)
-        for (const uid of unitIds) {
+        const fired = group.filter((uid) => {
           const t = world.transforms.get(uid)
-          if (!t) continue
-          if ((t.x - worldPt.x) ** 2 + (t.y - worldPt.y) ** 2 > range * range) continue
-          fired.push(uid)
-        }
+          return !!t && (t.x - worldPt.x) ** 2 + (t.y - worldPt.y) ** 2 <= range * range
+        })
         if (fired.length > 0) {
           this.issue({ type: ability, entities: fired, x: Math.floor(worldPt.x), y: Math.floor(worldPt.y) })
           hapticAction()
@@ -1994,6 +2322,23 @@ export class Game {
       return
     }
     const dozerIds = ids.filter((id) => world.units.get(id)?.unitType === 'bulldozer')
+    const apcTarget = target !== null ? world.transportCapacityOf(target) : 0
+    if (apcTarget > 0) {
+      const tu = world.units.get(target!)
+      const tb = tu ? null : world.buildings.get(target!)
+      const targetTeam = tu ? tu.team : tb ? tb.team : -1
+      if (targetTeam === this.localTeam) {
+        const loaders = ids.filter((id) => {
+          const u = world.units.get(id)
+          return !!u && u.team === this.localTeam && u.class !== 'air' && id !== target
+        })
+        if (loaders.length > 0) {
+          this.issue({ type: 'transport-load', entities: loaders, x: 0, y: 0, transportId: target! })
+          this.audio.uiClick()
+          return
+        }
+      }
+    }
     if (target !== null && dozerIds.length > 0) {
       const w = this.world?.wrecks.get(target)
       if (w) {
@@ -2004,6 +2349,15 @@ export class Game {
       const h = world.healths.get(target)
       if (b && b.team === this.localTeam && (!b.done || (h && h.hp < h.maxHp))) {
         this.issue({ type: 'build', entities: [dozerIds[0]], x: 0, y: 0, target })
+        return
+      }
+    }
+    const engineerIds = ids.filter((id) => world.units.get(id)?.unitType === 'engineer')
+    if (target !== null && engineerIds.length > 0) {
+      const tu = world.units.get(target)
+      const th = world.healths.get(target)
+      if (tu && tu.team === this.localTeam && tu.class !== 'air' && th && th.hp < th.maxHp) {
+        this.issue({ type: 'repair-unit', entities: engineerIds, x: 0, y: 0, target })
         return
       }
     }
@@ -2327,9 +2681,10 @@ export class Game {
         return
       }
       this.pendingPlace = null
-      this.pendingLaser = false
+      this.cancelStrikeTargeting(true)
       this.pendingSpawnPoint = false
       this.pendingFlag = false
+      this.pendingUnload = false
       this.pingMode = null
       this.syncPingButtons()
       this.holdPlaced = false
@@ -2548,7 +2903,9 @@ export class Game {
     this.satelliteBtn = null
     this.laserBtn?.removeEventListener('click', this.onLaserClick)
     this.laserBtn = null
-    this.pendingLaser = false
+    this.strikeBtn?.removeEventListener('click', this.onStrikeClick)
+    this.strikeBtn = null
+    this.cancelStrikeTargeting(true)
     this.idleWorkerBtn?.removeEventListener('click', this.onIdleWorkerClick)
     this.idleWorkerBtn = null
     this.idleDozerBtn?.removeEventListener('click', this.onIdleDozerClick)

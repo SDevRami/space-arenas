@@ -96,7 +96,7 @@ export const WorkSystem = {
     })
 
     world.works.forEach((id, w) => {
-      if (w.kind === 'collect') return
+      if (w.kind === 'collect' || w.kind === 'repair-unit') return
       const b = world.buildings.get(w.building)
       if (!b || b.assignedDozer !== id) {
         world.works.delete(id)
@@ -112,6 +112,7 @@ export const WorkSystem = {
         world.moves.delete(id)
         return
       }
+      if (world.empStunned(id)) return
       if (w.kind === 'collect') {
         const wc = world.wrecks.get(w.building)
         const wt = world.wrecks.get(w.building) ? world.transforms.get(w.building) : null
@@ -138,6 +139,35 @@ export const WorkSystem = {
           world.works.delete(id)
           world.moves.delete(id)
         }
+        return
+      }
+      if (w.kind === 'repair-unit') {
+        const tu = world.units.get(w.building)
+        const tt = world.transforms.get(w.building)
+        if (!tu || !tt) {
+          world.works.delete(id)
+          world.moves.delete(id)
+          return
+        }
+        const th = world.healths.get(w.building)
+        if (!th || th.hp >= th.maxHp) {
+          world.works.delete(id)
+          world.moves.delete(id)
+          return
+        }
+        // The engineer keeps chasing a moving ally until it is inside the heal
+        // range, then stands and heals it every tick.
+        const healRangeFx = world.settings.engineerHealRange * 1000
+        if (isqrt(sqDist(t.x, t.y, tt.x, tt.y)) > healRangeFx) {
+          const m = world.moves.get(id) ?? setMove(world, id, tt.x, tt.y)
+          m.tx = tt.x
+          m.ty = tt.y
+          m.needsPath = true
+          return
+        }
+        world.moves.delete(id)
+        th.hp = Math.min(th.maxHp, th.hp + world.settings.engineerHealPerTick)
+        world.healFlashes.set(w.building, { healTick: world.tick })
         return
       }
       const b = world.buildings.get(w.building)

@@ -365,6 +365,13 @@ const DEV_SCALAR_SECTIONS: Array<{ title: string; fields: DevFieldDef[] }> = [
     ],
   },
   {
+    title: 'superWeapon',
+    fields: [
+      { key: 'airstrikeCooldownTicks', unit: 'sec', min: 1, max: 600, step: 1, seconds: true },
+      { key: 'empCooldownTicks', unit: 'sec', min: 1, max: 600, step: 1, seconds: true },
+    ],
+  },
+  {
     title: 'fog',
     fields: [{ key: 'fogFadeDistance', unit: 'cells', min: 0, max: 30, step: 1 }],
   },
@@ -397,6 +404,28 @@ const DEV_SCALAR_SECTIONS: Array<{ title: string; fields: DevFieldDef[] }> = [
     fields: [
       { key: 'dayNightCycleTicks', unit: 'sec', min: 30, max: 3600, step: 5, seconds: true },
       { key: 'dayNightTransitionTicks', unit: 'sec', min: 1, max: 600, step: 1, seconds: true },
+    ],
+  },
+  {
+    title: 'mines',
+    fields: [
+      { key: 'mineCost', unit: 'credits', min: 0, max: 100000, step: 10 },
+      { key: 'minePlaceRange', unit: 'cells', min: 0.5, max: 30, step: 0.5 },
+      { key: 'mineTriggerRadius', unit: 'cells', min: 0.1, max: 5, step: 0.1 },
+      { key: 'mineBlastRadius', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
+      { key: 'mineDamage', unit: 'dmg', min: 0, max: 100000, step: 10 },
+      { key: 'mineArmTicks', unit: 'sec', min: 0, max: 60, step: 0.5, seconds: true },
+      { key: 'mineLimit', unit: 'units', min: 1, max: 1000, step: 1 },
+      { key: 'friendlyMineDamage', unit: '0–1', min: 0, max: 1, step: 1 },
+    ],
+  },
+  {
+    title: 'heal',
+    fields: [
+      { key: 'engineerHealPerTick', unit: 'hp/tick', min: 0, max: 1000, step: 1 },
+      { key: 'engineerHealRange', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
+      { key: 'engineerHealAuraRadius', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
+      { key: 'engineerHealRank', unit: 'levels', min: 1, max: 5, step: 1 },
     ],
   },
   {
@@ -908,7 +937,7 @@ const buildDevForm = (): void => {
       setDevStatus(t('dev.status.saved'))
     },
   )
-  appendAssetGroupLabel(t('dev.assets.scenery'))
+  appendAssetGroupLabel(t('dev.assets.obstacles'))
   for (const k of OBSTACLE_ASSET_TYPES) {
     makeTextInput(k, t('dev.fields.assetObstacle.desc'), g.assetPaths[`obstacle:${k}`] ?? '', (v) => {
       setAssetPath(`obstacle:${k}`, v)

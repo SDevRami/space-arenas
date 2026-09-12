@@ -1,5 +1,5 @@
 import { SparseSet } from '../ecs/sparse-set.ts'
-import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR } from '@space-arenas/shared'
+import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR, getUnit, getBuilding, TRANSPORT_CAPACITY_PER_LEVEL, WEAPON_UPGRADE_MAX_LEVEL, type SwChoice } from '@space-arenas/shared'
 import type { SimEvent } from './events.ts'
 import { rectFromCenter } from './geometry.ts'
 import { spawnBuilding, spawnUnit } from '../entities/factories.ts'
@@ -73,6 +73,17 @@ export interface UnitComp {
   revealedUntil: number
   /** Ticks left before the unit can throw another grenade/smoke (0 = ready). */
   abilityCooldown: number
+  /** Day 13 EMP: ticks until the unit re-awakens (0/absent = not disabled). */
+  empUntil?: number
+}
+
+export interface ResearchOrder {
+  /** Stable identity, unique per order — lets the HUD cancel a specific queued upgrade. */
+  id: number
+  upgrade: string
+  remainingTicks: number
+  /** Credits paid when this order was queued — refunded when the order is cancelled. */
+  cost: number
 }
 
 export interface BuildingComp {
@@ -84,8 +95,8 @@ export interface BuildingComp {
   done: boolean
   powerGen: number
   powerUse: number
-  researching: string
-  researchTicks: number
+  /** Tech-center upgrade queue: only the head (queue[0]) researches; the rest follow. */
+  researchQueue: ResearchOrder[]
   assignedDozer: number
   spawnTx: number
   spawnTy: number
@@ -99,6 +110,11 @@ export interface BuildingComp {
   sellingUntil: number
   /** Bought per-building detector ability: reveals enemy stealthed units in range. */
   detector: boolean
+  /** Defense Dome (Day 12): current shield points on the CC only. Regenerates
+   * while the team is powered and absorbs incoming damage before HP. */
+  shieldHp: number
+  /** Day 13 EMP: ticks until the building re-awakens (0/absent = not disabled). */
+  empUntil?: number
 }
 
 export interface HealthComp {
@@ -182,7 +198,7 @@ export interface SceneryComp {
   h: number
 }
 
-export type WorkKind = 'construct' | 'repair' | 'collect'
+export type WorkKind = 'construct' | 'repair' | 'collect' | 'repair-unit'
 
 export interface WorkComp {
   kind: WorkKind
@@ -224,6 +240,23 @@ export interface TeamState {
   stealthTech: boolean
   /** Detector Upgrade researched: buildings can buy the Detector ability. */
   detectorUnlocked: boolean
+  /** Mine Tech researched: engineers can place/remove mines and bulldozers can remove them. */
+  mineTech: boolean
+  /** Abilities Tech researched: bandolier units can throw grenades and smoke. */
+  abilitiesUnlocked: boolean
+  /** Troop Capacity researched count: each level adds transport slots to APCs. */
+  transportCapacityLevel: number
+  /** Defense Dome researched: the Command Center gains a shield while powered. */
+  defenseDome: boolean
+  /** Weapon Upgrade researched count (max WEAPON_UPGRADE_MAX_LEVEL). Boosts damage
+   * of max-rank (veteran rank 5) units only. */
+  weaponUpgradeLevel: number
+  /** Day 13: the one-time Super Weapon strike picked at the SP building. */
+  swChoice: SwChoice | null
+  /** Tick of the last Airstrike strike (for cooldown). */
+  airstrikeLastUsed: number
+  /** Tick of the last EMP strike (for cooldown). */
+  empLastUsed: number
 }
 
 export type PlaneState = 'idle' | 'attacking' | 'returning'
@@ -246,6 +279,26 @@ export interface LaserComp {
 
 export interface SatelliteMarkerComp {
   team: number
+  untilTick: number
+}
+
+/** Day 13: one kamikaze airstrike plane flying from the map edge to its target. */
+export interface AirstrikeComp {
+  team: number
+  /** Spawn position just off the top edge; held until `startTick`. */
+  startX: number
+  startY: number
+  /** Bomb impact point (fx). */
+  tx: number
+  ty: number
+  /** Tick the plane begins flying toward the target (staggers the squadron). */
+  startTick: number
+}
+
+/** Day 13: the EMP nullification zone at a strike point — purple pulse while active. */
+export interface EmpPulseComp {
+  team: number
+  radius: number
   untilTick: number
 }
 
@@ -280,6 +333,68 @@ export interface SmokeComp {
   radius: number
   /** Cloud expiry; the cloud shrinks over the last moments before it. */
   untilTick: number
+}
+
+/** A proximity mine placed by an engineer. It sits on a passable tile and
+ * detonates once armed when an enemy ground unit comes within `triggerRadius`
+ * tiles, blasting every ground unit of hostile/allied teams (per
+ * `friendlyMineDamage`) inside `blastRadius` for `damage`. Friendly owned
+ * mines are always visible to the placing team; enemies never see them. */
+export interface MineComp {
+  team: number
+  /** The engineer unit that placed the mine — it earns kill credit. */
+  owner: number
+  /** Tick from which the mine is armed and can detonate. */
+  armTick: number
+  /** Tiles: how close an enemy must get before the mine trips. */
+  triggerRadius: number
+  /** Tiles: how far the blast reaches. */
+  blastRadius: number
+  /** Damage dealt to every ground unit inside the blast. */
+  damage: number
+}
+
+/** Cosmetic-only heal marker (green "+"). The renderer draws it while
+ * `tick - healTick < 2`; it never affects the sim hash or the network
+ * protocol, exactly like `flashes`. */
+export interface HealFlashComp {
+  healTick: number
+}
+
+/** A squaddie riding inside a transport. The passenger is NOT a live entity
+ * while loaded: it leaves the world when it boards (full stat snapshot taken at
+ * that moment) and is respawned at unload with those stats restored. */
+export interface PassengerRecord {
+  unitType: string
+  hp: number
+  maxHp: number
+  killCount: number
+  veteranRank: VeteranRank
+  stealth: boolean
+  abilityCooldown: number
+}
+
+/** The loaded-hold of a transport unit (APC). Passengers are carried as
+ * `PassengerRecord`s; a `pendingUnload` point makes the APC drive there first
+ * (11.3) and then empty its hold, and if the APC is destroyed while loaded its
+ * passengers are gone with it (11.2 — they never re-enter the world).
+ *
+ * To load, the transport command queues riders into `loadQueue`: those units
+ * stay alive in the world and walk to the APC (while the APC drives toward
+ * them), and each tick the closest queued rider boards one at a time. */
+export interface TransportComp {
+  /** Owner team. */
+  team: number
+  passengers: PassengerRecord[]
+  /** Live unit ids ordered to board this APC but still walking over. */
+  loadQueue: number[]
+  /** Unload request target, or null when idle. */
+  unloadX: number
+  unloadY: number
+  pendingUnload: boolean
+  /** How many passengers have already stepped off at the current unload point
+   * (keeps the drop-off grid position fixed while unloading one per tick). */
+  unloadCount: number
 }
 
 export interface WorldGrid {
@@ -324,12 +439,19 @@ export class World {
   readonly smokes = new SparseSet<SmokeComp>()
   readonly planes = new SparseSet<PlaneComp>()
   readonly lasers = new SparseSet<LaserComp>()
+  readonly airstrikes = new SparseSet<AirstrikeComp>()
+  readonly empPulses = new SparseSet<EmpPulseComp>()
   readonly flashes = new SparseSet<DamageFlashComp>()
+  readonly healFlashes = new SparseSet<HealFlashComp>()
   readonly scenery = new SparseSet<SceneryComp>()
+  readonly mines = new SparseSet<MineComp>()
+  readonly transports = new SparseSet<TransportComp>()
+  /** Pairs "vid|iid" that have already crush-contacted; re-arms after separation. */
+  readonly crushPairs = new Set<string>()
   readonly pings: PingComp[] = []
 
   readonly events: SimEvent[] = []
-  private readonly entityKinds = new Map<number, 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck'>()
+  private readonly entityKinds = new Map<number, 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck' | 'mine'>()
 
   grid: WorldGrid | null = null
   gridDirty = true
@@ -345,7 +467,7 @@ export class World {
     this.settings = mergeMatchSettings(settings)
     this.rng = new RNG(seed)
     for (const p of players) {
-      this.teams.set(p, { credits: this.settings.startingCredits, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: p, color: p, stealthTech: false, detectorUnlocked: false })
+      this.teams.set(p, { credits: this.settings.startingCredits, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: p, color: p, stealthTech: false, detectorUnlocked: false, mineTech: false, abilitiesUnlocked: false, transportCapacityLevel: 0, defenseDome: false, weaponUpgradeLevel: 0, swChoice: null, airstrikeLastUsed: -100000, empLastUsed: -100000 })
       this.fog.set(p, new Uint8Array(map.width * map.height))
     }
     this.initStatic(map)
@@ -405,7 +527,7 @@ export class World {
     }
   }
 
-  createEntity(kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck', team: number): number {
+  createEntity(kind: 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck' | 'mine', team: number): number {
     const id = this.nextId++
     this.entityKinds.set(id, kind)
     if (team >= 0) this.events.push({ type: 'entity-created', entity: id, kind, team })
@@ -448,8 +570,13 @@ export class World {
     this.smokes.delete(id)
     this.planes.delete(id)
     this.lasers.delete(id)
+    this.airstrikes.delete(id)
+    this.empPulses.delete(id)
     this.flashes.delete(id)
+    this.healFlashes.delete(id)
     this.scenery.delete(id)
+    this.mines.delete(id)
+    this.transports.delete(id)
     this.entityKinds.delete(id)
     if (kind === 'building' || kind === 'field' || kind === 'scenery') this.gridDirty = true
     if (team >= 0) {
@@ -464,6 +591,8 @@ export class World {
     if (b) return b.team
     const f = this.oilFields.get(id)
     if (f && f.owner >= 0) return f.owner
+    const m = this.mines.get(id)
+    if (m) return m.team
     return -1
   }
 
@@ -559,7 +688,7 @@ export class World {
     for (const id of stale) this.removeEntity(id)
   }
 
-  kindOf(id: number): 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck' | undefined {
+  kindOf(id: number): 'unit' | 'building' | 'field' | 'marker' | 'scenery' | 'wreck' | 'mine' | undefined {
     return this.entityKinds.get(id)
   }
 
@@ -573,7 +702,7 @@ export class World {
 
   teamState(team: number): TeamState {    let s = this.teams.get(team)
     if (!s) {
-      s = { credits: 0, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: team, color: team, stealthTech: false, detectorUnlocked: false }
+      s = { credits: 0, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: team, color: team, stealthTech: false, detectorUnlocked: false, mineTech: false, abilitiesUnlocked: false, transportCapacityLevel: 0, defenseDome: false, weaponUpgradeLevel: 0, swChoice: null, airstrikeLastUsed: -100000, empLastUsed: -100000 }
       this.teams.set(team, s)
     }
     return s
@@ -590,6 +719,25 @@ export class World {
   radarActive(team: number): boolean {
     const s = this.teams.get(team)
     return !!s && s.radar && this.hasDoneBuilding(team, 'tech-center')
+  }
+
+  /** Total transport slots of an APC unit or garrison building (bunker),
+   * including Tech-Center capacity research for APCs. */
+  transportCapacityOf(id: number): number {
+    const unit = this.units.get(id)
+    if (unit) {
+      const def = getUnit(unit.unitType, this.settings)
+      const base = def.transportCapacity ?? 0
+      if (base === 0) return 0
+      const level = this.teams.get(unit.team)?.transportCapacityLevel ?? 0
+      return base + level * TRANSPORT_CAPACITY_PER_LEVEL
+    }
+    const building = this.buildings.get(id)
+    if (building) {
+      const def = getBuilding(building.buildingType, this.settings)
+      return def.transportCapacity ?? 0
+    }
+    return 0
   }
 
   laserAvailable(team: number): boolean {
@@ -622,6 +770,64 @@ export class World {
 
   laserUpgradeCost(team: number, baseCost: number): number {
     return baseCost * (this.laserLevel(team) + 1)
+  }
+
+  /** The Super Weapon strike this team locked in, or null before the first `sw-choose`. */
+  swChoiceOf(team: number): SwChoice | null {
+    return this.teams.get(team)?.swChoice ?? null
+  }
+
+  /** Whether the team can call an airstrike right now (chosen, SW alive, off cooldown, powered). */
+  airstrikeAvailable(team: number): boolean {
+    const s = this.teams.get(team)
+    if (!s || s.swChoice !== 'airstrike') return false
+    if (this.tick - s.airstrikeLastUsed < this.settings.airstrikeCooldownTicks) return false
+    if (s.powerDown) return false
+    if (!this.hasDoneBuilding(team, 'super-weapon')) return false
+    return true
+  }
+
+  airstrikeCooldownRemaining(team: number): number {
+    const s = this.teams.get(team)
+    if (!s || s.swChoice !== 'airstrike') return 0
+    return Math.max(0, this.settings.airstrikeCooldownTicks - (this.tick - s.airstrikeLastUsed))
+  }
+
+  /** Whether the team can call an EMP right now (chosen, SW alive, off cooldown, powered). */
+  empAvailable(team: number): boolean {
+    const s = this.teams.get(team)
+    if (!s || s.swChoice !== 'emp') return false
+    if (this.tick - s.empLastUsed < this.settings.empCooldownTicks) return false
+    if (s.powerDown) return false
+    if (!this.hasDoneBuilding(team, 'super-weapon')) return false
+    return true
+  }
+
+  empCooldownRemaining(team: number): number {
+    const s = this.teams.get(team)
+    if (!s || s.swChoice !== 'emp') return 0
+    return Math.max(0, this.settings.empCooldownTicks - (this.tick - s.empLastUsed))
+  }
+
+  /** Day 13 EMP: whether a unit/building is disabled by a nullification zone. */
+  empStunned(id: number): boolean {
+    const u = this.units.get(id)
+    if (u && u.empUntil !== undefined && u.empUntil > this.tick) return true
+    const b = this.buildings.get(id)
+    if (b && b.empUntil !== undefined && b.empUntil > this.tick) return true
+    return false
+  }
+
+  weaponUpgradeLevel(team: number): number {
+    return this.teams.get(team)?.weaponUpgradeLevel ?? 0
+  }
+
+  weaponMaxLevel(): number {
+    return WEAPON_UPGRADE_MAX_LEVEL
+  }
+
+  weaponUpgradeCost(team: number, baseCost: number): number {
+    return baseCost * (this.weaponUpgradeLevel(team) + 1)
   }
 
   emit(event: SimEvent): void {

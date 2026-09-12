@@ -392,7 +392,7 @@ export class BotPlayer {
     const upgradeId = ts.radar ? 'satellite' : 'radar'
     world.buildings.forEach((id, b) => {
       if (b.team !== team || !b.done || b.buildingType !== 'tech-center') return
-      if (b.researching !== '') return
+      if (b.researchQueue.length > 0) return
       const up = getUpgrade(upgradeId, world.settings)
       if (ts.credits < up.cost + this.config.reserve) return
       out.push({ type: 'research', entities: [id], x: 0, y: 0, upgrade: upgradeId })

@@ -37,6 +37,14 @@ export const hashWorld = (world: World): number => {
       addNumber(bytes, s.alliance)
       addNumber(bytes, s.stealthTech ? 1 : 0)
       addNumber(bytes, s.detectorUnlocked ? 1 : 0)
+      addNumber(bytes, s.mineTech ? 1 : 0)
+      addNumber(bytes, s.abilitiesUnlocked ? 1 : 0)
+      addNumber(bytes, s.transportCapacityLevel ? 1 : 0)
+      addNumber(bytes, s.defenseDome ? 1 : 0)
+      addNumber(bytes, s.weaponUpgradeLevel)
+      addString(bytes, s.swChoice ?? '')
+      addNumber(bytes, s.airstrikeLastUsed)
+      addNumber(bytes, s.empLastUsed)
     }
   }
 
@@ -95,7 +103,11 @@ export const hashWorld = (world: World): number => {
   addComp(world.smokes, (id) => world.smokes.require(id))
   addComp(world.planes, (id) => world.planes.require(id))
   addComp(world.lasers, (id) => world.lasers.require(id))
+  addComp(world.airstrikes, (id) => world.airstrikes.require(id))
+  addComp(world.empPulses, (id) => world.empPulses.require(id))
   addComp(world.scenery, (id) => world.scenery.require(id))
+  addComp(world.mines, (id) => world.mines.require(id))
+  addComp(world.transports, (id) => world.transports.require(id))
 
   return crc32(Uint8Array.from(bytes))
 }

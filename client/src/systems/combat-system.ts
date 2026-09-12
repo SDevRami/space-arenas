@@ -1,4 +1,4 @@
-import { getBuilding, getUnit, getWeapon, sqDist, tileToFx } from '@space-arenas/shared'
+import { getBuilding, getUnit, getWeapon, sqDist, tileToFx, VETERAN_MAX_RANK, WEAPON_UPGRADE_DAMAGE_PER_LEVEL } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { unitVeteranBonus, veteranRankForKills } from '../core/world.ts'
 import { setMove } from '../entities/factories.ts'
@@ -6,6 +6,14 @@ import { setMove } from '../entities/factories.ts'
 export const applyDamage = (world: World, target: number, amount: number, attacker: number, teamOverride = -1): void => {
   const h = world.healths.get(target)
   if (!h) return
+  // Defense Dome (Day 12.1): the Command Center (only) takes hits on its shield first.
+  const bsh = world.buildings.get(target)
+  if (bsh && bsh.shieldHp > 0) {
+    const absorbed = Math.min(bsh.shieldHp, amount)
+    bsh.shieldHp -= absorbed
+    amount -= absorbed
+    if (absorbed > 0) world.emit({ type: 'shield-hit', attacker, target, damage: absorbed, team: bsh.team })
+  }
   const targetUnit = world.units.get(target)
   if (targetUnit && targetUnit.veteranRank > 0) {
     amount *= unitVeteranBonus(world, targetUnit.veteranRank).armor
@@ -96,6 +104,7 @@ export const pickTarget = (
   const cands: Array<{ id: number; hpFrac: number; d: number }> = []
   const consider = (other: number, ox: number, oy: number): void => {
     if (other === id) return
+    if (world.empStunned(other)) return
     const t2 = world.units.get(other)?.team ?? world.buildings.get(other)?.team
     if (t2 === undefined || world.sameTeam(team, t2)) return
     if (!world.isVisibleTo(team, other)) return
@@ -155,8 +164,9 @@ export const pickTarget = (
 export const CombatSystem = {
   name: 'Combat',
   update(world: World): void {
-    world.attacks.forEach((id, a) => {
-      if (world.planes.has(id)) return
+world.attacks.forEach((id, a) => {
+        if (world.planes.has(id)) return
+        if (world.empStunned(id)) return
       const t = world.transforms.get(id)
       if (!t) return
       const weapon = getWeapon(a.weaponId, world.settings)
@@ -168,7 +178,14 @@ export const CombatSystem = {
       const isBuilding = world.buildings.has(id)
       const team = isBuilding ? world.buildings.require(id).team : world.units.require(id).team
       const targetsAir = weapon.targetsAir === true
-      const damageMult = veterancy ? veterancy.damage : 1
+      // Day 12.3: the Weapon Upgrade research multiplies damage, but only for
+      // units that have reached the maximum veteran rank (5).
+      const ts = world.teams.get(team)
+      const weaponUpgrade =
+        weaponUnit && weaponUnit.veteranRank >= VETERAN_MAX_RANK && ts && ts.weaponUpgradeLevel > 0
+          ? 1 + WEAPON_UPGRADE_DAMAGE_PER_LEVEL * ts.weaponUpgradeLevel
+          : 1
+      const damageMult = (veterancy ? veterancy.damage : 1) * weaponUpgrade
 
       if (a.currentCooldown > 0) a.currentCooldown--
 
@@ -177,6 +194,10 @@ export const CombatSystem = {
         if (!b.done) return
         const s = world.teams.get(team)
         if (s && s.powerDown) return
+        // Day 12.3 garrison (bunker): a building turret only fires while it is
+        // holding at least one infantryman — an empty bunker is just cover.
+        const garrison = world.transports.get(id)
+        if (garrison && garrison.passengers.length === 0) return
       }
 
       let target = a.target
@@ -339,6 +360,7 @@ export const fire = (
   splash: number | undefined,
   targetsAir = false,
 ): void => {
+  if (world.empStunned(attacker)) return
   const team = world.teamOf(attacker)
   world.emit({ type: 'shot-fired', attacker, x: tx, y: ty, team })
   revealIfStealthed(world, attacker)
@@ -365,6 +387,7 @@ export const fireGround = (
   splash: number | undefined,
   targetsAir = false,
 ): void => {
+  if (world.empStunned(attacker)) return
   const team = world.teamOf(attacker)
   world.emit({ type: 'shot-fired', attacker, x: tx, y: ty, team })
   revealIfStealthed(world, attacker)

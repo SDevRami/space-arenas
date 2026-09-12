@@ -48,6 +48,8 @@ export const SOUND_IDS = [
   'supply-harvested',
   'combat-hit',
   'laser-strike',
+  'bomb-strike',
+  'emp-strike',
   'power-down',
   'game-over',
   'ambient-lobby',

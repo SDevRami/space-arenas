@@ -45,6 +45,7 @@ export class InputManager {
   private shift = false
   private alt = false
   private boxing = false
+  private paint = false
   private boxStart: { x: number; y: number } | null = null
   private rightDown = false
   private rightStart: { x: number; y: number } | null = null
@@ -180,6 +181,16 @@ export class InputManager {
     return this.mouseInside
   }
 
+  setPaint(v: boolean): void {
+    if (this.paint === v) return
+    this.paint = v
+    if (!v) {
+      this.boxing = false
+      this.boxRect = null
+      this.boxStart = null
+    }
+  }
+
   edgePanVelocity(): { x: number; y: number } | null {
     if (!this.ctrl) return null
     if (!this.mouseInside) return null
@@ -218,7 +229,15 @@ export class InputManager {
     if (e.button === mouseButton('select') && this.boxing) {
       this.boxing = false
       const rect = this.canvas.getBoundingClientRect()
-      if (this.boxStart) {
+      if (this.paint) {
+        this.cb.onClick({
+          world: { x: this.mouseWorld.x, y: this.mouseWorld.y },
+          ctrl: this.ctrl || e.ctrlKey,
+          shift: this.shift || e.shiftKey,
+          alt: this.alt || e.altKey,
+          touch: false,
+        })
+      } else if (this.boxStart) {
         const dx = e.clientX - this.boxStart.x
         const dy = e.clientY - this.boxStart.y
         if (Math.abs(dx) < 6 && Math.abs(dy) < 6) {
@@ -412,7 +431,7 @@ export class InputManager {
           this.boxStart = this.touchStartPos
           this.boxRect = null
         }
-        if (this.boxing && this.boxStart) {
+if (this.boxing && this.boxStart && !this.paint) {
           const x0 = Math.min(this.boxStart.x, t.clientX)
           const y0 = Math.min(this.boxStart.y, t.clientY)
           const x1 = Math.max(this.boxStart.x, t.clientX)

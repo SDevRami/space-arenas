@@ -5,6 +5,7 @@ import type {
   HealthComp,
   MoveComp,
   TransformComp,
+  TransportComp,
   UnitComp,
   VisionComp,
   World,
@@ -83,8 +84,7 @@ export const spawnBuilding = (
     done,
     powerGen: def.powerGen,
     powerUse: def.powerUse,
-    researching: '',
-    researchTicks: 0,
+    researchQueue: [],
     assignedDozer: 0,
     spawnTx: -1,
     spawnTy: -1,
@@ -94,6 +94,7 @@ export const spawnBuilding = (
     maxPowerHpTarget: -1,
     sellingUntil: 0,
     detector: false,
+    shieldHp: 0,
   }
   const h: HealthComp = { hp: def.hp, maxHp: def.hp }
   world.transforms.set(id, t)
@@ -104,6 +105,10 @@ export const spawnBuilding = (
     const w: WeaponDef = getWeapon(def.weapon, world.settings)
     const a: AttackComp = { weaponId: def.weapon, cooldownTicks: w.cooldownTicks, currentCooldown: 0, target: null, targetPos: null, lastHit: -1, keepAttack: null, guardMode: false, guardPost: null }
     world.attacks.set(id, a)
+  }
+  if (def.transportCapacity) {
+    const tc: TransportComp = { team, passengers: [], loadQueue: [], unloadX: 0, unloadY: 0, pendingUnload: false, unloadCount: 0 }
+    world.transports.set(id, tc)
   }
   world.markGridDirty()
   return id
