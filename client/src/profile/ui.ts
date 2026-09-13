@@ -1,8 +1,9 @@
 import { ACHIEVEMENTS } from './achievements.ts'
-import { achievementTarget, countFor, loadProfile, loadProfileConfig, resetProfile, unlockedCount } from './profile.ts'
+import { achievementTarget, countFor, loadProfile, loadProfileConfig, resetProfile, unlockedCount, updateProfileName } from './profile.ts'
 import { t } from '../i18n/index.ts'
 
 let lastRender = 0
+let lastUsername = ''
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -23,6 +24,7 @@ const renderSummary = (): string => {
       <div><span>${fmt(c.wins)}</span><label>${t('profile.wins')}</label></div>
       <div><span>${fmt(c.losses)}</span><label>${t('profile.losses')}</label></div>
       <div><span>${winRate(c.wins, c.gamesPlayed)}</span><label>${t('profile.winRate')}</label></div>
+      <div><span>${fmt(c.spectatedMatches)}</span><label>${t('profile.spectated')}</label></div>
       <div><span>${fmt(c.kills)}</span><label>${t('profile.kills')}</label></div>
       <div><span>${fmt(c.supplyHarvested)}</span><label>${t('profile.supplies')}</label></div>
       <div><span>${fmt(c.unitsTrained)}</span><label>${t('profile.unitsTrained')}</label></div>
@@ -71,6 +73,14 @@ export const renderProfilePanel = (): void => {
   const list = document.getElementById('profile-achievements')
   if (summary) summary.innerHTML = renderSummary()
   if (list) list.innerHTML = renderAchievements()
+  const nameInput = document.getElementById('profile-username') as HTMLInputElement | null
+  if (nameInput) {
+    const name = loadProfile(window.localStorage).name
+    if (name !== lastUsername) {
+      lastUsername = name
+      nameInput.value = name
+    }
+  }
   lastRender = performance.now()
 }
 
@@ -80,12 +90,18 @@ export const onProfileTabShown = (): void => {
   renderProfilePanel()
 }
 
-/** Wire the reset button once. */
-export const initProfilePanel = (): void => {
+/** Wire the reset button and the username field once. */
+export const initProfilePanel = (onNameSaved?: (name: string) => void): void => {
   const resetBtn = document.getElementById('profile-reset') as HTMLButtonElement | null
   resetBtn?.addEventListener('click', () => {
     const name = prompt(t('profile.prompt'))?.trim()
     resetProfile(window.localStorage, name || undefined)
     renderProfilePanel()
+  })
+  const nameInput = document.getElementById('profile-username') as HTMLInputElement | null
+  nameInput?.addEventListener('change', () => {
+    const profile = updateProfileName(window.localStorage, loadProfile(window.localStorage), nameInput.value)
+    renderProfilePanel()
+    onNameSaved?.(profile.name)
   })
 }

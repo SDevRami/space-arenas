@@ -1012,6 +1012,28 @@ export class Hud {
     el.className = 'toast'
     el.textContent = msg
     document.getElementById('app')!.appendChild(el)
-    setTimeout(() => el.remove(), 4000)
+    requestAnimationFrame(() => el.classList.add('visible'))
+    setTimeout(() => {
+      el.classList.remove('visible')
+      setTimeout(() => el.remove(), 350)
+    }, 4000)
+  }
+
+  /** Achievement unlocked banner: pops near the top of the screen, then fades away. */
+  achievementToast(title: string, desc: string): void {
+    const el = document.createElement('div')
+    el.className = 'toast ach'
+    const header = t('profile.toastTitle')
+    el.innerHTML = `<span class="toast-icon">★</span><span class="toast-body"><span class="toast-header">${this.esc(header)}</span><span class="toast-title">${this.esc(title)}</span><span class="toast-desc">${this.esc(desc)}</span></span>`
+    document.getElementById('app')!.appendChild(el)
+    requestAnimationFrame(() => el.classList.add('visible'))
+    setTimeout(() => {
+      el.classList.remove('visible')
+      setTimeout(() => el.remove(), 350)
+    }, 3200)
+  }
+
+  private esc(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   }
 }

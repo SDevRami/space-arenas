@@ -11,8 +11,10 @@ import {
   loadProfile,
   loadProfileConfig,
   recordMatch,
+  recordSpectate,
   resetProfile,
   saveProfile,
+  updateProfileName,
   type MatchRecordInput,
   type ProfileConfig,
   type StorageLike,
@@ -203,9 +205,9 @@ describe('Day 14.2: cumulative achievements keep counting past unlock', () => {
     expect(profile.history[1].map).toBe('b')
   })
 
-  it('all 40 achievement defs resolve against the counter shape', () => {
+  it('all 43 achievement defs resolve against the counter shape', () => {
     const profile = freshProfile()
-    expect(ACHIEVEMENTS).toHaveLength(40)
+    expect(ACHIEVEMENTS).toHaveLength(43)
     for (const def of ACHIEVEMENTS) {
       expect(typeof achievementProgress(def, profile.counters, profile.typeCounts)).toBe('number')
       expect(achievementProgress(def, profile.counters, profile.typeCounts)).toBe(0)
@@ -294,5 +296,61 @@ describe('Day 14.3: SessionRecorder event tracking', () => {
     r.track(ev({ type: 'supply-harvested', team: 1, amount: 25 }))
     expect(first.counters.supplyHarvested).toBe(50)
     expect(r.summary().counters.supplyHarvested).toBe(75)
+  })
+})
+
+describe('Day 14.4: spectator recording + profile name', () => {
+  it('records only the spectatedMatches counter and spectator achievements', () => {
+    const storage = makeStorage()
+    const profile = freshProfile()
+    const cfg = config()
+
+    recordSpectate(storage, profile, cfg, { mode: 'net', map: 'arena', durationSec: 120 }, 5000)
+
+    expect(profile.counters.spectatedMatches).toBe(1)
+    expect(profile.counters.gamesPlayed).toBe(0)
+    expect(profile.counters.wins).toBe(0)
+    expect(profile.achievements['first-spectate']?.unlockedAt).toBe(5000)
+    expect(profile.achievements['first-match']).toBeUndefined()
+    expect(profile.history).toHaveLength(1)
+    expect(profile.history[0].result).toBe('spectate')
+    expect(profile.history[0].durationSec).toBe(120)
+  })
+
+  it('advances spectator achievements on the 5th and 10th watched match', () => {
+    const storage = makeStorage()
+    const profile = freshProfile()
+    const cfg = config()
+
+    for (let i = 0; i < 5; i++) recordSpectate(storage, profile, cfg, { mode: 'offline', map: 'm', durationSec: 60 })
+    expect(profile.counters.spectatedMatches).toBe(5)
+    expect(profile.achievements['five-spectates']).toBeDefined()
+    expect(profile.achievements['ten-spectates']).toBeUndefined()
+
+    for (let i = 0; i < 5; i++) recordSpectate(storage, profile, cfg, { mode: 'offline', map: 'm', durationSec: 60 })
+    expect(profile.achievements['ten-spectates']).toBeDefined()
+  })
+
+  it('a normal match can never inflate the spectator counter', () => {
+    const storage = makeStorage()
+    const profile = freshProfile()
+    const cfg = config()
+
+    record(storage, profile, cfg, { mode: 'offline', result: 'win', map: 'm', durationSec: 60, kills: 0, unitsBuilt: 0, buildingsBuilt: 0, supplyHarvested: 0, counters: { spectatedMatches: 50 } })
+
+    expect(profile.counters.spectatedMatches).toBe(0)
+  })
+
+  it('updateProfileName saves a trimmed, capped commander name', () => {
+    const storage = makeStorage()
+    const profile = freshProfile()
+
+    updateProfileName(storage, profile, '  Grand Admiral Super Long Name  ')
+    expect(profile.name).toBe('Grand Admiral Su')
+
+    updateProfileName(storage, profile, '   ')
+    expect(profile.name).toBe('Commander')
+
+    expect(loadProfile(storage).name).toBe(profile.name)
   })
 })

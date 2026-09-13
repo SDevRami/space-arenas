@@ -141,7 +141,7 @@ tabSettings.addEventListener('click', () => setTab('settings'))
 tabDev.addEventListener('click', () => setTab('dev'))
 tabProfile.addEventListener('click', () => setTab('profile'))
 
-initProfilePanel()
+initProfilePanel(applyProfileName)
 
 // ---------- language ----------
 
@@ -1027,7 +1027,7 @@ const buildDevForm = (): void => {
     audioPathInput(id)
   }
   appendAssetGroupLabel(t('dev.audio.events'))
-  for (const id of ['unit-trained', 'building-completed', 'upgrade-completed', 'supply-harvested', 'combat-hit', 'laser-strike', 'power-down', 'game-over'] as SoundId[]) {
+  for (const id of ['unit-trained', 'building-completed', 'upgrade-completed', 'supply-harvested', 'combat-hit', 'laser-strike', 'power-down', 'game-over', 'achievement'] as SoundId[]) {
     audioPathInput(id)
   }
   appendAssetGroupLabel(t('dev.audio.ambient'))
@@ -1768,6 +1768,17 @@ netNameEl.addEventListener('input', () => {
     }).catch(() => undefined)
   }, 400)
 })
+
+/** Called when the profile username is saved: mirrors it into the online name field + storage. */
+function applyProfileName(name: string): void {
+  netNameEl.value = name
+  localStorage.setItem('space-arenas:name', name)
+  void fetch('/api/self', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name }),
+  }).catch(() => undefined)
+}
 
 let selectedMatch: NetPlayer | null = null
 const knownChat = new Set<string>()

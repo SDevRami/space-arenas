@@ -544,6 +544,11 @@
             <div class="panel wide">
               <h1 class="panel-title" data-i18n="profile.h1">Player Profile</h1>
               <div class="hint" data-i18n="profile.hint">Career stats and achievements. Counters keep counting forever — even after an achievement unlocks — so your true totals keep growing.</div>
+              <div class="profile-username-row">
+                <label for="profile-username" data-i18n="profile.usernameLabel">Commander name</label>
+                <input id="profile-username" type="text" maxlength="16" data-i18n-placeholder="network.namePlaceholder" />
+                <span class="hint" data-i18n="profile.usernameHint">Saving it also fills the name field when hosting or joining a match.</span>
+              </div>
               <div id="profile-summary"></div>
               <h2 class="panel-subtitle" data-i18n="profile.achievements">Achievements</h2>
               <div id="profile-achievements"></div>

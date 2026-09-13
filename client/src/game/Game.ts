@@ -17,7 +17,8 @@ import { BotPlayer } from '../ai/bot.ts'
 import type { MatchConfig } from './match.ts'
 import { StatsBoard, StatsTracker, buildStatsRows, type StatsRow } from '../stats/stats.ts'
 import { SessionRecorder } from '../profile/recorder.ts'
-import { loadProfile, loadProfileConfig, recordMatch } from '../profile/profile.ts'
+import { loadProfile, loadProfileConfig, recordMatch, recordSpectate, freshCounters, achievementTarget, type ProfileCounters, type ProfileTypeCounts } from '../profile/profile.ts'
+import { ACHIEVEMENTS, achievementProgress } from '../profile/achievements.ts'
 import { t, tn } from '../i18n/index.ts'
 import { getControls, modifierLabel } from '../ui/controls.ts'
 import { getGraphics } from '../ui/graphics.ts'
@@ -63,6 +64,8 @@ export class Game {
   private matchStartedAt = 0
   private profileRecorded = false
   private matchMapLabel = ''
+  private achNotified = new Set<string>()
+  private lastAchCheckTick = -1
   private modeCfg: MatchConfig | null = null
   private netPlayers: PlayerSlot[] = []
   private spectator = false
@@ -466,6 +469,14 @@ export class Game {
     const profile = loadProfile(storage)
     const config = loadProfileConfig(storage)
     const elapsedMs = Math.max(0, performance.now() - this.matchStartedAt)
+    if (this.spectator) {
+      recordSpectate(storage, profile, config, {
+        mode: this.mode,
+        map: this.matchMapLabel || 'default',
+        durationSec: Math.round(elapsedMs / 1000),
+      })
+      return
+    }
     const summary = this.session.summary()
     const result: 'win' | 'loss' | 'draw' = winner === null ? 'draw' : winner === this.localTeam ? 'win' : 'loss'
     recordMatch(storage, profile, config, {
@@ -526,6 +537,8 @@ export class Game {
     this.matchStartedAt = performance.now()
     this.profileRecorded = false
     this.matchMapLabel = cfg.map.name
+    this.achNotified.clear()
+    this.lastAchCheckTick = -1
     this.bots = []
     this.finished = false
     this.resultsShown = false
@@ -548,6 +561,8 @@ export class Game {
     this.matchStartedAt = performance.now()
     this.profileRecorded = false
     this.matchMapLabel = msg.map.name
+    this.achNotified.clear()
+    this.lastAchCheckTick = -1
     this.resultsShown = false
     this.cinematicOverlay.classList.remove('visible')
     this.cinematicActive = false
@@ -921,6 +936,37 @@ export class Game {
       }
       if (e.type === 'command-rejected') {
         this.hud.toast(t('game.rejected', { reason: e.reason }))
+      }
+    }
+    this.checkLiveAchievements()
+  }
+
+  /** Every ~1s of sim time, see whether any achievement turned on; if so, toast + sound. */
+  private checkLiveAchievements(): void {
+    if (this.spectator || !this.session || !this.world) return
+    if (this.world.tick - this.lastAchCheckTick < SECONDS_TO_TICKS(1)) return
+    this.lastAchCheckTick = this.world.tick
+    const storage = window.localStorage
+    const profile = loadProfile(storage)
+    const config = loadProfileConfig(storage)
+    const sum = this.session.summary()
+    const counters: ProfileCounters = freshCounters()
+    for (const key of Object.keys(counters) as (keyof ProfileCounters)[]) {
+      counters[key] = (profile.counters[key] ?? 0) + (sum.counters[key] ?? 0)
+    }
+    const typeCounts: ProfileTypeCounts = { unitsTrainedByType: {}, buildingsBuiltByType: {}, upgradesResearched: {} }
+    for (const [id, n] of Object.entries(profile.typeCounts.unitsTrainedByType)) typeCounts.unitsTrainedByType[id] = (typeCounts.unitsTrainedByType[id] ?? 0) + n
+    for (const [id, n] of Object.entries(profile.typeCounts.buildingsBuiltByType)) typeCounts.buildingsBuiltByType[id] = (typeCounts.buildingsBuiltByType[id] ?? 0) + n
+    for (const [id, n] of Object.entries(profile.typeCounts.upgradesResearched)) typeCounts.upgradesResearched[id] = (typeCounts.upgradesResearched[id] ?? 0) + n
+    for (const [id, n] of Object.entries(sum.typeCounts.unitsTrainedByType)) typeCounts.unitsTrainedByType[id] = (typeCounts.unitsTrainedByType[id] ?? 0) + n
+    for (const [id, n] of Object.entries(sum.typeCounts.buildingsBuiltByType)) typeCounts.buildingsBuiltByType[id] = (typeCounts.buildingsBuiltByType[id] ?? 0) + n
+    for (const [id, n] of Object.entries(sum.typeCounts.upgradesResearched)) typeCounts.upgradesResearched[id] = (typeCounts.upgradesResearched[id] ?? 0) + n
+    for (const def of ACHIEVEMENTS) {
+      if (profile.achievements[def.id] || this.achNotified.has(def.id)) continue
+      if (achievementProgress(def, counters, typeCounts) >= achievementTarget(config, def)) {
+        this.achNotified.add(def.id)
+        this.hud.achievementToast(t(def.nameKey), t(def.descKey))
+        this.audio.playSfx('achievement', { gain: 0.08 })
       }
     }
   }

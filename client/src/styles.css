@@ -168,7 +168,7 @@
       #mobile-controls .mc-btn { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); padding: 8px 10px; cursor: pointer; font-family: inherit; font-size: 12px; min-width: 36px; }
       #mobile-controls .mc-btn:hover { background: var(--color-surface-hover); }
       #mobile-controls .mc-btn.active { background: var(--color-primary); border-color: var(--color-primary-hover); color: #fff; }
-      .hud-game-log { position: absolute; left: 12px; bottom: 84px; width: 360px; max-height: 130px; overflow: hidden; display: none; flex-direction: column; justify-content: flex-end; gap: 2px; pointer-events: none; font-size: 11px; color: #9fb2d4; text-shadow: 0 1px 2px #000; z-index: 5; }
+      .hud-game-log { position: absolute; left: 12px; top: 48px; width: 360px; max-height: 160px; overflow: hidden; display: none; flex-direction: column; justify-content: flex-end; gap: 2px; pointer-events: none; font-size: 11px; color: #9fb2d4; text-shadow: 0 1px 2px #000; z-index: 5; }
       .hud-game-log.visible { display: flex; }
       .hud-game-log .log-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -340,6 +340,11 @@
 
       #lobby .panel-subtitle { margin: 18px 0 6px; color: var(--color-accent); font-size: 14px; }
       #lobby .profile-name { font-size: 18px; color: var(--color-accent); font-weight: 700; margin: 12px 0 10px; }
+      #lobby .profile-username-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); }
+      #lobby .profile-username-row label { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }
+      #lobby .profile-username-row input { flex: 0 0 160px; background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); padding: 6px 8px; font-family: inherit; font-size: 13px; }
+      #lobby .profile-username-row input:focus { outline: none; border-color: var(--color-primary-hover); }
+      #lobby .profile-username-row .hint { margin: 0; font-size: 11px; }
       #lobby .profile-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
       #lobby .profile-stats > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); }
       #lobby .profile-stats span { font-size: 18px; color: var(--color-text-body); font-weight: 700; }
@@ -450,7 +455,14 @@
       #countdown-cancel { padding: 10px 18px; background: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-text); cursor: pointer; font-family: inherit; }
       #countdown-cancel:hover { background: var(--color-surface-hover); }
 
-      .toast { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); background: rgba(8,10,16,0.9); border: 1px solid var(--color-border-light); padding: 8px 16px; font-size: 13px; z-index: 30; }
+      .toast { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); background: rgba(8,10,16,0.9); border: 1px solid var(--color-border-light); padding: 8px 16px; font-size: 13px; z-index: 30; opacity: 0; transition: opacity 0.25s ease, transform 0.25s ease; }
+      .toast.visible { opacity: 1; }
+      .toast.ach { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-color: #c9a53a; background: linear-gradient(180deg, rgba(30,26,10,0.95), rgba(12,14,20,0.95)); max-width: min(360px, 90vw); }
+      .toast.ach .toast-icon { font-size: 20px; color: #ffd75e; text-shadow: 0 0 8px rgba(255,215,94,0.7); }
+      .toast.ach .toast-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+      .toast.ach .toast-header { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #c9a53a; }
+      .toast.ach .toast-title { font-size: 13px; font-weight: 700; color: #ffd75e; }
+      .toast.ach .toast-desc { font-size: 11px; color: var(--color-text-body); }
       #confirm-overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.6); z-index: 42; pointer-events: auto; }
       #confirm-overlay.visible { display: flex; }
       #confirm-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 20px; width: 400px; max-width: 90vw; border-radius: 6px; text-align: center; }

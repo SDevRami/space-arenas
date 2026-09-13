@@ -6,6 +6,7 @@ export interface ProfileCounters {
   wins: number
   losses: number
   draws: number
+  spectatedMatches: number
   kills: number
   killsInfantry: number
   killsVehicle: number
@@ -37,7 +38,7 @@ export interface ProfileTypeCounts {
 export interface MatchRecord {
   at: number
   mode: 'offline' | 'net'
-  result: 'win' | 'loss' | 'draw'
+  result: 'win' | 'loss' | 'draw' | 'spectate'
   map: string
   durationSec: number
   kills: number
@@ -78,6 +79,7 @@ export const freshCounters = (): ProfileCounters => ({
   wins: 0,
   losses: 0,
   draws: 0,
+  spectatedMatches: 0,
   kills: 0,
   killsInfantry: 0,
   killsVehicle: 0,
@@ -210,7 +212,7 @@ export const recordMatch = (s: StorageLike, profile: Profile, config: ProfileCon
   else if (input.result === 'loss') profile.counters.losses += 1
   else profile.counters.draws += 1
   for (const key of Object.keys(freshCounters()) as (keyof ProfileCounters)[]) {
-    if (key === 'gamesPlayed' || key === 'wins' || key === 'losses' || key === 'draws') continue
+    if (key === 'gamesPlayed' || key === 'wins' || key === 'losses' || key === 'draws' || key === 'spectatedMatches') continue
     profile.counters[key] += input.counters[key] ?? 0
   }
   for (const [id, n] of Object.entries(input.typeCounts.unitsTrainedByType)) profile.typeCounts.unitsTrainedByType[id] = (profile.typeCounts.unitsTrainedByType[id] ?? 0) + n
@@ -235,6 +237,39 @@ export const recordMatch = (s: StorageLike, profile: Profile, config: ProfileCon
 
 export const resetProfile = (s: StorageLike, name: string = DEFAULT_PROFILE_NAME): Profile => {
   const profile = freshProfile(name)
+  saveProfile(s, profile)
+  return profile
+}
+
+export interface SpectateRecordInput {
+  mode: 'offline' | 'net'
+  map: string
+  durationSec: number
+}
+
+/** A watched match (spectator): only the spectatedMatches counter and spectator achievements advance. */
+export const recordSpectate = (s: StorageLike, profile: Profile, config: ProfileConfig, input: SpectateRecordInput, now = Date.now()): Profile => {
+  profile.counters.spectatedMatches += 1
+  profile.history.unshift({
+    at: now,
+    mode: input.mode,
+    result: 'spectate',
+    map: input.map,
+    durationSec: input.durationSec,
+    kills: 0,
+    unitsBuilt: 0,
+    buildingsBuilt: 0,
+    supplyHarvested: 0,
+  })
+  if (profile.history.length > config.historyCap) profile.history.length = config.historyCap
+  evaluateAchievements(profile, config, now)
+  saveProfile(s, profile)
+  return profile
+}
+
+/** Rename the commander; the name is capped to the same length as the match name field. */
+export const updateProfileName = (s: StorageLike, profile: Profile, name: string): Profile => {
+  profile.name = (name.trim() || DEFAULT_PROFILE_NAME).slice(0, 16)
   saveProfile(s, profile)
   return profile
 }

@@ -279,6 +279,11 @@ export class AudioHooks {
       case 'game-over':
         this.playTone({ freq: (opts.pitch ?? 1) >= 1 ? 440 : 220, dur: 0.5, type: 'triangle', gain: g })
         break
+      case 'achievement':
+        this.playTone({ freq: 1318, dur: 0.14, type: 'triangle', gain: g * 0.8 })
+        this.playTone({ freq: 1760, dur: 0.2, type: 'triangle', gain: g * 0.7, delay: 0.1 })
+        this.playTone({ freq: 2349, dur: 0.28, type: 'sine', gain: g * 0.55, delay: 0.2 })
+        break
       default:
         break
     }

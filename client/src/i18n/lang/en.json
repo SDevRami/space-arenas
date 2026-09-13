@@ -899,6 +899,7 @@
       "laser-strike": "Laser strike",
       "power-down": "Power down",
       "game-over": "Game over",
+      "achievement": "Achievement unlocked",
       "ambient": "Ambient (looping)",
       "ambient-lobby": "Ambient — lobby",
       "ambient-game": "Ambient — in match"
@@ -1274,6 +1275,10 @@
     "unlocked": "Unlocked",
     "timePlayed": "Time played",
     "achievements": "Achievements",
+    "usernameLabel": "Commander name",
+    "usernameHint": "Saving also fills the name field when hosting or joining a match.",
+    "spectated": "Spectated",
+    "toastTitle": "Achievement unlocked",
     "reset": "Reset Profile",
     "prompt": "New commander name (leave empty for the default):",
     "group": {
@@ -1282,7 +1287,8 @@
       "research": "Research & Defense",
       "combat": "Combat & Veterancy",
       "superweapons": "Super Weapons & Tools",
-      "career": "Career"
+      "career": "Career",
+      "spectator": "Spectator"
     }
   },
   "achievements": {
@@ -1326,7 +1332,10 @@
       "first-match": "First Deployment",
       "first-win": "First Victory",
       "five-matches": "Combat Veteran",
-      "ten-wins": "Legendary Commander"
+      "ten-wins": "Legendary Commander",
+      "first-spectate": "Observer",
+      "five-spectates": "Field Reporter",
+      "ten-spectates": "War Correspondent"
     },
     "descs": {
       "builder": "Build any building",
@@ -1368,7 +1377,10 @@
       "first-match": "Play your first match",
       "first-win": "Win your first match",
       "five-matches": "Play 5 matches in total",
-      "ten-wins": "Win 10 matches in total"
+      "ten-wins": "Win 10 matches in total",
+      "first-spectate": "Spectate a match",
+      "five-spectates": "Spectate 5 matches in total",
+      "ten-spectates": "Spectate 10 matches in total"
     }
   }
 }

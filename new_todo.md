@@ -271,6 +271,14 @@ localStorage + lobby UI. All client-only.
 
 **Touch points:** new `profile.ts`, `stats.ts`, `Game.ts`, `main.ts` (lobby tabs), `index.html`
 
+**Follow-up:**
+| # | Feature | Notes |
+|---|---------|-------|
+| 1 | **Spectator career** | Spectators no longer get a lobotomized "loss" profile entry. `Game.ts` `recordProfileMatch` branches to new `recordSpectate()` (`profile.ts`) when `this.spectator`: only the `spectatedMatches` counter + a `'spectate'` history record advance. Spectator achievements (Observer / Field Reporter / War Correspondent) in `achievements.ts` (career.spectator group). |
+| 2 | **Gamer username** | Profile panel username input (`profile-username`, 16 chars) → `updateProfileName()`. On save, `applyProfileName()` mirrors it into the online `#net-name` field + `space-arenas:name` storage + `/api/self` (so lobby + match join use it). |
+| 3 | **Achievement toasts** | `Game.checkLiveAchievements()` every ~1s of sim time merges profile + live session deltas; newly-satisfied achievements toast via `Hud.achievementToast()` (golden banner, fades) + new `'achievement'` synth SFX (`audio/settings.ts` + `hooks.ts` + `dev.audio.achievement` audio override). |
+| 4 | **Log moved** | `.hud-game-log` moved from bottom-left (`bottom: 84px`) to top-left under the header (`top: 48px`), clear of the top-right chat/tools panel. |
+
 ---
 
 ## Day 15 — Team Features: Co-op + Shared Control (S–M)

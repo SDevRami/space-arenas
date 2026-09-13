@@ -62,6 +62,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'first-win', group: 'career', target: 1, stat: 'wins', nameKey: 'achievements.names.first-win', descKey: 'achievements.descs.first-win' },
   { id: 'five-matches', group: 'career', target: 5, stat: 'gamesPlayed', nameKey: 'achievements.names.five-matches', descKey: 'achievements.descs.five-matches' },
   { id: 'ten-wins', group: 'career', target: 10, stat: 'wins', nameKey: 'achievements.names.ten-wins', descKey: 'achievements.descs.ten-wins' },
+  // spectator
+  { id: 'first-spectate', group: 'spectator', target: 1, stat: 'spectatedMatches', nameKey: 'achievements.names.first-spectate', descKey: 'achievements.descs.first-spectate' },
+  { id: 'five-spectates', group: 'spectator', target: 5, stat: 'spectatedMatches', nameKey: 'achievements.names.five-spectates', descKey: 'achievements.descs.five-spectates' },
+  { id: 'ten-spectates', group: 'spectator', target: 10, stat: 'spectatedMatches', nameKey: 'achievements.names.ten-spectates', descKey: 'achievements.descs.ten-spectates' },
 ]
 
 /** Live progress of an achievement — the underlying counter, which keeps growing past the target. */
