@@ -18,7 +18,7 @@ import {
 } from '@space-arenas/shared'
 import { generateDefaultMap } from '@space-arenas/shared'
 
-const ALL_TYPES: CommandType[] = ['move', 'attack-move', 'keep-attack', 'guard', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'set-flag-point', 'assign-dock', 'satellite', 'laser', 'sw-choose', 'sw-airstrike', 'sw-emp', 'forfeit', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload', 'rank-up', 'ally-coop-request', 'ally-coop-vote']
+const ALL_TYPES: CommandType[] = ['move', 'attack-move', 'keep-attack', 'guard', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'set-flag-point', 'assign-dock', 'satellite', 'laser', 'sw-choose', 'sw-airstrike', 'sw-emp', 'forfeit', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload', 'rank-up', 'ally-coop-request', 'ally-coop-vote', 'coop-setting']
 
 const makeEnv = (type: CommandType): EnvelopeCommand => {
   const cmd: EnvelopeCommand['cmd'] = { type, entities: [1, 2, 3], x: -12345, y: 67890 }
@@ -42,6 +42,10 @@ const makeEnv = (type: CommandType): EnvelopeCommand => {
   if (type === 'transport-load') cmd.transportId = 61
   if (type === 'transport-unload') cmd.transportId = 62
   if (type === 'ally-coop-vote') cmd.approve = true
+  if (type === 'coop-setting') {
+    cmd.coopKey = 'coopEconomy'
+    cmd.coopValue = 'both'
+  }
   if (type === 'research') cmd.upgrade = 'radar'
   if (type === 'ping') cmd.pingType = 'alert'
   if (type === 'sw-choose') cmd.choice = 'emp'
@@ -70,6 +74,8 @@ describe('protocol: envelope round-trip', () => {
       expect(out.cmd.pingType).toBe(type === 'ping' ? 'alert' : undefined)
       expect(out.cmd.choice).toBe(type === 'sw-choose' ? 'emp' : undefined)
       expect(out.cmd.approve).toBe(type === 'ally-coop-vote' ? true : undefined)
+      expect(out.cmd.coopKey).toBe(type === 'coop-setting' ? 'coopEconomy' : undefined)
+      expect(out.cmd.coopValue).toBe(type === 'coop-setting' ? 'both' : undefined)
     }
   })
 
@@ -178,6 +184,7 @@ describe('protocol: type ids are stable', () => {
       'rank-up': 35,
       'ally-coop-request': 36,
       'ally-coop-vote': 37,
+      'coop-setting': 38,
     })
   })
 })

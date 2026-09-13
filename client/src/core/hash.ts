@@ -16,6 +16,9 @@ export const hashWorld = (world: World): number => {
   addNumber(bytes, world.width)
   addNumber(bytes, world.height)
   addNumber(bytes, Number(BigInt.asUintN(32, BigInt(world.rngState()))))
+  addString(bytes, world.settings.coopEconomy)
+  addString(bytes, world.settings.coopRank)
+  addString(bytes, world.settings.coopControl)
   const teams = [...world.teams.keys()].sort((a, b) => a - b)
   for (const t of teams) {
     const s = world.teams.get(t)

@@ -41,6 +41,7 @@ export type CommandType =
   | 'rank-up'
   | 'ally-coop-request'
   | 'ally-coop-vote'
+  | 'coop-setting'
 
 /** The three ping flavours players can drop to share intel with their team. */
 export type PingType = 'alert' | 'assist' | 'on-my-way'
@@ -66,6 +67,9 @@ export interface SimCommand {
   transportId?: number
   /** Day 16: teammate's accept/decline on the mid-match co-op request. */
   approve?: boolean
+  /** Day 16: mid-match co-op toggle (economy / rank / control), issued by any player. */
+  coopKey?: 'coopEconomy' | 'coopRank' | 'coopControl'
+  coopValue?: string
   /** Super Weapon strike choice for the `sw-choose` command. */
   choice?: SwChoice
 }
@@ -139,6 +143,7 @@ export const CMD_TYPE_IDS: Record<CommandType, number> = {
   'rank-up': 35,
   'ally-coop-request': 36,
   'ally-coop-vote': 37,
+  'coop-setting': 38,
 }
 
 export const PING_TYPE_IDS: Record<PingType, number> = {
@@ -149,7 +154,14 @@ export const PING_TYPE_IDS: Record<PingType, number> = {
 
 export const PING_TYPES: PingType[] = ['alert', 'assist', 'on-my-way']
 
-const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload', 'sw-choose', 'sw-airstrike', 'sw-emp', 'rank-up', 'ally-coop-request', 'ally-coop-vote']
+const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload', 'sw-choose', 'sw-airstrike', 'sw-emp', 'rank-up', 'ally-coop-request', 'ally-coop-vote', 'coop-setting']
+
+const COOP_KEY_IDS: Record<'coopEconomy' | 'coopRank' | 'coopControl', number> = {
+  coopEconomy: 0,
+  coopRank: 1,
+  coopControl: 2,
+}
+const COOP_KEYS: ('coopEconomy' | 'coopRank' | 'coopControl')[] = ['coopEconomy', 'coopRank', 'coopControl']
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -203,6 +215,7 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
     : typeName === 'reorder-queue' ? 2
     : typeName === 'ping' ? 1
     : typeName === 'ally-coop-vote' ? 1
+    : typeName === 'coop-setting' ? 1 + nameSize(cmd.coopValue) + 2
     : typeName === 'attack-move' || typeName === 'attack' || typeName === 'build' || typeName === 'collect' || typeName === 'assign-dock' || typeName === 'keep-attack' || typeName === 'guard' || typeName === 'remove-mine' || typeName === 'repair-unit' || typeName === 'transport-load' ? 4
     : typeName === 'transport-unload' ? 8
     : 0
@@ -252,6 +265,10 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
   if (typeName === 'dequeue') putU8(cmd.index ?? 0)
   if (typeName === 'dequeue-research') putU8(cmd.index ?? 0)
   if (typeName === 'ally-coop-vote') putU8(cmd.approve ? 1 : 0)
+  if (typeName === 'coop-setting') {
+    putU8(COOP_KEY_IDS[cmd.coopKey ?? 'coopControl'])
+    putStr(cmd.coopValue ?? '')
+  }
   if (typeName === 'reorder-queue') {
     putU8(cmd.index ?? 0)
     putU8(cmd.to ?? 0)
@@ -299,6 +316,10 @@ export const decodeEnvelope = (data: Uint8Array): EnvelopeCommand => {
   if (typeName === 'dequeue') cmd.index = readU8(c)
   if (typeName === 'dequeue-research') cmd.index = readU8(c)
   if (typeName === 'ally-coop-vote') cmd.approve = readU8(c) === 1
+  if (typeName === 'coop-setting') {
+    cmd.coopKey = COOP_KEYS[readU8(c)] ?? 'coopControl'
+    cmd.coopValue = readStr(c)
+  }
   if (typeName === 'reorder-queue') {
     cmd.index = readU8(c)
     cmd.to = readU8(c)
@@ -403,6 +424,9 @@ const envelopeLength = (data: Uint8Array): number => {
     off += 2 + len
   } else if (typeName === 'dequeue' || typeName === 'ping' || typeName === 'dequeue-research' || typeName === 'ally-coop-vote') {
     off += 1
+  } else if (typeName === 'coop-setting') {
+    const len = view.getUint16(off + 1, true)
+    off += 1 + 2 + len
   } else if (typeName === 'reorder-queue') {
     off += 2
   } else if (

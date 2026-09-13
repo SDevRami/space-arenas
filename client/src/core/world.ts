@@ -1,5 +1,5 @@
 import { SparseSet } from '../ecs/sparse-set.ts'
-import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR, getUnit, getBuilding, TRANSPORT_CAPACITY_PER_LEVEL, WEAPON_UPGRADE_MAX_LEVEL, type SwChoice, RANK_FLOORS, MAX_RANK, SCORE_UNIT_KILL, SCORE_BUILDING_KILL, AIRSTRIKE_MAX_LEVEL, EMP_MAX_LEVEL, EMP_DURATION_TICKS, type CoopControl } from '@space-arenas/shared'
+import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR, getUnit, getBuilding, TRANSPORT_CAPACITY_PER_LEVEL, WEAPON_UPGRADE_MAX_LEVEL, type SwChoice, RANK_FLOORS, MAX_RANK, SCORE_UNIT_KILL, SCORE_BUILDING_KILL, AIRSTRIKE_MAX_LEVEL, EMP_MAX_LEVEL, EMP_DURATION_TICKS, type CoopControl, type CoopEconomy } from '@space-arenas/shared'
 import type { SimEvent } from './events.ts'
 import { rectFromCenter } from './geometry.ts'
 import { spawnBuilding, spawnUnit } from '../entities/factories.ts'
@@ -696,6 +696,48 @@ export class World {
         if (m === canon) continue
         const ts = this.teams.get(m)
         if (ts) ts.credits = 0
+      }
+    }
+  }
+
+  /** Migrate alliance credits when the shared-supply toggle flips mid-match:
+ * pooling members' balances into the canonical slot on enable, splitting the
+ * canonical bank back out evenly among members on disable (deterministic). */
+  recoopCredits(prev: CoopEconomy, next: CoopEconomy): void {
+    const wasSupply = prev === 'supply' || prev === 'both'
+    const nowSupply = next === 'supply' || next === 'both'
+    if (nowSupply === wasSupply) return
+    const seen = new Set<number>()
+    for (const t of [...this.teams.keys()]) {
+      const a = this.allianceOf(t)
+      if (seen.has(a)) continue
+      seen.add(a)
+      const members = this.allianceMembers(t)
+      if (members.length < 2) continue
+      const canon = members[0]
+      if (nowSupply) {
+        let total = this.teams.get(canon)?.credits ?? 0
+        for (const m of members) {
+          if (m === canon) continue
+          total += this.teams.get(m)?.credits ?? 0
+        }
+        const c = this.teams.get(canon)
+        if (c) c.credits = total
+        for (const m of members) {
+          if (m === canon) continue
+          const ts = this.teams.get(m)
+          if (ts) ts.credits = 0
+        }
+      } else {
+        const c = this.teams.get(canon)
+        const total = c?.credits ?? 0
+        const share = Math.floor(total / members.length)
+        if (c) c.credits = share + (total - share * members.length)
+        for (const m of members) {
+          if (m === canon) continue
+          const ts = this.teams.get(m)
+          if (ts) ts.credits = share
+        }
       }
     }
   }

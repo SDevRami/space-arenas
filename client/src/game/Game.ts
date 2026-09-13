@@ -246,6 +246,7 @@ export class Game {
       onRankUp: () => this.issue({ type: 'rank-up', entities: [], x: 0, y: 0 }),
       onCoopRequest: () => this.issue({ type: 'ally-coop-request', entities: [], x: 0, y: 0 }),
       onCoopVote: (approve) => this.issue({ type: 'ally-coop-vote', entities: [], x: 0, y: 0, approve }),
+      onCoopSetting: (key, value) => this.issue({ type: 'coop-setting', entities: [], x: 0, y: 0, coopKey: key, coopValue: value }),
       slotName: (slot) => this.netPlayers.find((p) => p.id === slot)?.name ?? null,
     })
   }

@@ -76,9 +76,14 @@
       #coop-menu .coop-dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; }
       #coop-menu .coop-member-name { font-size: 13px; color: var(--color-text); }
       #coop-menu .coop-status { font-size: 12px; color: var(--color-text-body); margin-bottom: 14px; line-height: 1.5; }
+      #coop-menu .coop-options { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+      #coop-menu .coop-options label { font-size: 11px; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 6px; }
+      #coop-menu .coop-options select { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); padding: 6px 8px; font-family: inherit; font-size: 13px; cursor: pointer; }
+      /* A passed vote makes 'none' behave as 'all' — reflect that in the toggle. */
+      #coop-menu .coop-options select.coop-locked { opacity: 0.85; }
       #coop-menu .coop-up-btn { width: 100%; padding: 10px; background: #2a5c8f; color: #fff; border: 1px solid #4a7ec9; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; border-radius: 4px; }
       #coop-menu .coop-up-btn:disabled { background: var(--color-surface); color: var(--color-text-muted); border-color: var(--color-border); cursor: default; }
-      .coop-banner { position: fixed; top: 58px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: rgba(18,32,52,0.96); border: 1px solid #4a7ec9; box-shadow: 0 4px 18px rgba(0,0,0,0.5); padding: 10px 16px; border-radius: 6px; z-index: 70; max-width: min(560px, 92vw); }
+      .coop-banner { position: fixed; top: 58px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: rgba(18,32,52,0.96); border: 1px solid #4a7ec9; box-shadow: 0 4px 18px rgba(0,0,0,0.5); padding: 10px 16px; border-radius: 6px; z-index: 70; max-width: min(560px, 92vw); pointer-events: auto; }
       .coop-banner[hidden] { display: none; }
       .coop-banner-text { flex: 1; font-size: 13px; color: #dceeff; }
       .coop-banner .coop-btn { padding: 6px 14px; font-family: inherit; font-size: 12px; font-weight: 700; border-radius: 4px; cursor: pointer; background: #2a5c8f; color: #fff; border: 1px solid #4a7ec9; }

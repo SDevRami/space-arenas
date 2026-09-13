@@ -1,5 +1,5 @@
 import type { EnvelopeCommand } from '@space-arenas/shared'
-import { canThrowBandolier, getBuilding, getUnit, getUpgrade, sqDist, tileToFx, SW_CHOICES, EMP_RADIUS_TILES, isqrt, EXPANSION_RADIUS_TILES, SCORE_EXPANSION, AIRSTRIKE_BOMB_DAMAGE, AIRSTRIKE_BOMB_RADIUS } from '@space-arenas/shared'
+import { canThrowBandolier, getBuilding, getUnit, getUpgrade, sqDist, tileToFx, SW_CHOICES, EMP_RADIUS_TILES, isqrt, EXPANSION_RADIUS_TILES, SCORE_EXPANSION, AIRSTRIKE_BOMB_DAMAGE, AIRSTRIKE_BOMB_RADIUS, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, type CoopEconomy, type CoopRank, type CoopControl } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { placementExplored, PING_TICKS } from '../core/world.ts'
 import { nearestPassablePoint } from '../core/pathfinding.ts'
@@ -241,6 +241,27 @@ export const InputSystem = {
             world.coopVoted.add(alliance)
             world.coopVotes.set(alliance, null)
             world.emit({ type: 'coop-accepted', alliance })
+          }
+          break
+        }
+        case 'coop-setting': {
+          // Mid-match co-op reconfiguration, issued by any non-spectator player.
+          // Deterministic: credits migrate only the canonical holder and only on
+          // an actual supply-sharing transition.
+          if (cmd.coopKey === 'coopEconomy') {
+            const v = cmd.coopValue as CoopEconomy
+            if (!(COOP_ECONOMY_OPTIONS as readonly string[]).includes(v)) break
+            world.recoopCredits(world.settings.coopEconomy, v)
+            world.settings.coopEconomy = v
+          } else if (cmd.coopKey === 'coopRank') {
+            const v = cmd.coopValue as CoopRank
+            if (!(COOP_RANK_OPTIONS as readonly string[]).includes(v)) break
+            world.settings.coopRank = v
+          } else if (cmd.coopKey === 'coopControl') {
+            const v = cmd.coopValue as CoopControl
+            if (!(COOP_CONTROL_OPTIONS as readonly string[]).includes(v)) break
+            world.settings.coopControl = v
+            if (v !== 'none') world.coopVotes.set(world.allianceOf(player), null)
           }
           break
         }

@@ -330,6 +330,17 @@ Team multiplayer features. Both need LAN/online.
 | 5 | **Host sanitize** | `rooms.ts` imports Coop option lists and clamps inbound lobby settings. |
 | 6 | **Two-slot all-one-alliance starts** | Such sims emit `game-over` immediately (WinLoss sees <2 alliances) — the no-ballot vote test filters coop events instead of expecting an empty list. |
 
+**Follow-up (2026-09-14):**
+| # | Change | Notes |
+|---|--------|-------|
+| 1 | **Team button next to Chat** | Header `#team-btn` moved from beside the rank button to between Chat and Menu. |
+| 2 | **Co-op reconfiguration mid-match** | New `coop-setting` SimCommand (id **38**, 1-byte key id + string value; `coopKey` `'coopEconomy'|'coopRank'|'coopControl'`). Any non-spectator player can flip the same toggles the lobby has mid-match; deterministic via standard relay (player id + tick stamp, replayed on all clients). |
+| 3 | **Credit migration on supply toggle** | `World.recoopCredits(prev,next)` pools members into the canonical slot on enable, splits the canonical bank evenly (remainder stays canonical) on disable; no-op unless a real supply transition. |
+| 4 | **Hash coverage** | `hash.ts` now includes the 3 mutable coop settings so replays match. |
+| 5 | **HUD Team panel rework** | Panel shows roster + 3 selects (`#coop-eco-select/#coop-rank-select/#coop-control-select`, populated from lobby lists + hints) synced from live world state; control toggle displays `'all'` when a voted alliance's lobby was `'none'`; `syncCoopUi` refreshes the open panel on any coop-setting/ballot signature change. |
+| 6 | **Vote banner pointer-events** | `.coop-banner` now keeps `pointer-events: auto` + `max-width`, so the accept/decline buttons stay clickable. |
+| 7 | **Protocol/version** | PROTOCOL_VERSION → 15; `coop-setting` added to protocol round-trip + stable-id tests; day16 gains Day 16.6 `coop-setting` block (pool/split/rank merge/control+ballot clear/invalid ignored/determinism). Suite now 347 tests, all green. |
+
 ---
 
 ## Day 17 — Replay System (M, LAN only)
