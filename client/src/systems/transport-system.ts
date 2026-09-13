@@ -1,5 +1,5 @@
 import { getUnit, isqrt, sqDist } from '@space-arenas/shared'
-import type { TransportComp, World } from '../core/world.ts'
+import type { PassengerRecord, TransportComp, World } from '../core/world.ts'
 import { nearestPassablePoint } from '../core/pathfinding.ts'
 import { setMove, spawnUnit } from '../entities/factories.ts'
 
@@ -41,6 +41,41 @@ const unloadSlots = (count: number, cx: number, cy: number): { x: number; y: num
     slots.push({ x: cx + dx, y: cy + dy })
   }
   return slots
+}
+
+/** Formation target for one passenger marching toward a shared point after a
+ *  bunker unload — each gets its own slot so a squad spreads instead of piling
+ *  onto the exact same spot (same grid layout as a multi-unit move order). */
+const marchSlot = (index: number, total: number, cx: number, cy: number): { x: number; y: number } => {
+  if (total <= 0) return { x: cx, y: cy }
+  const cell = 1400
+  const cols = Math.ceil(Math.sqrt(total))
+  const rows = Math.ceil(total / cols)
+  const col = index % cols
+  const row = Math.floor(index / cols)
+  return {
+    x: cx + Math.floor((col - (cols - 1) / 2) * cell),
+    y: cy + Math.floor((row - (rows - 1) / 2) * cell),
+  }
+}
+
+/** Restore a passenger record into the world at a position and report the spawn. */
+const spawnUnloaded = (world: World, transportId: number, tc: TransportComp, rec: PassengerRecord, x: number, y: number): number => {
+  const sid = spawnUnit(world, rec.unitType, tc.team, x, y)
+  const h = world.healths.get(sid)
+  if (h) {
+    h.maxHp = rec.maxHp > 0 ? rec.maxHp : h.maxHp
+    h.hp = Math.max(1, Math.min(rec.hp, h.maxHp))
+  }
+  const su = world.units.get(sid)
+  if (su) {
+    su.killCount = rec.killCount
+    su.veteranRank = rec.veteranRank
+    su.stealth = rec.stealth
+    su.abilityCooldown = rec.abilityCooldown
+  }
+  world.emit({ type: 'unit-unloaded', entity: sid, transport: transportId, unitType: rec.unitType, team: tc.team })
+  return sid
 }
 
 /** Queued riders still waiting keep walking to the APC's current spot. */
@@ -123,10 +158,25 @@ export const TransportSystem = {
       // 11.3 — a pending unload: drive to the drop-off point, then step off one
       // passenger per tick into a stable grid around the point. A static garrison
       // building (bunker) cannot drive anywhere, so it steps its troops off
-      // around its own footprint first and only then marches them to the point.
+      // around its own footprint first and then marches each to its own slot
+      // around the requested point (same formation layout as a move order).
       if (!tc.pendingUnload) return
       if (tc.passengers.length === 0) {
         tc.pendingUnload = false
+        tc.pendingOne = -1
+        tc.unloadCount = 0
+        return
+      }
+      // Click-to-eject: drop just that one passenger right next to the transport.
+      if (tc.pendingOne >= 0) {
+        world.moves.delete(id)
+        const mp = isBuilding
+          ? resolveUnloadPoint(world, t.x, t.y)
+          : resolveUnloadPoint(world, tc.unloadX, tc.unloadY)
+        const rec = tc.passengers.splice(Math.min(tc.pendingOne, tc.passengers.length - 1), 1)[0]
+        if (rec) spawnUnloaded(world, id, tc, rec, mp.x, mp.y)
+        tc.pendingUnload = false
+        tc.pendingOne = -1
         tc.unloadCount = 0
         return
       }
@@ -145,32 +195,24 @@ export const TransportSystem = {
       // The grid is sized by the full load being dropped; passengers.length
       // shrinks as unloadCount grows, so the sum stays constant across ticks
       // and every passenger lands in the exact slot it would in a single dump.
-      const slots = unloadSlots(tc.passengers.length + tc.unloadCount, mp.x, mp.y)
+      const totalDrop = tc.passengers.length + tc.unloadCount
+      const slots = unloadSlots(totalDrop, mp.x, mp.y)
       const rec = tc.passengers.shift()!
-      const pos = slots[tc.unloadCount]
+      const slotIdx = tc.unloadCount
+      const pos = slots[slotIdx]
       if (pos) {
-        const sid = spawnUnit(world, rec.unitType, tc.team, pos.x, pos.y)
-        const h = world.healths.get(sid)
-        if (h) {
-          h.maxHp = rec.maxHp > 0 ? rec.maxHp : h.maxHp
-          h.hp = Math.max(1, Math.min(rec.hp, h.maxHp))
-        }
-        const su = world.units.get(sid)
-        if (su) {
-          su.killCount = rec.killCount
-          su.veteranRank = rec.veteranRank
-          su.stealth = rec.stealth
-          su.abilityCooldown = rec.abilityCooldown
-        }
+        const sid = spawnUnloaded(world, id, tc, rec, pos.x, pos.y)
         if (isBuilding) {
-          const m = setMove(world, sid, tc.unloadX, tc.unloadY, false)
+          const cx = resolveUnloadPoint(world, tc.unloadX, tc.unloadY)
+          const spot = marchSlot(slotIdx, totalDrop, cx.x, cx.y)
+          const m = setMove(world, sid, spot.x, spot.y, false)
           m.needsPath = true
         }
-        world.emit({ type: 'unit-unloaded', entity: sid, transport: id, unitType: rec.unitType, team: tc.team })
       }
       tc.unloadCount++
       if (tc.passengers.length === 0) {
         tc.pendingUnload = false
+        tc.pendingOne = -1
         tc.unloadCount = 0
       }
     })

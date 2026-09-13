@@ -270,6 +270,31 @@ describe('APC transport: unloading', () => {
     b.advance(500)
     expect(hashWorld(a.world)).toBe(hashWorld(b.world))
   })
+
+  it('ejects a single loaded passenger right next to the APC (click-to-eject)', () => {
+    const sim = makeSim()
+    const { world } = sim
+    const apc = spawnUnit(world, 'apc', 0, 10000, 10000)
+    const r1 = spawnUnit(world, 'rifleman', 0, 10300, 10000)
+    const r2 = spawnUnit(world, 'rifleman', 0, 10000, 10300)
+    sim.step([sim.makeCommand(0, { type: 'transport-load', entities: [r1, r2], x: 0, y: 0, transportId: apc })])
+    sim.advance(2)
+    expect(getPassengers(sim, apc)).toBe(2)
+    const px = world.transforms.require(apc).x
+    const py = world.transforms.require(apc).y
+
+    // Clicking the SECOND rider in the loaded-units list (index 1) — the 50000
+    // click point is ignored for a click-to-eject.
+    sim.step([sim.makeCommand(0, { type: 'transport-unload', entities: [], x: 50000, y: 50000, transportId: apc, index: 1 })])
+    sim.advance(2)
+
+    expect(getPassengers(sim, apc)).toBe(1)
+    expect(world.transports.get(apc)?.pendingUnload).toBe(false)
+    const riflemen = Array.from(world.units.idsArray()).filter((id) => world.units.get(id)?.unitType === 'rifleman')
+    expect(riflemen.length).toBe(1)
+    const t = world.transforms.require(riflemen[0])
+    expect(isqrt(sqDist(t.x, t.y, px, py))).toBeLessThanOrEqual(1500)
+  })
 })
 
 describe('bunker garrison: unloading', () => {
@@ -298,9 +323,10 @@ describe('bunker garrison: unloading', () => {
     const first = Array.from(world.units.idsArray()).find((id) => world.units.get(id)?.unitType === 'rifleman')!
     const ft = world.transforms.require(first)
     expect(isqrt(sqDist(ft.x, ft.y, bx, by))).toBeLessThanOrEqual(4000)
-    // And it is already walking toward the clicked drop-off point.
-    expect(world.moves.get(first)?.tx).toBe(50000)
-    expect(world.moves.get(first)?.ty).toBe(50000)
+    // And it is already walking toward its own formation slot around the clicked
+    // drop-off point (slot 0 of a 5-squad grid centered on 50000,50000).
+    expect(world.moves.get(first)?.tx).toBe(50000 - 1400)
+    expect(world.moves.get(first)?.ty).toBe(50000 - 700)
 
     sim.advance(10)
     expect(world.transports.require(bunker).passengers.length).toBe(0)
@@ -322,5 +348,40 @@ describe('bunker garrison: unloading', () => {
       const t = world.transforms.require(id)
       expect(isqrt(sqDist(t.x, t.y, 50000, 50000))).toBeGreaterThan(40000)
     }
+  })
+
+  it('marches each trooper to its own formation slot around the point (no pile-up)', () => {
+    const sim = makeSim()
+    const { world } = sim
+    const { bunker, loaded } = makeGarrisonedBunker(sim)
+
+    sim.step([sim.makeCommand(0, { type: 'transport-unload', entities: [], x: 50000, y: 50000, transportId: bunker })])
+    sim.advance(10)
+
+    expect(world.transports.require(bunker).passengers.length).toBe(0)
+    const riflemen = Array.from(world.units.idsArray()).filter((id) => world.units.get(id)?.unitType === 'rifleman')
+    const targets = new Set(riflemen.map((id) => `${world.moves.get(id)?.tx},${world.moves.get(id)?.ty}`))
+    expect(riflemen.length).toBe(loaded)
+    // Everyone targets a distinct spot instead of the exact same tile.
+    expect(targets.size).toBe(loaded)
+  })
+
+  it('click-to-eject pulls exactly one troop out around the bunker', () => {
+    const sim = makeSim()
+    const { world } = sim
+    const { bunker } = makeGarrisonedBunker(sim)
+    const bx = world.transforms.require(bunker).x
+    const by = world.transforms.require(bunker).y
+    expect(getPassengers(sim, bunker)).toBe(5)
+
+    sim.step([sim.makeCommand(0, { type: 'transport-unload', entities: [], x: 0, y: 0, transportId: bunker, index: 2 })])
+    sim.advance(2)
+
+    expect(getPassengers(sim, bunker)).toBe(4)
+    expect(world.transports.get(bunker)?.pendingUnload).toBe(false)
+    const riflemen = Array.from(world.units.idsArray()).filter((id) => world.units.get(id)?.unitType === 'rifleman')
+    expect(riflemen.length).toBe(1)
+    const t = world.transforms.require(riflemen[0])
+    expect(isqrt(sqDist(t.x, t.y, bx, by))).toBeLessThanOrEqual(4000)
   })
 })

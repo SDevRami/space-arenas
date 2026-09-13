@@ -982,6 +982,7 @@
     "detector": "Detector",
     "stealth": "Stealth",
     "unload": "Unload Here",
+    "unloadRider": "Click to unload this unit nearby",
     "attack": "Attack <em>(A)</em>",
     "keepAttack": "Keep Attack",
     "multiPos": "Multi Pos",
@@ -1301,8 +1302,6 @@
     "spectated": "Spectated",
     "totalScore": "Total score",
     "radarChart": "Career radar chart",
-    "openCard": "Card",
-    "cardTitle": "Player Card",
     "hex": {
       "combat": "Combat",
       "economy": "Economy",

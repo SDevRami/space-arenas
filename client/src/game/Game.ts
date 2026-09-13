@@ -122,6 +122,12 @@ export class Game {
   private pendingFlag = false
   /** Unload Here mode: next click unloads every selected loaded transport at the point. */
   private pendingUnload = false
+
+  /** Click-to-eject a single rider out of its transport, right beside it. */
+  private unloadOne(transportId: number, index: number): void {
+    this.issue({ type: 'transport-unload', entities: [], x: 0, y: 0, transportId, index })
+    this.hud.toast(t('game.unloadOrdered'))
+  }
   private holdPlaced = false
   private multiPosMode = false
   private multiRoute: { ids: number[]; pts: Array<{ x: number; y: number }>; idx: number } | null = null
@@ -232,6 +238,7 @@ export class Game {
       onStealthClick: (ids) => this.buyStealth(ids),
       onUnloadToggle: () => this.toggleUnload(),
       isUnloadActive: () => this.pendingUnload,
+      onUnloadOne: (transportId, index) => this.unloadOne(transportId, index),
       onSwChoose: (choice) => {
         if (!this.world) return
         this.issue({ type: 'sw-choose', entities: [], x: 0, y: 0, choice })

@@ -39,6 +39,8 @@ export interface HudActions {
   onStealthClick: (unitIds: number[]) => void
   onUnloadToggle: () => void
   isUnloadActive: () => boolean
+  /** Eject a single loaded rider next to its transport (from the garrison list). */
+  onUnloadOne: (transportId: number, index: number) => void
   /** One-time Super Weapon strike choice (Laser / Airstrike / EMP). */
   onSwChoose: (choice: SwChoice) => void
   /** Day 15: raise the team's general rank (requires enough match score). */
@@ -882,11 +884,16 @@ export class Hud {
         group.textContent = carrierName
         scroll.appendChild(group)
       }
-      for (const p of tc.passengers) {
+      for (const [i, p] of tc.passengers.entries()) {
         const def = getUnit(p.unitType, world.settings)
         const row = document.createElement('div')
         row.className = 'load-row'
-        row.innerHTML = `${hudIconHtml('unit', p.unitType, tn(p.unitType, def.name))}<span>${tn(p.unitType, def.name)}</span>`
+        row.title = t('hud.unloadRider')
+        row.innerHTML = `${hudIconHtml('unit', p.unitType, tn(p.unitType, def.name))}<span>${tn(p.unitType, def.name)}</span><span class="load-row-eject">⤓</span>`
+        row.addEventListener('click', (ev) => {
+          ev.stopPropagation()
+          this.actions.onUnloadOne(id, i)
+        })
         scroll.appendChild(row)
       }
     }

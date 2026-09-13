@@ -406,6 +406,9 @@ export interface TransportComp {
   /** How many passengers have already stepped off at the current unload point
    * (keeps the drop-off grid position fixed while unloading one per tick). */
   unloadCount: number
+  /** Index into `passengers` for a click-to-eject order (unload a single rider
+   * next to the transport), or -1 for a regular "Unload Here" command. */
+  pendingOne: number
 }
 
 export interface WorldGrid {

@@ -37,7 +37,7 @@ export const EMP_MAX_LEVEL = 2
 
 export const DEFAULT_PORT = 17321
 export const DEFAULT_MAX_PLAYERS = 8
-export const PROTOCOL_VERSION = 12
+export const PROTOCOL_VERSION = 13
 
 /** Number of selectable per-player colors. */
 export const PLAYER_COLOR_COUNT = 10

@@ -592,7 +592,7 @@ export const InputSystem = {
           // APC (and its riders) visibly converge before disappearing inside.
           const t =
             world.transports.get(transportId) ??
-            { team: player, passengers: [], loadQueue: [], unloadX: 0, unloadY: 0, pendingUnload: false, unloadCount: 0 }
+            { team: player, passengers: [], loadQueue: [], unloadX: 0, unloadY: 0, pendingUnload: false, unloadCount: 0, pendingOne: -1 }
           let queued = false
           for (const id of cmd.entities) {
             if (id === transportId) continue
@@ -625,9 +625,27 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'transport is empty' })
             break
           }
+          // Click-to-eject: a single passenger (index from the loaded-units list)
+          // steps off right next to the transport — no drop-off point to pick.
+          const oneIndex = cmd.index ?? -1
+          if (oneIndex >= 0) {
+            if (oneIndex >= tc.passengers.length) {
+              world.emit({ type: 'command-rejected', player, reason: 'transport is empty' })
+              break
+            }
+            const t = world.transforms.get(transportId)
+            tc.unloadX = t?.x ?? 0
+            tc.unloadY = t?.y ?? 0
+            tc.pendingUnload = true
+            tc.pendingOne = oneIndex
+            tc.unloadCount = 0
+            world.emit({ type: 'unload-ordered', entity: transportId, x: tc.unloadX, y: tc.unloadY, team: player })
+            break
+          }
           tc.unloadX = cmd.x
           tc.unloadY = cmd.y
           tc.pendingUnload = true
+          tc.pendingOne = -1
           tc.unloadCount = 0
           world.emit({ type: 'unload-ordered', entity: transportId, x: cmd.x, y: cmd.y, team: player })
           break

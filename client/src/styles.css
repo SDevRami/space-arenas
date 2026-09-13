@@ -179,7 +179,9 @@
       .hud-build .qc-label { display: inline-block; position: relative; z-index: 1; padding: 4px 8px; }
       .hud-build .qc-fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0%; max-width: 100%; background: rgba(74,216,255,0.22); pointer-events: none; }
       .hud-build .qc-fill.research { background: rgba(199,140,255,0.22); }
-      .hud-build .load-row { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); border: 1px solid var(--color-border); border-radius: 3px; padding: 2px 8px; white-space: nowrap; pointer-events: none; }
+      .hud-build .load-row { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); border: 1px solid var(--color-border); border-radius: 3px; padding: 2px 8px; white-space: nowrap; cursor: pointer; }
+      .hud-build .load-row:hover { border-color: var(--color-accent); background: rgba(74,216,255,0.12); }
+      .hud-build .load-row .load-row-eject { color: var(--color-accent); font-size: 12px; }
       .hud-build .load-group { flex: 0 0 auto; color: var(--color-accent); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
       .hud-build .hud-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; overflow: hidden; vertical-align: middle; pointer-events: none; }
       .hud-build .hud-icon img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
@@ -376,29 +378,18 @@
       #lobby .profile-total { display: flex; align-items: baseline; gap: 6px; }
       #lobby .profile-total span { font-size: 26px; font-weight: 800; color: #ffd75e; }
       #lobby .profile-total label { margin: 0; font-size: 11px; color: var(--color-text-muted); }
-      #lobby .profile-card-btn { margin-top: 12px; align-self: flex-start; padding: 6px 14px; background: var(--color-primary); color: #fff; border: 1px solid var(--color-primary-hover); border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; }
-      #lobby .profile-card-btn:hover { background: var(--color-primary-hover); }
       #lobby .profile-hex-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
       #lobby .profile-hex-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--color-text-muted); }
       #lobby .profile-hex { width: 200px; height: 200px; flex: 0 0 auto; }
       #lobby .profile-hex .hex-guide { fill: none; stroke: var(--color-divider); stroke-width: 1; }
       #lobby .profile-hex .hex-spoke { fill: none; stroke: var(--color-divider); stroke-width: 1; }
       #lobby .profile-hex .hex-data { fill: rgba(90, 180, 255, 0.28); stroke: #4ad8ff; stroke-width: 1.6; stroke-linejoin: round; }
+      #lobby .profile-hex .hex-value-dot { stroke: rgba(255, 255, 255, 0.85); stroke-width: 1; }
       #lobby .profile-hex-legend { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px 14px; }
       #lobby .hex-axis { display: flex; align-items: center; gap: 5px; font-size: 11px; }
       #lobby .hex-axis .hex-axis-dot { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
       #lobby .hex-axis label { color: var(--color-text-muted); margin: 0; }
       #lobby .hex-axis .hex-axis-value { color: var(--color-text); font-weight: 700; }
-      #lobby #profile-card-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(4,6,12,0.62); z-index: 100; }
-      #lobby #profile-card-overlay.hidden { display: none; }
-      #lobby .profile-card-popup { background: var(--color-panel); border: 1px solid var(--color-border); padding: 18px 22px; width: 520px; max-width: 94vw; max-height: 88vh; overflow-y: auto; border-radius: 6px; text-align: left; position: relative; }
-      #lobby .profile-card-close { position: absolute; top: 6px; right: 8px; background: none; border: none; color: var(--color-text-muted); font-size: 16px; cursor: pointer; font-family: inherit; }
-      #lobby .profile-card-close:hover { color: #fff; }
-      #lobby .profile-card-head-name { font-size: 20px; font-weight: 800; color: var(--color-accent); margin-bottom: 10px; }
-      #lobby .profile-card-head-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 14px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--color-divider); }
-      #lobby .profile-card-head-stats div { display: flex; flex-direction: column; }
-      #lobby .profile-card-head-stats label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--color-text-muted); }
-      #lobby .profile-card-head-stats span { font-size: 17px; font-weight: 700; color: var(--color-text); }
       #lobby .profile-username-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); }
       #lobby .profile-username-row label { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }
       #lobby .profile-username-row input { flex: 0 0 160px; background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); padding: 6px 8px; font-family: inherit; font-size: 13px; }

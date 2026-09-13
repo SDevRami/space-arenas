@@ -196,7 +196,8 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
     : typeName === 'dequeue' || typeName === 'dequeue-research' ? 1
     : typeName === 'reorder-queue' ? 2
     : typeName === 'ping' ? 1
-    : typeName === 'attack-move' || typeName === 'attack' || typeName === 'build' || typeName === 'collect' || typeName === 'assign-dock' || typeName === 'keep-attack' || typeName === 'guard' || typeName === 'remove-mine' || typeName === 'repair-unit' || typeName === 'transport-load' || typeName === 'transport-unload' ? 4
+    : typeName === 'attack-move' || typeName === 'attack' || typeName === 'build' || typeName === 'collect' || typeName === 'assign-dock' || typeName === 'keep-attack' || typeName === 'guard' || typeName === 'remove-mine' || typeName === 'repair-unit' || typeName === 'transport-load' ? 4
+    : typeName === 'transport-unload' ? 8
     : 0
 
   let buf = new Uint8Array(4 + 4 + 1 + 4 + 2 + cmd.entities.length * 4 + 8 + extra)
@@ -257,7 +258,10 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
   if (typeName === 'remove-mine') putI32(cmd.target ?? -1)
   if (typeName === 'repair-unit') putI32(cmd.target ?? -1)
   if (typeName === 'transport-load') putI32(cmd.transportId ?? -1)
-  if (typeName === 'transport-unload') putI32(cmd.transportId ?? -1)
+  if (typeName === 'transport-unload') {
+    putI32(cmd.transportId ?? -1)
+    putI32(cmd.index ?? -1)
+  }
 
   return buf.slice(0, off)
 }
@@ -300,7 +304,11 @@ export const decodeEnvelope = (data: Uint8Array): EnvelopeCommand => {
   if (typeName === 'remove-mine') cmd.target = readI32(c)
   if (typeName === 'repair-unit') cmd.target = readI32(c)
   if (typeName === 'transport-load') cmd.transportId = readI32(c)
-  if (typeName === 'transport-unload') cmd.transportId = readI32(c)
+  if (typeName === 'transport-unload') {
+    cmd.transportId = readI32(c)
+    const idx = readI32(c)
+    if (idx >= 0) cmd.index = idx
+  }
 
   return { player, seq, tick, cmd }
 }

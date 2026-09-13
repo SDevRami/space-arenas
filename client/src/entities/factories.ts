@@ -107,7 +107,7 @@ export const spawnBuilding = (
     world.attacks.set(id, a)
   }
   if (def.transportCapacity) {
-    const tc: TransportComp = { team, passengers: [], loadQueue: [], unloadX: 0, unloadY: 0, pendingUnload: false, unloadCount: 0 }
+    const tc: TransportComp = { team, passengers: [], loadQueue: [], unloadX: 0, unloadY: 0, pendingUnload: false, unloadCount: 0, pendingOne: -1 }
     world.transports.set(id, tc)
   }
   world.markGridDirty()

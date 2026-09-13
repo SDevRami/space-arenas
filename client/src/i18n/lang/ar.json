@@ -982,6 +982,7 @@
     "detector": "كشّاف",
     "stealth": "تخفٍّ",
     "unload": "الإفراغ هنا",
+    "unloadRider": "اضغط لإخلاء هذه الوحدة قريبًا",
     "attack": "هجوم <em>(A)</em>",
     "keepAttack": "هجوم مستمر",
     "multiPos": "نقاط متعددة",
@@ -1301,8 +1302,6 @@
     "spectated": "مُشاهَد",
     "totalScore": "النقاط الكلية",
     "radarChart": "مخطط الرادار الوظيفي",
-    "openCard": "البطاقة",
-    "cardTitle": "بطاقة اللاعب",
     "hex": {
       "combat": "القتال",
       "economy": "الاقتصاد",
