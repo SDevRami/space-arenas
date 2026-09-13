@@ -244,6 +244,9 @@ export class Game {
         this.issue({ type: 'sw-choose', entities: [], x: 0, y: 0, choice })
       },
       onRankUp: () => this.issue({ type: 'rank-up', entities: [], x: 0, y: 0 }),
+      onCoopRequest: () => this.issue({ type: 'ally-coop-request', entities: [], x: 0, y: 0 }),
+      onCoopVote: (approve) => this.issue({ type: 'ally-coop-vote', entities: [], x: 0, y: 0, approve }),
+      slotName: (slot) => this.netPlayers.find((p) => p.id === slot)?.name ?? null,
     })
   }
 
@@ -598,7 +601,9 @@ export class Game {
         const ts = this.world.teams.get(p.id)
         if (ts && p.team !== undefined) ts.alliance = p.team
         if (ts && p.color !== undefined) ts.color = p.color
+        if (p.bot) this.world.robotSlots.add(p.id)
       }
+      this.world.rewireSharedStartingCredits()
       this.sim = null
     } else {
       this.sim = new Simulator(map, seed, players, { ...(cfg?.settings ?? {}), startingCredits: cfg?.credits ?? map.credits })
@@ -611,7 +616,9 @@ export class Game {
         const ts = this.world.teams.get(s.team)
         if (ts && s.alliance !== undefined) ts.alliance = s.alliance
         if (ts && s.color !== undefined) ts.color = s.color
+        if (s.difficulty) this.world.robotSlots.add(s.team)
       }
+      this.world.rewireSharedStartingCredits()
       for (const s of cfg.slots) {
         if (s.difficulty && this.sim) this.bots.push(new BotPlayer(this.sim, s.team, s.difficulty))
       }
@@ -1161,7 +1168,7 @@ export class Game {
     if (!world) return
     const dozerId = [...this.selection].find((id) => {
       const u = world.units.get(id)
-      return !!u && u.team === this.localTeam && u.unitType === 'bulldozer' && !world.works.has(id)
+      return !!u && world.canControl(this.localTeam, id) && u.unitType === 'bulldozer' && !world.works.has(id)
     })
     if (dozerId === undefined) {
       this.hud.toast(t('game.noFreeDozer'))
@@ -1175,7 +1182,7 @@ export class Game {
   private queueUnit(unitType: string): void {
     const world = this.world
     if (!world) return
-    const buildingId = [...this.selection].find((id) => world.buildings.get(id)?.team === this.localTeam)
+    const buildingId = [...this.selection].find((id) => !!world.buildings.get(id) && world.canControl(this.localTeam, id))
     if (buildingId === undefined) return
     this.issue({ type: 'queue', entities: [buildingId], x: 0, y: 0, unitType })
     this.audio.uiClick()
@@ -1185,7 +1192,7 @@ export class Game {
     const world = this.world
     if (!world) return
     const b = world.buildings.get(buildingId)
-    if (!b || b.team !== this.localTeam) return
+    if (!b || !world.canControl(this.localTeam, buildingId)) return
     this.issue({ type: 'dequeue', entities: [buildingId], x: 0, y: 0, index })
     this.audio.uiClick()
   }
@@ -1194,7 +1201,7 @@ export class Game {
     const world = this.world
     if (!world) return
     const b = world.buildings.get(buildingId)
-    if (!b || b.team !== this.localTeam) return
+    if (!b || !world.canControl(this.localTeam, buildingId)) return
     if (index < 0 || index >= b.researchQueue.length) return
     this.issue({ type: 'dequeue-research', entities: [buildingId], x: 0, y: 0, index })
     this.audio.uiClick()
@@ -1205,7 +1212,7 @@ export class Game {
     if (!world) return
     if (from === to) return
     const b = world.buildings.get(buildingId)
-    if (!b || b.team !== this.localTeam) return
+    if (!b || !world.canControl(this.localTeam, buildingId)) return
     const q = world.queues.get(buildingId)
     if (!q || from < 0 || from >= q.queue.length || to < 0 || to >= q.queue.length) return
     this.issue({ type: 'reorder-queue', entities: [buildingId], x: 0, y: 0, index: from, to })
@@ -1215,7 +1222,7 @@ export class Game {
   private researchUpgrade(upgrade: string): void {
     const world = this.world
     if (!world) return
-    const buildingId = [...this.selection].find((id) => world.buildings.get(id)?.team === this.localTeam)
+    const buildingId = [...this.selection].find((id) => !!world.buildings.get(id) && world.canControl(this.localTeam, id))
     if (buildingId === undefined) return
     const b = world.buildings.get(buildingId)
     if (!b || !b.done) return
@@ -1228,7 +1235,7 @@ export class Game {
     if (!world || buildingIds.length === 0) return
     const ids = buildingIds.filter((id) => {
       const b = world.buildings.get(id)
-      return !!b && b.team === this.localTeam && b.done && b.buildingType === 'power-plant'
+      return !!b && world.canControl(this.localTeam, id) && b.done && b.buildingType === 'power-plant'
     })
     if (ids.length === 0) return
     this.issue({ type: 'max-power', entities: ids, x: 0, y: 0 })
@@ -1238,7 +1245,7 @@ export class Game {
   private onStopCommand(): void {
     const world = this.world
     if (!world || this.selection.size === 0) return
-    const ids = [...this.selection].filter((id) => world.units.get(id)?.team === this.localTeam)
+    const ids = [...this.selection].filter((id) => !!world.units.get(id) && world.canControl(this.localTeam, id))
     if (ids.length === 0) return
     this.multiRoute = null
     this.issue({ type: 'stop', entities: ids, x: 0, y: 0 })
@@ -1282,12 +1289,7 @@ export class Game {
   private destroySelection(): void {
     const world = this.world
     if (!world || this.selection.size === 0) return
-    const ids = [...this.selection].filter((id) => {
-      const u = world.units.get(id)
-      if (u && u.team === this.localTeam) return true
-      const b = world.buildings.get(id)
-      return !!b && b.team === this.localTeam
-    })
+    const ids = [...this.selection].filter((id) => world.canControl(this.localTeam, id))
     if (ids.length === 0) return
     let refund = 0
     const frac = world.settings.sellRefundFraction
@@ -1314,12 +1316,7 @@ export class Game {
   private sellSelection(): void {
     const world = this.world
     if (!world || this.selection.size === 0) return
-    const ids = [...this.selection].filter((id) => {
-      const u = world.units.get(id)
-      if (u && u.team === this.localTeam) return true
-      const b = world.buildings.get(id)
-      return !!b && b.team === this.localTeam
-    })
+    const ids = [...this.selection].filter((id) => world.canControl(this.localTeam, id))
     if (ids.length === 0) return
     this.issue({ type: 'sell', entities: ids, x: 0, y: 0 })
     this.selection.clear()
@@ -1421,8 +1418,8 @@ export class Game {
     if (!world || !renderer) return
     const selected = new Set<number>()
     const cam = renderer.camera
-    world.units.forEach((id, u) => {
-      if (u.team !== this.localTeam) return
+    world.units.forEach((id, _u) => {
+      if (!world.canControl(this.localTeam, id)) return
       const t = world.transforms.require(id)
       const p = { x: 0, y: 0 }
       cam.worldToScreen(t.x, t.y, p)
@@ -2612,12 +2609,7 @@ export class Game {
   private saveControlGroup(n: number): void {
     const world = this.world
     if (!world) return
-    const ids = [...this.selection].filter((id) => {
-      const b = world.buildings.get(id)
-      if (b && b.team === this.localTeam) return true
-      const u = world.units.get(id)
-      return !!u && u.team === this.localTeam
-    })
+    const ids = [...this.selection].filter((id) => world.canControl(this.localTeam, id))
     this.controlGroups.set(n, ids)
     this.hud.toast(t('game.groupSaved', { n, count: ids.length }))
   }
@@ -2629,13 +2621,7 @@ export class Game {
     if (!ids) return
     const kept: number[] = []
     for (const id of ids) {
-      const b = world.buildings.get(id)
-      if (b && b.team === this.localTeam) {
-        kept.push(id)
-        continue
-      }
-      const u = world.units.get(id)
-      if (u && u.team === this.localTeam) kept.push(id)
+      if (world.canControl(this.localTeam, id)) kept.push(id)
     }
     this.selection = new Set(kept)
   }
@@ -2910,12 +2896,7 @@ export class Game {
     if (e.key === 'Delete' || e.key === 'Backspace' || this.keyMatch(e, 'sell')) {
       const world = this.world
       if (!world) return
-      const owned = [...this.selection].some((id) => {
-        const b = world.buildings.get(id)
-        if (b && b.team === this.localTeam) return true
-        const u = world.units.get(id)
-        return !!u && u.team === this.localTeam
-      })
+      const owned = [...this.selection].some((id) => world.canControl(this.localTeam, id))
       if (owned) this.destroySelection()
     }
     if (isTypingTarget(e.target)) return

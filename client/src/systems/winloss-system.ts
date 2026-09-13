@@ -33,7 +33,7 @@ const isEliminated = (world: World, team: number): boolean => {
       if (hasCC) return false
       if (!hasDozer) return true
       const ccCost = getBuilding('command-center', world.settings).cost
-      return world.teamState(team).credits + refund < ccCost
+      return world.creditsOf(team) + refund < ccCost
     }
   }
 }

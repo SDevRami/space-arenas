@@ -160,9 +160,8 @@ export const EconomySystem = {
           if (inPad) {
             world.moves.delete(id)
             hv.phase = 'idle'
-            const s = world.teamState(u.team)
             const perTrip = world.settings.supplyPerTrip
-            s.credits += perTrip
+            world.grantCredits(u.team, perTrip)
             world.emit({ type: 'supply-harvested', team: u.team, amount: perTrip })
             world.awardScore(u.team, SCORE_SUPPLY_PER_TRIP)
             break

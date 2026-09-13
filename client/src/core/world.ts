@@ -1,5 +1,5 @@
 import { SparseSet } from '../ecs/sparse-set.ts'
-import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR, getUnit, getBuilding, TRANSPORT_CAPACITY_PER_LEVEL, WEAPON_UPGRADE_MAX_LEVEL, type SwChoice, RANK_FLOORS, MAX_RANK, SCORE_UNIT_KILL, SCORE_BUILDING_KILL, AIRSTRIKE_MAX_LEVEL, EMP_MAX_LEVEL, EMP_DURATION_TICKS } from '@space-arenas/shared'
+import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR, getUnit, getBuilding, TRANSPORT_CAPACITY_PER_LEVEL, WEAPON_UPGRADE_MAX_LEVEL, type SwChoice, RANK_FLOORS, MAX_RANK, SCORE_UNIT_KILL, SCORE_BUILDING_KILL, AIRSTRIKE_MAX_LEVEL, EMP_MAX_LEVEL, EMP_DURATION_TICKS, type CoopControl } from '@space-arenas/shared'
 import type { SimEvent } from './events.ts'
 import { rectFromCenter } from './geometry.ts'
 import { spawnBuilding, spawnUnit } from '../entities/factories.ts'
@@ -430,6 +430,12 @@ export class World {
   readonly fog = new Map<number, Uint8Array>()
   /** entity id -> the team that last damaged it, for kill credit & score. */
   readonly lastAttacker = new Map<number, number>()
+  /** Day 16: slot ids that are bots (auto-accept mid-match co-op votes). */
+  readonly robotSlots = new Set<number>()
+  /** Day 16: pending mid-match "Control Co-op" votes per alliance (null = none). */
+  readonly coopVotes = new Map<number, { requestedBy: number; accepted: number[]; denied: boolean } | null>()
+  /** Day 16: alliances that unlocked co-op control mid-match (permanent for the match). */
+  readonly coopVoted = new Set<number>()
 
   tick = 0
   gameOver: number | null = null
@@ -639,6 +645,129 @@ export class World {
 
   allianceOf(team: number): number {
     return this.teams.get(team)?.alliance ?? team
+  }
+
+  // ---- Day 16: team co-op (shared economy / rank / control) ----
+
+  /** Sorted slot ids sharing the given team's alliance. */
+  allianceMembers(team: number): number[] {
+    const a = this.allianceOf(team)
+    const out: number[] = []
+    this.teams.forEach((_s, t) => {
+      if (this.allianceOf(t) === a) out.push(t)
+    })
+    out.sort((x, y) => x - y)
+    return out
+  }
+
+  /** Lowest slot id of the alliance — canonical holder of its shared pool/ladder. */
+  coopCanonical(team: number): number {
+    return this.allianceMembers(team)[0] ?? team
+  }
+
+  /** Slot whose `credits` is the alliance bank (own slot when supply isn't shared). */
+  creditsSlot(team: number): number {
+    const eco = this.settings.coopEconomy
+    return eco === 'supply' || eco === 'both' ? this.coopCanonical(team) : team
+  }
+
+  /** Day 16: with shared supply, move every member's starting credits into the
+   * canonical slot so the alliance opens the match with the combined bank.
+   * Call once after alliances are assigned (Game.boot). */
+  rewireSharedStartingCredits(): void {
+    if (this.settings.coopEconomy !== 'supply' && this.settings.coopEconomy !== 'both') return
+    const seen = new Set<number>()
+    for (const t of [...this.teams.keys()]) {
+      const a = this.allianceOf(t)
+      if (seen.has(a)) continue
+      seen.add(a)
+      const members = this.allianceMembers(t)
+      if (members.length < 2) continue
+      const canon = members[0]
+      const canonTs = this.teams.get(canon)
+      if (!canonTs) continue
+      let total = canonTs.credits
+      for (const m of members) {
+        if (m === canon) continue
+        total += this.teams.get(m)?.credits ?? 0
+      }
+      canonTs.credits = total
+      for (const m of members) {
+        if (m === canon) continue
+        const ts = this.teams.get(m)
+        if (ts) ts.credits = 0
+      }
+    }
+  }
+
+  /** Slot whose power totals are the fused alliance grid (own when power isn't shared). */
+  powerSlot(team: number): number {
+    const eco = this.settings.coopEconomy
+    return eco === 'power' || eco === 'both' ? this.coopCanonical(team) : team
+  }
+
+  /** Slot whose score/rank is the alliance ladder (own when co-op rank is off). */
+  rankSlot(team: number): number {
+    return this.settings.coopRank !== 'none' ? this.coopCanonical(team) : team
+  }
+
+  creditsOf(team: number): number {
+    return this.teams.get(this.creditsSlot(team))?.credits ?? 0
+  }
+
+  canAfford(team: number, cost: number): boolean {
+    return this.creditsOf(team) >= cost
+  }
+
+  grantCredits(team: number, amount: number): void {
+    const s = this.teams.get(this.creditsSlot(team))
+    if (s) s.credits += amount
+  }
+
+  spendCredits(team: number, amount: number): boolean {
+    const s = this.teams.get(this.creditsSlot(team))
+    if (!s || s.credits < amount) return false
+    s.credits -= amount
+    return true
+  }
+
+  /** Fused power totals for the alliance (used by the HUD + placing fusion pass). */
+  alliancePowerOf(team: number): { gen: number; use: number; net: number } {
+    let gen = 0
+    let use = 0
+    for (const m of this.allianceMembers(team)) {
+      const s = this.teams.get(m)
+      if (s) {
+        gen += s.powerGen
+        use += s.powerUse
+      }
+    }
+    return { gen, use, net: gen - use }
+  }
+
+  /** Effective control-sharing level for the team's alliance: the lobby setting,
+   * or `all` once the alliance's mid-match vote passed (permanent). */
+  controlLevel(team: number): CoopControl {
+    if (this.settings.coopControl !== 'none') return this.settings.coopControl
+    return this.coopVoted.has(this.allianceOf(team)) ? 'all' : 'none'
+  }
+
+  /** Whether `player` may command the entity (unit or building) `id`. Allies get
+   * units when sharing is 'units' (buildings stay own) or everything at 'all'. */
+  canControl(player: number, id: number): boolean {
+    const u = this.units.get(id)
+    if (u) {
+      if (u.team === player) return true
+      const eff = this.controlLevel(player)
+      if (eff === 'none') return false
+      return this.allianceOf(u.team) === this.allianceOf(player)
+    }
+    const b = this.buildings.get(id)
+    if (b) {
+      if (b.team === player) return true
+      return this.controlLevel(player) === 'all' && this.allianceOf(b.team) === this.allianceOf(player)
+    }
+    return false
   }
 
   isVisibleTo(team: number, entityId: number, revealAll = false): boolean {
@@ -859,20 +988,21 @@ export class World {
 
   /** Add match score to a team and return the new total. Score sources are
    * deterministic sim events (kills, supply, research, expansions) so the host
-   * and every client agree on when a rank-up becomes available. */
+   * and every client agree on when a rank-up becomes available. When the team
+   * shares a co-op ladder (Day 16) the score lands on the alliance's slot. */
   awardScore(team: number, pts: number): number {
-    const s = this.teams.get(team)
+    const s = this.teams.get(this.rankSlot(team))
     if (!s || pts <= 0) return s?.score ?? 0
     s.score += pts
     return s.score
   }
 
   scoreOf(team: number): number {
-    return this.teams.get(team)?.score ?? 0
+    return this.teams.get(this.rankSlot(team))?.score ?? 0
   }
 
   rankOf(team: number): number {
-    return this.teams.get(team)?.rank ?? 0
+    return this.teams.get(this.rankSlot(team))?.rank ?? 0
   }
 
   /** Score threshold needed for the given rank-up (1-based star). */
@@ -882,17 +1012,17 @@ export class World {
 
   /** Whether the team has scored enough to reach the next star (and isn't maxed). */
   canRankUp(team: number): boolean {
-    const s = this.teams.get(team)
+    const s = this.teams.get(this.rankSlot(team))
     if (!s || s.rank >= MAX_RANK) return false
     return s.score >= this.rankFloor(s.rank + 1)
   }
 
   /** Apply a rank-up: rank++ and a free credits prize (Zero Hour: nothing is consumed). */
   rankUp(team: number): boolean {
-    const s = this.teams.get(team)
+    const s = this.teams.get(this.rankSlot(team))
     if (!s || !this.canRankUp(team)) return false
     s.rank += 1
-    if (this.settings.rankUpPrizeCredits > 0) s.credits += this.settings.rankUpPrizeCredits
+    if (this.settings.rankUpPrizeCredits > 0) this.grantCredits(team, this.settings.rankUpPrizeCredits)
     this.emit({ type: 'rank-up', team, rank: s.rank, score: s.score })
     return true
   }

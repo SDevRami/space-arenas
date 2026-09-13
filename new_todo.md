@@ -315,10 +315,20 @@ Team multiplayer features. Both need LAN/online.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Co-op shared economy** — toggle in lobby: team shares power + supply | #16a | `MatchSettings.sharedEconomy: boolean`. `economy-system.ts`: when enabled, `world.teamStates[team].supply` / `power` become shared reads (no per-player split). Lobby toggle checkbox. |
-| 2 | **Shared team control** — chat-vote system: ally can request control, team votes, majority → full team unit control | #12 | New SimCommand `ally-control-request { fromTeam }` + `ally-control-vote { fromTeam, toTeam, approve }`. `Game.ts` vote tracker: when majority approves, `world.teamControl = 'shared'`. Input: shared selection reads all team units. Only units NOT currently selected by another player are controllable. |
+| 1 | **Co-op shared economy** — toggle in lobby: team shares power + supply | #16a | `MatchSettings.coopEconomy: 'off' | 'power' | 'supply' | 'both'`. Awaiting Day 21 global-mode binding; sim-side the alliance's credits live in ONE slot bank (`World.creditsSlot`, starting credits pooled at boot via `rewireSharedStartingCredits`) and/or a fused power grid (`alliancePowerOf`, identical totals written back to every member). Income/refunds (economy/oil/work/sell systems) land in the shared bank; forge/building/upgrade costs spend from it (input-system `canAfford`/`spendCredits`). |
+| 2 | **Shared team control** — chat-vote system: ally can request control, team votes, majority → full team unit control | #12 | `MatchSettings.coopControl: 'off' | 'units' | 'all'` + mid-match unanimous vote: `ally-coop-request` (id 36) / `ally-coop-vote` (id 37, 1 byte `approve`). Bots auto-accept (`World.robotSlots`); once every human accepts the alliance is `coopVoted` permanently (level `'all'` if lobby was off). `World.canControl` gates units (same alliance when not 'off') and buildings (level `'all'`). |
 
-**Touch points:** `protocol.ts`, `economy-system.ts`, `Game.ts`, `world.ts`, `input.ts` (shared selection), `index.html` (lobby)
+**Touch points:** `protocol.ts` (ids 36/37, PROTOCOL_VERSION → 14), `constants.ts` (Coop enums + MatchSettings fields), `world.ts` (coop state + pool/ladder helpers + `rewireSharedStartingCredits`), `hash.ts` (coopVotes + coopVoted), `events.ts` (`coop-vote-open/coop-accepted/coop-denied`), `input-system.ts` (vote handlers + pooled spends + `canControl` guards), `economy/oil/work/sell` (shared bank), `placing-system.ts` (power fusion ordering), `Game.ts` (robotSlots + credit rewire + alliance-aware selection/action guards), `hud.ts` (shared credits + Team popup + control vote banner), `main.ts` + `index.html` (lobby selects), `rooms.ts` (sanitize), `i18n` en/ar, `tests/day16.test.ts` + `tests/protocol.test.ts`.
+
+**Follow-up (2026-09-13):**
+| # | Change | Notes |
+|---|--------|-------|
+| 1 | **Voted co-op erases the lobby 'off'** | Setting `coopControl: 'none'` with a passed mid-match vote reports level `'all'` permanently (`World.controlLevel`). |
+| 2 | **One credit bank fixed before ranks** | `rewireSharedStartingCredits` runs once at boot (after alliances are assigned) so bots + humans open with the combined pool; late rank prizes land on the canonical slot (`rankSlot`). |
+| 3 | **Longest ladder-move dump path test** | day16 ladder test verifies the canonical slot gets the prize while member slots stay zeroed. |
+| 4 | **No-lobby-offline no-op** | With default `coop*: 'none'`, offline matches behave exactly like before (only alliance vision/fog sharing was already in). |
+| 5 | **Host sanitize** | `rooms.ts` imports Coop option lists and clamps inbound lobby settings. |
+| 6 | **Two-slot all-one-alliance starts** | Such sims emit `game-over` immediately (WinLoss sees <2 alliances) — the no-ballot vote test filters coop events instead of expecting an empty list. |
 
 ---
 

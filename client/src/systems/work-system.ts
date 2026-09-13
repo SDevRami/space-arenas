@@ -132,8 +132,7 @@ export const WorkSystem = {
         world.moves.delete(id)
         w.collectTicks = (w.collectTicks ?? 0) + 1
         if (w.collectTicks >= world.settings.wreckCollectTicks) {
-          const ws = world.teams.get(u.team)
-          if (ws) ws.credits += wc.value
+          world.grantCredits(u.team, wc.value)
           world.emit({ type: 'wreck-collected', entity: w.building, team: u.team, value: wc.value })
           world.removeEntity(w.building)
           world.works.delete(id)

@@ -94,15 +94,14 @@ export const PlacingSystem = {
       cur.use += b.powerUse
       power.set(b.team, cur)
     })
+    // Per-team totals + Defense Dome shield upkeep (shields drain by team, so this
+    // happens before the alliance power fusion below).
     power.forEach((val, team) => {
       const s = world.teamState(team)
       const baseNet = val.gen - val.use
       s.powerGen = val.gen
       s.powerUse = val.use
       s.powerNet = baseNet
-      // Defense Dome (Day 12.1): the upgrade shields only the Command Center.
-      // The dome is kept (and regenerates) while the team has at least neutral
-      // power; it drains away one point per tick while the team is power-down.
       let shields = 0
       world.buildings.forEach((_id, b) => {
         if (!b.done || b.team !== team) return
@@ -120,6 +119,39 @@ export const PlacingSystem = {
       })
       s.powerUse = val.use + shields * SHIELD_POWER_DRAIN_PER_TICK
       s.powerNet = val.gen - s.powerUse
+    })
+    // Day 16: fuse the alliance into one grid when the team shares power
+    // ('power' or 'both') — every member gets the summed gen/use and a single net.
+    const eco = world.settings.coopEconomy
+    if (eco === 'power' || eco === 'both') {
+      const grouped = new Map<number, number[]>()
+      for (const team of power.keys()) {
+        const a = world.allianceOf(team)
+        const list = grouped.get(a)
+        if (list) list.push(team)
+        else grouped.set(a, [team])
+      }
+      for (const members of grouped.values()) {
+        if (members.length < 2) continue
+        let gen = 0
+        let use = 0
+        for (const team of members) {
+          const s = world.teamState(team)
+          gen += s.powerGen
+          use += s.powerUse
+        }
+        const net = gen - use
+        for (const team of members) {
+          const s = world.teamState(team)
+          s.powerGen = gen
+          s.powerUse = use
+          s.powerNet = net
+        }
+      }
+    }
+    // Emit power transitions once the final per-team net is settled.
+    power.forEach((_val, team) => {
+      const s = world.teamState(team)
       const down = s.powerNet < 0
       if (down && !s.powerDown) world.emit({ type: 'power-down', team })
       if (!down && s.powerDown) world.emit({ type: 'power-restored', team })

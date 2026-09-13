@@ -1,5 +1,8 @@
 import type WebSocket from 'ws'
 import {
+  COOP_CONTROL_OPTIONS,
+  COOP_ECONOMY_OPTIONS,
+  COOP_RANK_OPTIONS,
   FOG_MODES,
   mapForPreset,
   mapPreset,
@@ -185,6 +188,9 @@ const sanitizeSettings = (patch: Partial<MatchSettings>): Partial<MatchSettings>
   }
   if (patch.fogMode && (FOG_MODES as readonly string[]).includes(patch.fogMode)) out.fogMode = patch.fogMode
   if (typeof patch.dayNight === 'boolean') out.dayNight = patch.dayNight
+  if ((COOP_ECONOMY_OPTIONS as readonly string[]).includes(patch.coopEconomy as string)) out.coopEconomy = patch.coopEconomy
+  if ((COOP_RANK_OPTIONS as readonly string[]).includes(patch.coopRank as string)) out.coopRank = patch.coopRank
+  if ((COOP_CONTROL_OPTIONS as readonly string[]).includes(patch.coopControl as string)) out.coopControl = patch.coopControl
   return { ...out, ...sanitizeOverrideMaps(patch) }
 }
 

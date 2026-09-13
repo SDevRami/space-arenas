@@ -16,8 +16,7 @@ export const OilSystem = {
         f.incomeTicks++
         if (f.incomeTicks >= incomeInterval) {
           f.incomeTicks = 0
-          const s = world.teamState(f.owner)
-          s.credits += income
+          world.grantCredits(f.owner, income)
           world.emit({ type: 'oil-income', field: id, team: f.owner, amount: income })
         }
         return

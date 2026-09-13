@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, SHIELD_MAX_HP, SW_CHOICES, canThrowBandolier, getBuilding, getUnit, getUpgrade, type UpgradeDef, type SwChoice, RANK_FLOORS } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, SHIELD_MAX_HP, SW_CHOICES, canThrowBandolier, getBuilding, getUnit, getUpgrade, type UpgradeDef, type SwChoice, RANK_FLOORS, PLAYER_COLORS } from '@space-arenas/shared'
 import type { ProductionOrder, World } from '../core/world.ts'
 import { t, tn } from '../i18n/index.ts'
 import { getGraphics } from './graphics.ts'
@@ -45,9 +45,24 @@ export interface HudActions {
   onSwChoose: (choice: SwChoice) => void
   /** Day 15: raise the team's general rank (requires enough match score). */
   onRankUp: () => void
+  /** Day 16: ask the alliance to enable shared control (opens the vote). */
+  onCoopRequest: () => void
+  /** Day 16: respond to the alliance's control vote (Accept / Decline). */
+  onCoopVote: (approve: boolean) => void
+  /** Display name for a slot, when the caller has it (e.g. net lobby). */
+  slotName?: (slot: number) => string | null
 }
 
 const BUILDER_BUILDABLES = ['command-center', 'power-plant', 'supply-dock', 'barracks', 'war-factory', 'turret', 'bunker', 'tech-center', 'air-force', 'super-weapon'] as const
+
+/** A ballot passes once every human alliance member has accepted (bots auto-accept). */
+function ballotDecision(accepted: number[], robots: Set<number>, allies: number[]): boolean {
+  for (const a of allies) {
+    if (robots.has(a)) continue
+    if (!accepted.includes(a)) return false
+  }
+  return true
+}
 
 const UPGRADES_BY_BUILDING: Record<string, UpgradeDef[]> = {}
 for (const u of Object.values(UPGRADES)) {
@@ -104,6 +119,14 @@ export class Hud {
   private rankPanelScore = document.getElementById('rank-panel-score')!
   private rankTierList = document.getElementById('rank-tier-list')!
   private rankUpBtn = document.getElementById('rank-up-btn') as HTMLButtonElement
+  private teamBtn = document.getElementById('team-btn')!
+  private coopMenu = document.getElementById('coop-menu')!
+  private coopMenuBackdrop = document.getElementById('coop-menu-backdrop')!
+  private coopMemberList = document.getElementById('coop-member-list')!
+  private coopStatus = document.getElementById('coop-status')!
+  private coopRequestBtn = document.getElementById('coop-request-btn') as HTMLButtonElement
+  private coopBanner = document.getElementById('coop-banner')!
+  private coopBannerText = document.getElementById('coop-banner-text')!
 
   private lastSelSig: string | null = null
   private lastQueueSig: string | null = null
@@ -130,7 +153,18 @@ export class Hud {
     this.rankMenuBackdrop.addEventListener('click', () => this.closeRankMenu())
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.rankMenu.classList.contains('open')) this.closeRankMenu()
+      if (e.key === 'Escape' && this.coopMenu.classList.contains('open')) this.closeCoopMenu()
     })
+    this.teamBtn.addEventListener('click', () => this.toggleCoopMenu())
+    const coopClose = document.getElementById('coop-close')
+    coopClose?.addEventListener('click', () => this.closeCoopMenu())
+    this.coopMenuBackdrop.addEventListener('click', () => this.closeCoopMenu())
+    this.coopRequestBtn.addEventListener('click', () => {
+      this.actions.onCoopRequest()
+      if (this.lastWorld && this.lastTeam >= 0) this.syncCoopUi(this.lastWorld, this.lastTeam)
+    })
+    document.getElementById('coop-accept')?.addEventListener('click', () => this.voteCoop(true))
+    document.getElementById('coop-decline')?.addEventListener('click', () => this.voteCoop(false))
   }
 
   private lastWorld: World | null = null
@@ -180,6 +214,98 @@ export class Hud {
     this.rankUpBtn.textContent = can ? t('hud.rankUpReady') : t('hud.rankUpWait')
   }
 
+  private lastCoopOpen = false
+  private lastCoopVoted = false
+  private lastCoopDenied = false
+
+  private toggleCoopMenu(): void {
+    if (!this.lastWorld || this.lastTeam < 0) return
+    if (this.coopMenu.classList.contains('open')) {
+      this.closeCoopMenu()
+    } else {
+      this.renderCoopOverlay(this.lastWorld, this.lastTeam)
+      this.coopMenu.classList.add('open')
+      this.coopMenuBackdrop.classList.add('open')
+    }
+  }
+
+  private closeCoopMenu(): void {
+    this.coopMenu.classList.remove('open')
+    this.coopMenuBackdrop.classList.remove('open')
+  }
+
+  private voteCoop(approve: boolean): void {
+    this.actions.onCoopVote(approve)
+    if (this.lastWorld && this.lastTeam >= 0) this.syncCoopUi(this.lastWorld, this.lastTeam)
+  }
+
+  /** Each frame, keep the co-op banner and Team popup in sync with the replayed
+   * vote state, firing a one-time toast on each transition. */
+  private syncCoopUi(world: World, team: number): void {
+    const controls = world.settings.coopControl
+    const allies = world.allianceMembers(team)
+    const voted = world.coopVoted.has(world.allianceOf(team))
+    const ballot = world.coopVotes.get(world.allianceOf(team))
+    if (controls !== 'none') {
+      this.setCoopBanner(false)
+      this.lastCoopOpen = false
+      this.lastCoopVoted = voted
+      this.lastCoopDenied = false
+      return
+    }
+    const open = allies.length >= 2 && !!ballot && !ballot.denied && !voted && !ballotDecision(ballot.accepted, world.robotSlots, allies)
+    if (ballot && ballot.denied && !this.lastCoopDenied) this.toast(t('hud.coopVoteDenied'))
+    if (voted && !this.lastCoopVoted) this.toast(t('hud.coopVotePassed'))
+    if (open && !this.lastCoopOpen) this.toast(t('hud.coopVoteOpen', { n: this.slotLabel(ballot.requestedBy) }))
+    this.lastCoopOpen = open
+    this.lastCoopVoted = voted
+    this.lastCoopDenied = !!(ballot && ballot.denied)
+    if (open) {
+      this.coopBannerText.textContent = t('hud.coopVoteOpen', { n: this.slotLabel(ballot.requestedBy) })
+      this.setCoopBanner(true)
+    } else {
+      this.setCoopBanner(false)
+    }
+  }
+
+  private setCoopBanner(open: boolean): void {
+    this.coopBanner.hidden = !open
+  }
+
+  private slotLabel(slot: number): string {
+    return this.actions.slotName?.(slot) ?? t('hud.playerN', { n: slot + 1 })
+  }
+
+  /** Rebuild the Team popup from live world state. */
+  private renderCoopOverlay(world: World, team: number): void {
+    const allies = world.allianceMembers(team)
+    const controls = world.controlLevel(team)
+    this.coopMemberList.innerHTML = ''
+    for (const m of allies) {
+      const hex = (PLAYER_COLORS[m % PLAYER_COLORS.length] ?? 0xffffff).toString(16).padStart(6, '0')
+      const row = document.createElement('div')
+      row.className = 'coop-member'
+      row.innerHTML = `<span class="coop-dot" style="background:#${hex}"></span><span class="coop-member-name">${this.slotLabel(m)}</span>`
+      this.coopMemberList.appendChild(row)
+    }
+    if (allies.length < 2) {
+      this.coopStatus.textContent = t('hud.coopSolo')
+      this.coopRequestBtn.hidden = true
+    } else if (controls !== 'none') {
+      this.coopStatus.textContent = t('hud.coopControlShared')
+      this.coopRequestBtn.hidden = true
+    } else if (world.coopVoted.has(world.allianceOf(team))) {
+      this.coopStatus.textContent = t('hud.coopControlShared')
+      this.coopRequestBtn.hidden = true
+    } else {
+      this.coopStatus.textContent = t('hud.coopControlOpen')
+      this.coopRequestBtn.hidden = false
+      const ballot = world.coopVotes.get(world.allianceOf(team))
+      this.coopRequestBtn.disabled = !!ballot && !ballot.denied
+      this.coopRequestBtn.textContent = ballot && ballot.denied ? t('hud.coopRequestAgain') : t('hud.coopRequest')
+    }
+  }
+
   show(): void {
     this.hudEl.style.display = 'block'
   }
@@ -207,7 +333,7 @@ export class Hud {
     const ts = world.teamState(localTeam)
     this.lastWorld = world
     this.lastTeam = localTeam
-    this.creditsEl.textContent = `$${ts.credits}`
+    this.creditsEl.textContent = `$${world.creditsOf(localTeam)}`
     const frac = ts.powerUse > 0 ? Math.min(1, ts.powerUse / Math.max(1, ts.powerGen)) : 0
     this.powerFillEl.style.width = `${(frac * 100).toFixed(1)}%`
     this.powerFillEl.style.background = ts.powerDown ? '#e84a4a' : '#4ad8ff'
@@ -217,6 +343,7 @@ export class Hud {
     this.syncEl.style.color = syncOk ? '#7cf27c' : '#ff7a7a'
     this.updateFps()
     this.updateRankBtn(world, localTeam)
+    this.syncCoopUi(world, localTeam)
   }
 
   /** Keep the top-left rank button in sync: earned stars + match score, pulsing
@@ -482,7 +609,7 @@ export class Hud {
           const stealthCost = world.settings.stealthCost
           this.addButton(
             `${t('hud.stealth')} <span class="cost">$${stealthCost}</span>`,
-            () => stealthEligible.length > 0 && world.teamState(localTeam).credits >= stealthCost,
+            () => stealthEligible.length > 0 && world.creditsOf(localTeam) >= stealthCost,
             () => this.actions.onStealthClick(stealthEligible),
             undefined,
             undefined,
@@ -504,13 +631,13 @@ export class Hud {
         const u = world.units.get(id)
         const b = world.buildings.get(id)
         if (u) {
-          if (u.team === localTeam) {
+          if (world.canControl(localTeam, id)) {
             destroyable = true
             refund += Math.floor(getUnit(u.unitType, world.settings).cost * frac)
           }
         }
         if (b) {
-          if (b.team === localTeam) {
+          if (world.canControl(localTeam, id)) {
             destroyable = true
             refund += Math.floor(getBuilding(b.buildingType, world.settings).cost * frac)
           }
@@ -564,8 +691,7 @@ export class Hud {
         this.addButton(
           `${hudIconHtml('unit', ud.id, tn(ud.id, ud.name))}<span>${tn(ud.id, ud.name)}</span> <span class="cost">$${udCost}</span>`,
           () => {
-            const ts = world.teamState(bd.team)
-            if (ts.credits < udCost) return false
+            if (world.creditsOf(bd.team) < udCost) return false
             const q = world.queues.get(bd.id)
             if (q && q.queue.length >= world.settings.queueLimit) return false
             if (ud.class === 'air') {
@@ -643,9 +769,8 @@ export class Hud {
           this.addButton(
             `${tn(up.id, upDef.name)} (${tag}) <span class="cost">$${upCost}</span>${this.rankBadge(upDef.requiredRank, world.rankOf(bd.team))}`,
             () => {
-              const ts2 = world.teamState(bd.team)
               if (world.rankOf(bd.team) < upDef.requiredRank) return false
-              if (ts2.credits < upCost) return false
+              if (world.creditsOf(bd.team) < upCost) return false
               const b2 = world.buildings.get(bd.id)
               if (!b2 || !b2.done) return false
               if (b2.researchQueue.length >= world.settings.queueLimit) return false
@@ -667,9 +792,8 @@ export class Hud {
           this.addButton(
             `${tn(up.id, upDef.name)} (${tag}) <span class="cost">$${upCost}</span>${this.rankBadge(upDef.requiredRank, world.rankOf(bd.team))}`,
             () => {
-              const ts2 = world.teamState(bd.team)
               if (world.rankOf(bd.team) < upDef.requiredRank) return false
-              if (ts2.credits < upCost) return false
+              if (world.creditsOf(bd.team) < upCost) return false
               const b2 = world.buildings.get(bd.id)
               if (!b2 || !b2.done) return false
               if (b2.researchQueue.length >= world.settings.queueLimit) return false
@@ -692,10 +816,9 @@ export class Hud {
           this.addButton(
             `${tn(up.id, upDef.name)} (${tag}) <span class="cost">$${upCost}</span>${this.rankBadge(upDef.requiredRank, world.rankOf(bd.team))}`,
             () => {
-              const ts2 = world.teamState(bd.team)
               if (world.rankOf(bd.team) < upDef.requiredRank) return false
               if (!armed) return false
-              if (ts2.credits < upCost) return false
+              if (world.creditsOf(bd.team) < upCost) return false
               const b2 = world.buildings.get(bd.id)
               if (!b2 || !b2.done) return false
               if (b2.researchQueue.length >= world.settings.queueLimit) return false
@@ -715,7 +838,7 @@ export class Hud {
           () => {
             const ts2 = world.teamState(bd.team)
             if (world.rankOf(bd.team) < upDef.requiredRank) return false
-            if (ts2.credits < upCost) return false
+            if (world.creditsOf(bd.team) < upCost) return false
             const b2 = world.buildings.get(bd.id)
             if (!b2 || !b2.done) return false
             if (b2.researchQueue.length >= world.settings.queueLimit) return false
@@ -782,8 +905,7 @@ export class Hud {
       this.addButton(
         `${t('hud.detector')} <span class="cost">$${detectorCost}</span>`,
         () => {
-          const ts2 = world.teamState(bd.team)
-          if (ts2.credits < detectorCost) return false
+          if (world.creditsOf(bd.team) < detectorCost) return false
           const b2 = world.buildings.get(bd.id)
           if (!b2 || !b2.done || b2.detector) return false
           return true
@@ -838,8 +960,7 @@ export class Hud {
         this.addButton(
           `${hudIconHtml('building', bd.id, tn(bd.id, bd.name))}<span>${tn(bd.id, bd.name)}</span> <span class="cost">$${bd.cost}</span>`,
           () => {
-            const ts = world.teamState(localTeam)
-            if (ts.credits < bd.cost) return false
+            if (world.creditsOf(localTeam) < bd.cost) return false
             if (bd.countLimit !== undefined && this.countBuilding(world, bd.id, localTeam) >= bd.countLimit) return false
             return true
           },

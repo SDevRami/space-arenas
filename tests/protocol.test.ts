@@ -18,7 +18,7 @@ import {
 } from '@space-arenas/shared'
 import { generateDefaultMap } from '@space-arenas/shared'
 
-const ALL_TYPES: CommandType[] = ['move', 'attack-move', 'keep-attack', 'guard', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'set-flag-point', 'assign-dock', 'satellite', 'laser', 'sw-choose', 'sw-airstrike', 'sw-emp', 'forfeit', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload', 'rank-up']
+const ALL_TYPES: CommandType[] = ['move', 'attack-move', 'keep-attack', 'guard', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'set-flag-point', 'assign-dock', 'satellite', 'laser', 'sw-choose', 'sw-airstrike', 'sw-emp', 'forfeit', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload', 'rank-up', 'ally-coop-request', 'ally-coop-vote']
 
 const makeEnv = (type: CommandType): EnvelopeCommand => {
   const cmd: EnvelopeCommand['cmd'] = { type, entities: [1, 2, 3], x: -12345, y: 67890 }
@@ -41,6 +41,7 @@ const makeEnv = (type: CommandType): EnvelopeCommand => {
   if (type === 'repair-unit') cmd.target = 13
   if (type === 'transport-load') cmd.transportId = 61
   if (type === 'transport-unload') cmd.transportId = 62
+  if (type === 'ally-coop-vote') cmd.approve = true
   if (type === 'research') cmd.upgrade = 'radar'
   if (type === 'ping') cmd.pingType = 'alert'
   if (type === 'sw-choose') cmd.choice = 'emp'
@@ -68,6 +69,7 @@ describe('protocol: envelope round-trip', () => {
       expect(out.cmd.transportId).toBe(type === 'transport-load' || type === 'transport-unload' ? (type === 'transport-load' ? 61 : 62) : undefined)
       expect(out.cmd.pingType).toBe(type === 'ping' ? 'alert' : undefined)
       expect(out.cmd.choice).toBe(type === 'sw-choose' ? 'emp' : undefined)
+      expect(out.cmd.approve).toBe(type === 'ally-coop-vote' ? true : undefined)
     }
   })
 
@@ -104,6 +106,14 @@ describe('protocol: frames', () => {
     const out = decodeFrame(encodeFrame(0, []))
     expect(out.tick).toBe(0)
     expect(out.commands).toHaveLength(0)
+  })
+
+  it('round-trips transport-unload with a passenger index payload', () => {
+    const env = makeEnv('transport-unload')
+    env.cmd.index = 3
+    const out = decodeEnvelope(encodeEnvelope(env))
+    expect(out.cmd.transportId).toBe(62)
+    expect(out.cmd.index).toBe(3)
   })
 })
 
@@ -166,6 +176,8 @@ describe('protocol: type ids are stable', () => {
       'sw-airstrike': 33,
       'sw-emp': 34,
       'rank-up': 35,
+      'ally-coop-request': 36,
+      'ally-coop-vote': 37,
     })
   })
 })

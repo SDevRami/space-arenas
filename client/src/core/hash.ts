@@ -113,6 +113,24 @@ export const hashWorld = (world: World): number => {
   addComp(world.mines, (id) => world.mines.require(id))
   addComp(world.transports, (id) => world.transports.require(id))
 
+  const voted = [...world.coopVoted].sort((a, b) => a - b)
+  addNumber(bytes, voted.length)
+  for (const a of voted) addNumber(bytes, a)
+  const votes = [...world.coopVotes.entries()].sort((a, b) => a[0] - b[0])
+  addNumber(bytes, votes.length)
+  for (const [a, v] of votes) {
+    addNumber(bytes, a)
+    if (!v) {
+      addNumber(bytes, 1)
+    } else {
+      addNumber(bytes, 0)
+      addNumber(bytes, v.requestedBy)
+      addNumber(bytes, v.denied ? 1 : 0)
+      addNumber(bytes, v.accepted.length)
+      for (const m of v.accepted) addNumber(bytes, m)
+    }
+  }
+
   return crc32(Uint8Array.from(bytes))
 }
 

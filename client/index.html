@@ -20,6 +20,7 @@
             <span class="rank-btn-stars" id="rank-btn-stars"></span>
             <span class="rank-btn-score" id="rank-btn-score">0</span>
           </button>
+          <button class="menu-btn team-btn" id="team-btn" data-i18n="hud.team">Team</button>
           <span class="hud-credits" id="credits">$800</span>
           <span class="hud-power">
             <span class="power-bar"><span class="power-fill" id="power-fill"></span></span>
@@ -43,6 +44,21 @@
             <div class="rank-panel-score" id="rank-panel-score"></div>
             <div class="rank-tier-list" id="rank-tier-list"></div>
             <button class="rank-up-btn" id="rank-up-btn" data-i18n="rank.up"></button>
+          </div>
+        </aside>
+        <div class="coop-banner" id="coop-banner" hidden>
+          <span class="coop-banner-text" id="coop-banner-text"></span>
+          <button class="coop-btn" id="coop-accept" data-i18n="hud.coopAccept">Accept</button>
+          <button class="coop-btn decline" id="coop-decline" data-i18n="hud.coopDecline">Decline</button>
+        </div>
+        <div id="coop-menu-backdrop" class="coop-menu-backdrop"></div>
+        <aside id="coop-menu" class="coop-menu" role="dialog" aria-hidden="true">
+          <div class="coop-panel">
+            <button class="coop-panel-close" id="coop-close" data-i18n-title="hud.coopClose">✕</button>
+            <div class="coop-panel-title" id="coop-panel-title" data-i18n="hud.coopTitle">Alliance</div>
+            <div class="coop-member-list" id="coop-member-list"></div>
+            <div class="coop-status" id="coop-status"></div>
+            <button class="coop-up-btn" id="coop-request-btn" data-i18n="hud.coopRequest">Enable Control Co-op</button>
           </div>
         </aside>
         <div id="chat-overlay">
@@ -249,6 +265,29 @@
                 <span data-i18n="offline.dayNight">Day/night cycle</span>
               </label>
               <div class="hint" data-i18n="offline.dayNightHint">A 5-minute day/night cycle darkens the world at night. Cosmetic.</div>
+              <label data-i18n="match.coopEconomy">Alliance economy</label>
+              <select id="match-coop-economy" class="fog-select">
+                <option value="none" data-i18n="match.coopNone">Off</option>
+                <option value="power" data-i18n="match.coopPower">Power grid</option>
+                <option value="supply" data-i18n="match.coopSupply">Supply bank</option>
+                <option value="both" data-i18n="match.coopBoth">Both</option>
+              </select>
+              <div class="hint" data-i18n="match.coopEconomyHint">Allies share one credit bank and/or one fused power grid.</div>
+              <label data-i18n="match.coopRank">Alliance rank</label>
+              <select id="match-coop-rank" class="fog-select">
+                <option value="none" data-i18n="match.coopNone">Off</option>
+                <option value="score" data-i18n="match.coopScore">Shared score</option>
+                <option value="level" data-i18n="match.coopLevel">Shared rank level</option>
+                <option value="both" data-i18n="match.coopBoth">Both</option>
+              </select>
+              <div class="hint" data-i18n="match.coopRankHint">Allies climb one combined ladder with merged scores.</div>
+              <label data-i18n="match.coopControl">Alliance control</label>
+              <select id="match-coop-control" class="fog-select">
+                <option value="none" data-i18n="match.coopNone">Off</option>
+                <option value="units" data-i18n="match.coopUnits">Units only</option>
+                <option value="all" data-i18n="match.coopAll">All units + buildings</option>
+              </select>
+              <div class="hint" data-i18n="match.coopControlHint">Allies may command each other's units and buildings.</div>
               <label data-i18n="offline.winCondition" id="match-win-rule-label">Win condition</label>
               <select id="match-win-rule" class="win-rule-select">
                 <option value="standard" data-i18n="offline.win.standard">Standard (base destruction)</option>

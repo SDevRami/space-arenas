@@ -37,7 +37,7 @@ export const EMP_MAX_LEVEL = 2
 
 export const DEFAULT_PORT = 17321
 export const DEFAULT_MAX_PLAYERS = 8
-export const PROTOCOL_VERSION = 13
+export const PROTOCOL_VERSION = 14
 
 /** Number of selectable per-player colors. */
 export const PLAYER_COLOR_COUNT = 10
@@ -216,6 +216,16 @@ export interface UpgradeOverrides {
   researchTimeTicks?: number
 }
 
+/** Day 16: what a team's economy shares (none = today's per-member behavior). */
+export const COOP_ECONOMY_OPTIONS = ['none', 'power', 'supply', 'both'] as const
+export type CoopEconomy = (typeof COOP_ECONOMY_OPTIONS)[number]
+/** Day 16: what a team's score/rank ladder shares. */
+export const COOP_RANK_OPTIONS = ['none', 'score', 'level', 'both'] as const
+export type CoopRank = (typeof COOP_RANK_OPTIONS)[number]
+/** Day 16: how much of each other's stuff teammates may control. */
+export const COOP_CONTROL_OPTIONS = ['none', 'units', 'all'] as const
+export type CoopControl = (typeof COOP_CONTROL_OPTIONS)[number]
+
 export interface MatchSettings {
   startingCredits: number
   oilIncome: number
@@ -316,6 +326,12 @@ export interface MatchSettings {
   engineerHealRange: number
   engineerHealAuraRadius: number
   engineerHealRank: number
+  /** Day 16: whether an alliance shares its economy (none = per-member). */
+  coopEconomy: CoopEconomy
+  /** Day 16: whether an alliance shares one score/rank ladder. */
+  coopRank: CoopRank
+  /** Day 16: how much allied control is allowed (never overrides a mid-match vote). */
+  coopControl: CoopControl
   buildingOverrides: Record<string, BuildingOverrides>
   unitOverrides: Record<string, UnitOverrides>
   weaponOverrides: Record<string, WeaponOverrides>
@@ -421,6 +437,9 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   engineerHealRange: ENGINEER_HEAL_RANGE,
   engineerHealAuraRadius: ENGINEER_HEAL_AURA_RADIUS,
   engineerHealRank: ENGINEER_HEAL_RANK,
+  coopEconomy: 'none',
+  coopRank: 'none',
+  coopControl: 'none',
   buildingOverrides: {},
   unitOverrides: {},
   weaponOverrides: {},

@@ -61,17 +61,17 @@ const formationSlots = (
 
 const ownedUnit = (world: World, player: number, id: number): boolean => {
   const u = world.units.get(id)
-  return !!u && u.team === player
+  return !!u && world.canControl(player, id)
 }
 
 const ownedBuilding = (world: World, player: number, id: number): boolean => {
   const b = world.buildings.get(id)
-  return !!b && b.team === player
+  return !!b && world.canControl(player, id)
 }
 
 const isFreeDozer = (world: World, player: number, id: number): boolean => {
   const u = world.units.get(id)
-  return !!u && u.team === player && u.unitType === 'bulldozer' && !world.works.has(id)
+  return !!u && u.unitType === 'bulldozer' && !world.works.has(id) && world.canControl(player, id)
 }
 
 const countBuilding = (world: World, type: string, team: number): number => {
@@ -122,7 +122,9 @@ const placementValid = (world: World, player: number, buildingType: string, tx: 
 const forfeitPlayer = (world: World, player: number): number => {
   const teamState = world.teams.get(player)
   let total = teamState?.credits ?? 0
-  if (teamState) teamState.credits = 0
+  // With a shared alliance bank the forfeiting member must not wipe the pool,
+  // so only zero their own slot when it really is the bank's slot.
+  if (teamState && world.creditsSlot(player) === player) teamState.credits = 0
   world.clearSatelliteMarkers(player)
   const gone: number[] = []
   world.buildings.forEach((id, b) => {
@@ -188,6 +190,60 @@ export const InputSystem = {
         continue
       }
       switch (cmd.type) {
+        case 'ally-coop-request': {
+          // Only meaningful when the lobby left control sharing off.
+          if (world.settings.coopControl !== 'none') {
+            world.emit({ type: 'command-rejected', player, reason: 'co-op already enabled' })
+            break
+          }
+          const alliance = world.allianceOf(player)
+          const members = world.allianceMembers(player)
+          if (members.length < 2) break
+          if (world.coopVoted.has(alliance)) break
+          const current = world.coopVotes.get(alliance)
+          if (current && !current.denied) break
+          const ballot = { requestedBy: player, accepted: [player], denied: false }
+          // Bots auto-accept: no timeout, no popup.
+          const humans: number[] = []
+          for (const m of members) {
+            if (world.robotSlots.has(m)) {
+              if (!ballot.accepted.includes(m)) ballot.accepted.push(m)
+            } else if (m !== player) {
+              humans.push(m)
+            }
+          }
+          world.coopVotes.set(alliance, ballot)
+          world.emit({ type: 'coop-vote-open', requestedBy: player, alliance, players: members.filter((m) => !world.robotSlots.has(m)) })
+          if (humans.length === 0) {
+            world.coopVoted.add(alliance)
+            world.coopVotes.set(alliance, null)
+            world.emit({ type: 'coop-accepted', alliance })
+          }
+          break
+        }
+        case 'ally-coop-vote': {
+          if (world.settings.coopControl !== 'none') break
+          const alliance = world.allianceOf(player)
+          if (world.coopVoted.has(alliance)) break
+          const current = world.coopVotes.get(alliance)
+          if (!current || current.denied) break
+          if (!current.accepted.includes(player) && !world.robotSlots.has(player)) {
+            if (cmd.approve) {
+              current.accepted.push(player)
+            } else {
+              current.denied = true
+              world.emit({ type: 'coop-denied', alliance, player })
+              break
+            }
+          }
+          const humansDone = world.allianceMembers(player).filter((m) => !world.robotSlots.has(m))
+          if (humansDone.every((m) => current.accepted.includes(m))) {
+            world.coopVoted.add(alliance)
+            world.coopVotes.set(alliance, null)
+            world.emit({ type: 'coop-accepted', alliance })
+          }
+          break
+        }
         case 'move': {
           const mp = resolveMovePoint(world, cmd.x, cmd.y)
           for (const id of cmd.entities) {
@@ -326,7 +382,7 @@ export const InputSystem = {
           }
           for (const id of cmd.entities) {
             const u = world.units.get(id)
-            if (!u || u.team !== player) continue
+            if (!u || !world.canControl(player, id)) continue
             if (!canThrowBandolier({ id: u.unitType, class: u.class })) {
               world.emit({ type: 'command-rejected', player, reason: 'unit cannot use ability' })
               continue
@@ -366,7 +422,7 @@ export const InputSystem = {
           }
           for (const id of cmd.entities) {
             const u = world.units.get(id)
-            if (!u || u.team !== player) continue
+            if (!u || !world.canControl(player, id)) continue
             if (!canThrowBandolier({ id: u.unitType, class: u.class })) {
               world.emit({ type: 'command-rejected', player, reason: 'unit cannot use ability' })
               continue
@@ -419,11 +475,11 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'building already has a detector' })
             break
           }
-          if (teamState.credits < world.settings.detectorCost) {
+          if (!world.canAfford(player, world.settings.detectorCost)) {
             world.emit({ type: 'command-rejected', player, reason: 'insufficient credits' })
             break
           }
-          teamState.credits -= world.settings.detectorCost
+          world.spendCredits(player, world.settings.detectorCost)
           b.detector = true
           world.emit({ type: 'detector-bought', building: id, team: player })
           break
@@ -445,11 +501,11 @@ export const InputSystem = {
               world.emit({ type: 'command-rejected', player, reason: 'unit already stealthed' })
               continue
             }
-            if (teamState.credits < world.settings.stealthCost) {
+            if (!world.canAfford(player, world.settings.stealthCost)) {
               world.emit({ type: 'command-rejected', player, reason: 'insufficient credits' })
               continue
             }
-            teamState.credits -= world.settings.stealthCost
+            world.spendCredits(player, world.settings.stealthCost)
             u.stealth = true
             bought = true
           }
@@ -469,7 +525,7 @@ export const InputSystem = {
           const ty = Math.floor(cmd.y / 1000)
           const committer = cmd.entities.find((id) => {
             const u = world.units.get(id)
-            return !!u && u.team === player && u.unitType === 'engineer'
+            return !!u && world.canControl(player, id) && u.unitType === 'engineer'
           })
           if (committer === undefined) {
             world.emit({ type: 'command-rejected', player, reason: 'no engineer selected' })
@@ -485,7 +541,7 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'mine limit reached' })
             break
           }
-          if (teamState.credits < world.settings.mineCost) {
+          if (!world.canAfford(player, world.settings.mineCost)) {
             world.emit({ type: 'command-rejected', player, reason: 'insufficient credits' })
             break
           }
@@ -499,7 +555,7 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'cannot place mine there' })
             break
           }
-          teamState.credits -= world.settings.mineCost
+          world.spendCredits(player, world.settings.mineCost)
           const mid = world.createEntity('mine', player)
           world.transforms.set(mid, { x: tx * 1000 + 500, y: ty * 1000 + 500 })
           world.mines.set(mid, {
@@ -522,14 +578,14 @@ export const InputSystem = {
           if (target < 0) break
           const mine = world.mines.get(target)
           const mt = world.transforms.get(target)
-          if (!mine || mine.team !== player || !mt) {
+          if (!mine || !world.sameTeam(mine.team, player) || !mt) {
             world.emit({ type: 'command-rejected', player, reason: 'no mine there' })
             break
           }
           let removed = false
           for (const id of cmd.entities) {
             const u = world.units.get(id)
-            if (!u || u.team !== player) continue
+            if (!u || !world.canControl(player, id)) continue
             if (u.unitType !== 'engineer' && u.unitType !== 'bulldozer') continue
             if (world.works.has(id)) continue
             const ut = world.transforms.get(id)
@@ -548,7 +604,7 @@ export const InputSystem = {
           const target = cmd.target ?? -1
           if (target < 0) break
           const tu = world.units.get(target)
-          if (!tu || tu.team !== player) break
+          if (!tu || !world.canControl(player, target)) break
           if (tu.class === 'air') {
             world.emit({ type: 'command-rejected', player, reason: 'cannot repair air units' })
             break
@@ -561,7 +617,7 @@ export const InputSystem = {
           let assigned = false
           for (const id of cmd.entities) {
             const u = world.units.get(id)
-            if (!u || u.team !== player) continue
+            if (!u || !world.canControl(player, id)) continue
             if (u.unitType !== 'engineer') continue
             if (world.works.has(id)) continue
             world.works.set(id, { kind: 'repair-unit', building: target })
@@ -597,7 +653,7 @@ export const InputSystem = {
           for (const id of cmd.entities) {
             if (id === transportId) continue
             const u = world.units.get(id)
-            if (!u || u.team !== player) continue
+            if (!u || !world.canControl(player, id)) continue
             if (u.class !== 'infantry') {
               world.emit({ type: 'command-rejected', player, reason: 'only infantry can be transported' })
               continue
@@ -617,7 +673,7 @@ export const InputSystem = {
           const transportId = cmd.transportId ?? -1
           if (transportId < 0) break
           const tc = world.transports.get(transportId)
-          if (!tc || tc.team !== player) {
+          if (!tc || !world.canControl(player, transportId)) {
             world.emit({ type: 'command-rejected', player, reason: 'no transport selected' })
             break
           }
@@ -714,7 +770,7 @@ export const InputSystem = {
           if (du.unitType !== 'bulldozer') break
           if (world.works.has(dozerId)) break
           const b = world.buildings.get(target)
-          if (!b || b.team !== player) break
+          if (!b || !world.canControl(player, target)) break
           const prev = b.assignedDozer
           if (prev !== 0 && prev !== dozerId) {
             if (world.works.has(prev)) {
@@ -789,7 +845,7 @@ export const InputSystem = {
           const target = cmd.target ?? -1
           if (target < 0) break
           const dock = world.buildings.get(target)
-          if (!dock || dock.team !== player || dock.buildingType !== 'supply-dock') break
+          if (!dock || !world.canControl(player, target) || dock.buildingType !== 'supply-dock') break
           for (const id of cmd.entities) {
             const hv = world.harvesters.get(id)
             if (!hv || !ownedUnit(world, player, id)) continue
@@ -973,7 +1029,7 @@ export const InputSystem = {
         case 'max-power': {
           for (const id of cmd.entities) {
             const b = world.buildings.get(id)
-            if (!b || b.team !== player) continue
+            if (!b || !world.canControl(player, id)) continue
             if (!b.done) {
               world.emit({ type: 'command-rejected', player, reason: 'building not finished' })
               continue
@@ -1013,11 +1069,11 @@ export const InputSystem = {
             break
           }
           const def = getBuilding(buildingType, world.settings)
-          if (teamState.credits < def.cost) {
+          if (!world.canAfford(player, def.cost)) {
             world.emit({ type: 'command-rejected', player, reason: 'insufficient credits' })
             break
           }
-          teamState.credits -= def.cost
+          world.spendCredits(player, def.cost)
           const id = spawnBuilding(world, buildingType, player, tx, ty, false)
           const b = world.buildings.require(id)
           b.assignedDozer = dozerId
@@ -1045,7 +1101,7 @@ export const InputSystem = {
           for (const id of cmd.entities) {
             const b = world.buildings.get(id)
             if (b) {
-              if (b.team !== player) continue
+              if (!world.canControl(player, id)) continue
               // Buildings sell over a short timer: the status frames play in
               // reverse (5→1) while the building can still be attacked. The
               // refund is only granted if it survives the full timer (SellSystem).
@@ -1064,10 +1120,10 @@ export const InputSystem = {
               continue
             }
             const u = world.units.get(id)
-            if (u && u.team === player) {
+            if (u && world.canControl(player, id)) {
               const def = getUnit(u.unitType, world.settings)
               const refund = Math.floor(def.cost * world.settings.sellRefundFraction)
-              teamState.credits += refund
+              world.grantCredits(player, refund)
               world.moves.delete(id)
               world.works.delete(id)
               world.attacks.delete(id)
@@ -1116,11 +1172,11 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: `queue full (max ${world.settings.queueLimit})` })
             break
           }
-          if (teamState.credits < ud.cost) {
+          if (!world.canAfford(player, ud.cost)) {
             world.emit({ type: 'command-rejected', player, reason: 'insufficient credits' })
             break
           }
-          teamState.credits -= ud.cost
+          world.spendCredits(player, ud.cost)
           q.queue.push({ id: world.allocId(), unitType, remainingTicks: ud.buildTimeTicks })
           world.queues.set(id, q)
           world.emit({ type: 'order-queued', building: id, unitType, team: player })
@@ -1135,7 +1191,7 @@ export const InputSystem = {
           if (index >= 0 && index < q.queue.length) {
             const removed = q.queue.splice(index, 1)[0]
             const ud = getUnit(removed.unitType, world.settings)
-            teamState.credits += ud.cost
+            world.grantCredits(player, ud.cost)
             world.emit({ type: 'order-dequeued', building: id, unitType: removed.unitType, team: player })
           }
           break
@@ -1177,7 +1233,7 @@ export const InputSystem = {
           const index = cmd.index ?? 0
           if (index >= 0 && index < b.researchQueue.length) {
             const removed = b.researchQueue.splice(index, 1)[0]
-            teamState.credits += removed.cost
+            world.grantCredits(player, removed.cost)
             world.emit({ type: 'research-cancelled', building: id, upgrade: removed.upgrade, team: player })
           }
           break
@@ -1261,11 +1317,11 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'defense dome already researched' })
             break
           }
-          if (teamState.credits < cost) {
+          if (!world.canAfford(player, cost)) {
             world.emit({ type: 'command-rejected', player, reason: 'insufficient credits' })
             break
           }
-          teamState.credits -= cost
+          world.spendCredits(player, cost)
           b.researchQueue.push({ id: world.allocId(), upgrade: upgradeType, remainingTicks: up.researchTimeTicks, cost })
           world.emit(
             b.researchQueue.length === 1

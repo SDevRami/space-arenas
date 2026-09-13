@@ -1,5 +1,5 @@
 import './styles.css'
-import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, type MatchSettings, type WinRule, type FogMode } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, type MatchSettings, type WinRule, type FogMode } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { AudioHooks } from './audio/hooks.ts'
@@ -1207,6 +1207,9 @@ const startFogEl = document.getElementById('start-fog') as HTMLSelectElement
 const matchFogEl = document.getElementById('match-fog') as HTMLSelectElement
 const startDayNightEl = document.getElementById('start-daynight') as HTMLInputElement
 const matchDayNightEl = document.getElementById('match-daynight') as HTMLInputElement
+const matchCoopEconomyEl = document.getElementById('match-coop-economy') as HTMLSelectElement
+const matchCoopRankEl = document.getElementById('match-coop-rank') as HTMLSelectElement
+const matchCoopControlEl = document.getElementById('match-coop-control') as HTMLSelectElement
 const offlineStatus = document.getElementById('offline-status') as HTMLDivElement
 const countdownOverlay = document.getElementById('countdown-overlay') as HTMLDivElement
 const countdownNum = document.getElementById('countdown-num') as HTMLDivElement
@@ -1516,6 +1519,16 @@ const renderMatchOptions = (msg: LobbyMessage, isHost: boolean): void => {
   matchDayNightEl.checked = msg.settings?.dayNight ?? DEFAULT_MATCH_SETTINGS.dayNight
   matchDayNightEl.disabled = !isHost
 
+  const coopEconomy = msg.settings?.coopEconomy ?? DEFAULT_MATCH_SETTINGS.coopEconomy
+  if ((COOP_ECONOMY_OPTIONS as readonly string[]).includes(coopEconomy)) matchCoopEconomyEl.value = coopEconomy
+  matchCoopEconomyEl.disabled = !isHost
+  const coopRank = msg.settings?.coopRank ?? DEFAULT_MATCH_SETTINGS.coopRank
+  if ((COOP_RANK_OPTIONS as readonly string[]).includes(coopRank)) matchCoopRankEl.value = coopRank
+  matchCoopRankEl.disabled = !isHost
+  const coopControl = msg.settings?.coopControl ?? DEFAULT_MATCH_SETTINGS.coopControl
+  if ((COOP_CONTROL_OPTIONS as readonly string[]).includes(coopControl)) matchCoopControlEl.value = coopControl
+  matchCoopControlEl.disabled = !isHost
+
   matchMapSelectEl.innerHTML = ''
   if (isHost) {
     for (const entry of allMapEntries()) {
@@ -1727,6 +1740,19 @@ matchDayNightEl.addEventListener('change', () => {
   net?.updateRoom({ settings: { dayNight: matchDayNightEl.checked } })
   setMatchStatus(matchDayNightEl.checked ? t('match.dayNightOn') : t('match.dayNightOff'))
 })
+
+const coopSelect = (el: HTMLSelectElement, key: string, kind: string): void => {
+  el.addEventListener('change', () => {
+    if (!lobbyState || lobbyState.yourId !== lobbyState.hostId) return
+    const v = el.value
+    const options = kind === 'economy' ? COOP_ECONOMY_OPTIONS : kind === 'rank' ? COOP_RANK_OPTIONS : COOP_CONTROL_OPTIONS
+    if (!(options as readonly string[]).includes(v)) return
+    net?.updateRoom({ settings: { [key]: v } })
+  })
+}
+coopSelect(matchCoopEconomyEl, 'coopEconomy', 'economy')
+coopSelect(matchCoopRankEl, 'coopRank', 'rank')
+coopSelect(matchCoopControlEl, 'coopControl', 'control')
 
 matchAddBotEl.addEventListener('click', () => {
   if (!lobbyState || lobbyState.yourId !== lobbyState.hostId) return
