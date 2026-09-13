@@ -281,7 +281,24 @@ localStorage + lobby UI. All client-only.
 
 ---
 
-## Day 15 — Team Features: Co-op + Shared Control (S–M)
+## Day 15 — Rank-Up / Zero-Hour Progression (M) ✅ DONE
+
+Sim-side progression. Match score (kills, supply, research, expansions) drives a free 3★ rank ladder; rank gates tech + super-weapon upgrades, and the Super Weapon arms the Laser by default with airstrike/EMP unlocked at ★3.
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | **Match score** — deterministic, awarded per sim event | — | `TeamState.score` + `World.awardScore/scoreOf`; kill credit (unit 10 / building 30) from `World.lastAttacker` set in `combat-system.applyDamage` only when the attacker is hostile (self/sell damage never scores), supply 2/trip (`economy-system`), research 15 (`placing-system`), expansion building placed >18 tiles from spawn 25 (`EXPANSION_RADIUS_TILES`). |
+| 2 | **Free 3★ rank ladder** — `RANK_COUNT = 3`, `RANK_FLOORS = [500, 1500, 3500]` | #RE q | Rank-up is **free** at the floor; score keeps counting toward the NEXT floor (never consumed). Manual `rank-up` SimCommand (id 35) → `rank-up` event + optional credits prize (`rankUpPrizeCredits` = 100). HUD rank button + overlay (locks via live world state, hidden until 500 & ready) — toast (`achievement` SFX) + log line on promote (Game.ts event drain). |
+| 3 | **Rank-gated tech tiers** — `requiredRank` on every upgrade def | — | ★3: `space-laser` + `airstrike-level`/`emp-level`. ★2: `defense-dome`, `weapon-upgrade`. ★1: `stealth-tech`, `detector-upgrade`, `mine-tech`, `abilities-tech`, `transport-capacity`. ★0: `radar`, `satellite`, `dome`-adjacent basics. Research handler rejects below the floor (`star rank required`); HUD shows lock badges + disabled state. |
+| 4 | **Laser default + pickable strikes** | — | Super Weapon arms the Space Laser by default; `sw-choose` only accepts airstrike/EMP (laser is rejected: `laser is armed by default`). SW panel shows "laser armed by default" note, only airstrike/EMP as choices. Radar research moved to the Command Center (`radar.availableAt = 'command-center'`). |
+| 5 | **Levelable super weapons** — airstrike/EMP become upgrades at ★3 | — | `airstrike-level` / `emp-level` (max lvl `AIRSTRIKE_MAX_LEVEL`/`EMP_MAX_LEVEL` = 2) require the matching weapon armed first (`choose the airstrike/emp` guard), escalating cost `lvl * 1000 + up.cost`; strikes scale damage ×(1+0.5·lvl), radius ×(1+0.15·lvl), EMP duration ×(1+0.5·lvl). HUD shows armed-required badges + disabled states. |
+| 6 | **Profile total score + hexagon chart** | — | `MatchRecord.score` (`matchScore.field`) + `totalScore(profile)` (old records default 0). Player card renders a hexagon SVG radar chart (combat / economy / army / expansion / research / intel) + total score; rank-up achievement slides in from top-left (`toast ach slide-in` CSS). Recorder untouched. |
+
+**Touch points:** `shared/constants.ts` (`RANK_COUNT/RANK_FLOORS/score consts/rankUpPrizeCredits/EXPANSION_RADIUS_TILES/AIRSTRIKE_MAX_LEVEL/EMP_MAX_LEVEL`, PROTOCOL_VERSION → 12), `shared/protocol.ts` (`rank-up` id 35), `shared/balance/upgrades.ts` (`requiredRank` + radar `command-center` + sw-level defs), `world.ts` (`TeamState.score/rank/airstrikeLevel/empLevel`, `lastAttacker`, rank helpers, `AirstrikeComp.damage/radius`), `hash.ts` (4 new fields), `input-system.ts` (rank-up handler, sw-choose laser guard, leveled strikes, research gating/costs), `placing-system.ts` (+`SCORE_RESEARCH`, sw-level finalizers), `economy-system.ts` (+`SCORE_SUPPLY_PER_TRIP`), `combat-system.ts` (`lastAttacker`), `airstrike-system.ts` (damage/radius params), `events.ts` (`rank-up`), `hud.ts` (rank btn/overlay/lock badges/SW panel note/onRankUp), `Game.ts` (toast + log + describeEvent), `profile.ts`+`profile/ui.ts` (`score`, `totalScore`, hexagon card), `i18n` en/ar, `styles.css` (`.rank-btn` pulse, `#rank-overlay`, `.lock-badge`, `.sw-panel-note`, toast slide-in, hexagon), `tests/day15.test.ts`, `tests/{protocol,day14}.test.ts` (updates)
+
+---
+
+## Day 16 — Team Features: Co-op + Shared Control (S–M)
 
 Team multiplayer features. Both need LAN/online.
 
@@ -294,7 +311,7 @@ Team multiplayer features. Both need LAN/online.
 
 ---
 
-## Day 16 — Replay System (M, LAN only)
+## Day 17 — Replay System (M, LAN only)
 
 Save/load from host command history. No online server needed.
 
@@ -308,7 +325,7 @@ Save/load from host command history. No online server needed.
 
 ---
 
-## Day 17 — Auto-Reconnect + Spectator Fallback (M)
+## Day 18 — Auto-Reconnect + Spectator Fallback (M)
 
 Net + client resilience.
 
@@ -321,7 +338,7 @@ Net + client resilience.
 
 ---
 
-## Day 18 — Survival Waves + Scenario Schema (M–L)
+## Day 19 — Survival Waves + Scenario Schema (M–L)
 
 AI wave system + data-driven config.
 
@@ -336,7 +353,7 @@ AI wave system + data-driven config.
 
 ---
 
-## Day 19 — Base Templates + Mod Support (S–M)
+## Day 20 — Base Templates + Mod Support (S–M)
 
 Economy QoL + data config.
 
@@ -350,7 +367,7 @@ Economy QoL + data config.
 
 ---
 
-## Day 20 — Military Tactics: Hold Position + Formations (M)
+## Day 21 — Military Tactics: Hold Position + Formations (M)
 
 Input + move system.
 
@@ -363,7 +380,7 @@ Input + move system.
 
 ---
 
-## Day 21 — Territory Capture: Supply Twist (M)
+## Day 22 — Territory Capture: Supply Twist (M)
 
 Capture neutral supply fields for income boost.
 
@@ -375,7 +392,7 @@ Capture neutral supply fields for income boost.
 
 ---
 
-## Day 22 — Interactive Tutorial (L)
+## Day 23 — Interactive Tutorial (L)
 
 New game mode overlay with guided walkthrough.
 
@@ -405,15 +422,16 @@ New game mode overlay with guided walkthrough.
 | 12 | Dome + walls + weapon upgrade | M | Yes | |
 | 13 | Super weapon variants | M | Yes | |
 | 14 | Profile + achievements | M | No | |
-| 15 | Co-op + shared control | M | Yes | |
-| 16 | Replay system | M | No | |
-| 17 | Auto-reconnect | M | No | |
-| 18 | Survival + scenario | M–L | Yes | |
-| 19 | Base templates + mods | S–M | No | |
-| 20 | Hold position + formations | M | Yes | |
-| 21 | Territory capture (supply) | M | Yes | |
-| 22 | Tutorial | L | Yes | |
+| 15 | Rank-up / progression | M | Yes | ✅ |
+| 16 | Co-op + shared control | M | Yes | |
+| 17 | Replay system | M | No | |
+| 18 | Auto-reconnect | M | No | |
+| 19 | Survival + scenario | M–L | Yes | |
+| 20 | Base templates + mods | S–M | No | |
+| 21 | Hold position + formations | M | Yes | |
+| 22 | Territory capture (supply) | M | Yes | |
+| 23 | Tutorial | L | Yes | |
 
-**Total: ~22 working days**
+**Total: ~23 working days**
 
 **Deferred** (see `future_todo.md`): sea army, full territory capture game mode, online server, cloud mods, advanced map builder.

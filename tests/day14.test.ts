@@ -59,6 +59,7 @@ const record = (
     unitsBuilt: input.unitsBuilt,
     buildingsBuilt: input.buildingsBuilt,
     supplyHarvested: input.supplyHarvested,
+    score: input.score ?? 0,
     counters: delta(input.counters),
     typeCounts: input.typeCounts ?? { unitsTrainedByType: {}, buildingsBuiltByType: {}, upgradesResearched: {} },
   })

@@ -47,6 +47,7 @@ export type SimEvent =
   | { type: 'sw-chosen'; team: number; choice: SwChoice }
   | { type: 'airstrike-called'; team: number; x: number; y: number }
   | { type: 'airstrike-bomb'; team: number; x: number; y: number }
+  | { type: 'rank-up'; team: number; rank: number; score: number }
   | { type: 'emp-strike'; team: number; x: number; y: number; radius: number }
   | { type: 'ping-point'; team: number; x: number; y: number; pingType: PingType }
   | { type: 'player-left'; team: number; amount: number }

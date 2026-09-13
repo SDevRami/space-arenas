@@ -1,4 +1,4 @@
-import { sqDist } from '@space-arenas/shared'
+import { sqDist, SCORE_SUPPLY_PER_TRIP } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { setMove } from '../entities/factories.ts'
 
@@ -164,6 +164,7 @@ export const EconomySystem = {
             const perTrip = world.settings.supplyPerTrip
             s.credits += perTrip
             world.emit({ type: 'supply-harvested', team: u.team, amount: perTrip })
+            world.awardScore(u.team, SCORE_SUPPLY_PER_TRIP)
             break
           }
           if (!world.moves.has(id)) {

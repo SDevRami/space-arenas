@@ -1,4 +1,4 @@
-import { SHIELD_MAX_HP, SHIELD_POWER_DRAIN_PER_TICK, SHIELD_REGEN_PER_TICK, WEAPON_UPGRADE_MAX_LEVEL } from '@space-arenas/shared'
+import { SHIELD_MAX_HP, SHIELD_POWER_DRAIN_PER_TICK, SHIELD_REGEN_PER_TICK, WEAPON_UPGRADE_MAX_LEVEL, SCORE_RESEARCH, AIRSTRIKE_MAX_LEVEL, EMP_MAX_LEVEL } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 
 export const PlacingSystem = {
@@ -55,6 +55,15 @@ export const PlacingSystem = {
         const s = world.teamState(b.team)
         s.weaponUpgradeLevel = Math.min(WEAPON_UPGRADE_MAX_LEVEL, (s.weaponUpgradeLevel ?? 0) + 1)
       }
+      if (upgradeType === 'airstrike-level') {
+        const s = world.teamState(b.team)
+        s.airstrikeLevel = Math.min(AIRSTRIKE_MAX_LEVEL, (s.airstrikeLevel ?? 0) + 1)
+      }
+      if (upgradeType === 'emp-level') {
+        const s = world.teamState(b.team)
+        s.empLevel = Math.min(EMP_MAX_LEVEL, (s.empLevel ?? 0) + 1)
+      }
+      world.awardScore(b.team, SCORE_RESEARCH)
       world.emit({ type: 'upgrade-completed', building: id, upgrade: upgradeType, team: b.team })
     })
 

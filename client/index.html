@@ -16,6 +16,7 @@
       <div id="game-canvas"></div>
       <div id="hud">
         <div class="hud-top">
+          <button class="rank-btn" id="rank-btn" data-i18n-title="rank.buttonTitle"></button>
           <span class="hud-credits" id="credits">$800</span>
           <span class="hud-power">
             <span class="power-bar"><span class="power-fill" id="power-fill"></span></span>
@@ -31,6 +32,15 @@
           <button class="menu-btn" id="menu-btn" data-i18n="menu.button">Menu</button>
         </div>
         <div class="hud-game-log" id="game-log"></div>
+        <div id="rank-overlay" class="hidden">
+          <div class="rank-panel">
+            <button class="rank-panel-close" id="rank-close" data-i18n-title="rank.close">✕</button>
+            <div class="rank-panel-title" id="rank-panel-title">★ 0</div>
+            <div class="rank-panel-score" id="rank-panel-score"></div>
+            <div class="rank-tier-list" id="rank-tier-list"></div>
+            <button class="rank-up-btn" id="rank-up-btn" data-i18n="rank.up"></button>
+          </div>
+        </div>
         <div id="chat-overlay">
           <div class="chat-tabs">
             <button data-target="all" class="active" data-i18n="chat.global">Global</button>

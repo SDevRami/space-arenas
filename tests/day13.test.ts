@@ -41,7 +41,7 @@ describe('Day 13.1: Super Weapon choice', () => {
     expect(first.some((e) => e.type === 'sw-chosen' && e.team === 0 && e.choice === 'emp')).toBe(true)
     expect(world.swChoiceOf(0)).toBe('emp')
 
-    arm(sim, 0, 'laser')
+    arm(sim, 0, 'airstrike')
     const second = sim.drainEvents()
     expect(second.some((e) => e.type === 'command-rejected' && e.reason === 'super weapon already armed')).toBe(true)
     expect(world.swChoiceOf(0)).toBe('emp')

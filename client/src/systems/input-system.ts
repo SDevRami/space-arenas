@@ -1,5 +1,5 @@
 import type { EnvelopeCommand } from '@space-arenas/shared'
-import { canThrowBandolier, getBuilding, getUnit, getUpgrade, sqDist, tileToFx, SW_CHOICES, EMP_RADIUS_TILES, EMP_PULSE_TICKS } from '@space-arenas/shared'
+import { canThrowBandolier, getBuilding, getUnit, getUpgrade, sqDist, tileToFx, SW_CHOICES, EMP_RADIUS_TILES, isqrt, EXPANSION_RADIUS_TILES, SCORE_EXPANSION, AIRSTRIKE_BOMB_DAMAGE, AIRSTRIKE_BOMB_RADIUS } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { placementExplored, PING_TICKS } from '../core/world.ts'
 import { nearestPassablePoint } from '../core/pathfinding.ts'
@@ -874,6 +874,12 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'invalid strike choice' })
             break
           }
+          // Day 15: the laser is now free/always armed — the SP panel only
+          // lets you pick the *additional* strike (airstrike vs EMP).
+          if (choice === 'laser') {
+            world.emit({ type: 'command-rejected', player, reason: 'laser is armed by default' })
+            break
+          }
           if (teamState.swChoice !== null) {
             world.emit({ type: 'command-rejected', player, reason: 'super weapon already armed' })
             break
@@ -906,7 +912,9 @@ export const InputSystem = {
             break
           }
           teamState.airstrikeLastUsed = world.tick
-          spawnAirstrike(world, player, airTx, airTy)
+          const airDmg = Math.round(AIRSTRIKE_BOMB_DAMAGE * world.airstrikeDamageMultiplier(player))
+          const airRad = Math.max(1, Math.round(AIRSTRIKE_BOMB_RADIUS * world.airstrikeRadiusMultiplier(player)))
+          spawnAirstrike(world, player, airTx, airTy, airDmg, airRad)
           world.emit({ type: 'airstrike-called', team: player, x: airTx * 1000 + 500, y: airTy * 1000 + 500 })
           break
         }
@@ -938,8 +946,10 @@ export const InputSystem = {
           const empX = empTx * 1000 + 500
           const empY = empTy * 1000 + 500
           world.transforms.set(empId, { x: empX, y: empY })
-          world.empPulses.set(empId, { team: player, radius: EMP_RADIUS_TILES, untilTick: world.tick + EMP_PULSE_TICKS })
-          world.emit({ type: 'emp-strike', team: player, x: empX, y: empY, radius: EMP_RADIUS_TILES })
+          const empRadius = Math.max(1, Math.round(EMP_RADIUS_TILES * world.empRadiusMultiplier(player)))
+          const empTicks = world.empDurationTicks(player)
+          world.empPulses.set(empId, { team: player, radius: empRadius, untilTick: world.tick + empTicks })
+          world.emit({ type: 'emp-strike', team: player, x: empX, y: empY, radius: empRadius })
           break
         }
         case 'max-power': {
@@ -997,6 +1007,14 @@ export const InputSystem = {
           world.moves.delete(dozerId)
           world.emit({ type: 'building-placed', entity: id, buildingType, team: player })
           world.emit({ type: 'dozer-assigned', entity: dozerId, building: id, kind: 'construct', team: player })
+          // Day 15 expansion score: only when the new building is far enough
+          // from this team's starting base to actually count as scouting/expanding.
+          const sp = world.map.spawnPoints[player]
+          if (sp) {
+            const dx = tx - sp.x
+            const dy = ty - sp.y
+            if (isqrt(dx * dx + dy * dy) >= EXPANSION_RADIUS_TILES) world.awardScore(player, SCORE_EXPANSION)
+          }
           break
         }
         case 'forfeit': {
@@ -1168,9 +1186,29 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'wrong building' })
             break
           }
-          const cost = up.id === 'space-laser' ? world.laserUpgradeCost(player, up.cost) : up.id === 'weapon-upgrade' ? world.weaponUpgradeCost(player, up.cost) : up.cost
+          const cost = up.id === 'space-laser' ? world.laserUpgradeCost(player, up.cost) : up.id === 'weapon-upgrade' ? world.weaponUpgradeCost(player, up.cost) : up.id === 'airstrike-level' ? world.airstrikeLevel(player) * 1000 + up.cost : up.id === 'emp-level' ? world.empLevel(player) * 1000 + up.cost : up.cost
+          if (world.rankOf(player) < up.requiredRank) {
+            world.emit({ type: 'command-rejected', player, reason: up.requiredRank + ' star rank required' })
+            break
+          }
           if (up.id === 'space-laser' && world.laserLevel(player) >= world.laserMaxLevel()) {
             world.emit({ type: 'command-rejected', player, reason: 'laser maxed' })
+            break
+          }
+          if (up.id === 'airstrike-level' && teamState.swChoice !== 'airstrike') {
+            world.emit({ type: 'command-rejected', player, reason: 'choose the airstrike at the super weapon first' })
+            break
+          }
+          if (up.id === 'airstrike-level' && world.airstrikeLevel(player) >= world.airstrikeMaxLevel()) {
+            world.emit({ type: 'command-rejected', player, reason: 'airstrike maxed' })
+            break
+          }
+          if (up.id === 'emp-level' && teamState.swChoice !== 'emp') {
+            world.emit({ type: 'command-rejected', player, reason: 'choose the emp at the super weapon first' })
+            break
+          }
+          if (up.id === 'emp-level' && world.empLevel(player) >= world.empMaxLevel()) {
+            world.emit({ type: 'command-rejected', player, reason: 'emp maxed' })
             break
           }
           if (up.id === 'weapon-upgrade' && world.weaponUpgradeLevel(player) >= world.weaponMaxLevel()) {
@@ -1216,6 +1254,12 @@ export const InputSystem = {
               ? { type: 'research-started', building: id, upgrade: upgradeType, team: player }
               : { type: 'research-queued', building: id, upgrade: upgradeType, team: player },
           )
+          break
+        }
+        case 'rank-up': {
+          if (!world.rankUp(player)) {
+            world.emit({ type: 'command-rejected', player, reason: 'score below next rank floor' })
+          }
           break
         }
       }

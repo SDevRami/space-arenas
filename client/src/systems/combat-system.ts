@@ -6,6 +6,11 @@ import { setMove } from '../entities/factories.ts'
 export const applyDamage = (world: World, target: number, amount: number, attacker: number, teamOverride = -1): void => {
   const h = world.healths.get(target)
   if (!h) return
+  const attackerUnit = world.units.get(attacker)
+  const team = teamOverride >= 0 ? teamOverride : attackerUnit ? attackerUnit.team : (world.buildings.get(attacker)?.team ?? -1)
+  // Day 15 kill credit: track the last hostile damager so the killer can be
+  // rewarded when the target dies. Mine blasts and EMP-self-hits are excluded.
+  if (team !== world.teamOf(target)) world.lastAttacker.set(target, team)
   // Defense Dome (Day 12.1): the Command Center (only) takes hits on its shield first.
   const bsh = world.buildings.get(target)
   if (bsh && bsh.shieldHp > 0) {
@@ -20,8 +25,6 @@ export const applyDamage = (world: World, target: number, amount: number, attack
   }
   h.hp -= amount
   world.flashes.set(target, { hitTick: world.tick })
-  const attackerUnit = world.units.get(attacker)
-  const team = teamOverride >= 0 ? teamOverride : attackerUnit ? attackerUnit.team : (world.buildings.get(attacker)?.team ?? -1)
   world.emit({ type: 'combat-hit', attacker, target, damage: amount, team })
   const b = world.buildings.get(target)
   if (b && b.done && b.sellingUntil <= world.tick && world.teamOf(attacker) !== b.team) {

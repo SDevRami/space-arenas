@@ -236,6 +236,7 @@ export class Game {
         if (!this.world) return
         this.issue({ type: 'sw-choose', entities: [], x: 0, y: 0, choice })
       },
+      onRankUp: () => this.issue({ type: 'rank-up', entities: [], x: 0, y: 0 }),
     })
   }
 
@@ -479,6 +480,7 @@ export class Game {
     }
     const summary = this.session.summary()
     const result: 'win' | 'loss' | 'draw' = winner === null ? 'draw' : winner === this.localTeam ? 'win' : 'loss'
+    const matchScore = this.world ? this.world.scoreOf(this.localTeam) : 0
     recordMatch(storage, profile, config, {
       mode: this.mode,
       result,
@@ -488,6 +490,7 @@ export class Game {
       unitsBuilt: summary.counters.unitsTrained,
       buildingsBuilt: summary.counters.buildingsBuilt,
       supplyHarvested: summary.counters.supplyHarvested,
+      score: matchScore,
       counters: summary.counters,
       typeCounts: summary.typeCounts,
     })
@@ -907,6 +910,10 @@ export class Game {
       if (e.type === 'emp-strike') {
         if (gfx.effects.effects) renderer.addImpact(e.x, e.y, 0xc070ff)
       }
+      if (e.type === 'rank-up' && e.team === this.localTeam) {
+        this.hud.achievementToast(t('game.rankUpTitle', { rank: e.rank }), t('game.rankUpDesc'))
+        this.audio.playSfx('achievement', { gain: 0.1 })
+      }
       if (e.type === 'combat-hit' && world.teamOf(e.target) === this.localTeam) {
         hapticDamaged()
       }
@@ -1083,6 +1090,8 @@ export class Game {
       }
       case 'unit-ranked-up':
         return this.world && this.world.teamOf(e.unit) === this.localTeam ? t('game.events.rankedUp', { rank: e.rank }) : null
+      case 'rank-up':
+        return e.team === this.localTeam ? t('game.events.rankUp', { rank: e.rank }) : null
       case 'command-rejected':
         return t('game.rejected', { reason: e.reason })
       case 'player-left':

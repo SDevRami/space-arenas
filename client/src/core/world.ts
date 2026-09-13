@@ -1,5 +1,5 @@
 import { SparseSet } from '../ecs/sparse-set.ts'
-import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR, getUnit, getBuilding, TRANSPORT_CAPACITY_PER_LEVEL, WEAPON_UPGRADE_MAX_LEVEL, type SwChoice } from '@space-arenas/shared'
+import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR, getUnit, getBuilding, TRANSPORT_CAPACITY_PER_LEVEL, WEAPON_UPGRADE_MAX_LEVEL, type SwChoice, RANK_FLOORS, MAX_RANK, SCORE_UNIT_KILL, SCORE_BUILDING_KILL, AIRSTRIKE_MAX_LEVEL, EMP_MAX_LEVEL, EMP_DURATION_TICKS } from '@space-arenas/shared'
 import type { SimEvent } from './events.ts'
 import { rectFromCenter } from './geometry.ts'
 import { spawnBuilding, spawnUnit } from '../entities/factories.ts'
@@ -257,6 +257,14 @@ export interface TeamState {
   airstrikeLastUsed: number
   /** Tick of the last EMP strike (for cooldown). */
   empLastUsed: number
+  /** Day 15: current-match score (kills, supply, research, expansions). */
+  score: number
+  /** Day 15: general rank (0..MAX_RANK) — each star unlocks higher-tier research. */
+  rank: number
+  /** Day 15: Airstrike upgrade level (max AIRSTRIKE_MAX_LEVEL), like the laser. */
+  airstrikeLevel: number
+  /** Day 15: EMP upgrade level (max EMP_MAX_LEVEL), like the laser. */
+  empLevel: number
 }
 
 export type PlaneState = 'idle' | 'attacking' | 'returning'
@@ -293,6 +301,9 @@ export interface AirstrikeComp {
   ty: number
   /** Tick the plane begins flying toward the target (staggers the squadron). */
   startTick: number
+  /** Day 15: per-bomb damage & radius of the leveled strike. */
+  damage: number
+  radius: number
 }
 
 /** Day 13: the EMP nullification zone at a strike point — purple pulse while active. */
@@ -414,6 +425,8 @@ export class World {
   readonly settings: MatchSettings
   readonly teams = new Map<number, TeamState>()
   readonly fog = new Map<number, Uint8Array>()
+  /** entity id -> the team that last damaged it, for kill credit & score. */
+  readonly lastAttacker = new Map<number, number>()
 
   tick = 0
   gameOver: number | null = null
@@ -467,7 +480,7 @@ export class World {
     this.settings = mergeMatchSettings(settings)
     this.rng = new RNG(seed)
     for (const p of players) {
-      this.teams.set(p, { credits: this.settings.startingCredits, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: p, color: p, stealthTech: false, detectorUnlocked: false, mineTech: false, abilitiesUnlocked: false, transportCapacityLevel: 0, defenseDome: false, weaponUpgradeLevel: 0, swChoice: null, airstrikeLastUsed: -100000, empLastUsed: -100000 })
+      this.teams.set(p, { credits: this.settings.startingCredits, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: p, color: p, stealthTech: false, detectorUnlocked: false, mineTech: false, abilitiesUnlocked: false, transportCapacityLevel: 0, defenseDome: false, weaponUpgradeLevel: 0, swChoice: null, airstrikeLastUsed: -100000, empLastUsed: -100000, score: 0, rank: 0, airstrikeLevel: 0, empLevel: 0 })
       this.fog.set(p, new Uint8Array(map.width * map.height))
     }
     this.initStatic(map)
@@ -582,6 +595,15 @@ export class World {
     if (team >= 0) {
       this.events.push({ type: 'entity-destroyed', entity: id, kind, team, x: deadX, y: deadY, ...(typeName !== undefined ? { typeName } : {}) })
     }
+    // Day 15 kill score: the killer team (last attacker) gets points so the
+    // rank ladder can climb from battle alone. No lastAttacker entry means the
+    // object was sold/refunded, not destroyed by combat.
+    const killer = this.lastAttacker.get(id)
+    if (killer !== undefined && killer !== team && killer >= 0) {
+      const pts = kind === 'unit' ? SCORE_UNIT_KILL : kind === 'building' ? SCORE_BUILDING_KILL : 0
+      if (pts > 0) this.awardScore(killer, pts)
+    }
+    this.lastAttacker.delete(id)
   }
 
   teamOf(id: number): number {
@@ -702,7 +724,7 @@ export class World {
 
   teamState(team: number): TeamState {    let s = this.teams.get(team)
     if (!s) {
-      s = { credits: 0, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: team, color: team, stealthTech: false, detectorUnlocked: false, mineTech: false, abilitiesUnlocked: false, transportCapacityLevel: 0, defenseDome: false, weaponUpgradeLevel: 0, swChoice: null, airstrikeLastUsed: -100000, empLastUsed: -100000 }
+      s = { credits: 0, powerGen: 0, powerUse: 0, powerNet: 0, powerDown: false, radar: false, satellite: false, satelliteRevealUntil: -1, satelliteLastUsed: -100000, laser: false, laserLastUsed: -100000, laserFreeShotUsed: false, laserLevel: 0, alliance: team, color: team, stealthTech: false, detectorUnlocked: false, mineTech: false, abilitiesUnlocked: false, transportCapacityLevel: 0, defenseDome: false, weaponUpgradeLevel: 0, swChoice: null, airstrikeLastUsed: -100000, empLastUsed: -100000, score: 0, rank: 0, airstrikeLevel: 0, empLevel: 0 }
       this.teams.set(team, s)
     }
     return s
@@ -828,6 +850,91 @@ export class World {
 
   weaponUpgradeCost(team: number, baseCost: number): number {
     return baseCost * (this.weaponUpgradeLevel(team) + 1)
+  }
+
+  // ---- Day 15: match score + general rank (Zero Hour style) ----
+
+  /** Add match score to a team and return the new total. Score sources are
+   * deterministic sim events (kills, supply, research, expansions) so the host
+   * and every client agree on when a rank-up becomes available. */
+  awardScore(team: number, pts: number): number {
+    const s = this.teams.get(team)
+    if (!s || pts <= 0) return s?.score ?? 0
+    s.score += pts
+    return s.score
+  }
+
+  scoreOf(team: number): number {
+    return this.teams.get(team)?.score ?? 0
+  }
+
+  rankOf(team: number): number {
+    return this.teams.get(team)?.rank ?? 0
+  }
+
+  /** Score threshold needed for the given rank-up (1-based star). */
+  rankFloor(rank: number): number {
+    return rank > 0 && rank <= RANK_FLOORS.length ? RANK_FLOORS[rank - 1] : Number.POSITIVE_INFINITY
+  }
+
+  /** Whether the team has scored enough to reach the next star (and isn't maxed). */
+  canRankUp(team: number): boolean {
+    const s = this.teams.get(team)
+    if (!s || s.rank >= MAX_RANK) return false
+    return s.score >= this.rankFloor(s.rank + 1)
+  }
+
+  /** Apply a rank-up: rank++ and a free credits prize (Zero Hour: nothing is consumed). */
+  rankUp(team: number): boolean {
+    const s = this.teams.get(team)
+    if (!s || !this.canRankUp(team)) return false
+    s.rank += 1
+    if (this.settings.rankUpPrizeCredits > 0) s.credits += this.settings.rankUpPrizeCredits
+    this.emit({ type: 'rank-up', team, rank: s.rank, score: s.score })
+    return true
+  }
+
+  // ---- Day 15: leveled super weapons (airstrike / EMP at 3★) ----
+
+  airstrikeLevel(team: number): number {
+    return this.teams.get(team)?.airstrikeLevel ?? 0
+  }
+
+  airstrikeMaxLevel(): number {
+    return AIRSTRIKE_MAX_LEVEL
+  }
+
+  /** Damage multiplier of the leveled airstrike (lvl1 = 1.5x, lvl2 = 2x). */
+  airstrikeDamageMultiplier(team: number): number {
+    return 1 + 0.5 * this.airstrikeLevel(team)
+  }
+
+  /** Radius multiplier of the leveled airstrike (lvl1 = 1.15x, lvl2 = 1.3x). */
+  airstrikeRadiusMultiplier(team: number): number {
+    return 1 + 0.15 * this.airstrikeLevel(team)
+  }
+
+  empLevel(team: number): number {
+    return this.teams.get(team)?.empLevel ?? 0
+  }
+
+  empMaxLevel(): number {
+    return EMP_MAX_LEVEL
+  }
+
+  /** Radius multiplier of the leveled EMP pulse (lvl1 = 1.15x, lvl2 = 1.3x). */
+  empRadiusMultiplier(team: number): number {
+    return 1 + 0.15 * this.empLevel(team)
+  }
+
+  /** Duration multiplier of the leveled EMP stun. */
+  empDurationMultiplier(team: number): number {
+    return 1 + 0.5 * this.empLevel(team)
+  }
+
+  /** Flat duration (ticks) of a leveled EMP pulse for a team. */
+  empDurationTicks(team: number): number {
+    return Math.round(EMP_DURATION_TICKS * this.empDurationMultiplier(team))
   }
 
   emit(event: SimEvent): void {

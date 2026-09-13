@@ -18,7 +18,7 @@ import {
 } from '@space-arenas/shared'
 import { generateDefaultMap } from '@space-arenas/shared'
 
-const ALL_TYPES: CommandType[] = ['move', 'attack-move', 'keep-attack', 'guard', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'set-flag-point', 'assign-dock', 'satellite', 'laser', 'sw-choose', 'sw-airstrike', 'sw-emp', 'forfeit', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload']
+const ALL_TYPES: CommandType[] = ['move', 'attack-move', 'keep-attack', 'guard', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'set-flag-point', 'assign-dock', 'satellite', 'laser', 'sw-choose', 'sw-airstrike', 'sw-emp', 'forfeit', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload', 'rank-up']
 
 const makeEnv = (type: CommandType): EnvelopeCommand => {
   const cmd: EnvelopeCommand['cmd'] = { type, entities: [1, 2, 3], x: -12345, y: 67890 }
@@ -165,6 +165,7 @@ describe('protocol: type ids are stable', () => {
       'sw-choose': 32,
       'sw-airstrike': 33,
       'sw-emp': 34,
+      'rank-up': 35,
     })
   })
 })

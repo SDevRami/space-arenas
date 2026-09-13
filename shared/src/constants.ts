@@ -15,9 +15,29 @@ export const SHIELD_POWER_DRAIN_PER_TICK = 1
 export const WEAPON_UPGRADE_MAX_LEVEL = 3
 export const WEAPON_UPGRADE_DAMAGE_PER_LEVEL = 0.25
 
+/** Day 15: match score + general rank ladder (Zero Hour style: reach a score
+ * floor and rank up for free — the score keeps counting toward the next star). */
+export const RANK_COUNT = 3
+export const MAX_RANK = RANK_COUNT
+/** Score floor to reach for each rank-up (rank 1★, 2★, 3★). */
+export const RANK_FLOORS = [500, 1500, 3500]
+export const SCORE_UNIT_KILL = 10
+export const SCORE_BUILDING_KILL = 30
+/** Flat score granted each time a harvester docks supply (deterministic per trip). */
+export const SCORE_SUPPLY_PER_TRIP = 2
+/** Score granted when a research/upgrade finishes. */
+export const SCORE_RESEARCH = 15
+/** Score granted when a building is placed beyond the starting-base radius. */
+export const SCORE_EXPANSION = 25
+/** Distance (tiles) from a team's spawn point that counts as an expansion. */
+export const EXPANSION_RADIUS_TILES = 18
+/** Day 15: the additional super weapon (airstrike/EMP) upgrade levels, mirroring the laser. */
+export const AIRSTRIKE_MAX_LEVEL = 2
+export const EMP_MAX_LEVEL = 2
+
 export const DEFAULT_PORT = 17321
 export const DEFAULT_MAX_PLAYERS = 8
-export const PROTOCOL_VERSION = 11
+export const PROTOCOL_VERSION = 12
 
 /** Number of selectable per-player colors. */
 export const PLAYER_COLOR_COUNT = 10
@@ -215,6 +235,8 @@ export interface MatchSettings {
   laserDelayTicksLv2: number
   airstrikeCooldownTicks: number
   empCooldownTicks: number
+  /** Free credits granted to a team each time it ranks up (0 = none). */
+  rankUpPrizeCredits: number
   maxPowerTicks: number
   fogFadeDistance: number
   fogMode: FogMode
@@ -319,6 +341,7 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   laserDelayTicksLv2: LASER_DELAY_TICKS_LV2,
   airstrikeCooldownTicks: AIRSTRIKE_COOLDOWN_TICKS,
   empCooldownTicks: EMP_COOLDOWN_TICKS,
+  rankUpPrizeCredits: 100,
   maxPowerTicks: MAX_POWER_TICKS,
   fogFadeDistance: FOG_FADE_DISTANCE,
   fogMode: FOG_MODE_DEFAULT,

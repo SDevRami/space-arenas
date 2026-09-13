@@ -9,7 +9,7 @@ import { explodeAt } from './combat-system.ts'
  * spawn point until `startTick`, then cruises at `AIRSTRIKE_PLANE_SPEED`
  * straight at the target, where it drops a bomb (area damage) and disappears.
  */
-export const spawnAirstrike = (world: World, team: number, tx: number, ty: number): void => {
+export const spawnAirstrike = (world: World, team: number, tx: number, ty: number, damage = AIRSTRIKE_BOMB_DAMAGE, radius = AIRSTRIKE_BOMB_RADIUS): void => {
   const targetX = tx * 1000 + 500
   const targetY = ty * 1000 + 500
   const mid = (AIRSTRIKE_PLANES - 1) / 2
@@ -26,6 +26,8 @@ export const spawnAirstrike = (world: World, team: number, tx: number, ty: numbe
       tx: targetX,
       ty: targetY,
       startTick: world.tick + i * AIRSTRIKE_PLANE_STAGGER_TICKS,
+      damage,
+      radius,
     })
   }
 }
@@ -50,7 +52,7 @@ export const AirstrikeSystem = {
         t.x = a.tx
         t.y = a.ty
         world.emit({ type: 'airstrike-bomb', team: a.team, x: a.tx, y: a.ty })
-        explodeAt(world, a.team, a.tx, a.ty, AIRSTRIKE_BOMB_RADIUS, AIRSTRIKE_BOMB_DAMAGE)
+        explodeAt(world, a.team, a.tx, a.ty, a.radius, a.damage)
         dead.push(id)
       } else {
         t.x = t.x + Math.floor(((a.tx - t.x) * AIRSTRIKE_PLANE_SPEED) / d)

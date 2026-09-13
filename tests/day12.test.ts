@@ -233,6 +233,7 @@ describe('Day 12: research plumbing', () => {
     const sim = makeSim()
     const { world } = sim
     const tech = spawnBuilding(world, 'tech-center', 0, 12, 12, true)
+    world.teamState(0).rank = 2 // ★2 gates the defense-dome
 
     sim.step([sim.makeCommand(0, { type: 'research', entities: [tech], upgrade: 'defense-dome' })])
     expect(world.teamState(0).credits).toBe(800 - 500)
@@ -250,6 +251,7 @@ describe('Day 12: research plumbing', () => {
     const sim = makeSim()
     const { world } = sim
     const tech = spawnBuilding(world, 'tech-center', 0, 12, 12, true)
+    world.teamState(0).rank = 2 // ★2 gates the weapon upgrade
 
     sim.step([sim.makeCommand(0, { type: 'research', entities: [tech], upgrade: 'weapon-upgrade' })])
     sim.advance(510)

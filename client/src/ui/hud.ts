@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, SHIELD_MAX_HP, SW_CHOICES, canThrowBandolier, getBuilding, getUnit, getUpgrade, type UpgradeDef, type SwChoice } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, SHIELD_MAX_HP, SW_CHOICES, canThrowBandolier, getBuilding, getUnit, getUpgrade, type UpgradeDef, type SwChoice, RANK_FLOORS } from '@space-arenas/shared'
 import type { ProductionOrder, World } from '../core/world.ts'
 import { t, tn } from '../i18n/index.ts'
 import { getGraphics } from './graphics.ts'
@@ -41,6 +41,8 @@ export interface HudActions {
   isUnloadActive: () => boolean
   /** One-time Super Weapon strike choice (Laser / Airstrike / EMP). */
   onSwChoose: (choice: SwChoice) => void
+  /** Day 15: raise the team's general rank (requires enough match score). */
+  onRankUp: () => void
 }
 
 const BUILDER_BUILDABLES = ['command-center', 'power-plant', 'supply-dock', 'barracks', 'war-factory', 'turret', 'bunker', 'tech-center', 'air-force', 'super-weapon'] as const
@@ -91,6 +93,12 @@ export class Hud {
   private selectionAchievement = document.getElementById('selection-achievement')!
   private gameLog = document.getElementById('game-log')!
   private hudEl = document.getElementById('hud')!
+  private rankBtn = document.getElementById('rank-btn')!
+  private rankOverlay = document.getElementById('rank-overlay')!
+  private rankPanelTitle = document.getElementById('rank-panel-title')!
+  private rankPanelScore = document.getElementById('rank-panel-score')!
+  private rankTierList = document.getElementById('rank-tier-list')!
+  private rankUpBtn = document.getElementById('rank-up-btn') as HTMLButtonElement
 
   private lastSelSig: string | null = null
   private lastQueueSig: string | null = null
@@ -106,7 +114,59 @@ export class Hud {
   private fpsTime = performance.now()
   private lastFps = 0
 
-  constructor(private actions: HudActions) {}
+  constructor(private actions: HudActions) {
+    this.rankBtn.addEventListener('click', () => this.toggleRankOverlay())
+    this.rankUpBtn.addEventListener('click', () => {
+      this.actions.onRankUp()
+      if (this.lastWorld && this.lastTeam >= 0) this.renderRankOverlay(this.lastWorld, this.lastTeam)
+    })
+    const close = document.getElementById('rank-close')
+    close?.addEventListener('click', () => this.rankOverlay.classList.add('hidden'))
+    this.rankOverlay.addEventListener('click', (e) => {
+      if (e.target === this.rankOverlay) this.rankOverlay.classList.add('hidden')
+    })
+  }
+
+  private lastWorld: World | null = null
+  private lastTeam = -1
+  private lastRankSig = ''
+
+  private toggleRankOverlay(): void {
+    if (!this.lastWorld || this.lastTeam < 0) return
+    if (this.rankOverlay.classList.contains('hidden')) {
+      this.renderRankOverlay(this.lastWorld, this.lastTeam)
+      this.rankOverlay.classList.remove('hidden')
+    } else {
+      this.rankOverlay.classList.add('hidden')
+    }
+  }
+
+  /** Rebuild the rank ladder popup from live world state (score floors + star unlocks). */
+  private renderRankOverlay(world: World, team: number): void {
+    const rank = world.rankOf(team)
+    const score = world.scoreOf(team)
+    const can = world.canRankUp(team)
+    const starHtml = (n: number): string => '<span class="rank-star">★</span>'.repeat(Math.max(0, n))
+    this.rankPanelTitle.innerHTML = `${starHtml(rank)}<span class="rank-current">${t('hud.rankStars', { n: rank })}</span>`
+    this.rankPanelScore.textContent = score > 0 || rank > 0 ? t('hud.rankScore', { score, next: world.rankFloor(rank + 1) }) : t('hud.rankScoreEmpty')
+    const floors = RANK_FLOORS
+    this.rankTierList.innerHTML = ''
+    for (let i = 1; i <= floors.length; i++) {
+      const unlocked = rank >= i
+      const current = rank === i - 1 && can
+      const row = document.createElement('div')
+      row.className = 'rank-tier' + (unlocked ? ' unlocked' : '') + (current ? ' current' : '')
+      row.innerHTML =
+        `<span class="rank-tier-stars">${starHtml(i)}</span>` +
+        `<span class="rank-tier-floor">${t('hud.rankFloor', { n: i, pts: floors[i - 1] })}</span>` +
+        `<span class="rank-tier-reward">${t('hud.rankTier' + i)}</span>` +
+        (unlocked ? `<span class="rank-tier-state">${t('hud.rankUnlocked')}</span>` : `<span class="rank-tier-state">${t('hud.rankLocked')}</span>`)
+      this.rankTierList.appendChild(row)
+    }
+    this.rankUpBtn.disabled = !can
+    this.rankUpBtn.dataset.ready = can ? '1' : '0'
+    this.rankUpBtn.textContent = can ? t('hud.rankUpReady') : t('hud.rankUpWait')
+  }
 
   show(): void {
     this.hudEl.style.display = 'block'
@@ -133,6 +193,8 @@ export class Hud {
 
   update(world: World, localTeam: number, tick: number | null, localHash: number | null, syncOk: boolean): void {
     const ts = world.teamState(localTeam)
+    this.lastWorld = world
+    this.lastTeam = localTeam
     this.creditsEl.textContent = `$${ts.credits}`
     const frac = ts.powerUse > 0 ? Math.min(1, ts.powerUse / Math.max(1, ts.powerGen)) : 0
     this.powerFillEl.style.width = `${(frac * 100).toFixed(1)}%`
@@ -142,6 +204,25 @@ export class Hud {
     this.syncEl.textContent = localHash !== null ? (syncOk ? t('hud.inSync') : t('hud.desync')) : ''
     this.syncEl.style.color = syncOk ? '#7cf27c' : '#ff7a7a'
     this.updateFps()
+    this.updateRankBtn(world, localTeam)
+  }
+
+  /** Keep the top-left rank button in sync: stars earned, or a pulsing "★" once the next rank-up is ready. */
+  private updateRankBtn(world: World, team: number): void {
+    const rank = world.rankOf(team)
+    const can = world.canRankUp(team)
+    if (rank === 0 && !can) {
+      if (this.rankBtn.style.display !== 'none') this.rankBtn.style.display = 'none'
+      return
+    }
+    this.rankBtn.style.display = ''
+    this.rankBtn.textContent = can ? `★${rank + 1}` : '★'.repeat(rank)
+    this.rankBtn.classList.toggle('pulse', can)
+    const sig = `${rank}|${can}|${world.scoreOf(team)}`
+    if (sig !== this.lastRankSig) {
+      this.lastRankSig = sig
+      if (!this.rankOverlay.classList.contains('hidden')) this.renderRankOverlay(world, team)
+    }
   }
 
   private updateFps(): void {
@@ -550,9 +631,10 @@ export class Hud {
           const upCost = world.laserUpgradeCost(bd.team, upDef.cost)
           const tag = lv >= maxLv ? 'Max' : t('tools.laserLevel', { lv: lv + 1 })
           this.addButton(
-            `${tn(up.id, upDef.name)} (${tag}) <span class="cost">$${upCost}</span>`,
+            `${tn(up.id, upDef.name)} (${tag}) <span class="cost">$${upCost}</span>${this.rankBadge(upDef.requiredRank, world.rankOf(bd.team))}`,
             () => {
               const ts2 = world.teamState(bd.team)
+              if (world.rankOf(bd.team) < upDef.requiredRank) return false
               if (ts2.credits < upCost) return false
               const b2 = world.buildings.get(bd.id)
               if (!b2 || !b2.done) return false
@@ -561,7 +643,7 @@ export class Hud {
               return true
             },
             () => this.actions.onResearchClick(up.id),
-            undefined,
+            world.rankOf(bd.team) < upDef.requiredRank ? 'locked' : undefined,
             undefined,
             this.assignUniqueHotkey(tn(up.id, upDef.name)),
           )
@@ -573,9 +655,10 @@ export class Hud {
           const upCost = world.weaponUpgradeCost(bd.team, upDef.cost)
           const tag = lv >= maxLv ? 'Max' : t('tools.weaponLevel', { lv: lv + 1 })
           this.addButton(
-            `${tn(up.id, upDef.name)} (${tag}) <span class="cost">$${upCost}</span>`,
+            `${tn(up.id, upDef.name)} (${tag}) <span class="cost">$${upCost}</span>${this.rankBadge(upDef.requiredRank, world.rankOf(bd.team))}`,
             () => {
               const ts2 = world.teamState(bd.team)
+              if (world.rankOf(bd.team) < upDef.requiredRank) return false
               if (ts2.credits < upCost) return false
               const b2 = world.buildings.get(bd.id)
               if (!b2 || !b2.done) return false
@@ -584,7 +667,33 @@ export class Hud {
               return true
             },
             () => this.actions.onResearchClick(up.id),
+            world.rankOf(bd.team) < upDef.requiredRank ? 'locked' : undefined,
             undefined,
+            this.assignUniqueHotkey(tn(up.id, upDef.name)),
+          )
+          continue
+        }
+        if (up.id === 'airstrike-level' || up.id === 'emp-level') {
+          const maxLv = up.id === 'airstrike-level' ? world.airstrikeMaxLevel() : world.empMaxLevel()
+          const lv = up.id === 'airstrike-level' ? world.airstrikeLevel(bd.team) : world.empLevel(bd.team)
+          const upCost = lv * 1000 + upDef.cost
+          const tag = lv >= maxLv ? 'Max' : t('tools.laserLevel', { lv: lv + 1 })
+          const armed = world.swChoiceOf(bd.team) === (up.id === 'airstrike-level' ? 'airstrike' : 'emp')
+          this.addButton(
+            `${tn(up.id, upDef.name)} (${tag}) <span class="cost">$${upCost}</span>${this.rankBadge(upDef.requiredRank, world.rankOf(bd.team))}`,
+            () => {
+              const ts2 = world.teamState(bd.team)
+              if (world.rankOf(bd.team) < upDef.requiredRank) return false
+              if (!armed) return false
+              if (ts2.credits < upCost) return false
+              const b2 = world.buildings.get(bd.id)
+              if (!b2 || !b2.done) return false
+              if (b2.researchQueue.length >= world.settings.queueLimit) return false
+              if (lv >= maxLv) return false
+              return true
+            },
+            () => this.actions.onResearchClick(up.id),
+            world.rankOf(bd.team) < upDef.requiredRank ? 'locked' : undefined,
             undefined,
             this.assignUniqueHotkey(tn(up.id, upDef.name)),
           )
@@ -592,9 +701,10 @@ export class Hud {
         }
         const upCost = upDef.cost
         this.addButton(
-          `${tn(up.id, upDef.name)} <span class="cost">$${upCost}</span>`,
+          `${tn(up.id, upDef.name)} <span class="cost">$${upCost}</span>${this.rankBadge(upDef.requiredRank, world.rankOf(bd.team))}`,
           () => {
             const ts2 = world.teamState(bd.team)
+            if (world.rankOf(bd.team) < upDef.requiredRank) return false
             if (ts2.credits < upCost) return false
             const b2 = world.buildings.get(bd.id)
             if (!b2 || !b2.done) return false
@@ -609,7 +719,7 @@ export class Hud {
             return true
           },
           () => this.actions.onResearchClick(up.id),
-          undefined,
+          world.rankOf(bd.team) < upDef.requiredRank ? 'locked' : undefined,
           undefined,
           this.assignUniqueHotkey(tn(up.id, upDef.name)),
         )
@@ -628,8 +738,15 @@ export class Hud {
         anySection = true
       }
       const chosen = ts.swChoice
+      // Day 15: the Space Laser is armed by default — the panel only offers
+      // the *additional* one-time strike (Airstrike vs EMP), each upgradeable.
+      const note = document.createElement('div')
+      note.className = 'sw-panel-note'
+      note.textContent = t('hud.swLaserDefault')
+      this.buildMenu.appendChild(note)
       for (const choice of SW_CHOICES) {
-        const labelKey = choice === 'laser' ? 'tools.swLaser' : choice === 'airstrike' ? 'tools.swAirstrike' : 'tools.swEmp'
+        if (choice === 'laser') continue
+        const labelKey = choice === 'airstrike' ? 'tools.swAirstrike' : 'tools.swEmp'
         const isChosen = chosen === choice
         this.addButton(
           `${t(labelKey)}${isChosen ? ' ✓' : ''}`,
@@ -795,6 +912,12 @@ export class Hud {
     this.updaters.push(() => {
       b.disabled = !isEnabled()
     })
+  }
+
+  /** Day 15: tiny lock tag shown next to a rank-gated research button. */
+  private rankBadge(requiredRank: number, rank: number): string {
+    if (requiredRank <= 0 || rank >= requiredRank) return ''
+    return ` <span class="lock-badge" title="${t('hud.rankRequired', { n: requiredRank })}"><span class="lock-badge-star">★</span>${requiredRank}</span>`
   }
 
   /** Pick a unique letter hotkey for a menu button: first free letter (1st, then 2nd, then 3rd…). */

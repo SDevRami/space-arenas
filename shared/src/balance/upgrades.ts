@@ -6,9 +6,11 @@ export interface UpgradeDef {
   cost: number
   researchTimeTicks: number
   availableAt: string
+  /** Day 15: general rank (★) required to buy this research. 0 = available from the start. */
+  requiredRank: number
 }
 
-export const UPGRADE_IDS = ['radar', 'satellite', 'space-laser', 'stealth-tech', 'detector-upgrade', 'mine-tech', 'abilities-tech', 'transport-capacity', 'defense-dome', 'weapon-upgrade'] as const
+export const UPGRADE_IDS = ['radar', 'satellite', 'space-laser', 'stealth-tech', 'detector-upgrade', 'mine-tech', 'abilities-tech', 'transport-capacity', 'defense-dome', 'weapon-upgrade', 'airstrike-level', 'emp-level'] as const
 
 export type UpgradeId = (typeof UPGRADE_IDS)[number]
 
@@ -18,7 +20,8 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     name: 'Radar',
     cost: 300,
     researchTimeTicks: SECONDS_TO_TICKS(15),
-    availableAt: 'tech-center',
+    availableAt: 'command-center',
+    requiredRank: 0,
   },
   satellite: {
     id: 'satellite',
@@ -26,6 +29,7 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     cost: 500,
     researchTimeTicks: SECONDS_TO_TICKS(20),
     availableAt: 'tech-center',
+    requiredRank: 0,
   },
   'space-laser': {
     id: 'space-laser',
@@ -33,6 +37,7 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     cost: 1000,
     researchTimeTicks: SECONDS_TO_TICKS(40),
     availableAt: 'super-weapon',
+    requiredRank: 3,
   },
   'stealth-tech': {
     id: 'stealth-tech',
@@ -40,6 +45,7 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     cost: 400,
     researchTimeTicks: SECONDS_TO_TICKS(20),
     availableAt: 'tech-center',
+    requiredRank: 1,
   },
   'detector-upgrade': {
     id: 'detector-upgrade',
@@ -47,6 +53,7 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     cost: 300,
     researchTimeTicks: SECONDS_TO_TICKS(15),
     availableAt: 'tech-center',
+    requiredRank: 1,
   },
   'mine-tech': {
     id: 'mine-tech',
@@ -54,6 +61,7 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     cost: 400,
     researchTimeTicks: SECONDS_TO_TICKS(20),
     availableAt: 'tech-center',
+    requiredRank: 1,
   },
   'abilities-tech': {
     id: 'abilities-tech',
@@ -61,6 +69,7 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     cost: 400,
     researchTimeTicks: SECONDS_TO_TICKS(20),
     availableAt: 'tech-center',
+    requiredRank: 1,
   },
   'transport-capacity': {
     id: 'transport-capacity',
@@ -68,6 +77,7 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     cost: 300,
     researchTimeTicks: SECONDS_TO_TICKS(20),
     availableAt: 'tech-center',
+    requiredRank: 1,
   },
   'defense-dome': {
     id: 'defense-dome',
@@ -75,6 +85,7 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     cost: 500,
     researchTimeTicks: SECONDS_TO_TICKS(20),
     availableAt: 'tech-center',
+    requiredRank: 2,
   },
   'weapon-upgrade': {
     id: 'weapon-upgrade',
@@ -82,6 +93,23 @@ export const UPGRADES: Record<string, UpgradeDef> = {
     cost: 400,
     researchTimeTicks: SECONDS_TO_TICKS(20),
     availableAt: 'tech-center',
+    requiredRank: 2,
+  },
+  'airstrike-level': {
+    id: 'airstrike-level',
+    name: 'Airstrike Payload',
+    cost: 1000,
+    researchTimeTicks: SECONDS_TO_TICKS(40),
+    availableAt: 'super-weapon',
+    requiredRank: 3,
+  },
+  'emp-level': {
+    id: 'emp-level',
+    name: 'EMP Overcharge',
+    cost: 1000,
+    researchTimeTicks: SECONDS_TO_TICKS(40),
+    availableAt: 'super-weapon',
+    requiredRank: 3,
   },
 }
 

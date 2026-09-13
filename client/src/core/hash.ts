@@ -45,6 +45,10 @@ export const hashWorld = (world: World): number => {
       addString(bytes, s.swChoice ?? '')
       addNumber(bytes, s.airstrikeLastUsed)
       addNumber(bytes, s.empLastUsed)
+      addNumber(bytes, s.score)
+      addNumber(bytes, s.rank)
+      addNumber(bytes, s.airstrikeLevel)
+      addNumber(bytes, s.empLevel)
     }
   }
 

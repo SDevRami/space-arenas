@@ -45,6 +45,8 @@ export interface MatchRecord {
   unitsBuilt: number
   buildingsBuilt: number
   supplyHarvested: number
+  /** Day 15: the match score this record earned (kills, supply, research, expansions). */
+  score: number
 }
 
 export interface Profile {
@@ -201,6 +203,7 @@ export interface MatchRecordInput {
   unitsBuilt: number
   buildingsBuilt: number
   supplyHarvested: number
+  score: number
   counters: ProfileCounters
   typeCounts: ProfileTypeCounts
 }
@@ -228,12 +231,16 @@ export const recordMatch = (s: StorageLike, profile: Profile, config: ProfileCon
     unitsBuilt: input.unitsBuilt,
     buildingsBuilt: input.buildingsBuilt,
     supplyHarvested: input.supplyHarvested,
+    score: input.score,
   })
   if (profile.history.length > config.historyCap) profile.history.length = config.historyCap
   evaluateAchievements(profile, config, now)
   saveProfile(s, profile)
   return profile
 }
+
+/** Day 15: lifetime score across every record in the history (old records default to 0). */
+export const totalScore = (profile: Profile): number => profile.history.reduce((sum, r) => sum + (r.score ?? 0), 0)
 
 export const resetProfile = (s: StorageLike, name: string = DEFAULT_PROFILE_NAME): Profile => {
   const profile = freshProfile(name)
@@ -260,6 +267,7 @@ export const recordSpectate = (s: StorageLike, profile: Profile, config: Profile
     unitsBuilt: 0,
     buildingsBuilt: 0,
     supplyHarvested: 0,
+    score: 0,
   })
   if (profile.history.length > config.historyCap) profile.history.length = config.historyCap
   evaluateAchievements(profile, config, now)

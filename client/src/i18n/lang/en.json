@@ -466,7 +466,7 @@
       "combatKeepAttack": "<b>Keep attack</b> (K + right-click) — like attack, but keeps pressing the spot and loops without stopping until you cancel.",
       "combatGuard": "<b>Guard</b> (G + right-click) — units march to the guard position and form up around it, then act as turrets: they hold position and shoot anything that comes within firing range without ever chasing. Selecting a guard shows its range circle."
     },
-    "mobile": {
+  "mobile": {
       "h3": "Mobile Mode",
       "p": "Turn on <b>Mobile Mode</b> with the toggle button in the lobby side menu (it remembers your choice). It adds touch controls and on-screen shortcut buttons so the whole game is playable without a mouse or keyboard.",
       "touchH3": "Touch controls",
@@ -915,7 +915,12 @@
     "victory": "Victory!",
     "defeat": "Defeat",
     "draw": "Draw",
-    "over": "Match Over"
+    "over": "Match Over",
+    "rankUpTitle": "Rank up — {rank}★",
+    "rankUpDesc": "New tech unlocked. Free of charge."
+  },
+  "rank": {
+    "buttonTitle": "General rank — click to view the ladder"
   },
   "hud": {
     "noSelection": "No selection",
@@ -943,6 +948,19 @@
     "rankLevel": "Rank {rank}",
     "kills": "{kills} kills",
     "achievementTitle": "Achievements — kills and rank",
+    "rankStars": "star {n}",
+    "rankScore": "score {score} — next star at {next} pts",
+    "rankScoreEmpty": "Earn score from battle, supply, research and expansion. Reach the next score floor and the promotion is free — the score keeps counting towards the following star.",
+    "rankFloor": "1-star floor · {pts} pts",
+    "rankTier1": "Tier-2 arsenal research unlocked (Stealth, Detector, Mines, Grenades, Transport capacity)",
+    "rankTier2": "Defense Dome + Weapon Upgrade unlocked",
+    "rankTier3": "Super Weapon upgrade + Space Laser bonus unlocked (Airstrike/EMP at the Super Weapon)",
+    "rankUnlocked": "Unlocked",
+    "rankLocked": "Locked",
+    "rankUpReady": "Rank Up! (free)",
+    "rankUpWait": "Reach the score floor to rank up",
+    "rankRequired": "Requires {n}★ general rank",
+    "swLaserDefault": "Space Laser: armed by default — pick an Airstrike or EMP as your second strike.",
     "headers": {
       "command": "Command",
       "produce": "Produce",
@@ -1145,7 +1163,8 @@
       "playerLeft": "Team {t} left — ${a} distributed to supply fields",
       "destroyed": "{name} destroyed",
       "baseAttacked": "Your base is under attack — team {t}",
-      "rankedUp": "Unit promoted to rank {rank}!"
+      "rankedUp": "Unit promoted to rank {rank}!",
+      "rankUp": "General rank up — you reached ★{rank}!"
     },
     "noFreeDozer": "No free Bulldozer selected",
     "place": "Place {name} — click a location, Esc to cancel",
@@ -1253,7 +1272,9 @@
     "abilities-tech": "Grenades & Smoke",
     "transport-capacity": "Troop Capacity",
     "defense-dome": "Defense Dome",
-    "weapon-upgrade": "Weapon Upgrade"
+    "weapon-upgrade": "Weapon Upgrade",
+    "airstrike-level": "Airstrike Payload",
+    "emp-level": "EMP Overcharge"
   },
   "weather": {
     "none": "None",
@@ -1278,6 +1299,8 @@
     "usernameLabel": "Commander name",
     "usernameHint": "Saving also fills the name field when hosting or joining a match.",
     "spectated": "Spectated",
+    "totalScore": "Total score",
+    "radarChart": "Career radar chart",
     "toastTitle": "Achievement unlocked",
     "reset": "Reset Profile",
     "prompt": "New commander name (leave empty for the default):",

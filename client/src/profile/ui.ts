@@ -1,5 +1,5 @@
 import { ACHIEVEMENTS } from './achievements.ts'
-import { achievementTarget, countFor, loadProfile, loadProfileConfig, resetProfile, unlockedCount, updateProfileName } from './profile.ts'
+import { achievementTarget, countFor, loadProfile, loadProfileConfig, resetProfile, totalScore, unlockedCount, updateProfileName, type Profile } from './profile.ts'
 import { t } from '../i18n/index.ts'
 
 let lastRender = 0
@@ -11,6 +11,42 @@ const fmt = (n: number): string => n.toLocaleString('en-US')
 
 const winRate = (wins: number, matches: number): string => (matches > 0 ? `${Math.round((wins / matches) * 100)}%` : '—')
 
+/** Day 15: player-card hexagon radar chart. Each axis is a battle stat,
+ * normalized against a fixed cap so the shape stays readable from the start. */
+const hexChart = (profile: Profile): string => {
+  const c = profile.counters
+  const research = Object.values(profile.typeCounts.upgradesResearched).reduce((a, b) => a + b, 0)
+  const values = [
+    c.kills, // combat
+    c.supplyHarvested, // economy
+    c.unitsTrained, // army
+    c.buildingsBuilt, // expansion
+    research, // research
+    c.satelliteScans + c.laserStrikes + c.airstrikes + c.empStrikes, // intel
+  ]
+  const caps = [150, 8000, 300, 60, 30, 60]
+  const frac = values.map((v, i) => Math.min(1, v / caps[i]))
+  const cx = 55
+  const cy = 55
+  const r = 40
+  const pt = (t: number, i: number): [number, number] => {
+    const ang = (Math.PI / 180) * (-90 + i * 60)
+    return [cx + Math.cos(ang) * r * t, cy + Math.sin(ang) * r * t]
+  }
+  const ring = (t: number): string => Array.from({ length: 6 }, (_, i) => `${pt(t, i)[0].toFixed(1)},${pt(t, i)[1].toFixed(1)}`).join(' ')
+  const data = Array.from({ length: 6 }, (_, i) => `${pt(frac[i], i)[0].toFixed(1)},${pt(frac[i], i)[1].toFixed(1)}`).join(' ')
+  const spokes = Array.from({ length: 6 }, (_, i) => `M${cx},${cy} L${pt(1, i)[0].toFixed(1)},${pt(1, i)[1].toFixed(1)}`).join(' ')
+  return `
+    <svg class="profile-hex" viewBox="0 0 110 110" role="img" aria-label="${esc(t('profile.radarChart'))}">
+      <polygon points="${ring(0.33)}" class="hex-guide" />
+      <polygon points="${ring(0.66)}" class="hex-guide" />
+      <polygon points="${ring(1)}" class="hex-guide" />
+      <path d="${spokes}" class="hex-spoke" />
+      <polygon points="${data}" class="hex-data" />
+    </svg>
+  `
+}
+
 const renderSummary = (): string => {
   const profile = loadProfile(window.localStorage)
   const c = profile.counters
@@ -18,7 +54,13 @@ const renderSummary = (): string => {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   return `
-    <div class="profile-name">${esc(profile.name)}</div>
+    <div class="profile-card">
+      <div class="profile-card-left">
+        <div class="profile-name">${esc(profile.name)}</div>
+        <div class="profile-total"><span>${fmt(totalScore(profile))}</span><label>${t('profile.totalScore')}</label></div>
+      </div>
+      ${hexChart(profile)}
+    </div>
     <div class="profile-stats">
       <div><span>${fmt(c.gamesPlayed)}</span><label>${t('profile.games')}</label></div>
       <div><span>${fmt(c.wins)}</span><label>${t('profile.wins')}</label></div>
