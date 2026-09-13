@@ -98,7 +98,8 @@ export class Hud {
   private rankBtn = document.getElementById('rank-btn')!
   private rankBtnStars = document.getElementById('rank-btn-stars')!
   private rankBtnScore = document.getElementById('rank-btn-score')!
-  private rankOverlay = document.getElementById('rank-overlay')!
+  private rankMenu = document.getElementById('rank-menu')!
+  private rankMenuBackdrop = document.getElementById('rank-menu-backdrop')!
   private rankPanelTitle = document.getElementById('rank-panel-title')!
   private rankPanelScore = document.getElementById('rank-panel-score')!
   private rankTierList = document.getElementById('rank-tier-list')!
@@ -119,15 +120,16 @@ export class Hud {
   private lastFps = 0
 
   constructor(private actions: HudActions) {
-    this.rankBtn.addEventListener('click', () => this.toggleRankOverlay())
+    this.rankBtn.addEventListener('click', () => this.toggleRankMenu())
     this.rankUpBtn.addEventListener('click', () => {
       this.actions.onRankUp()
       if (this.lastWorld && this.lastTeam >= 0) this.renderRankOverlay(this.lastWorld, this.lastTeam)
     })
     const close = document.getElementById('rank-close')
-    close?.addEventListener('click', () => this.rankOverlay.classList.add('hidden'))
-    this.rankOverlay.addEventListener('click', (e) => {
-      if (e.target === this.rankOverlay) this.rankOverlay.classList.add('hidden')
+    close?.addEventListener('click', () => this.closeRankMenu())
+    this.rankMenuBackdrop.addEventListener('click', () => this.closeRankMenu())
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.rankMenu.classList.contains('open')) this.closeRankMenu()
     })
   }
 
@@ -135,17 +137,23 @@ export class Hud {
   private lastTeam = -1
   private lastRankSig = ''
 
-  private toggleRankOverlay(): void {
+  private toggleRankMenu(): void {
     if (!this.lastWorld || this.lastTeam < 0) return
-    if (this.rankOverlay.classList.contains('hidden')) {
-      this.renderRankOverlay(this.lastWorld, this.lastTeam)
-      this.rankOverlay.classList.remove('hidden')
+    if (this.rankMenu.classList.contains('open')) {
+      this.closeRankMenu()
     } else {
-      this.rankOverlay.classList.add('hidden')
+      this.renderRankOverlay(this.lastWorld, this.lastTeam)
+      this.rankMenu.classList.add('open')
+      this.rankMenuBackdrop.classList.add('open')
     }
   }
 
-  /** Rebuild the rank ladder popup from live world state (score floors + star unlocks). */
+  private closeRankMenu(): void {
+    this.rankMenu.classList.remove('open')
+    this.rankMenuBackdrop.classList.remove('open')
+  }
+
+  /** Rebuild the rank side menu from live world state (score floors + star unlocks). */
   private renderRankOverlay(world: World, team: number): void {
     const rank = world.rankOf(team)
     const score = world.scoreOf(team)
@@ -223,7 +231,7 @@ export class Hud {
     const sig = `${rank}|${can}|${score}`
     if (sig !== this.lastRankSig) {
       this.lastRankSig = sig
-      if (!this.rankOverlay.classList.contains('hidden')) this.renderRankOverlay(world, team)
+      if (!this.rankMenu.classList.contains('open')) this.renderRankOverlay(world, team)
     }
   }
 
