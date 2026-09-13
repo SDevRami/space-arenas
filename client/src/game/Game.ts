@@ -16,6 +16,8 @@ import type { SimEvent } from '../core/events.ts'
 import { BotPlayer } from '../ai/bot.ts'
 import type { MatchConfig } from './match.ts'
 import { StatsBoard, StatsTracker, buildStatsRows, type StatsRow } from '../stats/stats.ts'
+import { SessionRecorder } from '../profile/recorder.ts'
+import { loadProfile, loadProfileConfig, recordMatch } from '../profile/profile.ts'
 import { t, tn } from '../i18n/index.ts'
 import { getControls, modifierLabel } from '../ui/controls.ts'
 import { getGraphics } from '../ui/graphics.ts'
@@ -57,6 +59,10 @@ export class Game {
   private resultsShown = false
   private bots: BotPlayer[] = []
   private stats = new StatsTracker()
+  private session: SessionRecorder | null = null
+  private matchStartedAt = 0
+  private profileRecorded = false
+  private matchMapLabel = ''
   private modeCfg: MatchConfig | null = null
   private netPlayers: PlayerSlot[] = []
   private spectator = false
@@ -443,6 +449,7 @@ export class Game {
     this.resultsShown = true
     this.finished = true
     this.paused = true
+    this.recordProfileMatch(winner)
     const rows = this.currentStatsRows()
     if (rows) {
       this.resultsBoard.show(this.netTitle(winner), rows)
@@ -450,6 +457,29 @@ export class Game {
       this.resultsBoard.hide()
     }
     this.resultsOverlay.classList.add('visible')
+  }
+
+  private recordProfileMatch(winner: number | null): void {
+    if (this.profileRecorded || !this.session) return
+    this.profileRecorded = true
+    const storage = window.localStorage
+    const profile = loadProfile(storage)
+    const config = loadProfileConfig(storage)
+    const elapsedMs = Math.max(0, performance.now() - this.matchStartedAt)
+    const summary = this.session.summary()
+    const result: 'win' | 'loss' | 'draw' = winner === null ? 'draw' : winner === this.localTeam ? 'win' : 'loss'
+    recordMatch(storage, profile, config, {
+      mode: this.mode,
+      result,
+      map: this.matchMapLabel || 'default',
+      durationSec: Math.round(elapsedMs / 1000),
+      kills: summary.counters.kills,
+      unitsBuilt: summary.counters.unitsTrained,
+      buildingsBuilt: summary.counters.buildingsBuilt,
+      supplyHarvested: summary.counters.supplyHarvested,
+      counters: summary.counters,
+      typeCounts: summary.typeCounts,
+    })
   }
 
   private netTitle(winner: number | null): string {
@@ -492,6 +522,10 @@ export class Game {
     this.localTeam = cfg.localTeam
     this.modeCfg = cfg
     this.stats = new StatsTracker()
+    this.session = new SessionRecorder(cfg.localTeam)
+    this.matchStartedAt = performance.now()
+    this.profileRecorded = false
+    this.matchMapLabel = cfg.map.name
     this.bots = []
     this.finished = false
     this.resultsShown = false
@@ -510,6 +544,10 @@ export class Game {
     this.modeCfg = null
     this.bots = []
     this.finished = false
+    this.session = new SessionRecorder(msg.yourId)
+    this.matchStartedAt = performance.now()
+    this.profileRecorded = false
+    this.matchMapLabel = msg.map.name
     this.resultsShown = false
     this.cinematicOverlay.classList.remove('visible')
     this.cinematicActive = false
@@ -836,6 +874,7 @@ export class Game {
     for (const e of world.drainEvents()) {
       this.stats.track(e)
       this.audio.onEvent(e)
+      this.session?.track(e, world)
       const msg = this.describeEvent(e)
       if (msg) this.hud.log(msg)
       if (e.type === 'shot-fired') {

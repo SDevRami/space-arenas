@@ -117,6 +117,7 @@
           <button id="tab-mapbuilder" data-i18n="lobby.tab.mapbuilder">Map Builder</button>
           <button id="tab-info" data-i18n="lobby.tab.info">Game Info</button>
           <button id="tab-settings" data-i18n="lobby.tab.settings">Settings</button>
+          <button id="tab-profile" data-i18n="lobby.tab.profile">Profile</button>
           <button id="tab-mobile" data-i18n="lobby.tab.mobile">Mobile Mode</button>
           <button id="tab-dev" data-i18n="lobby.tab.dev">Dev Settings</button>
         </div>
@@ -536,6 +537,18 @@
                 <button class="ghost" id="dev-save" data-i18n="dev.save">Save changes</button>
                 <button class="ghost danger" id="dev-reset" data-i18n="dev.reset">Reset to defaults</button>
                 <button class="ghost" id="dev-save-default" data-i18n="dev.saveAsDefault">Save as default</button>
+              </div>
+            </div>
+          </div>
+          <div id="profile-panel" class="hidden-panel">
+            <div class="panel wide">
+              <h1 class="panel-title" data-i18n="profile.h1">Player Profile</h1>
+              <div class="hint" data-i18n="profile.hint">Career stats and achievements. Counters keep counting forever — even after an achievement unlocks — so your true totals keep growing.</div>
+              <div id="profile-summary"></div>
+              <h2 class="panel-subtitle" data-i18n="profile.achievements">Achievements</h2>
+              <div id="profile-achievements"></div>
+              <div class="dev-actions">
+                <button class="ghost danger" id="profile-reset" data-i18n="profile.reset">Reset Profile</button>
               </div>
             </div>
           </div>

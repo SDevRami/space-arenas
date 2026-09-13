@@ -338,6 +338,26 @@
       #lobby .dev-group-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 18px; padding: 10px; }
       #lobby .dev-actions { display: flex; gap: 10px; margin-top: 12px; }
 
+      #lobby .panel-subtitle { margin: 18px 0 6px; color: var(--color-accent); font-size: 14px; }
+      #lobby .profile-name { font-size: 18px; color: var(--color-accent); font-weight: 700; margin: 12px 0 10px; }
+      #lobby .profile-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+      #lobby .profile-stats > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); }
+      #lobby .profile-stats span { font-size: 18px; color: var(--color-text-body); font-weight: 700; }
+      #lobby .profile-stats label { margin: 0; font-size: 11px; color: var(--color-text-muted); }
+      #lobby .profile-group { margin: 16px 0 6px; padding-top: 12px; border-top: 1px solid var(--color-divider); color: var(--color-accent); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+      #lobby .profile-group:first-of-type { border-top: none; margin-top: 6px; padding-top: 0; }
+      #lobby .achievement { display: grid; grid-template-columns: 1fr 120px 90px; align-items: center; gap: 10px; padding: 8px 10px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); margin-bottom: 4px; }
+      #lobby .achievement.unlocked { border-color: #2e8b57; background: #0d2118; }
+      #lobby .achievement-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+      #lobby .achievement-name { font-size: 13px; color: var(--color-text-body); }
+      #lobby .achievement.unlocked .achievement-name { color: #7fdca0; }
+      #lobby .achievement-desc { font-size: 11px; color: var(--color-text-dim); line-height: 1.35; }
+      #lobby .achievement-when { font-size: 10px; color: var(--color-text-muted); }
+      #lobby .achievement-bar { height: 6px; background: var(--color-bg); border: 1px solid var(--color-divider); border-radius: 3px; overflow: hidden; }
+      #lobby .achievement-bar .bar { height: 100%; background: var(--color-accent); }
+      #lobby .achievement.unlocked .achievement-bar .bar { background: #2e8b57; }
+      #lobby .achievement-count { font-size: 11px; color: var(--color-text-muted); text-align: right; white-space: nowrap; }
+
       #create-overlay { position: absolute; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.7); }
       #create-overlay.visible { display: flex; }
       #create-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 22px; width: 420px; max-width: 92vw; border-radius: 6px; }

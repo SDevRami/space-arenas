@@ -259,7 +259,7 @@ Three strike types player chooses once at the SW building.
 
 ---
 
-## Day 14 — Player Profile + Achievements (M)
+## Day 14 — Player Profile + Achievements (M) ✅ DONE
 
 localStorage + lobby UI. All client-only.
 

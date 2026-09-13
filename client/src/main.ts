@@ -15,6 +15,8 @@ import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, set
 import { getAudio, setOverride, type SoundId } from './audio/settings.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
 import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, type MapEntry } from './mapbuilder/library.ts'
+import { initProfilePanel, renderProfilePanel, onProfileTabShown } from './profile/ui.ts'
+import { loadProfileConfig, saveProfileConfig } from './profile/profile.ts'
 
 const ERROR_HIDE_TIMEOUT_MS = 8000
 const COUNTDOWN_SECONDS = 5
@@ -99,6 +101,7 @@ const mapbuilderPanel = document.getElementById('mapbuilder-panel') as HTMLDivEl
 const infoPanel = document.getElementById('info-panel') as HTMLDivElement
 const settingsPanel = document.getElementById('settings-panel') as HTMLDivElement
 const devPanel = document.getElementById('dev-panel') as HTMLDivElement
+const profilePanel = document.getElementById('profile-panel') as HTMLDivElement
 const tabOffline = document.getElementById('tab-offline') as HTMLButtonElement
 const tabNetwork = document.getElementById('tab-network') as HTMLButtonElement
 const tabOnline = document.getElementById('tab-online') as HTMLButtonElement
@@ -106,8 +109,9 @@ const tabMapBuilder = document.getElementById('tab-mapbuilder') as HTMLButtonEle
 const tabInfo = document.getElementById('tab-info') as HTMLButtonElement
 const tabSettings = document.getElementById('tab-settings') as HTMLButtonElement
 const tabDev = document.getElementById('tab-dev') as HTMLButtonElement
+const tabProfile = document.getElementById('tab-profile') as HTMLButtonElement
 
-const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder' | 'info' | 'settings' | 'dev'): void => {
+const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder' | 'info' | 'settings' | 'dev' | 'profile'): void => {
   offlinePanel.classList.toggle('hidden-panel', which !== 'offline')
   networkPanel.classList.toggle('hidden-panel', which !== 'network')
   matchPanel.classList.toggle('hidden-panel', which !== 'match')
@@ -116,6 +120,7 @@ const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder'
   infoPanel.classList.toggle('hidden-panel', which !== 'info')
   settingsPanel.classList.toggle('hidden-panel', which !== 'settings')
   devPanel.classList.toggle('hidden-panel', which !== 'dev')
+  profilePanel.classList.toggle('hidden-panel', which !== 'profile')
   tabOffline.classList.toggle('active', which === 'offline')
   tabNetwork.classList.toggle('active', which === 'network')
   tabOnline.classList.toggle('active', which === 'online')
@@ -123,6 +128,8 @@ const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder'
   tabInfo.classList.toggle('active', which === 'info')
   tabSettings.classList.toggle('active', which === 'settings')
   tabDev.classList.toggle('active', which === 'dev')
+  tabProfile.classList.toggle('active', which === 'profile')
+  if (which === 'profile') onProfileTabShown()
 }
 
 tabOffline.addEventListener('click', () => setTab('offline'))
@@ -132,6 +139,9 @@ tabMapBuilder.addEventListener('click', () => setTab('mapbuilder'))
 tabInfo.addEventListener('click', () => setTab('info'))
 tabSettings.addEventListener('click', () => setTab('settings'))
 tabDev.addEventListener('click', () => setTab('dev'))
+tabProfile.addEventListener('click', () => setTab('profile'))
+
+initProfilePanel()
 
 // ---------- language ----------
 
@@ -499,6 +509,18 @@ const DEV_SCALAR_SECTIONS: Array<{ title: string; fields: DevFieldDef[] }> = [
       { key: 'astarCostDiagonal', unit: 'score', min: 1, max: 200, step: 1 },
     ],
   },
+]
+
+const PROFILE_TARGET_FIELDS: Array<{ key: string; target: number; min: number; max: number; step: number }> = [
+  { key: 'achievementKillsInfantry', target: 20, min: 1, max: 100000, step: 1 },
+  { key: 'achievementKillsVehicle', target: 10, min: 1, max: 100000, step: 1 },
+  { key: 'achievementKillsAir', target: 5, min: 1, max: 100000, step: 1 },
+  { key: 'achievementKillsBuilding', target: 5, min: 1, max: 100000, step: 1 },
+  { key: 'achievementSupplies', target: 1000, min: 1, max: 10000000, step: 100 },
+  { key: 'achievementVeteranPromotions', target: 10, min: 1, max: 10000, step: 1 },
+  { key: 'achievementTroopsTransported', target: 25, min: 1, max: 100000, step: 5 },
+  { key: 'achievementMatches', target: 5, min: 1, max: 100000, step: 1 },
+  { key: 'achievementWins', target: 10, min: 1, max: 100000, step: 1 },
 ]
 
 const OVERRIDE_BUILDING_FIELDS: OverrideFieldDef[] = [
@@ -1085,6 +1107,30 @@ const buildDevForm = (): void => {
   for (const id of Object.keys(UPGRADES)) {
     appendDevItemHeader(tn(id, UPGRADES[id].name))
     buildOverrideInputs('upgradeOverrides', id, OVERRIDE_UPGRADE_FIELDS)
+  }
+  if (PROFILE_TARGET_FIELDS.length > 0) appendDevSection(t('dev.sections.profile'))
+  for (const field of PROFILE_TARGET_FIELDS) {
+    const cfg = loadProfileConfig(window.localStorage)
+    const current = cfg.achievementTargets[field.key] ?? field.target
+    const changed = cfg.achievementTargets[field.key] !== undefined && current !== field.target
+    makeNumberInput(
+      t(`dev.fields.${field.key}.label`),
+      t(`dev.fields.${field.key}.desc`),
+      undefined,
+      current,
+      field.target,
+      field.min,
+      field.max,
+      field.step,
+      changed,
+      (v) => {
+        const next = loadProfileConfig(window.localStorage)
+        next.achievementTargets[field.key] = Math.round(v)
+        saveProfileConfig(window.localStorage, next)
+        setDevStatus(t('dev.status.saved'))
+        renderProfilePanel()
+      },
+    )
   }
 }
 
@@ -2231,6 +2277,7 @@ const refreshLobbyTexts = (): void => {
   renderActiveInfoTab()
   if (lobbyState) renderSyncList()
   if (lobbyState) renderMatchPanel(lobbyState)
+  renderProfilePanel()
 }
 
 // ---------- invite link auto-join (QR) ----------
