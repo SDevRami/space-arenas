@@ -296,6 +296,14 @@ Sim-side progression. Match score (kills, supply, research, expansions) drives a
 
 **Touch points:** `shared/constants.ts` (`RANK_COUNT/RANK_FLOORS/score consts/rankUpPrizeCredits/EXPANSION_RADIUS_TILES/AIRSTRIKE_MAX_LEVEL/EMP_MAX_LEVEL`, PROTOCOL_VERSION → 12), `shared/protocol.ts` (`rank-up` id 35), `shared/balance/upgrades.ts` (`requiredRank` + radar `command-center` + sw-level defs), `world.ts` (`TeamState.score/rank/airstrikeLevel/empLevel`, `lastAttacker`, rank helpers, `AirstrikeComp.damage/radius`), `hash.ts` (4 new fields), `input-system.ts` (rank-up handler, sw-choose laser guard, leveled strikes, research gating/costs), `placing-system.ts` (+`SCORE_RESEARCH`, sw-level finalizers), `economy-system.ts` (+`SCORE_SUPPLY_PER_TRIP`), `combat-system.ts` (`lastAttacker`), `airstrike-system.ts` (damage/radius params), `events.ts` (`rank-up`), `hud.ts` (rank btn/overlay/lock badges/SW panel note/onRankUp), `Game.ts` (toast + log + describeEvent), `profile.ts`+`profile/ui.ts` (`score`, `totalScore`, hexagon card), `i18n` en/ar, `styles.css` (`.rank-btn` pulse, `#rank-overlay`, `.lock-badge`, `.sw-panel-note`, toast slide-in, hexagon), `tests/day15.test.ts`, `tests/{protocol,day14}.test.ts` (updates)
 
+**Follow-up (2026-09-13):**
+| # | Change | Notes |
+|---|--------|-------|
+| 1 | **APC/bunker load only infantry** | `transport-load` now rejects every non-`infantry` unit (`only infantry can be transported`) — vehicles/war-factory units can no longer board the APC or garrison a bunker. Tests: APCs reject vehicles, air unit reason updated. |
+| 2 | **Bunker "Unload Here" rework** | A garrison building can't teleport troops to the clicked point: the `transport-unload` order now steps troops off around the bunker's own footprint first, then marches each to the clicked position (sim-side in `transport-system.ts`, building branch sets a move for every disembarked passenger). Toast generalized to "troops leave the transport first". Tests: step-off happens near the bunker with a move toward the point; nobody teleports. |
+| 3 | **Rank button always visible + score** | `#rank-btn` no longer hides at rank 0 — it always shows the earned stars plus the live match score (`★★ 1,650`, pulsing while the next promotion is ready) so the ladder is reachable from the start. |
+| 4 | **Profile hex + Card popup** | Hex chart enlarged (~200 px, 220 viewBox) with an axis legend (six labeled stats + numbers and colored dots); new "Card" button opens a modest popup with player main info (name, total score, games/wins/losses/win-rate/playtime) + full achievement status. i18n en/ar (`profile.openCard/cardTitle/hex.*`). |
+
 ---
 
 ## Day 16 — Team Features: Co-op + Shared Control (S–M)

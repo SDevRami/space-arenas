@@ -13,6 +13,15 @@ const winRate = (wins: number, matches: number): string => (matches > 0 ? `${Mat
 
 /** Day 15: player-card hexagon radar chart. Each axis is a battle stat,
  * normalized against a fixed cap so the shape stays readable from the start. */
+const HEX_AXES: { key: string; cap: number; color: string }[] = [
+  { key: 'profile.hex.combat', cap: 150, color: '#ffd75e' },
+  { key: 'profile.hex.economy', cap: 8000, color: '#4ad8ff' },
+  { key: 'profile.hex.army', cap: 300, color: '#7cf27c' },
+  { key: 'profile.hex.expansion', cap: 60, color: '#ff9d5c' },
+  { key: 'profile.hex.research', cap: 30, color: '#c9a53a' },
+  { key: 'profile.hex.intel', cap: 60, color: '#b77cff' },
+]
+
 const hexChart = (profile: Profile): string => {
   const c = profile.counters
   const research = Object.values(profile.typeCounts.upgradesResearched).reduce((a, b) => a + b, 0)
@@ -24,11 +33,10 @@ const hexChart = (profile: Profile): string => {
     research, // research
     c.satelliteScans + c.laserStrikes + c.airstrikes + c.empStrikes, // intel
   ]
-  const caps = [150, 8000, 300, 60, 30, 60]
-  const frac = values.map((v, i) => Math.min(1, v / caps[i]))
-  const cx = 55
-  const cy = 55
-  const r = 40
+  const frac = values.map((v, i) => Math.min(1, v / HEX_AXES[i].cap))
+  const cx = 110
+  const cy = 110
+  const r = 80
   const pt = (t: number, i: number): [number, number] => {
     const ang = (Math.PI / 180) * (-90 + i * 60)
     return [cx + Math.cos(ang) * r * t, cy + Math.sin(ang) * r * t]
@@ -36,14 +44,43 @@ const hexChart = (profile: Profile): string => {
   const ring = (t: number): string => Array.from({ length: 6 }, (_, i) => `${pt(t, i)[0].toFixed(1)},${pt(t, i)[1].toFixed(1)}`).join(' ')
   const data = Array.from({ length: 6 }, (_, i) => `${pt(frac[i], i)[0].toFixed(1)},${pt(frac[i], i)[1].toFixed(1)}`).join(' ')
   const spokes = Array.from({ length: 6 }, (_, i) => `M${cx},${cy} L${pt(1, i)[0].toFixed(1)},${pt(1, i)[1].toFixed(1)}`).join(' ')
+  const legend = HEX_AXES.map((ax, i) => `
+      <div class="hex-axis">
+        <span class="hex-axis-dot" style="background:${ax.color}"></span>
+        <label>${esc(t(ax.key))}</label>
+        <span class="hex-axis-value">${fmt(values[i])}</span>
+      </div>`).join('')
   return `
-    <svg class="profile-hex" viewBox="0 0 110 110" role="img" aria-label="${esc(t('profile.radarChart'))}">
-      <polygon points="${ring(0.33)}" class="hex-guide" />
-      <polygon points="${ring(0.66)}" class="hex-guide" />
-      <polygon points="${ring(1)}" class="hex-guide" />
-      <path d="${spokes}" class="hex-spoke" />
-      <polygon points="${data}" class="hex-data" />
-    </svg>
+    <div class="profile-hex-wrap">
+      <div class="profile-hex-title">${esc(t('profile.radarChart'))}</div>
+      <svg class="profile-hex" viewBox="0 0 220 220" role="img" aria-label="${esc(t('profile.radarChart'))}">
+        <polygon points="${ring(0.33)}" class="hex-guide" />
+        <polygon points="${ring(0.66)}" class="hex-guide" />
+        <polygon points="${ring(1)}" class="hex-guide" />
+        <path d="${spokes}" class="hex-spoke" />
+        <polygon points="${data}" class="hex-data" />
+      </svg>
+      <div class="profile-hex-legend">${legend}</div>
+    </div>
+  `
+}
+
+/** Compact "player card" header: identity + career snapshot. */
+const cardHead = (profile: Profile): string => {
+  const c = profile.counters
+  const seconds = profile.history.reduce((sum, r) => sum + r.durationSec, 0)
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  return `
+    <div class="profile-card-head-name">${esc(profile.name)}</div>
+    <div class="profile-card-head-stats">
+      <div><label>${esc(t('profile.totalScore'))}</label><span>${fmt(totalScore(profile))}</span></div>
+      <div><label>${esc(t('profile.games'))}</label><span>${fmt(c.gamesPlayed)}</span></div>
+      <div><label>${esc(t('profile.wins'))}</label><span>${fmt(c.wins)}</span></div>
+      <div><label>${esc(t('profile.losses'))}</label><span>${fmt(c.losses)}</span></div>
+      <div><label>${esc(t('profile.winRate'))}</label><span>${winRate(c.wins, c.gamesPlayed)}</span></div>
+      <div><label>${esc(t('profile.timePlayed'))}</label><span>${hours}h ${minutes}m</span></div>
+    </div>
   `
 }
 
@@ -58,6 +95,7 @@ const renderSummary = (): string => {
       <div class="profile-card-left">
         <div class="profile-name">${esc(profile.name)}</div>
         <div class="profile-total"><span>${fmt(totalScore(profile))}</span><label>${t('profile.totalScore')}</label></div>
+        <button class="profile-card-btn" type="button">${esc(t('profile.openCard'))}</button>
       </div>
       ${hexChart(profile)}
     </div>
@@ -77,9 +115,8 @@ const renderSummary = (): string => {
   `
 }
 
-const renderAchievements = (): string => {
-  const profile = loadProfile(window.localStorage)
-  const config = loadProfileConfig(window.localStorage)
+/** Achievement list markup (shared by the panel and the player-card popup). */
+const achievementsMarkup = (profile: Profile, config: ReturnType<typeof loadProfileConfig>): string => {
   const groups: { id: string; items: string[] }[] = []
   for (const def of ACHIEVEMENTS) {
     let g = groups.find((x) => x.id === def.group)
@@ -109,6 +146,29 @@ const renderAchievements = (): string => {
     .join('')
 }
 
+const renderAchievements = (): string => {
+  const profile = loadProfile(window.localStorage)
+  const config = loadProfileConfig(window.localStorage)
+  return achievementsMarkup(profile, config)
+}
+
+/** Fill the player-card popup with main info + achievement status, then show it. */
+const openProfileCard = (): void => {
+  const profile = loadProfile(window.localStorage)
+  const config = loadProfileConfig(window.localStorage)
+  const head = document.getElementById('profile-card-head')
+  const ach = document.getElementById('profile-card-ach')
+  if (head) head.innerHTML = cardHead(profile)
+  if (ach) ach.innerHTML = achievementsMarkup(profile, config)
+  const overlay = document.getElementById('profile-card-overlay')
+  overlay?.classList.remove('hidden')
+}
+
+const closeProfileCard = (): void => {
+  const overlay = document.getElementById('profile-card-overlay')
+  overlay?.classList.add('hidden')
+}
+
 /** Re-render the profile panel contents (stats + achievements). Pure DOM update. */
 export const renderProfilePanel = (): void => {
   const summary = document.getElementById('profile-summary')
@@ -132,7 +192,7 @@ export const onProfileTabShown = (): void => {
   renderProfilePanel()
 }
 
-/** Wire the reset button and the username field once. */
+/** Wire the reset button, username field, and the player-card popup once. */
 export const initProfilePanel = (onNameSaved?: (name: string) => void): void => {
   const resetBtn = document.getElementById('profile-reset') as HTMLButtonElement | null
   resetBtn?.addEventListener('click', () => {
@@ -145,5 +205,16 @@ export const initProfilePanel = (onNameSaved?: (name: string) => void): void => 
     const profile = updateProfileName(window.localStorage, loadProfile(window.localStorage), nameInput.value)
     renderProfilePanel()
     onNameSaved?.(profile.name)
+  })
+  // The Card button lives inside #profile-summary, whose html is rebuilt on every
+  // render, so open the popup via delegation instead of a direct listener.
+  const summary = document.getElementById('profile-summary')
+  summary?.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('.profile-card-btn')) openProfileCard()
+  })
+  document.getElementById('profile-card-close')?.addEventListener('click', closeProfileCard)
+  const overlay = document.getElementById('profile-card-overlay')
+  overlay?.addEventListener('click', (e) => {
+    if (e.target === overlay) closeProfileCard()
   })
 }

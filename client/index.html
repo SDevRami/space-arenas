@@ -16,7 +16,10 @@
       <div id="game-canvas"></div>
       <div id="hud">
         <div class="hud-top">
-          <button class="rank-btn" id="rank-btn" data-i18n-title="rank.buttonTitle"></button>
+          <button class="rank-btn" id="rank-btn" data-i18n-title="rank.buttonTitle">
+            <span class="rank-btn-stars" id="rank-btn-stars"></span>
+            <span class="rank-btn-score" id="rank-btn-score">0</span>
+          </button>
           <span class="hud-credits" id="credits">$800</span>
           <span class="hud-power">
             <span class="power-bar"><span class="power-fill" id="power-fill"></span></span>
@@ -560,6 +563,15 @@
                 <span class="hint" data-i18n="profile.usernameHint">Saving it also fills the name field when hosting or joining a match.</span>
               </div>
               <div id="profile-summary"></div>
+              <div id="profile-card-overlay" class="hidden">
+                <div class="profile-card-popup">
+                  <button class="profile-card-close" id="profile-card-close" data-i18n-title="rank.close">✕</button>
+                  <h2 class="panel-subtitle" data-i18n="profile.cardTitle">Player Card</h2>
+                  <div id="profile-card-head"></div>
+                  <h3 class="panel-subtitle" data-i18n="profile.achievements">Achievements</h3>
+                  <div id="profile-card-ach"></div>
+                </div>
+              </div>
               <h2 class="panel-subtitle" data-i18n="profile.achievements">Achievements</h2>
               <div id="profile-achievements"></div>
               <div class="dev-actions">

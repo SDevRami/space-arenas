@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createEmptyMap, type MatchSettings } from '@space-arenas/shared'
+import { createEmptyMap, isqrt, sqDist, type MatchSettings } from '@space-arenas/shared'
 import { Simulator } from '../client/src/core/Simulator.ts'
 import { hashWorld } from '../client/src/core/hash.ts'
-import { spawnUnit } from '../client/src/entities/factories.ts'
+import { spawnUnit, spawnBuilding } from '../client/src/entities/factories.ts'
 
 const MAP = createEmptyMap(64, 64)
 const SEED = 0xabcdef
@@ -52,13 +52,30 @@ describe('APC transport: boarding', () => {
       }),
     ])
 
-    expect(sim.drainEvents().some((e) => e.type === 'command-rejected' && e.reason === 'cannot transport air units')).toBe(true)
+    expect(sim.drainEvents().some((e) => e.type === 'command-rejected' && e.reason === 'only infantry can be transported')).toBe(true)
     // Only the owned rifleman was queued (and boarded right away, being in range).
     expect(world.units.has(enemy)).toBe(true)
     expect(world.units.has(fighter)).toBe(true)
     expect(world.units.has(mine)).toBe(false)
     expect(getLoadQueue(sim, apc)).toBe(0)
     expect(getPassengers(sim, apc)).toBe(1)
+  })
+
+  it('rejects vehicles — the APC only carries infantry', () => {
+    const sim = makeSim()
+    const { world } = sim
+    const apc = spawnUnit(world, 'apc', 0, 10000, 10000)
+    const dozer = spawnUnit(world, 'bulldozer', 0, 10200, 10000)
+    const walker = spawnUnit(world, 'assault-walker', 0, 10100, 10300)
+
+    sim.step([sim.makeCommand(0, { type: 'transport-load', entities: [dozer, walker], x: 0, y: 0, transportId: apc })])
+
+    const rejected = sim.drainEvents().filter((e) => e.type === 'command-rejected' && e.reason === 'only infantry can be transported')
+    expect(rejected.length).toBe(2)
+    expect(world.units.has(dozer)).toBe(true)
+    expect(world.units.has(walker)).toBe(true)
+    expect(getLoadQueue(sim, apc)).toBe(0)
+    expect(getPassengers(sim, apc)).toBe(0)
   })
 
   it('stops reserving slots once the APC is full (10 base, +3 per capacity research)', () => {
@@ -252,5 +269,58 @@ describe('APC transport: unloading', () => {
     a.advance(500)
     b.advance(500)
     expect(hashWorld(a.world)).toBe(hashWorld(b.world))
+  })
+})
+
+describe('bunker garrison: unloading', () => {
+  const makeGarrisonedBunker = (sim: Simulator): { bunker: number; loaded: number } => {
+    const { world } = sim
+    spawnBuilding(world, 'command-center', 0, 4, 4, true)
+    const bunker = spawnBuilding(world, 'bunker', 0, 10, 10, true)
+    const squad = Array.from({ length: 5 }, (_, i) => spawnUnit(world, 'rifleman', 0, 9400 + i * 40, 10500))
+    sim.step([sim.makeCommand(0, { type: 'transport-load', entities: squad, x: 0, y: 0, transportId: bunker })])
+    sim.advance(20)
+    return { bunker, loaded: 5 }
+  }
+
+  it('steps troops off around the bunker itself, then marches them to the clicked point', () => {
+    const sim = makeSim()
+    const { world } = sim
+    const { bunker, loaded } = makeGarrisonedBunker(sim)
+    expect(world.transports.require(bunker).passengers.length).toBe(loaded)
+    const bx = world.transforms.require(bunker).x
+    const by = world.transforms.require(bunker).y
+
+    // Unload "Here" at a far map position — the click is a walk target, not a teleport.
+    sim.step([sim.makeCommand(0, { type: 'transport-unload', entities: [], x: 50000, y: 50000, transportId: bunker })])
+    sim.advance(1)
+
+    const first = Array.from(world.units.idsArray()).find((id) => world.units.get(id)?.unitType === 'rifleman')!
+    const ft = world.transforms.require(first)
+    expect(isqrt(sqDist(ft.x, ft.y, bx, by))).toBeLessThanOrEqual(4000)
+    // And it is already walking toward the clicked drop-off point.
+    expect(world.moves.get(first)?.tx).toBe(50000)
+    expect(world.moves.get(first)?.ty).toBe(50000)
+
+    sim.advance(10)
+    expect(world.transports.require(bunker).passengers.length).toBe(0)
+    const riflemen = Array.from(world.units.idsArray()).filter((id) => world.units.get(id)?.unitType === 'rifleman')
+    expect(riflemen.length).toBe(loaded)
+    expect(world.transports.get(bunker)?.pendingUnload).toBe(false)
+  })
+
+  it(`doesn't teleport the garrison — nobody ends up near the point in one tick`, () => {
+    const sim = makeSim()
+    const { world } = sim
+    const { bunker } = makeGarrisonedBunker(sim)
+
+    sim.step([sim.makeCommand(0, { type: 'transport-unload', entities: [], x: 50000, y: 50000, transportId: bunker })])
+    sim.advance(1)
+
+    const riflemen = Array.from(world.units.idsArray()).filter((id) => world.units.get(id)?.unitType === 'rifleman')
+    for (const id of riflemen) {
+      const t = world.transforms.require(id)
+      expect(isqrt(sqDist(t.x, t.y, 50000, 50000))).toBeGreaterThan(40000)
+    }
   })
 })

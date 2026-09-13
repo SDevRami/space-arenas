@@ -94,6 +94,8 @@ export class Hud {
   private gameLog = document.getElementById('game-log')!
   private hudEl = document.getElementById('hud')!
   private rankBtn = document.getElementById('rank-btn')!
+  private rankBtnStars = document.getElementById('rank-btn-stars')!
+  private rankBtnScore = document.getElementById('rank-btn-score')!
   private rankOverlay = document.getElementById('rank-overlay')!
   private rankPanelTitle = document.getElementById('rank-panel-title')!
   private rankPanelScore = document.getElementById('rank-panel-score')!
@@ -207,18 +209,16 @@ export class Hud {
     this.updateRankBtn(world, localTeam)
   }
 
-  /** Keep the top-left rank button in sync: stars earned, or a pulsing "★" once the next rank-up is ready. */
+  /** Keep the top-left rank button in sync: earned stars + match score, pulsing
+   * while the next promotion is ready. Always visible so the ladder is reachable. */
   private updateRankBtn(world: World, team: number): void {
     const rank = world.rankOf(team)
     const can = world.canRankUp(team)
-    if (rank === 0 && !can) {
-      if (this.rankBtn.style.display !== 'none') this.rankBtn.style.display = 'none'
-      return
-    }
-    this.rankBtn.style.display = ''
-    this.rankBtn.textContent = can ? `★${rank + 1}` : '★'.repeat(rank)
+    const score = world.scoreOf(team)
+    this.rankBtnStars.textContent = '★'.repeat(can ? rank + 1 : rank)
+    this.rankBtnScore.textContent = score.toLocaleString('en-US')
     this.rankBtn.classList.toggle('pulse', can)
-    const sig = `${rank}|${can}|${world.scoreOf(team)}`
+    const sig = `${rank}|${can}|${score}`
     if (sig !== this.lastRankSig) {
       this.lastRankSig = sig
       if (!this.rankOverlay.classList.contains('hidden')) this.renderRankOverlay(world, team)

@@ -121,7 +121,9 @@ export const TransportSystem = {
       }
 
       // 11.3 — a pending unload: drive to the drop-off point, then step off one
-      // passenger per tick into a stable grid around the point.
+      // passenger per tick into a stable grid around the point. A static garrison
+      // building (bunker) cannot drive anywhere, so it steps its troops off
+      // around its own footprint first and only then marches them to the point.
       if (!tc.pendingUnload) return
       if (tc.passengers.length === 0) {
         tc.pendingUnload = false
@@ -137,7 +139,9 @@ export const TransportSystem = {
         return
       }
       world.moves.delete(id)
-      const mp = resolveUnloadPoint(world, tc.unloadX, tc.unloadY)
+      const mp = isBuilding
+        ? resolveUnloadPoint(world, t.x, t.y)
+        : resolveUnloadPoint(world, tc.unloadX, tc.unloadY)
       // The grid is sized by the full load being dropped; passengers.length
       // shrinks as unloadCount grows, so the sum stays constant across ticks
       // and every passenger lands in the exact slot it would in a single dump.
@@ -157,6 +161,10 @@ export const TransportSystem = {
           su.veteranRank = rec.veteranRank
           su.stealth = rec.stealth
           su.abilityCooldown = rec.abilityCooldown
+        }
+        if (isBuilding) {
+          const m = setMove(world, sid, tc.unloadX, tc.unloadY, false)
+          m.needsPath = true
         }
         world.emit({ type: 'unit-unloaded', entity: sid, transport: id, unitType: rec.unitType, team: tc.team })
       }

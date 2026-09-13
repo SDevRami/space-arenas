@@ -598,8 +598,8 @@ export const InputSystem = {
             if (id === transportId) continue
             const u = world.units.get(id)
             if (!u || u.team !== player) continue
-            if (u.class === 'air') {
-              world.emit({ type: 'command-rejected', player, reason: 'cannot transport air units' })
+            if (u.class !== 'infantry') {
+              world.emit({ type: 'command-rejected', player, reason: 'only infantry can be transported' })
               continue
             }
             if (t.loadQueue.includes(id)) continue
