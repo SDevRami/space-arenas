@@ -341,6 +341,15 @@ Team multiplayer features. Both need LAN/online.
 | 6 | **Vote banner pointer-events** | `.coop-banner` now keeps `pointer-events: auto` + `max-width`, so the accept/decline buttons stay clickable. |
 | 7 | **Protocol/version** | PROTOCOL_VERSION → 15; `coop-setting` added to protocol round-trip + stable-id tests; day16 gains Day 16.6 `coop-setting` block (pool/split/rank merge/control+ballot clear/invalid ignored/determinism). Suite now 347 tests, all green. |
 
+**Follow-up (2026-09-14, revert):** co-op is **lobby-only again** — the mid-match Team system is removed entirely, and the host win-detection no longer ends a co-op match when a single alliance member quits.
+| # | Change | Notes |
+|---|--------|-------|
+| 1 | **In-match co-op removed** | Deleted commands `ally-coop-request`/`ally-coop-vote`/`coop-setting` (ids 36/37/38) from `protocol.ts`; `World.robotSlots`/`coopVotes`/`coopVoted`/`recoopCredits`; vote events (`coop-vote-open`/`coop-accepted`/`coop-denied`); input-system handlers; `Game` hud actions + robotSlots boot lines. Lobby selects + shared bank/rank/control mechanics (`creditsSlot`/`rankSlot`/`controlLevel`) unchanged. |
+| 2 | **HUD stripped** | Removed `#team-btn`, coop banner + Team popup markup, `.coop-*`/`.team-btn` CSS, `hud.team` + `hud.coop*` i18n (en+ar). `hud.ts` lost ballot/panel/banner logic; `controlLevel` just returns the lobby setting. |
+| 3 | **Win-logic fix** | `host` `winnerFromRemaining` now counts **bots** too (grouped by `team`): a partial quit no longer reduces the match to one alliance. Non-host quit → relay `forfeit` and keep playing; host quit with members still on both sides → `H_GAME_OVER` with `winner: null` (draw), never a false victory. |
+| 4 | **Tests** | Removed vote/`coop-setting` blocks (Day 16.5/16.6) + protocol entries; day16 gains alliance win-loss tests (partial vs full elimination). New e2e: allied human quits with enemy bots alive → match continues + forfeit relayed, no `H_GAME_OVER`; host quit in the same setup → surviving ally gets a draw. |
+| 5 | **Protocol/version** | PROTOCOL_VERSION → **16**; stable-id map ends at `rank-up` = 35 (36 command types). Full suite green: 339 tests across 30 files; all workspaces typecheck + build. |
+
 ---
 
 ## Day 17 — Replay System (M, LAN only)

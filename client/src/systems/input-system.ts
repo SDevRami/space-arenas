@@ -1,5 +1,5 @@
 import type { EnvelopeCommand } from '@space-arenas/shared'
-import { canThrowBandolier, getBuilding, getUnit, getUpgrade, sqDist, tileToFx, SW_CHOICES, EMP_RADIUS_TILES, isqrt, EXPANSION_RADIUS_TILES, SCORE_EXPANSION, AIRSTRIKE_BOMB_DAMAGE, AIRSTRIKE_BOMB_RADIUS, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, type CoopEconomy, type CoopRank, type CoopControl } from '@space-arenas/shared'
+import { canThrowBandolier, getBuilding, getUnit, getUpgrade, sqDist, tileToFx, SW_CHOICES, EMP_RADIUS_TILES, isqrt, EXPANSION_RADIUS_TILES, SCORE_EXPANSION, AIRSTRIKE_BOMB_DAMAGE, AIRSTRIKE_BOMB_RADIUS } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { placementExplored, PING_TICKS } from '../core/world.ts'
 import { nearestPassablePoint } from '../core/pathfinding.ts'
@@ -190,81 +190,6 @@ export const InputSystem = {
         continue
       }
       switch (cmd.type) {
-        case 'ally-coop-request': {
-          // Only meaningful when the lobby left control sharing off.
-          if (world.settings.coopControl !== 'none') {
-            world.emit({ type: 'command-rejected', player, reason: 'co-op already enabled' })
-            break
-          }
-          const alliance = world.allianceOf(player)
-          const members = world.allianceMembers(player)
-          if (members.length < 2) break
-          if (world.coopVoted.has(alliance)) break
-          const current = world.coopVotes.get(alliance)
-          if (current && !current.denied) break
-          const ballot = { requestedBy: player, accepted: [player], denied: false }
-          // Bots auto-accept: no timeout, no popup.
-          const humans: number[] = []
-          for (const m of members) {
-            if (world.robotSlots.has(m)) {
-              if (!ballot.accepted.includes(m)) ballot.accepted.push(m)
-            } else if (m !== player) {
-              humans.push(m)
-            }
-          }
-          world.coopVotes.set(alliance, ballot)
-          world.emit({ type: 'coop-vote-open', requestedBy: player, alliance, players: members.filter((m) => !world.robotSlots.has(m)) })
-          if (humans.length === 0) {
-            world.coopVoted.add(alliance)
-            world.coopVotes.set(alliance, null)
-            world.emit({ type: 'coop-accepted', alliance })
-          }
-          break
-        }
-        case 'ally-coop-vote': {
-          if (world.settings.coopControl !== 'none') break
-          const alliance = world.allianceOf(player)
-          if (world.coopVoted.has(alliance)) break
-          const current = world.coopVotes.get(alliance)
-          if (!current || current.denied) break
-          if (!current.accepted.includes(player) && !world.robotSlots.has(player)) {
-            if (cmd.approve) {
-              current.accepted.push(player)
-            } else {
-              current.denied = true
-              world.emit({ type: 'coop-denied', alliance, player })
-              break
-            }
-          }
-          const humansDone = world.allianceMembers(player).filter((m) => !world.robotSlots.has(m))
-          if (humansDone.every((m) => current.accepted.includes(m))) {
-            world.coopVoted.add(alliance)
-            world.coopVotes.set(alliance, null)
-            world.emit({ type: 'coop-accepted', alliance })
-          }
-          break
-        }
-        case 'coop-setting': {
-          // Mid-match co-op reconfiguration, issued by any non-spectator player.
-          // Deterministic: credits migrate only the canonical holder and only on
-          // an actual supply-sharing transition.
-          if (cmd.coopKey === 'coopEconomy') {
-            const v = cmd.coopValue as CoopEconomy
-            if (!(COOP_ECONOMY_OPTIONS as readonly string[]).includes(v)) break
-            world.recoopCredits(world.settings.coopEconomy, v)
-            world.settings.coopEconomy = v
-          } else if (cmd.coopKey === 'coopRank') {
-            const v = cmd.coopValue as CoopRank
-            if (!(COOP_RANK_OPTIONS as readonly string[]).includes(v)) break
-            world.settings.coopRank = v
-          } else if (cmd.coopKey === 'coopControl') {
-            const v = cmd.coopValue as CoopControl
-            if (!(COOP_CONTROL_OPTIONS as readonly string[]).includes(v)) break
-            world.settings.coopControl = v
-            if (v !== 'none') world.coopVotes.set(world.allianceOf(player), null)
-          }
-          break
-        }
         case 'move': {
           const mp = resolveMovePoint(world, cmd.x, cmd.y)
           for (const id of cmd.entities) {

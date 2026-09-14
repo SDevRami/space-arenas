@@ -411,6 +411,103 @@ describe('host: lobby flow', () => {
     h2.kill()
   }, 30000)
 
+  it('does not end a co-op match when one of two allied humans quits and enemy bots remain', async () => {
+    const { host: h2, port: p2 } = await startHost()
+    const a = new TestClient()
+    const b = new TestClient()
+
+    await a.connect(p2)
+    a.join('Alpha')
+    await a.waitFor('H_LOBBY')
+    await b.connect(p2)
+    b.join('Bravo')
+    await b.waitFor('H_LOBBY')
+
+    // Same alliance: both humans on team 0, two bots on the opposing team 1.
+    a.updateSlot({ team: 0 })
+    await a.waitForLobby((m) => m.players.find((p) => p.id === a.id)?.team === 0)
+    b.updateSlot({ team: 0 })
+    await b.waitForLobby((m) => m.players.find((p) => p.id === b.id)?.team === 0)
+    a.send({ kind: 'C_ADD_BOT', difficulty: 'easy', team: 1 })
+    await a.waitForLobby((m) => m.players.filter((p) => p.bot).length === 1)
+    a.send({ kind: 'C_ADD_BOT', difficulty: 'medium', team: 1 })
+    await a.waitForLobby((m) => m.players.filter((p) => p.bot).length === 2)
+
+    a.ready(true)
+    b.ready(true)
+    await new Promise((r) => setTimeout(r, 150))
+    a.start()
+    await a.waitFor('S_MATCH_START')
+    await b.waitFor('S_MATCH_START')
+    a.loaded()
+    b.loaded()
+    await new Promise((r) => setTimeout(r, 250))
+    expect(a.frames.length).toBeGreaterThan(0)
+
+    b.ws.close()
+
+    // The remaining ally must not be declared winner while the enemy bots are alive.
+    let sawForfeit = false
+    const deadlineForfeit = Date.now() + 5000
+    while (Date.now() < deadlineForfeit && !sawForfeit) {
+      sawForfeit = a.frames.some((f) => f.commands.some((cmd) => cmd.player === b.id && cmd.cmd.type === 'forfeit'))
+      await new Promise((r) => setTimeout(r, 25))
+    }
+    expect(sawForfeit).toBe(true)
+    expect(a.queue.some((m) => m.kind === 'H_GAME_OVER')).toBe(false)
+
+    const ticksBefore = a.frames.length
+    await new Promise((r) => setTimeout(r, 500))
+    expect(a.frames.length).toBeGreaterThan(ticksBefore)
+
+    a.ws.close()
+    h2.kill()
+  }, 30000)
+
+  it('host quitting mid co-op match ends as a draw while an ally and enemy bots remain', async () => {
+    const { host: h2, port: p2 } = await startHost()
+    const a = new TestClient()
+    const b = new TestClient()
+
+    await a.connect(p2)
+    a.join('Alpha')
+    await a.waitFor('H_LOBBY')
+    await b.connect(p2)
+    b.join('Bravo')
+    await b.waitFor('H_LOBBY')
+
+    a.updateSlot({ team: 0 })
+    await a.waitForLobby((m) => m.players.find((p) => p.id === a.id)?.team === 0)
+    b.updateSlot({ team: 0 })
+    await b.waitForLobby((m) => m.players.find((p) => p.id === b.id)?.team === 0)
+    a.send({ kind: 'C_ADD_BOT', difficulty: 'easy', team: 1 })
+    await a.waitForLobby((m) => m.players.filter((p) => p.bot).length === 1)
+    a.send({ kind: 'C_ADD_BOT', difficulty: 'medium', team: 1 })
+    await a.waitForLobby((m) => m.players.filter((p) => p.bot).length === 2)
+
+    a.ready(true)
+    b.ready(true)
+    await new Promise((r) => setTimeout(r, 150))
+    a.start()
+    await a.waitFor('S_MATCH_START')
+    await b.waitFor('S_MATCH_START')
+    a.loaded()
+    b.loaded()
+    await new Promise((r) => setTimeout(r, 250))
+
+    a.ws.close()
+    const over = await b.waitFor('H_GAME_OVER')
+    expect(over.kind).toBe('H_GAME_OVER')
+    if (over.kind === 'H_GAME_OVER') {
+      // Not a victory for the surviving ally: their team-mate quit but neither
+      // alliance is fully eliminated, so the host relays server-side as a draw.
+      expect(over.winner).toBeNull()
+    }
+
+    b.ws.close()
+    h2.kill()
+  }, 30000)
+
   it('host can add bots: they are ready, count toward capacity, and play through the relay', async () => {
     const { host: h3, port: p3 } = await startHost()
     const hostC = new TestClient()

@@ -16,9 +16,6 @@ export const hashWorld = (world: World): number => {
   addNumber(bytes, world.width)
   addNumber(bytes, world.height)
   addNumber(bytes, Number(BigInt.asUintN(32, BigInt(world.rngState()))))
-  addString(bytes, world.settings.coopEconomy)
-  addString(bytes, world.settings.coopRank)
-  addString(bytes, world.settings.coopControl)
   const teams = [...world.teams.keys()].sort((a, b) => a - b)
   for (const t of teams) {
     const s = world.teams.get(t)
@@ -115,24 +112,6 @@ export const hashWorld = (world: World): number => {
   addComp(world.scenery, (id) => world.scenery.require(id))
   addComp(world.mines, (id) => world.mines.require(id))
   addComp(world.transports, (id) => world.transports.require(id))
-
-  const voted = [...world.coopVoted].sort((a, b) => a - b)
-  addNumber(bytes, voted.length)
-  for (const a of voted) addNumber(bytes, a)
-  const votes = [...world.coopVotes.entries()].sort((a, b) => a[0] - b[0])
-  addNumber(bytes, votes.length)
-  for (const [a, v] of votes) {
-    addNumber(bytes, a)
-    if (!v) {
-      addNumber(bytes, 1)
-    } else {
-      addNumber(bytes, 0)
-      addNumber(bytes, v.requestedBy)
-      addNumber(bytes, v.denied ? 1 : 0)
-      addNumber(bytes, v.accepted.length)
-      for (const m of v.accepted) addNumber(bytes, m)
-    }
-  }
 
   return crc32(Uint8Array.from(bytes))
 }

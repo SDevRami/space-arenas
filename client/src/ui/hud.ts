@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, SHIELD_MAX_HP, SW_CHOICES, canThrowBandolier, getBuilding, getUnit, getUpgrade, type UpgradeDef, type SwChoice, RANK_FLOORS, PLAYER_COLORS } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, SHIELD_MAX_HP, SW_CHOICES, canThrowBandolier, getBuilding, getUnit, getUpgrade, type UpgradeDef, type SwChoice, RANK_FLOORS } from '@space-arenas/shared'
 import type { ProductionOrder, World } from '../core/world.ts'
 import { t, tn } from '../i18n/index.ts'
 import { getGraphics } from './graphics.ts'
@@ -45,26 +45,11 @@ export interface HudActions {
   onSwChoose: (choice: SwChoice) => void
   /** Day 15: raise the team's general rank (requires enough match score). */
   onRankUp: () => void
-  /** Day 16: ask the alliance to enable shared control (opens the vote). */
-  onCoopRequest: () => void
-  /** Day 16: respond to the alliance's control vote (Accept / Decline). */
-  onCoopVote: (approve: boolean) => void
-  /** Day 16: change a co-op setting mid-match (economy / rank / control). */
-  onCoopSetting: (key: 'coopEconomy' | 'coopRank' | 'coopControl', value: string) => void
   /** Display name for a slot, when the caller has it (e.g. net lobby). */
   slotName?: (slot: number) => string | null
 }
 
 const BUILDER_BUILDABLES = ['command-center', 'power-plant', 'supply-dock', 'barracks', 'war-factory', 'turret', 'bunker', 'tech-center', 'air-force', 'super-weapon'] as const
-
-/** A ballot passes once every human alliance member has accepted (bots auto-accept). */
-function ballotDecision(accepted: number[], robots: Set<number>, allies: number[]): boolean {
-  for (const a of allies) {
-    if (robots.has(a)) continue
-    if (!accepted.includes(a)) return false
-  }
-  return true
-}
 
 const UPGRADES_BY_BUILDING: Record<string, UpgradeDef[]> = {}
 for (const u of Object.values(UPGRADES)) {
@@ -121,17 +106,6 @@ export class Hud {
   private rankPanelScore = document.getElementById('rank-panel-score')!
   private rankTierList = document.getElementById('rank-tier-list')!
   private rankUpBtn = document.getElementById('rank-up-btn') as HTMLButtonElement
-  private teamBtn = document.getElementById('team-btn')!
-  private coopMenu = document.getElementById('coop-menu')!
-  private coopMenuBackdrop = document.getElementById('coop-menu-backdrop')!
-  private coopMemberList = document.getElementById('coop-member-list')!
-  private coopStatus = document.getElementById('coop-status')!
-  private coopRequestBtn = document.getElementById('coop-request-btn') as HTMLButtonElement
-  private coopBanner = document.getElementById('coop-banner')!
-  private coopBannerText = document.getElementById('coop-banner-text')!
-  private coopEcoSelect = document.getElementById('coop-eco-select') as HTMLSelectElement
-  private coopRankSelect = document.getElementById('coop-rank-select') as HTMLSelectElement
-  private coopControlSelect = document.getElementById('coop-control-select') as HTMLSelectElement
 
   private lastSelSig: string | null = null
   private lastQueueSig: string | null = null
@@ -158,22 +132,7 @@ export class Hud {
     this.rankMenuBackdrop.addEventListener('click', () => this.closeRankMenu())
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.rankMenu.classList.contains('open')) this.closeRankMenu()
-      if (e.key === 'Escape' && this.coopMenu.classList.contains('open')) this.closeCoopMenu()
     })
-    this.teamBtn.addEventListener('click', () => this.toggleCoopMenu())
-    const coopClose = document.getElementById('coop-close')
-    coopClose?.addEventListener('click', () => this.closeCoopMenu())
-    this.coopMenuBackdrop.addEventListener('click', () => this.closeCoopMenu())
-    this.coopRequestBtn.addEventListener('click', () => {
-      this.actions.onCoopRequest()
-      if (this.lastWorld && this.lastTeam >= 0) this.syncCoopUi(this.lastWorld, this.lastTeam)
-    })
-    document.getElementById('coop-accept')?.addEventListener('click', () => this.voteCoop(true))
-    document.getElementById('coop-decline')?.addEventListener('click', () => this.voteCoop(false))
-    this.coopEcoSelect.addEventListener('change', () => this.applyCoopSetting('coopEconomy', this.coopEcoSelect.value))
-    this.coopRankSelect.addEventListener('change', () => this.applyCoopSetting('coopRank', this.coopRankSelect.value))
-    this.coopControlSelect.addEventListener('change', () => this.applyCoopSetting('coopControl', this.coopControlSelect.value))
-    this.fillCoopOptions()
   }
 
   private lastWorld: World | null = null
@@ -223,157 +182,6 @@ export class Hud {
     this.rankUpBtn.textContent = can ? t('hud.rankUpReady') : t('hud.rankUpWait')
   }
 
-  private lastCoopOpen = false
-  private lastCoopVoted = false
-  private lastCoopDenied = false
-  private lastCoopPanelSig = ''
-
-  private toggleCoopMenu(): void {
-    if (!this.lastWorld || this.lastTeam < 0) return
-    if (this.coopMenu.classList.contains('open')) {
-      this.closeCoopMenu()
-    } else {
-      this.renderCoopOverlay(this.lastWorld, this.lastTeam)
-      this.coopMenu.classList.add('open')
-      this.coopMenuBackdrop.classList.add('open')
-    }
-  }
-
-  private closeCoopMenu(): void {
-    this.coopMenu.classList.remove('open')
-    this.coopMenuBackdrop.classList.remove('open')
-  }
-
-  private voteCoop(approve: boolean): void {
-    this.actions.onCoopVote(approve)
-    if (this.lastWorld && this.lastTeam >= 0) this.syncCoopUi(this.lastWorld, this.lastTeam)
-  }
-
-  /** Each frame, keep the co-op banner and Team popup in sync with the replayed
-   * vote state, firing a one-time toast on each transition. */
-  private syncCoopUi(world: World, team: number): void {
-    const controls = world.settings.coopControl
-    const allies = world.allianceMembers(team)
-    const voted = world.coopVoted.has(world.allianceOf(team))
-    const ballot = world.coopVotes.get(world.allianceOf(team))
-    if (controls !== 'none') {
-      this.setCoopBanner(false)
-      this.lastCoopOpen = false
-      this.lastCoopVoted = voted
-      this.lastCoopDenied = false
-      return
-    }
-    const open = allies.length >= 2 && !!ballot && !ballot.denied && !voted && !ballotDecision(ballot.accepted, world.robotSlots, allies)
-    if (ballot && ballot.denied && !this.lastCoopDenied) this.toast(t('hud.coopVoteDenied'))
-    if (voted && !this.lastCoopVoted) this.toast(t('hud.coopVotePassed'))
-    if (open && !this.lastCoopOpen) this.toast(t('hud.coopVoteOpen', { n: this.slotLabel(ballot.requestedBy) }))
-    this.lastCoopOpen = open
-    this.lastCoopVoted = voted
-    this.lastCoopDenied = !!(ballot && ballot.denied)
-    if (open) {
-      this.coopBannerText.textContent = t('hud.coopVoteOpen', { n: this.slotLabel(ballot.requestedBy) })
-      this.setCoopBanner(true)
-    } else {
-      this.setCoopBanner(false)
-    }
-    const panelSig = `${world.settings.coopEconomy}|${world.settings.coopRank}|${world.settings.coopControl}|${world.coopVotes.get(world.allianceOf(team)) ? 'b' : `${world.coopVoted.has(world.allianceOf(team)) ? 'v' : 'n'}`}`
-    if (this.coopMenu.classList.contains('open') && panelSig !== this.lastCoopPanelSig) {
-      this.lastCoopPanelSig = panelSig
-      this.renderCoopOverlay(world, team)
-    }
-  }
-
-  private setCoopBanner(open: boolean): void {
-    this.coopBanner.hidden = !open
-  }
-
-  private slotLabel(slot: number): string {
-    return this.actions.slotName?.(slot) ?? t('hud.playerN', { n: slot + 1 })
-  }
-
-  private coopOptionsFilled = false
-
-  /** Fill the three toggles once with the same options list as the match lobby. */
-  private fillCoopOptions(): void {
-    if (this.coopOptionsFilled) return
-    this.coopOptionsFilled = true
-    const eco: Array<[string, string]> = [
-      ['none', 'match.coopNone'],
-      ['power', 'match.coopPower'],
-      ['supply', 'match.coopSupply'],
-      ['both', 'match.coopBoth'],
-    ]
-    for (const [v, key] of eco) {
-      const opt = document.createElement('option')
-      opt.value = v
-      opt.textContent = t(key)
-      this.coopEcoSelect.appendChild(opt)
-    }
-    const rank: Array<[string, string]> = [
-      ['none', 'match.coopNone'],
-      ['score', 'match.coopScore'],
-      ['level', 'match.coopLevel'],
-      ['both', 'match.coopBoth'],
-    ]
-    for (const [v, key] of rank) {
-      const opt = document.createElement('option')
-      opt.value = v
-      opt.textContent = t(key)
-      this.coopRankSelect.appendChild(opt)
-    }
-    const ctrl: Array<[string, string]> = [
-      ['none', 'match.coopNone'],
-      ['units', 'match.coopUnits'],
-      ['all', 'match.coopAll'],
-    ]
-    for (const [v, key] of ctrl) {
-      const opt = document.createElement('option')
-      opt.value = v
-      opt.textContent = t(key)
-      this.coopControlSelect.appendChild(opt)
-    }
-    this.coopEcoSelect.title = t('match.coopEconomyHint')
-    this.coopRankSelect.title = t('match.coopRankHint')
-    this.coopControlSelect.title = t('match.coopControlHint')
-  }
-
-  private applyCoopSetting(key: 'coopEconomy' | 'coopRank' | 'coopControl', value: string): void {
-    this.actions.onCoopSetting(key, value)
-    if (this.lastWorld) this.syncCoopUi(this.lastWorld, this.lastTeam)
-  }
-
-  /** Rebuild the Team popup from live world state. Every player may open it and
-   * flip the same co-op toggles found in the match lobby. */
-  private renderCoopOverlay(world: World, team: number): void {
-    const allies = world.allianceMembers(team)
-    this.coopMemberList.innerHTML = ''
-    for (const m of allies) {
-      const hex = (PLAYER_COLORS[m % PLAYER_COLORS.length] ?? 0xffffff).toString(16).padStart(6, '0')
-      const row = document.createElement('div')
-      row.className = 'coop-member'
-      row.innerHTML = `<span class="coop-dot" style="background:#${hex}"></span><span class="coop-member-name">${this.slotLabel(m)}</span>`
-      this.coopMemberList.appendChild(row)
-    }
-    this.coopEcoSelect.value = world.settings.coopEconomy
-    this.coopRankSelect.value = world.settings.coopRank
-    this.coopControlSelect.value = world.settings.coopControl
-    const voted = world.coopVoted.has(world.allianceOf(team))
-    if (world.settings.coopControl !== 'none' || voted) {
-      this.coopControlSelect.value = voted && world.settings.coopControl === 'none' ? 'all' : world.settings.coopControl
-      this.coopRequestBtn.hidden = true
-      this.coopStatus.textContent = t('hud.coopControlShared')
-    } else if (allies.length < 2) {
-      this.coopRequestBtn.hidden = true
-      this.coopStatus.textContent = t('hud.coopSolo')
-    } else {
-      this.coopRequestBtn.hidden = false
-      const ballot = world.coopVotes.get(world.allianceOf(team))
-      this.coopRequestBtn.disabled = !!ballot && !ballot.denied
-      this.coopRequestBtn.textContent = ballot && ballot.denied ? t('hud.coopRequestAgain') : t('hud.coopRequest')
-      this.coopStatus.textContent = ballot ? t('hud.coopVoteOpen', { n: this.slotLabel(ballot.requestedBy) }) : t('hud.coopControlOpen')
-    }
-  }
-
   show(): void {
     this.hudEl.style.display = 'block'
   }
@@ -411,7 +219,6 @@ export class Hud {
     this.syncEl.style.color = syncOk ? '#7cf27c' : '#ff7a7a'
     this.updateFps()
     this.updateRankBtn(world, localTeam)
-    this.syncCoopUi(world, localTeam)
   }
 
   /** Keep the top-left rank button in sync: earned stars + match score, pulsing

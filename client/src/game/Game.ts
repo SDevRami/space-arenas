@@ -244,9 +244,6 @@ export class Game {
         this.issue({ type: 'sw-choose', entities: [], x: 0, y: 0, choice })
       },
       onRankUp: () => this.issue({ type: 'rank-up', entities: [], x: 0, y: 0 }),
-      onCoopRequest: () => this.issue({ type: 'ally-coop-request', entities: [], x: 0, y: 0 }),
-      onCoopVote: (approve) => this.issue({ type: 'ally-coop-vote', entities: [], x: 0, y: 0, approve }),
-      onCoopSetting: (key, value) => this.issue({ type: 'coop-setting', entities: [], x: 0, y: 0, coopKey: key, coopValue: value }),
       slotName: (slot) => this.netPlayers.find((p) => p.id === slot)?.name ?? null,
     })
   }
@@ -602,7 +599,6 @@ export class Game {
         const ts = this.world.teams.get(p.id)
         if (ts && p.team !== undefined) ts.alliance = p.team
         if (ts && p.color !== undefined) ts.color = p.color
-        if (p.bot) this.world.robotSlots.add(p.id)
       }
       this.world.rewireSharedStartingCredits()
       this.sim = null
@@ -617,7 +613,6 @@ export class Game {
         const ts = this.world.teams.get(s.team)
         if (ts && s.alliance !== undefined) ts.alliance = s.alliance
         if (ts && s.color !== undefined) ts.color = s.color
-        if (s.difficulty) this.world.robotSlots.add(s.team)
       }
       this.world.rewireSharedStartingCredits()
       for (const s of cfg.slots) {

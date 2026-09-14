@@ -141,6 +141,37 @@ describe('Day 16.3: combined rank ladder', () => {
   })
 })
 
+describe('Day 16.5: alliance win-loss after partial quits', () => {
+  const buildHomes = (sim: Simulator): void => {
+    spawnBuilding(sim.world, 'command-center', 0, 10, 10, true)
+    spawnBuilding(sim.world, 'command-center', 1, 40, 10, true)
+    spawnBuilding(sim.world, 'command-center', 2, 90, 10, true)
+  }
+
+  it('does not end the match when one of two allied humans quits and enemies remain', () => {
+    const sim = makeSim({}, [0, 1, 2])
+    ally(sim)
+    buildHomes(sim)
+    sim.step([sim.makeCommand(1, { type: 'forfeit', entities: [], x: 0, y: 0 })])
+    const ev = eventsOf(sim)
+    expect(ev.some((e) => e.type === 'player-left')).toBe(true)
+    expect(ev.some((e) => e.type === 'game-over')).toBe(false)
+    expect(sim.world.gameOver).toBeNull()
+  })
+
+  it('ends the match only once the entire alliance is gone', () => {
+    const sim = makeSim({}, [0, 1, 2])
+    ally(sim)
+    buildHomes(sim)
+    sim.step([sim.makeCommand(0, { type: 'forfeit', entities: [], x: 0, y: 0 })])
+    expect(sim.world.gameOver).toBeNull()
+    sim.step([sim.makeCommand(1, { type: 'forfeit', entities: [], x: 0, y: 0 })])
+    const ev = eventsOf(sim)
+    expect(ev.some((e) => e.type === 'game-over')).toBe(true)
+    expect(sim.world.gameOver).toBe(2)
+  })
+})
+
 describe('Day 16.4: control sharing', () => {
   const setup = (sim: Simulator): void => {
     ally(sim)
@@ -167,164 +198,11 @@ describe('Day 16.4: control sharing', () => {
     expect(sim.world.canControl(0, allyBuilding)).toBe(true)
   })
 
-  it('none: allies get nothing without a passed vote', () => {
+  it('none: allies get nothing when the lobby leaves control sharing off', () => {
     const sim = makeSim({ coopControl: 'none' })
     setup(sim)
     const allyUnit = sim.world.units.idsArray().find((id) => sim.world.units.get(id)!.team === 1)!
     expect(sim.world.canControl(0, allyUnit)).toBe(false)
     expect(sim.world.controlLevel(0)).toBe('none')
-  })
-})
-
-describe('Day 16.5: mid-match co-op vote', () => {
-  it('unanimous approval from all human allies unlocks co-op permanently', () => {
-    const sim = makeSim({ coopControl: 'none' }, [0, 1])
-    ally(sim)
-    sim.step([sim.makeCommand(0, { type: 'ally-coop-request', entities: [], x: 0, y: 0 })])
-    let ev = eventsOf(sim)
-    expect(ev.some((e) => e.type === 'coop-vote-open')).toBe(true)
-    sim.step([sim.makeCommand(1, { type: 'ally-coop-vote', entities: [], x: 0, y: 0, approve: true })])
-    ev = eventsOf(sim)
-    expect(ev.some((e) => e.type === 'coop-accepted')).toBe(true)
-    expect(sim.world.coopVoted.has(0)).toBe(true)
-    expect(sim.world.controlLevel(0)).toBe('all')
-    expect(sim.world.controlLevel(1)).toBe('all')
-  })
-
-  it('a single decline cancels the ballot and re-requests are allowed', () => {
-    const sim = makeSim({ coopControl: 'none' }, [0, 1])
-    ally(sim)
-    sim.step([sim.makeCommand(0, { type: 'ally-coop-request', entities: [], x: 0, y: 0 })])
-    sim.step([sim.makeCommand(1, { type: 'ally-coop-vote', entities: [], x: 0, y: 0, approve: false })])
-    const ev = eventsOf(sim)
-    expect(ev.some((e) => e.type === 'coop-denied')).toBe(true)
-    expect(sim.world.coopVoted.size).toBe(0)
-    expect(sim.world.controlLevel(0)).toBe('none')
-    sim.step([sim.makeCommand(0, { type: 'ally-coop-request', entities: [], x: 0, y: 0 })])
-    expect(sim.drainEvents().some((e) => e.type === 'coop-vote-open')).toBe(true)
-  })
-
-  it('bots auto-accept, so a lone human request passes instantly', () => {
-    const sim = makeSim({ coopControl: 'none' }, [0, 1])
-    ally(sim)
-    sim.world.robotSlots.add(1)
-    sim.step([sim.makeCommand(0, { type: 'ally-coop-request', entities: [], x: 0, y: 0 })])
-    const ev = eventsOf(sim)
-    expect(ev.some((e) => e.type === 'coop-accepted')).toBe(true)
-    expect(sim.world.coopVoted.has(0)).toBe(true)
-  })
-
-  it('rejects a request when the lobby already shares control', () => {
-    const sim = makeSim({ coopControl: 'all' }, [0, 1])
-    ally(sim)
-    sim.step([sim.makeCommand(0, { type: 'ally-coop-request', entities: [], x: 0, y: 0 })])
-    const ev = eventsOf(sim)
-    expect(ev.some((e) => e.type === 'command-rejected')).toBe(true)
-  })
-
-  it('ignores votes when no ballot is open', () => {
-    const sim = makeSim({ coopControl: 'none' }, [0, 1])
-    ally(sim)
-    sim.step([sim.makeCommand(1, { type: 'ally-coop-vote', entities: [], x: 0, y: 0, approve: true })])
-    const ev = eventsOf(sim)
-    expect(ev.filter((e) => e.type === 'coop-vote-open' || e.type === 'coop-accepted' || e.type === 'coop-denied')).toHaveLength(0)
-    expect(sim.world.coopVoted.size).toBe(0)
-  })
-
-  it('vote state stays deterministic across identical replays', () => {
-    const run = (): Simulator => {
-      const sim = makeSim({ coopControl: 'none' }, [0, 1])
-      ally(sim)
-      sim.step([sim.makeCommand(0, { type: 'ally-coop-request', entities: [], x: 0, y: 0 })])
-      sim.step([sim.makeCommand(1, { type: 'ally-coop-vote', entities: [], x: 0, y: 0, approve: true })])
-      return sim
-    }
-    const a = run()
-    const b = run()
-    expect(hashWorld(a.world)).toBe(hashWorld(b.world))
-    expect(a.world.coopVoted.has(0)).toBe(true)
-    expect(b.world.coopVoted.has(0)).toBe(true)
-  })
-})
-
-describe('Day 16.6: mid-match coop-setting', () => {
-  const setCoop = (sim: Simulator, player: number, coopKey: string, coopValue: string): void => {
-    sim.step([sim.makeCommand(player, { type: 'coop-setting', entities: [], x: 0, y: 0, coopKey, coopValue })])
-  }
-
-  it('any player can flip supply sharing on and the bank is pooled', () => {
-    const sim = makeSim({ coopEconomy: 'power' }, [0, 1])
-    ally(sim)
-    sim.world.grantCredits(1, 250)
-    setCoop(sim, 1, 'coopEconomy', 'both')
-    expect(sim.world.settings.coopEconomy).toBe('both')
-    expect(sim.world.creditsOf(0)).toBe(DEFAULT_CREDITS * 2 + 250)
-    expect(sim.world.creditsOf(1)).toBe(DEFAULT_CREDITS * 2 + 250)
-    expect(sim.world.teams.get(1)!.credits).toBe(0)
-  })
-
-  it('turning supply sharing off splits the bank deterministically', () => {
-    const sim = makeSim({ coopEconomy: 'both' }, [0, 1])
-    ally(sim)
-    sim.world.rewireSharedStartingCredits()
-    sim.world.grantCredits(0, 100)
-    setCoop(sim, 0, 'coopEconomy', 'power')
-    expect(sim.world.settings.coopEconomy).toBe('power')
-    const total = DEFAULT_CREDITS * 2 + 100
-    const share = Math.floor(total / 2)
-    expect(sim.world.teams.get(0)!.credits).toBe(share + (total - share * 2))
-    expect(sim.world.teams.get(1)!.credits).toBe(share)
-  })
-
-  it('a mid-match rank toggle merges the ladder reads', () => {
-    const sim = makeSim({ coopRank: 'none' }, [0, 1])
-    ally(sim)
-    sim.world.awardScore(1, 100)
-    expect(sim.world.scoreOf(1)).toBe(100)
-    setCoop(sim, 0, 'coopRank', 'both')
-    sim.world.awardScore(1, 50)
-    expect(sim.world.rankSlot(1)).toBe(0)
-    expect(sim.world.scoreOf(0)).toBe(50)
-    expect(sim.world.scoreOf(1)).toBe(50)
-  })
-
-  it('a mid-match control toggle unlocks ally buildings and clears an open ballot', () => {
-    const sim = makeSim({ coopControl: 'none' }, [0, 1])
-    ally(sim)
-    spawnBuilding(sim.world, 'barracks', 1, 20, 20, true)
-    spawnUnit(sim.world, 'rifleman', 1, 11000, 10000)
-    sim.step([sim.makeCommand(0, { type: 'ally-coop-request', entities: [], x: 0, y: 0 })])
-    expect(sim.world.coopVotes.get(0)).not.toBeNull()
-    setCoop(sim, 1, 'coopControl', 'all')
-    const allyBuilding = sim.world.buildings.idsArray().find((id) => sim.world.buildings.get(id)!.team === 1)!
-    const allyUnit = sim.world.units.idsArray().find((id) => sim.world.units.get(id)!.team === 1)!
-    expect(sim.world.settings.coopControl).toBe('all')
-    expect(sim.world.controlLevel(0)).toBe('all')
-    expect(sim.world.canControl(0, allyUnit)).toBe(true)
-    expect(sim.world.canControl(0, allyBuilding)).toBe(true)
-    expect(sim.world.coopVotes.get(0)).toBeNull()
-    expect(sim.world.coopVoted.has(0)).toBe(false)
-  })
-
-  it('ignores an invalid value without touching the setting', () => {
-    const sim = makeSim({ coopEconomy: 'power' }, [0, 1])
-    ally(sim)
-    setCoop(sim, 0, 'coopEconomy', 'banana')
-    expect(sim.world.settings.coopEconomy).toBe('power')
-  })
-
-  it('stays deterministic across identical toggles', () => {
-    const run = (): Simulator => {
-      const sim = makeSim({ coopEconomy: 'power' }, [0, 1])
-      ally(sim)
-      sim.world.grantCredits(1, 250)
-      setCoop(sim, 0, 'coopEconomy', 'both')
-      setCoop(sim, 1, 'coopRank', 'score')
-      setCoop(sim, 0, 'coopControl', 'units')
-      return sim
-    }
-    const a = run()
-    const b = run()
-    expect(hashWorld(a.world)).toBe(hashWorld(b.world))
   })
 })

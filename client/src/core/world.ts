@@ -1,5 +1,5 @@
 import { SparseSet } from '../ecs/sparse-set.ts'
-import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR, getUnit, getBuilding, TRANSPORT_CAPACITY_PER_LEVEL, WEAPON_UPGRADE_MAX_LEVEL, type SwChoice, RANK_FLOORS, MAX_RANK, SCORE_UNIT_KILL, SCORE_BUILDING_KILL, AIRSTRIKE_MAX_LEVEL, EMP_MAX_LEVEL, EMP_DURATION_TICKS, type CoopControl, type CoopEconomy } from '@space-arenas/shared'
+import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR, getUnit, getBuilding, TRANSPORT_CAPACITY_PER_LEVEL, WEAPON_UPGRADE_MAX_LEVEL, type SwChoice, RANK_FLOORS, MAX_RANK, SCORE_UNIT_KILL, SCORE_BUILDING_KILL, AIRSTRIKE_MAX_LEVEL, EMP_MAX_LEVEL, EMP_DURATION_TICKS, type CoopControl } from '@space-arenas/shared'
 import type { SimEvent } from './events.ts'
 import { rectFromCenter } from './geometry.ts'
 import { spawnBuilding, spawnUnit } from '../entities/factories.ts'
@@ -430,12 +430,6 @@ export class World {
   readonly fog = new Map<number, Uint8Array>()
   /** entity id -> the team that last damaged it, for kill credit & score. */
   readonly lastAttacker = new Map<number, number>()
-  /** Day 16: slot ids that are bots (auto-accept mid-match co-op votes). */
-  readonly robotSlots = new Set<number>()
-  /** Day 16: pending mid-match "Control Co-op" votes per alliance (null = none). */
-  readonly coopVotes = new Map<number, { requestedBy: number; accepted: number[]; denied: boolean } | null>()
-  /** Day 16: alliances that unlocked co-op control mid-match (permanent for the match). */
-  readonly coopVoted = new Set<number>()
 
   tick = 0
   gameOver: number | null = null
@@ -700,48 +694,6 @@ export class World {
     }
   }
 
-  /** Migrate alliance credits when the shared-supply toggle flips mid-match:
- * pooling members' balances into the canonical slot on enable, splitting the
- * canonical bank back out evenly among members on disable (deterministic). */
-  recoopCredits(prev: CoopEconomy, next: CoopEconomy): void {
-    const wasSupply = prev === 'supply' || prev === 'both'
-    const nowSupply = next === 'supply' || next === 'both'
-    if (nowSupply === wasSupply) return
-    const seen = new Set<number>()
-    for (const t of [...this.teams.keys()]) {
-      const a = this.allianceOf(t)
-      if (seen.has(a)) continue
-      seen.add(a)
-      const members = this.allianceMembers(t)
-      if (members.length < 2) continue
-      const canon = members[0]
-      if (nowSupply) {
-        let total = this.teams.get(canon)?.credits ?? 0
-        for (const m of members) {
-          if (m === canon) continue
-          total += this.teams.get(m)?.credits ?? 0
-        }
-        const c = this.teams.get(canon)
-        if (c) c.credits = total
-        for (const m of members) {
-          if (m === canon) continue
-          const ts = this.teams.get(m)
-          if (ts) ts.credits = 0
-        }
-      } else {
-        const c = this.teams.get(canon)
-        const total = c?.credits ?? 0
-        const share = Math.floor(total / members.length)
-        if (c) c.credits = share + (total - share * members.length)
-        for (const m of members) {
-          if (m === canon) continue
-          const ts = this.teams.get(m)
-          if (ts) ts.credits = share
-        }
-      }
-    }
-  }
-
   /** Slot whose power totals are the fused alliance grid (own when power isn't shared). */
   powerSlot(team: number): number {
     const eco = this.settings.coopEconomy
@@ -787,11 +739,9 @@ export class World {
     return { gen, use, net: gen - use }
   }
 
-  /** Effective control-sharing level for the team's alliance: the lobby setting,
-   * or `all` once the alliance's mid-match vote passed (permanent). */
-  controlLevel(team: number): CoopControl {
-    if (this.settings.coopControl !== 'none') return this.settings.coopControl
-    return this.coopVoted.has(this.allianceOf(team)) ? 'all' : 'none'
+  /** Effective control-sharing level for the team's alliance (lobby setting). */
+  controlLevel(_team: number): CoopControl {
+    return this.settings.coopControl
   }
 
   /** Whether `player` may command the entity (unit or building) `id`. Allies get

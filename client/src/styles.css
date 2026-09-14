@@ -63,32 +63,6 @@
       #rank-menu .rank-tier.current .rank-tier-state { color: #ffd75e; }
       #rank-menu .rank-up-btn { width: 100%; padding: 10px; background: var(--color-primary); color: #fff; border: 1px solid var(--color-primary-hover); cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; border-radius: 4px; }
       #rank-menu .rank-up-btn:disabled { background: var(--color-surface); color: var(--color-text-muted); border-color: var(--color-border); cursor: default; }
-      .team-btn { border-color: #4a7ec9; color: #9cc6ff; }
-      .coop-menu-backdrop { position: fixed; inset: 0; background: rgba(4,6,12,0.55); z-index: 60; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
-      .coop-menu-backdrop.open { opacity: 1; pointer-events: auto; }
-      #coop-menu { position: fixed; top: 0; bottom: 0; right: 0; width: 320px; max-width: 88vw; background: var(--color-panel); border-left: 1px solid #4a7ec9; box-shadow: 0 0 26px rgba(0,0,0,0.55); padding: 18px 22px; overflow-y: auto; z-index: 61; text-align: left; transform: translateX(100%); transition: transform 0.28s ease; pointer-events: auto; }
-      #coop-menu.open { transform: translateX(0); }
-      #coop-menu .coop-panel-close { position: absolute; top: 10px; right: 14px; background: none; border: none; color: var(--color-text-muted); font-size: 16px; cursor: pointer; font-family: inherit; z-index: 1; }
-      #coop-menu .coop-panel-close:hover { color: #fff; }
-      #coop-menu .coop-panel-title { font-size: 20px; font-weight: 800; color: #9cc6ff; margin-bottom: 12px; letter-spacing: 2px; }
-      #coop-menu .coop-member-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-      #coop-menu .coop-member { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--color-border); background: var(--color-surface); }
-      #coop-menu .coop-dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; }
-      #coop-menu .coop-member-name { font-size: 13px; color: var(--color-text); }
-      #coop-menu .coop-status { font-size: 12px; color: var(--color-text-body); margin-bottom: 14px; line-height: 1.5; }
-      #coop-menu .coop-options { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
-      #coop-menu .coop-options label { font-size: 11px; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 6px; }
-      #coop-menu .coop-options select { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); padding: 6px 8px; font-family: inherit; font-size: 13px; cursor: pointer; }
-      /* A passed vote makes 'none' behave as 'all' — reflect that in the toggle. */
-      #coop-menu .coop-options select.coop-locked { opacity: 0.85; }
-      #coop-menu .coop-up-btn { width: 100%; padding: 10px; background: #2a5c8f; color: #fff; border: 1px solid #4a7ec9; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; border-radius: 4px; }
-      #coop-menu .coop-up-btn:disabled { background: var(--color-surface); color: var(--color-text-muted); border-color: var(--color-border); cursor: default; }
-      .coop-banner { position: fixed; top: 58px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: rgba(18,32,52,0.96); border: 1px solid #4a7ec9; box-shadow: 0 4px 18px rgba(0,0,0,0.5); padding: 10px 16px; border-radius: 6px; z-index: 70; max-width: min(560px, 92vw); pointer-events: auto; }
-      .coop-banner[hidden] { display: none; }
-      .coop-banner-text { flex: 1; font-size: 13px; color: #dceeff; }
-      .coop-banner .coop-btn { padding: 6px 14px; font-family: inherit; font-size: 12px; font-weight: 700; border-radius: 4px; cursor: pointer; background: #2a5c8f; color: #fff; border: 1px solid #4a7ec9; }
-      .coop-banner .coop-btn.decline { background: #7a2a2a; border-color: #c94a4a; }
-      .coop-banner .coop-btn:hover { filter: brightness(1.15); }
       .lock-badge { display: inline-block; vertical-align: middle; margin-left: 4px; padding: 1px 5px; font-size: 10px; font-weight: 700; color: #a9afb8; border: 1px solid #56607a; border-radius: 3px; letter-spacing: 1px; }
       .lock-badge-star { color: #6a7078; }
       .sw-panel-note { font-size: 11px; color: var(--color-text-muted); padding: 2px 2px 6px; }

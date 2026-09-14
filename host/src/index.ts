@@ -85,16 +85,22 @@ const endMatch = (winner: number | null): void => {
   })
 }
 
-const winnerFromRemaining = (room: { players: Map<WebSocket, HostPlayer> }): number | null => {
-  const remaining: number[] = []
-  const alliances = new Set<number>()
-  room.players.forEach((p) => {
-    if (!p.connected || p.spectator) return
-    remaining.push(p.id)
-    alliances.add(p.team ?? p.id)
-  })
-  if (alliances.size !== 1) return null
-  return remaining.sort((a, b) => a - b)[0] ?? null
+/** The last remaining alliance, if any — counting connected humans AND server-side
+ * bots, grouped by their shared `team`. Returns the lowest active slot id of the
+ * winning alliance (a player id, matching `yourId` on clients), or null while more
+ * than one alliance is still in the match. A single player quitting must not end
+ * the match while their teammates (human or bot) are still alive. */
+const winnerFromRemaining = (room: { players: Map<WebSocket, HostPlayer>; bots: HostPlayer[] }): number | null => {
+  const byTeam = new Map<number, number[]>()
+  for (const p of [...room.players.values(), ...room.bots]) {
+    if (!p.connected || p.spectator) continue
+    const team = p.team ?? p.id
+    const list = byTeam.get(team) ?? []
+    list.push(p.id)
+    byTeam.set(team, list)
+  }
+  if (byTeam.size !== 1) return null
+  return (byTeam.values().next().value as number[]).sort((a, b) => a - b)[0] ?? null
 }
 
 const discovery = new LanDiscovery(() => currentName, () => PORT, roomInfo)

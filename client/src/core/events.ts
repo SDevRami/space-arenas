@@ -57,8 +57,5 @@ export type SimEvent =
   | { type: 'power-boost'; entity: number; team: number }
   | { type: 'power-boost-ended'; entity: number; team: number }
   | { type: 'command-rejected'; player: number; reason: string }
-  | { type: 'coop-vote-open'; requestedBy: number; alliance: number; players: number[] }
-  | { type: 'coop-accepted'; alliance: number }
-  | { type: 'coop-denied'; alliance: number; player: number }
 
 export type EventListener = (event: SimEvent) => void
