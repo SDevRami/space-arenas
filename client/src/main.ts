@@ -1,5 +1,5 @@
 import './styles.css'
-import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, type MatchSettings, type WinRule, type FogMode } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { AudioHooks } from './audio/hooks.ts'
@@ -11,7 +11,7 @@ import { createPlayerRow } from './ui/player-row.ts'
 import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
 import { initControlsSettings } from './ui/controls-settings.ts'
 import { preloadFxFrames } from './render/building-sprites.ts'
-import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setUnitScale, setAssetPath, setFxScale, setMinimapScale, setVictoryCinematicSec, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_FX_SCALE, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, UNIT_ASSET_IDS, OBSTACLE_ASSET_TYPES } from './ui/graphics.ts'
+import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setUnitScale, setAssetPath, setFxScale, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_FX_SCALE, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, UNIT_ASSET_IDS, OBSTACLE_ASSET_TYPES } from './ui/graphics.ts'
 import { getAudio, setOverride, type SoundId } from './audio/settings.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
 import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, type MapEntry } from './mapbuilder/library.ts'
@@ -102,6 +102,7 @@ const infoPanel = document.getElementById('info-panel') as HTMLDivElement
 const settingsPanel = document.getElementById('settings-panel') as HTMLDivElement
 const devPanel = document.getElementById('dev-panel') as HTMLDivElement
 const profilePanel = document.getElementById('profile-panel') as HTMLDivElement
+const archivePanel = document.getElementById('archive-panel') as HTMLDivElement
 const tabOffline = document.getElementById('tab-offline') as HTMLButtonElement
 const tabNetwork = document.getElementById('tab-network') as HTMLButtonElement
 const tabOnline = document.getElementById('tab-online') as HTMLButtonElement
@@ -110,8 +111,9 @@ const tabInfo = document.getElementById('tab-info') as HTMLButtonElement
 const tabSettings = document.getElementById('tab-settings') as HTMLButtonElement
 const tabDev = document.getElementById('tab-dev') as HTMLButtonElement
 const tabProfile = document.getElementById('tab-profile') as HTMLButtonElement
+const tabArchive = document.getElementById('tab-archive') as HTMLButtonElement
 
-const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder' | 'info' | 'settings' | 'dev' | 'profile'): void => {
+const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder' | 'info' | 'settings' | 'dev' | 'profile' | 'archive'): void => {
   offlinePanel.classList.toggle('hidden-panel', which !== 'offline')
   networkPanel.classList.toggle('hidden-panel', which !== 'network')
   matchPanel.classList.toggle('hidden-panel', which !== 'match')
@@ -121,6 +123,7 @@ const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder'
   settingsPanel.classList.toggle('hidden-panel', which !== 'settings')
   devPanel.classList.toggle('hidden-panel', which !== 'dev')
   profilePanel.classList.toggle('hidden-panel', which !== 'profile')
+  archivePanel.classList.toggle('hidden-panel', which !== 'archive')
   tabOffline.classList.toggle('active', which === 'offline')
   tabNetwork.classList.toggle('active', which === 'network')
   tabOnline.classList.toggle('active', which === 'online')
@@ -129,19 +132,176 @@ const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder'
   tabSettings.classList.toggle('active', which === 'settings')
   tabDev.classList.toggle('active', which === 'dev')
   tabProfile.classList.toggle('active', which === 'profile')
+  tabArchive.classList.toggle('active', which === 'archive')
   if (which === 'profile') onProfileTabShown()
+  if (which === 'archive') void refreshArchive()
 }
 
 tabOffline.addEventListener('click', () => setTab('offline'))
-tabNetwork.addEventListener('click', () => setTab('network'))
+tabNetwork.addEventListener('click', () => {
+  // Keep the player inside the lobby match they joined (until they leave it).
+  setTab(lobbyState ? 'match' : 'network')
+})
 tabOnline.addEventListener('click', () => setTab('online'))
 tabMapBuilder.addEventListener('click', () => setTab('mapbuilder'))
 tabInfo.addEventListener('click', () => setTab('info'))
 tabSettings.addEventListener('click', () => setTab('settings'))
 tabDev.addEventListener('click', () => setTab('dev'))
 tabProfile.addEventListener('click', () => setTab('profile'))
+tabArchive.addEventListener('click', () => setTab('archive'))
 
 initProfilePanel(applyProfileName)
+
+// ---------- archive (saved replays) ----------
+
+const archiveListEl = document.getElementById('archive-list') as HTMLDivElement
+const archiveFileEl = document.getElementById('archive-file') as HTMLInputElement
+const archiveUploadBtn = document.getElementById('archive-upload') as HTMLButtonElement
+const archiveRefreshBtn = document.getElementById('archive-refresh') as HTMLButtonElement
+
+const txt = (key: string): string => t(key)
+
+const archiveRow = (meta: ReplayMeta): HTMLDivElement => {
+  const row = document.createElement('div')
+  row.className = 'archive-row' + (meta.valid ? '' : ' corrupt')
+  const name = document.createElement('span')
+  name.className = 'archive-col archive-name'
+  name.textContent = meta.label
+  const map = document.createElement('span')
+  map.className = 'archive-col archive-map'
+  map.textContent = meta.map || txt('archive.unknown')
+  const date = document.createElement('span')
+  date.className = 'archive-col archive-date'
+  date.textContent = meta.createdAt ? replayDateLabel(meta.createdAt) : '—'
+  const dur = document.createElement('span')
+  dur.className = 'archive-col archive-dur'
+  dur.textContent = meta.valid ? Math.round(meta.ticks / 25).toLocaleString('en-US') + 's' : '—'
+  const actions = document.createElement('span')
+  actions.className = 'archive-col archive-actions'
+  const play = document.createElement('button')
+  play.className = 'ghost'
+  play.textContent = meta.valid ? txt('archive.play') : txt('archive.invalid')
+  play.disabled = !meta.valid
+  play.addEventListener('click', () => playReplay(meta))
+  const rename = document.createElement('button')
+  rename.className = 'ghost'
+  rename.textContent = txt('archive.rename')
+  rename.addEventListener('click', () => renameReplay(meta))
+  const del = document.createElement('button')
+  del.className = 'ghost danger'
+  del.textContent = txt('archive.delete')
+  del.addEventListener('click', () => deleteReplay(meta))
+  actions.append(play, rename, del)
+  row.append(name, map, date, dur, actions)
+  return row
+}
+
+const setArchiveList = (metas: ReplayMeta[]): void => {
+  archiveListEl.textContent = ''
+  if (metas.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'hint'
+    empty.textContent = txt('archive.empty')
+    archiveListEl.appendChild(empty)
+    return
+  }
+  for (const meta of metas) archiveListEl.appendChild(archiveRow(meta))
+}
+
+const refreshArchive = async (): Promise<void> => {
+  try {
+    const res = await fetch('/api/replays')
+    const data = (await res.json()) as { replays?: ReplayMeta[] }
+    setArchiveList(data.replays ?? [])
+    archiveListEl.classList.remove('error')
+  } catch {
+    const err = document.createElement('div')
+    err.className = 'hint error'
+    err.textContent = txt('archive.unreachable')
+    archiveListEl.textContent = ''
+    archiveListEl.appendChild(err)
+  }
+}
+
+const playReplay = async (meta: ReplayMeta): Promise<void> => {
+  try {
+    const res = await fetch(`/api/replays?name=${encodeURIComponent(meta.name)}`)
+    if (!res.ok) {
+      errBox.textContent = txt('archive.missing')
+      return
+    }
+    const replay = (await res.json()) as ReplayData
+    if (game) {
+      game.destroy()
+      game = null
+    }
+    game = makeGame()
+    hideLobby()
+    await game.startReplay(replay)
+  } catch {
+    errBox.textContent = txt('archive.unreachable')
+  }
+}
+
+const renameReplay = async (meta: ReplayMeta): Promise<void> => {
+  const next = window.prompt(txt('archive.renamePrompt'), meta.label)
+  if (next === null || next.trim() === '' || next.trim() === meta.label) return
+  try {
+    const res = await fetch('/api/replays/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: meta.name, newName: next.trim() }),
+    })
+    if (res.ok) await refreshArchive()
+    else errBox.textContent = txt('archive.renameFail')
+  } catch {
+    errBox.textContent = txt('archive.unreachable')
+  }
+}
+
+const deleteReplay = async (meta: ReplayMeta): Promise<void> => {
+  if (!window.confirm(txt('archive.deleteConfirm'))) return
+  try {
+    const res = await fetch('/api/replays/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: meta.name }),
+    })
+    if (res.ok) await refreshArchive()
+  } catch {
+    errBox.textContent = txt('archive.unreachable')
+  }
+}
+
+archiveUploadBtn.addEventListener('click', () => archiveFileEl.click())
+archiveFileEl.addEventListener('change', () => {
+  const file = archiveFileEl.files?.[0]
+  if (!file) return
+  void (async () => {
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text) as unknown
+      if (!validReplay(parsed)) {
+        errBox.textContent = txt('archive.invalidFile')
+        return
+      }
+      const res = await fetch('/api/replays/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: text,
+      })
+      if (res.ok) {
+        archiveFileEl.value = ''
+        await refreshArchive()
+      } else {
+        errBox.textContent = txt('archive.invalidFile')
+      }
+    } catch {
+      errBox.textContent = txt('archive.invalidFile')
+    }
+  })()
+})
+archiveRefreshBtn.addEventListener('click', () => void refreshArchive())
 
 // ---------- language ----------
 
@@ -1016,6 +1176,67 @@ const buildDevForm = (): void => {
     g.victoryCinematicSec !== DEFAULT_VICTORY_CINEMATIC,
     (v) => {
       setVictoryCinematicSec(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  appendDevSection(t('dev.sections.zoom'))
+  makeNumberInput(
+    t('dev.fields.zoomMin.label'),
+    t('dev.fields.zoomMin.desc'),
+    devUnit('x'),
+    g.zoomMin,
+    DEFAULT_ZOOM_MIN,
+    0.05,
+    1,
+    0.05,
+    Math.abs(g.zoomMin - DEFAULT_ZOOM_MIN) >= 1e-9,
+    (v) => {
+      setZoomMin(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  makeNumberInput(
+    t('dev.fields.zoomMax.label'),
+    t('dev.fields.zoomMax.desc'),
+    devUnit('x'),
+    g.zoomMax,
+    DEFAULT_ZOOM_MAX,
+    1,
+    20,
+    0.05,
+    Math.abs(g.zoomMax - DEFAULT_ZOOM_MAX) >= 1e-9,
+    (v) => {
+      setZoomMax(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  makeNumberInput(
+    t('dev.fields.replayZoomMin.label'),
+    t('dev.fields.replayZoomMin.desc'),
+    devUnit('x'),
+    g.replayZoomMin,
+    DEFAULT_REPLAY_ZOOM_MIN,
+    0.05,
+    1,
+    0.05,
+    Math.abs(g.replayZoomMin - DEFAULT_REPLAY_ZOOM_MIN) >= 1e-9,
+    (v) => {
+      setReplayZoomMin(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  makeNumberInput(
+    t('dev.fields.replayZoomMax.label'),
+    t('dev.fields.replayZoomMax.desc'),
+    devUnit('x'),
+    g.replayZoomMax,
+    DEFAULT_REPLAY_ZOOM_MAX,
+    1,
+    50,
+    0.1,
+    Math.abs(g.replayZoomMax - DEFAULT_REPLAY_ZOOM_MAX) >= 1e-9,
+    (v) => {
+      setReplayZoomMax(v)
       setDevStatus(t('dev.status.saved'))
     },
   )
@@ -1924,15 +2145,17 @@ const renderSyncList = (): void => {
   void selectable
 }
 
-const connectJoin = async (addr: string, code: string, pass: string, name: string, fromInviteLink = false): Promise<void> => {
+const connectJoin = async (addr: string, code: string, pass: string, name: string, fromInviteLink = false, opts?: { spectator?: boolean }): Promise<void> => {
   if (!code) {
     setNetStatus(t('network.status.needCode'), true)
     return
   }
+  lastJoin = { addr, code, pass, name }
   setJoinBusy(true)
   setNetStatus(t('network.status.connecting'))
   net = new NetClient({
     onLobby: (msg) => {
+      setJoinBusy(false)
       localTeam = msg.yourId
       if (!devPublishedConn) {
         devPublishedConn = true
@@ -1964,20 +2187,23 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
         window.location.href = window.location.origin + window.location.pathname
         return
       }
+      if (lobbyState === null && /already started/i.test(message)) {
+        // A running match has no free player seat — offer to watch it as a spectator.
+        setJoinBusy(false)
+        roomFullJoin = { addr, code, pass, name }
+        roomfullOverlayEl.classList.add('visible')
+        return
+      }
       setJoinBusy(false)
       if (lobbyState) setMatchStatus(t('game.error', { msg: message }), true)
       else setNetStatus(t('game.error', { msg: message }), true)
     },
     onClose: () => {
-      setJoinBusy(false)
       if (game) {
-        game.destroy()
-        game = null
-        showLobby()
-        setTab('network')
-        setNetStatus(t('network.status.lost'))
+        if (reconnectPhase === 'off') beginReconnect()
         return
       }
+      setJoinBusy(false)
       if (lobbyState) {
         lobbyState = null
         devPushedToRoom = false
@@ -2000,7 +2226,188 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
     return
   }
   setNetStatus(t('network.status.joining'))
-  await net.join(code, pass, name)
+  await net.join(code, pass, name, opts?.spectator === true)
+}
+
+// ---------- room-full popup (join a running match with no free seat) ----------
+
+const roomfullOverlayEl = document.getElementById('roomfull-overlay') as HTMLDivElement
+const roomfullBackBtn = document.getElementById('roomfull-back') as HTMLButtonElement
+const roomfullSpectateBtn = document.getElementById('roomfull-spectate') as HTMLButtonElement
+let roomFullJoin: { addr: string; code: string; pass: string; name: string } | null = null
+
+roomfullBackBtn.addEventListener('click', () => {
+  roomfullOverlayEl.classList.remove('visible')
+  roomFullJoin = null
+  setNetStatus(t('network.status.needCode'), true)
+})
+roomfullSpectateBtn.addEventListener('click', () => {
+  roomfullOverlayEl.classList.remove('visible')
+  const join = roomFullJoin
+  roomFullJoin = null
+  if (join) void connectJoin(join.addr, join.code, join.pass, join.name, false, { spectator: true })
+})
+
+// ---------- in-game auto-reconnect (Day 18) ----------
+
+const reconnectOverlayEl = document.getElementById('reconnect-overlay') as HTMLDivElement
+const reconnectLabelEl = document.getElementById('reconnect-label') as HTMLDivElement
+let lastJoin: { addr: string; code: string; pass: string; name: string } | null = null
+let reconnectPhase: 'off' | 'player' | 'spectator' = 'off'
+let reconnectTimer: number | null = null
+let reconnectAttempts = 0
+let reconnectBusy = false
+let attemptToken = 0
+const RECONNECT_RETRY_MS = 1500
+const RECONNECT_MAX_ATTEMPTS = 7
+
+const setReconnecting = (on: boolean, spectator = false): void => {
+  if (!reconnectOverlayEl || !reconnectLabelEl) return
+  reconnectOverlayEl.classList.toggle('visible', on)
+  if (on) reconnectLabelEl.textContent = t(spectator ? 'network.status.spectating' : 'network.status.reconnecting')
+}
+
+/** Kicks off the reconnect attempt when a live match's socket drops unexpectedly. */
+const beginReconnect = (): void => {
+  if (reconnectPhase !== 'off' || !lastJoin || !game) {
+    game?.destroy()
+    game = null
+    showLobby()
+    setTab('network')
+    setNetStatus(t('network.status.lost'))
+    return
+  }
+  net?.close()
+  net = null
+  reconnectPhase = 'player'
+  reconnectAttempts = 0
+  setReconnecting(true)
+  void attemptReconnect()
+}
+
+const attemptReconnect = async (): Promise<void> => {
+  if (reconnectPhase === 'off' || !lastJoin || !game) return
+  if (reconnectBusy) return
+  reconnectBusy = true
+  const join = lastJoin
+  const spectator = reconnectPhase === 'spectator'
+  attemptToken++
+  const tok = attemptToken
+  try {
+    const n = new NetClient({
+      onLobby: () => {
+        if (tok !== attemptToken || reconnectPhase !== 'player' || !game) return
+        // Host re-claimed our slot; the S_SPECTATE_SYNC that follows catches us up.
+        finishReconnect()
+      },
+      onMatchStart: (msg) => {
+        if (tok !== attemptToken || reconnectPhase !== 'spectator') return
+        // Spectator fallback accepted — reboot into a fresh spectator game.
+        game?.destroy()
+        game = makeGame()
+        hideLobby()
+        void game.startNet(n, msg)
+        finishReconnect()
+      },
+      onSpectateSync: (msg) => {
+        if (tok !== attemptToken || !game) return
+        if (reconnectPhase !== 'off') {
+          game.catchUpSync(msg)
+          if (reconnectPhase === 'player') finishReconnect()
+        } else {
+          game.applySpectateSync(msg)
+        }
+      },
+      onFrame: (tick, commands) => game?.applyFrame(tick, commands),
+      onRelayChecksum: (player, tick, crc) => game?.onNetChecksum(player, tick, crc),
+      onChecksum: () => undefined,
+      onChat: (msg) => game?.onNetChat(msg),
+      onGameOver: (winner) => {
+        if (tok !== attemptToken) return
+        game?.onNetGameOver(winner)
+        if (!game) netStatusEl.textContent = winner !== null && winner === localTeam ? t('menu.victory') : t('menu.defeat')
+      },
+      onError: (message) => {
+        if (tok !== attemptToken) return
+        if (reconnectPhase === 'player') {
+          // Player slot lost — fall back to watching the running match as a spectator.
+          n.close()
+          reconnectPhase = 'spectator'
+          reconnectAttempts = 0
+          reconnectBusy = false
+          setReconnecting(true, true)
+          void attemptReconnect()
+        } else {
+          reconnectGiveUp(message)
+        }
+      },
+      onClose: () => {
+        if (tok !== attemptToken) return
+        retryReconnect()
+      },
+      onOpen: () => undefined,
+    })
+    net = n
+    game.attachNet(n)
+    await n.connect(`ws://${join.addr}/ws`)
+    await n.join(join.code, join.pass, join.name, spectator)
+  } catch {
+    retryReconnect()
+  } finally {
+    reconnectBusy = false
+  }
+}
+
+const retryReconnect = (): void => {
+  if (reconnectPhase === 'off') return
+  if (reconnectTimer !== null) return
+  if (reconnectPhase === 'player' && reconnectAttempts < RECONNECT_MAX_ATTEMPTS) {
+    reconnectAttempts++
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null
+      void attemptReconnect()
+    }, RECONNECT_RETRY_MS)
+    return
+  }
+  if (reconnectPhase === 'player') {
+    // Player slot unreachable within the window — auto-spectate the running match.
+    reconnectPhase = 'spectator'
+    reconnectAttempts = 0
+    setReconnecting(true, true)
+    void attemptReconnect()
+    return
+  }
+  reconnectGiveUp()
+}
+
+const finishReconnect = (): void => {
+  if (reconnectPhase === 'off') return
+  reconnectPhase = 'off'
+  if (reconnectTimer !== null) {
+    window.clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  reconnectAttempts = 0
+  reconnectBusy = false
+  setReconnecting(false)
+}
+
+const reconnectGiveUp = (message = ''): void => {
+  if (reconnectPhase === 'off') return
+  reconnectPhase = 'off'
+  if (reconnectTimer !== null) {
+    window.clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  reconnectBusy = false
+  setReconnecting(false)
+  net?.close()
+  net = null
+  game?.destroy()
+  game = null
+  showLobby()
+  setTab('network')
+  setNetStatus(message ? t('game.error', { msg: message }) : t('network.status.lost'))
 }
 
 const joinSelectedOrManual = (): void => {
@@ -2077,12 +2484,48 @@ const renderNetMatches = (all: NetPlayer[]): void => {
     status.textContent = m.started
       ? `${t('network.inMatch')} · ${m.playerCount}/${m.maxPlayers}${m.passwordRequired ? ' · 🔒' : ''}`
       : `${t('network.waiting', { n: m.playerCount, m: m.maxPlayers })}${m.passwordRequired ? ' · 🔒' : ''}`
-    const btn = document.createElement('button')
-    btn.textContent = m.started ? t('network.spectate') : t('network.join')
-    if (m.started) btn.classList.add('spec')
-    if (joinBusy) {
-      btn.disabled = true
-      btn.textContent = t('network.status.joining')
+    const actions = document.createElement('div')
+    actions.className = 'net-actions'
+    const makeJoinBtn = (): HTMLButtonElement => {
+      const b = document.createElement('button')
+      if (joinBusy) {
+        b.disabled = true
+        b.textContent = t('network.status.joining')
+      }
+      return b
+    }
+    if (m.started) {
+      const rejoin = makeJoinBtn()
+      rejoin.textContent = joinBusy ? t('network.status.joining') : t('network.rejoin')
+      rejoin.classList.add('rejoin')
+      rejoin.addEventListener('click', (e) => {
+        e.stopPropagation()
+        select()
+        joinSelectedOrManual()
+      })
+      actions.appendChild(rejoin)
+      const spec = makeJoinBtn()
+      spec.textContent = joinBusy ? t('network.status.joining') : t('network.spectate')
+      spec.classList.add('spec')
+      spec.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const pass = m.passwordRequired ? netPassEl.value : ''
+        if (m.passwordRequired && !pass) {
+          setNetStatus(t('network.status.needsPassword'), true)
+          return
+        }
+        void connectJoin(`${m.ip}:${m.port}`, m.roomCode ?? '', pass, netNameEl.value.trim() || 'Commander', false, { spectator: true })
+      })
+      actions.appendChild(spec)
+    } else {
+      const join = makeJoinBtn()
+      join.textContent = joinBusy ? t('network.status.joining') : t('network.join')
+      join.addEventListener('click', (e) => {
+        e.stopPropagation()
+        select()
+        joinSelectedOrManual()
+      })
+      actions.appendChild(join)
     }
     const select = (): void => {
       selectedMatch = m
@@ -2092,15 +2535,10 @@ const renderNetMatches = (all: NetPlayer[]): void => {
       netCodeEl.value = m.roomCode ?? ''
     }
     row.addEventListener('click', select)
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      select()
-      joinSelectedOrManual()
-    })
     row.appendChild(who)
     row.appendChild(ip)
     row.appendChild(status)
-    row.appendChild(btn)
+    row.appendChild(actions)
     netMatchesEl.appendChild(row)
   }
 }

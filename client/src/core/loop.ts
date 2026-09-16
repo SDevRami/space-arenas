@@ -12,8 +12,14 @@ export class GameLoop {
   private acc = 0
   private running = false
   private errorLogged = false
+  private timeScale = 1
 
   constructor(private readonly cbs: LoopCallbacks) {}
+
+  /** Playback speed multiplier: 1 = real time, 4 = four sim seconds per real second. */
+  setSpeed(s: number): void {
+    this.timeScale = s > 0 ? s : 1
+  }
 
   start(): void {
     if (this.running) return
@@ -32,7 +38,7 @@ export class GameLoop {
     if (!this.running) return
     const dt = Math.min(now - this.lastTime, 250)
     this.lastTime = now
-    this.acc += dt
+    this.acc += dt * this.timeScale
     const maxSteps = 4
     let steps = 0
     while (this.acc >= SIM_TICK_MS && steps < maxSteps) {

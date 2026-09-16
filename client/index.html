@@ -25,6 +25,7 @@
             <span class="power-bar"><span class="power-fill" id="power-fill"></span></span>
             <span id="power-text">power 0/0</span>
           </span>
+          <span class="replay-eco" id="replay-eco" style="display:none;"></span>
           <span id="tick-info"></span>
           <span id="sync-info"></span>
           <span id="fps-info" class="fps-info"></span>
@@ -33,6 +34,20 @@
           <button class="menu-btn" id="dev-btn" data-i18n-title="dev.overlayBtnTitle" data-i18n="dev.overlayBtn">Dev</button>
           <button class="menu-btn hud-chat-btn" id="chat-btn" data-i18n-title="chat.buttonTitle"><span data-i18n="chat.button">Chat</span><span class="badge"></span></button>
           <button class="menu-btn" id="menu-btn" data-i18n="menu.button">Menu</button>
+        </div>
+        <div id="replay-bar" class="replay-bar" hidden>
+          <div class="replay-bar-top">
+            <span class="replay-time" id="replay-time">0:00 / 0:00</span>
+            <input type="range" id="replay-slider" min="0" max="1000" step="1" value="0" />
+          </div>
+          <div class="replay-controls">
+            <button class="replay-btn replay-hud-btn" id="replay-hud-toggle" data-i18n-title="replay.hudToggle" title="Show / hide minimap &amp; selection bar">⊞</button>
+            <button class="replay-btn" id="replay-restart" data-i18n-title="replay.restart" title="Restart">⏮</button>
+            <button class="replay-btn" id="replay-back" data-i18n-title="replay.back" title="Back 10s">−10s</button>
+            <button class="replay-btn replay-play" id="replay-play" data-i18n-title="replay.play" title="Play ▸ pause">▶</button>
+            <button class="replay-btn" id="replay-fwd" data-i18n-title="replay.fwd" title="Forward 10s">+10s</button>
+            <button class="replay-btn replay-speed" id="replay-speed" title="Playback speed">1×</button>
+          </div>
         </div>
         <div class="hud-game-log" id="game-log"></div>
         <div id="rank-menu-backdrop" class="rank-menu-backdrop"></div>
@@ -132,6 +147,7 @@
           <button id="tab-info" data-i18n="lobby.tab.info">Game Info</button>
           <button id="tab-settings" data-i18n="lobby.tab.settings">Settings</button>
           <button id="tab-profile" data-i18n="lobby.tab.profile">Profile</button>
+          <button id="tab-archive" data-i18n="lobby.tab.archive">Archive</button>
           <button id="tab-mobile" data-i18n="lobby.tab.mobile">Mobile Mode</button>
           <button id="tab-dev" data-i18n="lobby.tab.dev">Dev Settings</button>
         </div>
@@ -594,6 +610,27 @@
               </div>
             </div>
           </div>
+          <div id="archive-panel" class="hidden-panel">
+            <div class="panel wide">
+              <h1 class="panel-title" data-i18n="archive.h1">Match Archive</h1>
+              <div class="hint" data-i18n="archive.hint">Recorded matches saved by this host are listed below. Play any replay, rename it, or delete it. You can also upload a replay file to this archive.</div>
+              <div class="archive-toolbar">
+                <input type="file" id="archive-file" accept=".json" class="hidden-file" />
+                <button class="ghost" id="archive-upload" data-i18n="archive.upload">Upload Replay</button>
+                <button class="ghost" id="archive-refresh" data-i18n="archive.refresh">Refresh</button>
+              </div>
+              <div class="archive-header-row">
+                <span class="archive-col archive-name" data-i18n="archive.mpName">Name</span>
+                <span class="archive-col archive-map" data-i18n="archive.mpMap">Map</span>
+                <span class="archive-col archive-date" data-i18n="archive.mpDate">Saved</span>
+                <span class="archive-col archive-dur" data-i18n="archive.mpTicks">Ticks</span>
+                <span class="archive-col archive-actions">&nbsp;</span>
+              </div>
+              <div id="archive-list" class="archive-list">
+                <div class="hint" data-i18n="archive.empty">No replays recorded yet.</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -630,6 +667,21 @@
           <div class="row">
             <button class="ghost" id="invite-copy" data-i18n="lobby.inviteCopy">Copy Link</button>
             <button class="primary" id="invite-close" data-i18n="lobby.inviteClose">Close</button>
+          </div>
+        </div>
+      </div>
+      <div id="reconnect-overlay">
+        <div id="reconnect-box">
+          <div id="reconnect-label" data-i18n="network.status.reconnecting">Reconnecting…</div>
+        </div>
+      </div>
+      <div id="roomfull-overlay">
+        <div class="panel">
+          <h2 data-i18n="network.roomFullTitle">Match already playing</h2>
+          <p class="hint" data-i18n="network.roomFullBody">All player seats are taken. Watch this match instead?</p>
+          <div class="row">
+            <button id="roomfull-back" data-i18n="network.roomFullBack">Back</button>
+            <button class="primary" id="roomfull-spectate" data-i18n="network.roomFullSpectate">Play as Spectator</button>
           </div>
         </div>
       </div>

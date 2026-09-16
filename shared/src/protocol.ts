@@ -431,6 +431,10 @@ export interface JoinMessage {
   roomCode: string
   passphraseHash: string
   name: string
+  /** Persistent per-browser id so a disconnected player can reclaim their slot on reconnect. */
+  clientId?: string
+  /** Set when joining an already-started match explicitly as a spectator. */
+  spectator?: boolean
 }
 export interface LobbyMessage {
   kind: 'H_LOBBY'

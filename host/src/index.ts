@@ -9,19 +9,29 @@ import { WebSocketServer } from 'ws'
 import {
   BIN,
   DEFAULT_PORT,
+  PROTOCOL_VERSION,
   decodeChecksum,
   decodeControl,
   encodeControl,
   makeMatchStart,
+  validReplay,
   type ChatRelayMessage,
   type ControlMessage,
+  type EnvelopeCommand,
+  type ReplayData,
 } from '@space-arenas/shared'
-import { RoomManager, type HostPlayer } from './rooms.ts'
+import { RoomManager, type HostPlayer, type Room } from './rooms.ts'
 import { TickRelay } from './relay.ts'
 import { NetBotRunner } from './bots.ts'
 import { newSeed } from './passphrase.ts'
 import { inviteQrPng, inviteUrl, refreshInviteQr } from './qr.ts'
 import { DEFAULT_BEACON_PORT, LanDiscovery, firstLanIp, lanIps } from './discovery.ts'
+import { archiveStore } from './archive.ts'
+
+const ARCHIVE_MAX_BYTES = 64 * 1024 * 1024
+
+/** How long a disconnected player slot is kept before it is forfeited/cleaned up. */
+const RECONNECT_GRACE_MS = 12_000
 
 const PORT = Number(process.env.SA_PORT ?? DEFAULT_PORT)
 const PASSPHRASE = process.env.SA_PASSPHRASE ?? 'changeme'
@@ -48,6 +58,7 @@ const rooms = new RoomManager()
 let relay: TickRelay | null = null
 const loadedCount = new Map<WebSocket, boolean>()
 let pendingForfeits: number[] = []
+const reconnectTimers = new Map<number, NodeJS.Timeout>()
 const chatLog: Array<{ from: string; text: string; ts: number }> = []
 
 const send = (ws: WebSocket, msg: ControlMessage): void => {
@@ -76,12 +87,94 @@ const endMatch = (winner: number | null): void => {
   const room = rooms.getRoom()
   if (!room || room.ended) return
   room.ended = true
+  for (const [, t] of reconnectTimers) clearTimeout(t)
+  reconnectTimers.clear()
+  const history = relay?.history ?? []
+  const ticks = relay?.currentTick ?? 0
   relay?.stop()
   relay = null
   pendingForfeits = []
   loadedCount.clear()
   room.players.forEach((p, ws) => {
     if (p.connected) send(ws, { kind: 'H_GAME_OVER', winner })
+  })
+  void saveReplay(room, winner, history, ticks)
+}
+
+const playerById = (room: Room, id: number): { ws: WebSocket; p: HostPlayer } | null => {
+  for (const [ws, p] of room.players) {
+    if (p.id === id) return { ws, p }
+  }
+  return null
+}
+
+/** Final cleanup after the reconnect grace window expires for a still-disconnected slot. */
+const disconnectFinished = (room: Room, ws: WebSocket, p: HostPlayer): void => {
+  rooms.removePlayer(ws)
+  if (room.started) {
+    const winner = winnerFromRemaining(room)
+    if (winner !== null) {
+      endMatch(winner)
+      return
+    }
+    if (!p.spectator) {
+      if (relay) relay.submitForfeit(p.id)
+      else pendingForfeits.push(p.id)
+    }
+    room.players.forEach((pp, ws2) => {
+      if (!pp.connected) return
+      send(ws2, { kind: 'H_PLAYER_STATE', players: rooms.slots(room) })
+    })
+    return
+  }
+  if (room.players.size === 0) {
+    relay?.stop()
+    relay = null
+    return
+  }
+  broadcastLobby()
+}
+
+/** Gives a disconnected slot a grace window to reclaim via the same clientId. */
+const scheduleForfeit = (room: Room, playerId: number): void => {
+  if (reconnectTimers.has(playerId)) return
+  const t = setTimeout(() => {
+    reconnectTimers.delete(playerId)
+    const current = rooms.getRoom()
+    if (!current || current !== room) return
+    const found = playerById(current, playerId)
+    if (!found || found.p.connected) return
+    disconnectFinished(current, found.ws, found.p)
+  }, RECONNECT_GRACE_MS)
+  reconnectTimers.set(playerId, t)
+}
+
+/** Writes the full command history + match settings into the `archive/` folder
+ *  as a JSON file (fire-and-forget so the shutdown path never blocks). */
+const saveReplay = (
+  room: Room,
+  winner: number | null,
+  history: EnvelopeCommand[],
+  ticks: number,
+): Promise<void> => {
+  const replay: ReplayData = {
+    version: PROTOCOL_VERSION,
+    createdAt: new Date().toISOString(),
+    seed: room.seed,
+    tickRate: 25,
+    map: room.map,
+    settings: room.settings,
+    winRule: room.winRule,
+    players: room.startSlots.length > 0 ? room.startSlots : rooms.matchSlots(room),
+    winner,
+    ticks,
+    history,
+  }
+  return archiveStore.save(replay).catch((err) => {
+    console.error('[space-arenas host] replay save failed:', err)
+    return undefined
+  }).then((name) => {
+    if (name) console.log(`[space-arenas host] saved replay: ${name}`)
   })
 }
 
@@ -173,25 +266,51 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
         send(ws, { kind: 'H_ERROR', message: 'No room on this server' })
         return
       }
-      if (room.started) {
-        const res = rooms.joinSpectator(ws, msg.roomCode, msg.passphraseHash, msg.name)
-        if (!res.ok) {
-          send(ws, { kind: 'H_ERROR', message: res.error ?? 'join failed' })
+      // Reclaim an existing slot (player or spectator) for a reconnecting clientId.
+      if (msg.clientId) {
+        const existing = rooms.reconnectPlayer(ws, msg.clientId)
+        if (existing) {
+          const pending = reconnectTimers.get(existing.id)
+          if (pending) {
+            clearTimeout(pending)
+            reconnectTimers.delete(existing.id)
+          }
+          if (room.started) {
+            loadedCount.set(ws, true)
+            send(ws, { kind: 'H_PLAYER_STATE', players: rooms.slots(room) })
+            if (relay) {
+              send(ws, { kind: 'S_SPECTATE_SYNC', currentTick: relay.currentTick, log: relay.history })
+            }
+            return
+          }
+          broadcastLobby()
           return
         }
-        const p = rooms.playerFor(ws)
-        if (p) {
-          send(ws, { kind: 'H_LOBBY', roomCode: room.code, yourId: p.id, hostId: hostId(), players: rooms.slots(room), maxPlayers: room.maxPlayers, mapName: room.map.name, mapId: room.mapId, map: room.map, passwordRequired: room.passwordRequired, winRule: room.winRule, settings: room.settings })
-          send(ws, { ...makeMatchStart(room.map, rooms.matchSlots(room), hostId(), p.id, room.seed, 25, room.settings, room.winRule), spectator: true })
-          if (relay) {
-            send(ws, { kind: 'S_SPECTATE_SYNC', currentTick: relay.currentTick, log: relay.history })
+      }
+      // An already-started match only accepts explicit spectators (re-join popup path).
+      if (room.started) {
+        if (msg.spectator === true) {
+          const res = rooms.joinSpectator(ws, msg.roomCode, msg.passphraseHash, msg.name, msg.clientId)
+          if (!res.ok) {
+            send(ws, { kind: 'H_ERROR', message: res.error ?? 'join failed' })
+            return
           }
+          const p = rooms.playerFor(ws)
+          if (p) {
+            send(ws, { kind: 'H_LOBBY', roomCode: room.code, yourId: p.id, hostId: hostId(), players: rooms.slots(room), maxPlayers: room.maxPlayers, mapName: room.map.name, mapId: room.mapId, map: room.map, passwordRequired: room.passwordRequired, winRule: room.winRule, settings: room.settings })
+            send(ws, { ...makeMatchStart(room.map, rooms.matchSlots(room), hostId(), p.id, room.seed, 25, room.settings, room.winRule), spectator: true })
+            if (relay) {
+              send(ws, { kind: 'S_SPECTATE_SYNC', currentTick: relay.currentTick, log: relay.history })
+            }
+          }
+          broadcastLobby()
+          return
         }
-        broadcastLobby()
+        send(ws, { kind: 'H_ERROR', message: 'Match already started — no free player slot' })
         return
       }
       const first = room.players.size === 0
-      const res = rooms.joinRoom(ws, msg.roomCode, msg.passphraseHash, msg.name)
+      const res = rooms.joinRoom(ws, msg.roomCode, msg.passphraseHash, msg.name, msg.clientId)
       if (!res.ok) {
         send(ws, { kind: 'H_ERROR', message: res.error ?? 'join failed' })
         return
@@ -300,6 +419,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
       room.seed = newSeed()
       loadedCount.clear()
       rooms.assignSpawns(room)
+      room.startSlots = rooms.matchSlots(room)
       room.players.forEach((p, ws2) => {
         if (!p.connected) return
         send(ws2, makeMatchStart(room.map, rooms.matchSlots(room), hostId(), p.id, room.seed, 25, room.settings, room.winRule))
@@ -351,12 +471,12 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
   }
 }
 
-const readJson = (req: IncomingMessage): Promise<Record<string, unknown>> =>
+const readJson = (req: IncomingMessage, maxBytes = 1_000_000): Promise<Record<string, unknown>> =>
   new Promise((resolveBody, rejectBody) => {
     let data = ''
     req.on('data', (chunk: Buffer) => {
       data += chunk.toString()
-      if (data.length > 1_000_000) req.destroy()
+      if (data.length > maxBytes) req.destroy()
     })
     req.on('end', () => {
       try {
@@ -436,6 +556,8 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       relay?.stop()
       relay = null
       loadedCount.clear()
+      for (const [, t] of reconnectTimers) clearTimeout(t)
+      reconnectTimers.clear()
       old.players.forEach((_p, ws2) => {
         send(ws2, { kind: 'H_ERROR', message: 'Host recreated the room.' })
         ws2.close()
@@ -465,6 +587,56 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
     const ts = typeof body.ts === 'number' ? body.ts : Date.now()
     if (text) pushChat({ from, text, ts })
     writeJson(res, 200, { ok: true })
+    return true
+  }
+  // ----- archive (replay files) -----
+  if (req.method === 'GET' && urlPath.startsWith('/api/replays')) {
+    const url = new URL(req.url ?? '/api/replays', 'http://localhost')
+    const name = url.searchParams.get('name')
+    if (name) {
+      const replay = await archiveStore.read(name)
+      if (!replay) {
+        writeJson(res, 404, { ok: false, error: 'replay not found' })
+        return true
+      }
+      writeJson(res, 200, replay)
+      return true
+    }
+    const replays = await archiveStore.list()
+    writeJson(res, 200, { replays })
+    return true
+  }
+  if (req.method === 'POST' && urlPath === '/api/replays/upload') {
+    const body = await readJson(req, ARCHIVE_MAX_BYTES)
+    if (!validReplay(body)) {
+      writeJson(res, 400, { ok: false, error: 'invalid replay file' })
+      return true
+    }
+    const name = await archiveStore.save(body)
+    writeJson(res, 200, { ok: true, name })
+    return true
+  }
+  if (req.method === 'POST' && urlPath === '/api/replays/rename') {
+    const body = await readJson(req)
+    const name = typeof body.name === 'string' ? body.name : ''
+    const newName = typeof body.newName === 'string' ? body.newName : ''
+    if (!name || !newName) {
+      writeJson(res, 400, { ok: false, error: 'rename needs name + newName' })
+      return true
+    }
+    const target = await archiveStore.rename(name, newName)
+    writeJson(res, target !== null ? 200 : 404, target !== null ? { ok: true, name: target } : { ok: false, error: 'replay not found' })
+    return true
+  }
+  if (req.method === 'POST' && urlPath === '/api/replays/delete') {
+    const body = await readJson(req)
+    const name = typeof body.name === 'string' ? body.name : ''
+    if (!name) {
+      writeJson(res, 400, { ok: false, error: 'delete needs name' })
+      return true
+    }
+    const ok = await archiveStore.remove(name)
+    writeJson(res, ok ? 200 : 404, ok ? { ok: true } : { ok: false, error: 'replay not found' })
     return true
   }
   return false
@@ -535,11 +707,17 @@ wss.on('connection', (ws) => {
     const room = rooms.getRoom()
     const leaver = room ? rooms.playerFor(ws) : null
     const wasHost = leaver?.host === true
-    rooms.removePlayer(ws)
+    if (leaver) rooms.disconnectPlayer(ws)
     loadedCount.delete(ws)
     if (!room) return
     if (room.ended) return
+    if (!leaver) {
+      if (!wasHost) return
+    }
     if (wasHost) {
+      for (const [, t] of reconnectTimers) clearTimeout(t)
+      reconnectTimers.clear()
+      rooms.removePlayer(ws)
       if (room.started) {
         endMatch(winnerFromRemaining(room))
         return
@@ -551,29 +729,8 @@ wss.on('connection', (ws) => {
       })
       return
     }
-    if (room.started) {
-      const winner = winnerFromRemaining(room)
-      if (winner !== null) {
-        endMatch(winner)
-      } else {
-        const id = leaver?.id ?? -1
-        if (id >= 0 && !leaver?.spectator) {
-          if (relay) relay.submitForfeit(id)
-          else pendingForfeits.push(id)
-        }
-        room.players.forEach((p, ws2) => {
-          if (!p.connected) return
-          send(ws2, { kind: 'H_PLAYER_STATE', players: rooms.slots(room) })
-        })
-      }
-      return
-    }
-    if (room.players.size === 0) {
-      relay?.stop()
-      relay = null
-      return
-    }
-    broadcastLobby()
+    // Give the slot a grace window so the player can reconnect with the same clientId.
+    scheduleForfeit(room, leaver.id)
   })
 })
 
@@ -581,6 +738,8 @@ if (ROOM_CODE) {
   const room = rooms.createRoom(PASSPHRASE, ROOM_CODE)
   void refreshInviteQr(room.code, room.invitePass, firstLanIp(), PORT)
 }
+
+archiveStore.ensure()
 
 server.listen(PORT, () => {
   console.log(`[space-arenas host] listening on http://0.0.0.0:${PORT}`)

@@ -309,7 +309,7 @@ Sim-side progression. Match score (kills, supply, research, expansions) drives a
 
 ---
 
-## Day 16 — Team Features: Co-op + Shared Control (S–M)
+## Day 16 — Team Features: Co-op + Shared Control (S–M) ✅ DONE
 
 Team multiplayer features. Both need LAN/online.
 
@@ -352,30 +352,57 @@ Team multiplayer features. Both need LAN/online.
 
 ---
 
-## Day 17 — Replay System (M, LAN only)
+## Day 17 — Replay System / Archive (M) ✅ DONE
 
-Save/load from host command history. No online server needed.
+Replays from the host command history are saved, loaded and shared as **JSON files in the local `archive/` folder** (no localStorage). The lobby's side menu gains an **Archive** button opening a replay list with play / rename / delete, plus an upload control to import a replay JSON file.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Replay save** — on game end, host saves `history: EnvelopeCommand[]` to localStorage | #33a | `relay.ts`: on game over, serialize `history` + `settings` to localStorage key `space-arenas:replay:<timestamp>`. Lobby: Replay tab with saved replays list (timestamp, map, players, result). |
-| 2 | **Replay load** — click replay → launch spectator with fast-forward | #33a | `Game.ts` new `startReplay(replayData)`: create room as spectator, inject history, `SpectateSyncMessage` fast-forward (same as existing spectate code path). |
-| 3 | **Replay delete** — delete button per replay in lobby | #33a | Lobby replay list: delete button removes from localStorage. |
+| 1 | **Replay save → JSON in `archive/`** — on game end, host writes `history: EnvelopeCommand[]` + settings to `archive/replay-<name>.json` | #33a | Implemented host-side (not lobby-download — files persist on disk with the host). `endMatch` → `saveReplay` writes `{ version, createdAt, seed, tickRate, map, settings, winRule, players, winner, ticks, history }` via `host/src/archive.ts` (`createArchiveStore`/`archiveStore`), `ARCHIVE_DIR` env-overridable (`SA_ARCHIVE_DIR`). `room.startSlots` snapshots participants at start so leavers stay in the replay. `relay.broadcastFrame` now pushes bot commands into `history` too. |
+| 2 | **Archive side-menu button + list** — lobby side menu gains an **Archive** button; click opens a panel listing saved replays (timestamp, map, players, result) | #33a | `#tab-archive` + `#archive-panel` in `index.html`/`styles.css`, wired in `main.ts` (`setTab('archive')`, `refreshArchive`). List via `GET /api/replays` (`ReplayMeta[]`: name/size/createdAt/map/players/winner/ticks/label/valid; corrupt files listed as invalid so they can be deleted). |
+| 3 | **Play / Rename / Delete** | #33a | Play fetches `GET /api/replays?name=` then `Game.startReplay(replay)` — spectator-mode world rebuilt from seed/map/settings and driven tick-by-tick with the stamped history (`stepReplayTick`). Rename = `POST /api/replays/rename` (name scrub + collision dedupe). Delete = `POST /api/replays/delete`. |
+| 4 | **Upload** — import a replay JSON file | #33a | `POST /api/replays/upload`, `validReplay` guard, 64MB body cap, deduped name; client picker reads + JSON.parses the file client-side first. |
+| 5 | **Offline matches also record replays** — extension | #33a | `Game.ts` records each input tick (`recordHistory` stamped with the applied sim tick, `recordTicks` = steps taken, reset per match in `startOffline`). At `game-over` (`saveOfflineReplay`) it builds the same `ReplayData` from `cfg` + `world.settings` (players via `modeCfg.slots`, map `structuredClone`d) and `persistReplay`: POSTs to `/api/replays/upload` when a host serves the page, else downloads the JSON file (uploadable from the Archive tab later). Toasts `game.replaySaved` / `game.replayDownloaded` (en/ar). |
+| 6 | **Replay movie player** — spectator HUD + transport bar | #33a | Replay header shows a per-alliance economy column (`hud.setReplayEco`: name, `creditsOf`, fused `alliancePowerOf` bar/use-gen via PLAYER_COLORS accent; hides own credits/power/rank + selection/tools bars via `#hud.replay-hud`). Bottom transport bar (`#replay-bar`): play/pause (`replayPlaying` gate in `onTick`), restart, −10s/+10s jumps, speed cycles 0.25–4× (`GameLoop.setSpeed` — `acc += dt * timeScale`), and a **seek slider**. Seeking is **instant-catch-up, never turbo-plays**: scrub preview (`sliderDragging` lets the thumb follow, no rebuild while dragging) shows the chosen time immediately; then `stepSeek` fast-forwards a 20 ms budget/frame from the current world — or rebuilds from tick 0 on rewind (`buildReplayWorld` + per-frame `replayIndex` continuation) — while the view is **frozen** (replay `onFrame` early-returns, skipping render/events/sfx) and the bar shows `replay.seeking` with the thumb pinned to the target, until `finishSeek` drains events + resets stats/hash/selection and `clearReplayEndState` re-enables playback at **normal speed from that exact tick**. Replay header auto-heights (`#hud.replay-hud .hud-top { height:auto }`) so the eco columns aren't clipped by the 40 px bar; game log moves to the bottom-left; `#replay-bar` raised to z-index 50 so it stays scrubable above the results/cinematic overlays. i18n `replay.*` (en/ar). |
 
-**Touch points:** `relay.ts`, `Game.ts`, `net.ts`, `main.ts` (lobby replay tab), `index.html`
+| 7 | **Replay zoom + minimap & selection bar** | #13a | Camera zoom range is dev-settings driven: `zoomMin`/`zoomMax` (0.5–2.5 × default) limit normal matches and `replayZoomMin`/`replayZoomMax` (0.4–5 × default) widen replays/spectate — `Camera.setZoomRange(min,max)` + `zoomAt` clamps via instance `zoomMin/zoomMax`, applied at boot from `getGraphics()` (`GraphicsSettings` loads/saves via localStorage; new dev-settings **Camera zoom** section in main.ts, `setZoomMin/Max` + `setReplayZoomMin/Max` with automatic min < max maintenance). Replays restore the minimap + selection bar: `.hud-selection` is no longer `display:none` under `#hud.replay-hud` (only `#tools-bar`/`#mobile-controls` stay hidden); clicking any unit/building shows hull/HP/rank info (`describeEntity`, `renderer.showAll` is on) and the minimap rail (Map/home/dev/reveal) is usable. A new `#replay-hud-toggle` (⊞) button in the transport bar toggles `#hud.sel-hidden` to hide/unhide minimap + selection info; transport bar and game log ride above the selection bar (`--sel-bar-h` + offsets) and drop back to the bottom when hidden. Box-select now works for spectators/replays (`onBox` skips the `canControl` filter when `this.spectator`). i18n `replay.hud*`, `dev.sections.zoom`, `dev.fields.zoom*` (en/ar). |
+
+**Verified:** typecheck all 4 workspaces clean; full suite **352 tests / 31 files** green (new `tests/archive.test.ts` + e2e for auto-save, bot-in-history, upload/list/rename/delete); full `npm run build` green. **PROTOCOL_VERSION → 17** (spectator sync log + replay history now include bot commands — wire-visible). Offline-replay extension: client typecheck + full `npm test` + `npm run build` re-verified green. Replay movie player: client typecheck + build + full `npm test` (352) re-verified green.
+
+**Touch points:** `relay.ts`, `Game.ts`, `net.ts`, `main.ts` (archive side menu + panel), `index.html`, `styles.css`, new `archive/` folder note (+ `.gitignore`), i18n en/ar
 
 ---
 
-## Day 18 — Auto-Reconnect + Spectator Fallback (M)
+## Day 18 — Auto-Reconnect + Spectator Fallback (M) ✅ DONE
 
 Net + client resilience.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Same-room reconnect** — if disconnected, try reconnect within 10 s; if host re-accepts, fast-forward via spectate path | #34a | `net.ts` `onClose`: start 10 s retry loop (`new WebSocket(url)`). `relay.ts`: on new connection with existing `clientId`, re-accept and send `SpectateSyncMessage` with current tick + history offset. |
-| 2 | **Spectator fallback** — if reconnect fails, auto-spectate until game ends | #34c | `Game.ts`: on reconnect success but room full, enter spectate mode. Existing spectate code handles the rest. |
+| 1 | **Same-room reconnect** — if disconnected, try reconnect within 10 s; if host re-accepts, fast-forward via spectate path | #34a | Internet-proof identity = persistent per-browser `clientId` (localStorage, random hex). `JoinMessage` gains `clientId`/`spectator` (`PROTOCOL_VERSION → 18`). Host keeps disconnected slots for a **12 s grace** (`RECONNECT_GRACE_MS`) via `scheduleForfeit`; client retries **7 × 1500 ms** (`attemptReconnect` builds a fresh `NetClient`, token-guarded callbacks) then auto-drops to spectator. On reclaim, host re-binds the slot (`rooms.ts reconnectPlayer`) and sends `H_PLAYER_STATE` + `S_SPECTATE_SYNC { currentTick, log: relay.history }`; client `catchUpSync`/private `stepToTickSync` fast-forward deterministically to the current tick (also used by `applySpectateSync`; shared `attachNet` re-points `this.net`). Reconnect overlay `#reconnect-overlay` (z46) with reconnecting/reconnected/spectating labels. |
+| 2 | **Spectator fallback** — if reconnect fails, auto-spectate until game ends | #34c | After max attempts (or player-path rejection while the match runs), the client re-joins as `spectator: true`; `onMatchStart` destroys the running game and boots a fresh one (`makeGame().startNet`) — avoids a second `GameLoop` since `boot()` re-creates the loop. `pendingSpectate` buffering covers the world-not-ready window; withheld spectator broadcasts stay relayed to the player watcher. |
+| 3 | **Re-join button** on each LAN match item in the match list | — | Started items render a `.net-actions` div with **Re-join** (`button.rejoin`, green via `makeJoinBtn` → `joinSelectedOrManual`) + the existing **Spectate** (`button.spec`, direct spectator join); waiting items keep a single Join. `btn.disabled`/joining text applied per button. |
+| 4 | **Room-full popup** — match already playing + map full → popup with *Back* or *Play as Spectator* | — | Started-and-full rooms refuse joins with "Match already started — no free player slot"; main.ts `onError` matches `/already started/i` while `lobbyState === null` and shows `#roomfull-overlay` (z45): **Back** closes + re-arms `network.status.needCode`; **Play as Spectator** → `connectJoin(..., { spectator: true })`. |
 
-**Touch points:** `net.ts`, `relay.ts`, `Game.ts`
+**Verified:** typecheck all 4 workspaces clean; full suite **353 tests / 31 files** green — e2e-host now 12 tests: 4 mid-match-quit tests rewritten for the 12 s grace and a new **"reclaims a disconnected slot via clientId during the grace window"** test (drops ws, asserts no game-over/forfeit, reconnects same clientId, waits `S_SPECTATE_SYNC`, asserts the match continues); full `npm run build` green (`host/dist/host.js` rebuilt — e2e re-run against the new bundle). i18n en/ar (`rejoin`, `roomFull*`, `status.reconnecting/reconnected/spectating`, `game.reconnected`).
+
+**Touch points:** `main.ts`, `net.ts`, `relay.ts`, `rooms.ts`, `host/src/index.ts`, `Game.ts`, `shared/src/{constants,protocol}.ts`, `index.html`, `styles.css`, i18n en/ar, `tests/e2e-host.test.ts`
+
+---
+
+## Lobby bug — LAN persistence when switching sections (DONE)
+
+While in the lobby LAN match panel, creating/joining a match then switching to another lobby section (e.g. settings) and back returned the player to the first panel (match list) and left the current match's join button stuck disabled with "joining…" even though the join succeeded.
+
+**Root causes (client/src/main.ts):**
+- `joinBusy` was set `true` in `connectJoin` and only cleared on error/close, so after a successful join it stayed `true` forever — every `renderNetMatches`/`refreshLobbyTexts` pass re-applied the disabled "joining…" text (`setJoinBusy`, line ~2032).
+- `tabNetwork` unconditionally called `setTab('network')`, dropping the player out of the match panel.
+
+**Fixes (client/src/main.ts):**
+- `onLobby` now calls `setJoinBusy(false)` so the join state clears as soon as the room is entered.
+- `tabNetwork` click now routes to `setTab(lobbyState ? 'match' : 'network')` — the player stays inside their joined match until they press Leave. (Same routing to apply for the online tab later.)
+
+Verified: client typecheck clean.
 
 ---
 

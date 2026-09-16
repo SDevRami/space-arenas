@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, SHIELD_MAX_HP, SW_CHOICES, canThrowBandolier, getBuilding, getUnit, getUpgrade, type UpgradeDef, type SwChoice, RANK_FLOORS } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, SIM_TICK_HZ, SHIELD_MAX_HP, SW_CHOICES, PLAYER_COLORS, canThrowBandolier, getBuilding, getUnit, getUpgrade, type UpgradeDef, type SwChoice, RANK_FLOORS } from '@space-arenas/shared'
 import type { ProductionOrder, World } from '../core/world.ts'
 import { t, tn } from '../i18n/index.ts'
 import { getGraphics } from './graphics.ts'
@@ -89,6 +89,9 @@ export class Hud {
   private creditsEl = document.getElementById('credits')!
   private powerTextEl = document.getElementById('power-text')!
   private powerFillEl = document.getElementById('power-fill')!
+  private powerWrapEl = document.querySelector<HTMLElement>('.hud-power')!
+  private replayEcoEl = document.getElementById('replay-eco') as HTMLDivElement
+  private replayEcoCols: Array<{ team: number; credits: HTMLElement; fill: HTMLElement; power: HTMLElement }> | null = null
   private tickEl = document.getElementById('tick-info')!
   private syncEl = document.getElementById('sync-info')!
   private fpsEl = document.getElementById('fps-info')!
@@ -137,7 +140,7 @@ export class Hud {
 
   private lastWorld: World | null = null
   private lastTeam = -1
-  private lastRankSig = ''
+  private lastRankSig: string | null = null
 
   private toggleRankMenu(): void {
     if (!this.lastWorld || this.lastTeam < 0) return
@@ -205,20 +208,78 @@ export class Hud {
     }
   }
 
-  update(world: World, localTeam: number, tick: number | null, localHash: number | null, syncOk: boolean): void {
-    const ts = world.teamState(localTeam)
+  update(world: World, localTeam: number, tick: number | null, localHash: number | null, syncOk: boolean, totalTicks?: number): void {
+    const ts = this.replayEcoCols ? null : world.teamState(localTeam)
     this.lastWorld = world
     this.lastTeam = localTeam
-    this.creditsEl.textContent = `$${world.creditsOf(localTeam)}`
-    const frac = ts.powerUse > 0 ? Math.min(1, ts.powerUse / Math.max(1, ts.powerGen)) : 0
-    this.powerFillEl.style.width = `${(frac * 100).toFixed(1)}%`
-    this.powerFillEl.style.background = ts.powerDown ? '#e84a4a' : '#4ad8ff'
-    this.powerTextEl.textContent = ts.powerDown ? t('hud.powerDown') : t('hud.power', { use: ts.powerUse, gen: ts.powerGen })
-    this.tickEl.textContent = tick !== null ? t('hud.tick', { t: tick }) : ''
+    if (this.replayEcoCols) {
+      for (const col of this.replayEcoCols) {
+        const credits = world.creditsOf(col.team)
+        const pw = world.alliancePowerOf(col.team)
+        col.credits.textContent = `$${credits}`
+        const frac = pw.use > 0 ? Math.min(1, pw.use / Math.max(1, pw.gen)) : 0
+        col.fill.style.width = `${(frac * 100).toFixed(1)}%`
+        col.fill.style.background = pw.net < 0 ? '#e84a4a' : '#4ad8ff'
+        col.power.textContent = pw.net < 0 ? t('hud.powerDown') : t('hud.power', { use: pw.use, gen: pw.gen })
+      }
+    } else {
+      this.creditsEl.textContent = `$${world.creditsOf(localTeam)}`
+      const frac = ts!.powerUse > 0 ? Math.min(1, ts!.powerUse / Math.max(1, ts!.powerGen)) : 0
+      this.powerFillEl.style.width = `${(frac * 100).toFixed(1)}%`
+      this.powerFillEl.style.background = ts!.powerDown ? '#e84a4a' : '#4ad8ff'
+      this.powerTextEl.textContent = ts!.powerDown ? t('hud.powerDown') : t('hud.power', { use: ts!.powerUse, gen: ts!.powerGen })
+      this.updateRankBtn(world, localTeam)
+    }
+    this.tickEl.textContent =
+      tick !== null
+        ? totalTicks !== undefined
+          ? t('hud.tickTotal', { t: tick, total: totalTicks })
+          : t('hud.tick', { t: tick })
+        : ''
     this.syncEl.textContent = localHash !== null ? (syncOk ? t('hud.inSync') : t('hud.desync')) : ''
     this.syncEl.style.color = syncOk ? '#7cf27c' : '#ff7a7a'
     this.updateFps()
-    this.updateRankBtn(world, localTeam)
+  }
+
+  /** Show one economy column per alliance (replay spectator header), hiding the
+   *  player's own credits/power/rank until a normal game is started again. */
+  setReplayEco(entries: Array<{ team: number; color: number; name: string }> | null): void {
+    this.replayEcoEl.innerHTML = ''
+    this.replayEcoCols = null
+    const active = !!entries && entries.length > 0
+    this.rankBtn.style.display = active ? 'none' : ''
+    this.creditsEl.style.display = active ? 'none' : ''
+    this.powerWrapEl.style.display = active ? 'none' : ''
+    this.replayEcoEl.style.display = active ? 'flex' : 'none'
+    if (!active) {
+      this.lastRankSig = null
+      return
+    }
+    this.replayEcoCols = []
+    for (const e of entries!) {
+      const col = document.createElement('div')
+      col.className = 'replay-eco-col'
+      const hex = `#${PLAYER_COLORS[Math.min(PLAYER_COLORS.length - 1, Math.max(0, e.color))].toString(16).padStart(6, '0')}`
+      col.style.borderLeftColor = hex
+      const name = document.createElement('span')
+      name.className = 'replay-eco-name'
+      name.textContent = e.name
+      const credits = document.createElement('span')
+      credits.className = 'replay-eco-credits'
+      const barWrap = document.createElement('span')
+      barWrap.className = 'power-bar replay-eco-bar'
+      const fill = document.createElement('span')
+      fill.className = 'power-fill'
+      barWrap.appendChild(fill)
+      const power = document.createElement('span')
+      power.className = 'replay-eco-power'
+      col.appendChild(name)
+      col.appendChild(credits)
+      col.appendChild(barWrap)
+      col.appendChild(power)
+      this.replayEcoEl.appendChild(col)
+      this.replayEcoCols.push({ team: e.team, credits, fill, power })
+    }
   }
 
   /** Keep the top-left rank button in sync: earned stars + match score, pulsing

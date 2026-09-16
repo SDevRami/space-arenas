@@ -19,6 +19,14 @@ export const DEFAULT_FX_SCALE = 0.5
 export const DEFAULT_MINIMAP_SCALE = 1.6
 /** Seconds the victory cinematic stays on screen before the results popup. */
 export const DEFAULT_VICTORY_CINEMATIC = 6
+/** Camera zoom-out floor (farthest out) for normal matches — dev-settings adjustable. */
+export const DEFAULT_ZOOM_MIN = 0.5
+/** Camera zoom-in ceiling (closest in) for normal matches — dev-settings adjustable. */
+export const DEFAULT_ZOOM_MAX = 2.5
+/** Camera zoom-out floor (farthest out) for replays/spectate — dev-settings adjustable. */
+export const DEFAULT_REPLAY_ZOOM_MIN = 0.4
+/** Camera zoom-in ceiling (closest in) for replays/spectate — dev-settings adjustable. */
+export const DEFAULT_REPLAY_ZOOM_MAX = 5
 
 export type UnitScaleClass = 'vehicle' | 'infantry' | 'air'
 export const DEFAULT_UNIT_SCALE: Record<UnitScaleClass, number> = { vehicle: 1, infantry: 1, air: 1 }
@@ -99,6 +107,14 @@ export interface GraphicsSettings {
   minimapScale: number
   /** Seconds the victory cinematic stays before the results popup (0 = skip). */
   victoryCinematicSec: number
+  /** Camera zoom-out floor for normal matches. */
+  zoomMin: number
+  /** Camera zoom-in ceiling for normal matches. */
+  zoomMax: number
+  /** Camera zoom-out floor for replays/spectate (wider out). */
+  replayZoomMin: number
+  /** Camera zoom-in ceiling for replays/spectate (deeper in). */
+  replayZoomMax: number
 }
 
 export interface EffectRowDef {
@@ -131,6 +147,10 @@ const load = (): GraphicsSettings => {
     fxScale: DEFAULT_FX_SCALE,
     minimapScale: DEFAULT_MINIMAP_SCALE,
     victoryCinematicSec: DEFAULT_VICTORY_CINEMATIC,
+    zoomMin: DEFAULT_ZOOM_MIN,
+    zoomMax: DEFAULT_ZOOM_MAX,
+    replayZoomMin: DEFAULT_REPLAY_ZOOM_MIN,
+    replayZoomMax: DEFAULT_REPLAY_ZOOM_MAX,
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -189,6 +209,26 @@ const load = (): GraphicsSettings => {
       }
       if (parsed && typeof parsed.victoryCinematicSec === 'number' && Number.isFinite(parsed.victoryCinematicSec)) {
         base.victoryCinematicSec = Math.max(0, Math.min(30, Math.round(parsed.victoryCinematicSec)))
+      }
+      if (parsed && typeof parsed.zoomMin === 'number' && Number.isFinite(parsed.zoomMin)) {
+        base.zoomMin = Math.max(0.05, Math.min(1, parsed.zoomMin))
+      }
+      if (parsed && typeof parsed.zoomMax === 'number' && Number.isFinite(parsed.zoomMax)) {
+        base.zoomMax = Math.max(1, Math.min(20, parsed.zoomMax))
+      }
+      if (parsed && typeof parsed.replayZoomMin === 'number' && Number.isFinite(parsed.replayZoomMin)) {
+        base.replayZoomMin = Math.max(0.05, Math.min(1, parsed.replayZoomMin))
+      }
+      if (parsed && typeof parsed.replayZoomMax === 'number' && Number.isFinite(parsed.replayZoomMax)) {
+        base.replayZoomMax = Math.max(1, Math.min(50, parsed.replayZoomMax))
+      }
+      if (base.zoomMin >= base.zoomMax) {
+        base.zoomMin = DEFAULT_ZOOM_MIN
+        base.zoomMax = DEFAULT_ZOOM_MAX
+      }
+      if (base.replayZoomMin >= base.replayZoomMax) {
+        base.replayZoomMin = DEFAULT_REPLAY_ZOOM_MIN
+        base.replayZoomMax = DEFAULT_REPLAY_ZOOM_MAX
       }
       if (parsed && parsed.assetPaths && typeof parsed.assetPaths === 'object') {
         // migration: the color slot moved from a filename suffix to a subfolder
@@ -287,6 +327,30 @@ export const setMinimapScale = (v: number): void => {
 
 export const setVictoryCinematicSec = (v: number): void => {
   state.victoryCinematicSec = Math.max(0, Math.min(30, Math.round(v)))
+  save(state)
+}
+
+export const setZoomMin = (v: number): void => {
+  state.zoomMin = Math.max(0.05, Math.min(1, v))
+  if (state.zoomMax <= state.zoomMin) state.zoomMax = state.zoomMin + 0.05
+  save(state)
+}
+
+export const setZoomMax = (v: number): void => {
+  state.zoomMax = Math.max(1, Math.min(20, v))
+  if (state.zoomMin >= state.zoomMax) state.zoomMin = Math.max(0.05, state.zoomMax - 0.05)
+  save(state)
+}
+
+export const setReplayZoomMin = (v: number): void => {
+  state.replayZoomMin = Math.max(0.05, Math.min(1, v))
+  if (state.replayZoomMax <= state.replayZoomMin) state.replayZoomMax = state.replayZoomMin + 0.05
+  save(state)
+}
+
+export const setReplayZoomMax = (v: number): void => {
+  state.replayZoomMax = Math.max(1, Math.min(50, v))
+  if (state.replayZoomMin >= state.replayZoomMax) state.replayZoomMin = Math.max(0.05, state.replayZoomMax - 0.05)
   save(state)
 }
 

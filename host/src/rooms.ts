@@ -22,6 +22,8 @@ export interface HostPlayer extends PlayerSlot {
   connected: boolean
   spectator: boolean
   devSettings?: Partial<MatchSettings>
+  /** Persistent per-browser id used to reclaim this slot on reconnect. */
+  clientId?: string
 }
 
 export interface Room {
@@ -41,6 +43,9 @@ export interface Room {
   winRule: WinRule
   started: boolean
   ended: boolean
+  /** Participants (humans + bots) exactly as sent in S_MATCH_START, snapshotted at start
+   *  so a replay still includes players who quit mid-match. */
+  startSlots: PlayerSlot[]
 }
 
 const SPECTATOR_ID_BASE = 100
@@ -217,6 +222,7 @@ export class RoomManager {
       winRule: WIN_RULE_DEFAULT,
       started: false,
       ended: false,
+      startSlots: [],
     }
     this.room = room
     return room
@@ -226,7 +232,7 @@ export class RoomManager {
     return this.room
   }
 
-  joinRoom(ws: WebSocket, roomCode: string, passphraseHash: string, name: string): { ok: boolean; error?: string } {
+  joinRoom(ws: WebSocket, roomCode: string, passphraseHash: string, name: string, clientId?: string): { ok: boolean; error?: string } {
     const room = this.room
     if (!room || room.code !== roomCode) return { ok: false, error: 'Room not found' }
     if (room.ended) return { ok: false, error: 'Match over — ask the host to create a new one' }
@@ -243,6 +249,7 @@ export class RoomManager {
       color: (room.nextPlayerId - 1) % PLAYER_COLOR_COUNT,
       connected: true,
       spectator: false,
+      ...(clientId ? { clientId } : {}),
     }
     room.players.set(ws, player)
     return { ok: true }
@@ -302,7 +309,7 @@ export class RoomManager {
     return { ok: true }
   }
 
-  joinSpectator(ws: WebSocket, roomCode: string, passphraseHash: string, name: string): { ok: boolean; error?: string } {
+  joinSpectator(ws: WebSocket, roomCode: string, passphraseHash: string, name: string, clientId?: string): { ok: boolean; error?: string } {
     const room = this.room
     if (!room || room.code !== roomCode) return { ok: false, error: 'Room not found' }
     if (room.ended) return { ok: false, error: 'Match over — ask the host to create a new one' }
@@ -315,9 +322,26 @@ export class RoomManager {
       host: false,
       connected: true,
       spectator: true,
+      ...(clientId ? { clientId } : {}),
     }
     room.players.set(ws, player)
     return { ok: true }
+  }
+
+  /** Reclaims an existing slot (player or spectator) for a reconnecting clientId.
+   *  Re-binds the room slot to the new websocket so the same id/team is kept. */
+  reconnectPlayer(ws: WebSocket, clientId: string): HostPlayer | null {
+    const room = this.room
+    if (!room) return null
+    for (const [oldWs, p] of room.players) {
+      if (p.clientId && p.clientId === clientId) {
+        if (oldWs !== ws) room.players.delete(oldWs)
+        p.connected = true
+        room.players.set(ws, p)
+        return p
+      }
+    }
+    return null
   }
 
   playerFor(ws: WebSocket): HostPlayer | null {
@@ -429,6 +453,15 @@ export class RoomManager {
   /** All active (non-spectator) participants: connected humans plus server-side bots. */
   nonSpectators(room: Room): HostPlayer[] {
     return [...room.players.values(), ...room.bots].filter((p) => !p.spectator)
+  }
+
+  /** Marks a slot as disconnected without dropping it, so a matching clientId can reclaim it. */
+  disconnectPlayer(ws: WebSocket): HostPlayer | null {
+    if (!this.room) return null
+    const p = this.room.players.get(ws)
+    if (!p) return null
+    p.connected = false
+    return p
   }
 
   slots(room: Room): PlayerSlot[] {

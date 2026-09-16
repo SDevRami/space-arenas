@@ -3,6 +3,9 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { createServer, type Server } from 'node:net'
 import { pbkdf2Sync } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolve, dirname } from 'node:path'
 import WebSocket from 'ws'
@@ -13,13 +16,38 @@ import {
   decodeRelayChecksum,
   encodeChecksum,
   encodeCmd,
+  validReplay,
+  DEFAULT_MATCH_SETTINGS,
+  PROTOCOL_VERSION,
   type ControlMessage,
   type LobbyMessage,
+  type ReplayData,
+  type ReplayMeta,
 } from '@space-arenas/shared'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const ROOM_CODE = 'ABCD'
 const PASS = 'changeme'
+
+/** Minimal structurally-valid replay payload for upload/list tests. */
+const sampleReplay = (): ReplayData => ({
+  version: PROTOCOL_VERSION,
+  createdAt: new Date().toISOString(),
+  seed: 12345,
+  tickRate: 25,
+  map: { name: 'test', width: 64, height: 64, tiles: [], spawnPoints: [], obstacles: [] } as unknown as import('@space-arenas/shared').MapData,
+  settings: DEFAULT_MATCH_SETTINGS,
+  players: [
+    { id: 0, name: 'Alpha', team: 0, color: 0, bot: false },
+    { id: 1, name: 'Bravo', team: 1, color: 1, bot: false },
+  ],
+  winner: 0,
+  ticks: 250,
+  history: [
+    { player: 0, seq: 1, tick: 0, cmd: { type: 'move', entities: [7], x: 100, y: 200 } },
+    { player: 1, seq: 1, tick: 5, cmd: { type: 'produce', entities: [], x: 0, y: 0 } },
+  ],
+})
 
 function freePort(): Promise<number> {
   return new Promise((resolvePort, reject) => {
@@ -86,8 +114,15 @@ class TestClient {
     this.ws.send(JSON.stringify(obj))
   }
 
-  join(name: string): void {
-    this.send({ kind: 'C_JOIN', roomCode: ROOM_CODE, passphraseHash: passHash(PASS, ROOM_CODE), name })
+  join(name: string, opts?: { clientId?: string; spectator?: boolean }): void {
+    this.send({
+      kind: 'C_JOIN',
+      roomCode: ROOM_CODE,
+      passphraseHash: passHash(PASS, ROOM_CODE),
+      name,
+      ...(opts?.clientId ? { clientId: opts.clientId } : {}),
+      ...(opts?.spectator ? { spectator: true } : {}),
+    })
   }
 
   joinWrongPass(): void {
@@ -152,15 +187,28 @@ class TestClient {
   }
 }
 
-async function startHost(code = ROOM_CODE, pass = PASS): Promise<{ host: ChildProcess; port: number }> {
+const archiveDirs: string[] = []
+
+async function startHost(
+  code = ROOM_CODE,
+  pass = PASS,
+): Promise<{ host: ChildProcess; port: number; archiveDir: string }> {
   const p = await freePort()
+  const archiveDir = await mkdtemp(join(tmpdir(), 'sa-archive-'))
+  archiveDirs.push(archiveDir)
   const bundle = resolve(ROOT, 'host/dist/host.js')
   const args = existsSync(bundle)
     ? [bundle]
     : ['node_modules/tsx/dist/cli.mjs', 'host/src/index.ts']
   const h = spawn(process.execPath, args, {
     cwd: ROOT,
-    env: { ...process.env, SA_PORT: String(p), SA_ROOM_CODE: code, SA_PASSPHRASE: pass },
+    env: {
+      ...process.env,
+      SA_PORT: String(p),
+      SA_ROOM_CODE: code,
+      SA_PASSPHRASE: pass,
+      SA_ARCHIVE_DIR: archiveDir,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   h.stdout?.on('data', (d) => console.log('[host]', d.toString().trim()))
@@ -168,7 +216,7 @@ async function startHost(code = ROOM_CODE, pass = PASS): Promise<{ host: ChildPr
   h.on('exit', (code, sig) => console.log('[host] exited', code, sig))
   h.on('error', (e) => console.log('[host:spawn-error]', e.message))
   await waitForHttp(`http://127.0.0.1:${p}/`, 30000)
-  return { host: h, port: p }
+  return { host: h, port: p, archiveDir }
 }
 
 let port = 0
@@ -179,8 +227,9 @@ beforeAll(async () => {
   ;({ host, port } = await startHost())
 }, 30000)
 
-afterAll(() => {
+afterAll(async () => {
   host?.kill()
+  await Promise.all(archiveDirs.map((d) => rm(d, { recursive: true, force: true })))
 })
 
 describe('host: lobby flow', () => {
@@ -344,7 +393,8 @@ describe('host: lobby flow', () => {
     expect(a.frames.length).toBeGreaterThan(0)
 
     b.ws.close()
-    const over = await a.waitFor('H_GAME_OVER')
+    // A disconnected slot gets a reconnect grace window before the match ends.
+    const over = await a.waitFor('H_GAME_OVER', 22000)
     expect(over.kind).toBe('H_GAME_OVER')
     if (over.kind === 'H_GAME_OVER') expect(over.winner).toBe(a.id)
 
@@ -354,7 +404,7 @@ describe('host: lobby flow', () => {
 
     a.ws.close()
     h2.kill()
-  }, 30000)
+  }, 40000)
 
   it('continues a 3-player match when a non-host leaves and relays a forfeit', async () => {
     const { host: h2, port: p2 } = await startHost()
@@ -390,7 +440,7 @@ describe('host: lobby flow', () => {
     b.ws.close()
 
     let sawForfeit = false
-    const deadline = Date.now() + 5000
+    const deadline = Date.now() + 16000
     while (Date.now() < deadline && !sawForfeit) {
       sawForfeit = a.frames.some((f) => f.commands.some((cmd) => cmd.player === b.id && cmd.cmd.type === 'forfeit'))
       await new Promise((r) => setTimeout(r, 25))
@@ -408,6 +458,53 @@ describe('host: lobby flow', () => {
 
     a.ws.close()
     c.ws.close()
+    h2.kill()
+  }, 45000)
+
+  it('reclaims a disconnected slot via clientId during the grace window', async () => {
+    const { host: h2, port: p2 } = await startHost()
+    const a = new TestClient()
+    const b = new TestClient()
+
+    await a.connect(p2)
+    a.join('Alpha')
+    await a.waitFor('H_LOBBY')
+    await b.connect(p2)
+    b.join('Bravo', { clientId: 'device-b-1' })
+    await b.waitFor('H_LOBBY')
+
+    a.ready(true)
+    b.ready(true)
+    await new Promise((r) => setTimeout(r, 150))
+    a.start()
+    await a.waitFor('S_MATCH_START')
+    await b.waitFor('S_MATCH_START')
+    a.loaded()
+    b.loaded()
+    await new Promise((r) => setTimeout(r, 250))
+    expect(a.frames.length).toBeGreaterThan(0)
+
+    // Drop B's connection. The host must NOT end the match or forfeit B right away.
+    b.ws.close()
+    await new Promise((r) => setTimeout(r, 2500))
+    expect(a.queue.some((m) => m.kind === 'H_GAME_OVER')).toBe(false)
+    expect(
+      a.frames.some((f) => f.commands.some((cmd) => cmd.player === b.id && cmd.cmd.type === 'forfeit')),
+    ).toBe(false)
+
+    // A different websocket from the same clientId reclaims B's old slot inside the grace window.
+    await b.connect(p2)
+    b.join('Bravo', { clientId: 'device-b-1' })
+    await b.waitFor('S_SPECTATE_SYNC', 10000)
+
+    // The match keeps running for everyone.
+    const ticksBefore = a.frames.length
+    await new Promise((r) => setTimeout(r, 500))
+    expect(a.frames.length).toBeGreaterThan(ticksBefore)
+    expect(a.queue.some((m) => m.kind === 'H_GAME_OVER')).toBe(false)
+
+    a.ws.close()
+    b.ws.close()
     h2.kill()
   }, 30000)
 
@@ -448,7 +545,7 @@ describe('host: lobby flow', () => {
 
     // The remaining ally must not be declared winner while the enemy bots are alive.
     let sawForfeit = false
-    const deadlineForfeit = Date.now() + 5000
+    const deadlineForfeit = Date.now() + 16000
     while (Date.now() < deadlineForfeit && !sawForfeit) {
       sawForfeit = a.frames.some((f) => f.commands.some((cmd) => cmd.player === b.id && cmd.cmd.type === 'forfeit'))
       await new Promise((r) => setTimeout(r, 25))
@@ -462,7 +559,7 @@ describe('host: lobby flow', () => {
 
     a.ws.close()
     h2.kill()
-  }, 30000)
+  }, 45000)
 
   it('host quitting mid co-op match ends as a draw while an ally and enemy bots remain', async () => {
     const { host: h2, port: p2 } = await startHost()
@@ -569,5 +666,181 @@ describe('host: lobby flow', () => {
     hostC.ws.close()
     guestC.ws.close()
     h3.kill()
+  }, 30000)
+
+  it('auto-saves a JSON replay file after a match ends (player commands recorded)', async () => {
+    const { host: h2, port: p2, archiveDir } = await startHost()
+    const a = new TestClient()
+    const b = new TestClient()
+
+    await a.connect(p2)
+    a.join('Alpha')
+    await a.waitFor('H_LOBBY')
+    await b.connect(p2)
+    b.join('Bravo')
+    await b.waitFor('H_LOBBY')
+
+    a.ready(true)
+    b.ready(true)
+    await new Promise((r) => setTimeout(r, 150))
+    a.start()
+    await a.waitFor('S_MATCH_START')
+    await b.waitFor('S_MATCH_START')
+    a.loaded()
+    b.loaded()
+    await new Promise((r) => setTimeout(r, 250))
+
+    // Issue a real command so the replay history has stamped entries to assert.
+    a.sendCmd('move', [7, 8])
+    await new Promise((r) => setTimeout(r, 200))
+
+    // End the match by having a player quit (a reconnect grace window precedes the forfeit).
+    b.ws.close()
+    const over = await a.waitFor('H_GAME_OVER', 22000)
+    if (over.kind === 'H_GAME_OVER') expect(over.winner).toBe(a.id)
+
+    // Poll until the on-disk replay appears (save is fire-and-forget).
+    let metas: ReplayMeta[] = []
+    const deadline = Date.now() + 10000
+    while (Date.now() < deadline) {
+      const res = await fetch(`http://127.0.0.1:${p2}/api/replays`)
+      metas = ((await res.json()) as { replays: ReplayMeta[] }).replays
+      if (metas.length > 0) break
+      await new Promise((r) => setTimeout(r, 100))
+    }
+    expect(metas.length).toBeGreaterThan(0)
+    const meta = metas[0]
+    expect(meta.valid).toBe(true)
+    expect(meta.players).toContain('Alpha')
+    expect(meta.players).toContain('Bravo')
+
+    // The file is really on disk in the host's archive folder.
+    const raw = await readFile(join(archiveDir, meta.name), 'utf8')
+    const onDisk = JSON.parse(raw) as unknown
+    expect(validReplay(onDisk)).toBe(true)
+
+    // And it can be fetched through the API for playback.
+    const fetched = (await (
+      await fetch(`http://127.0.0.1:${p2}/api/replays?name=${encodeURIComponent(meta.name)}`)
+    ).json()) as ReplayData
+    expect(fetched.players).toHaveLength(2)
+    expect(fetched.ticks).toBeGreaterThan(0)
+    expect(fetched.history.length).toBeGreaterThan(0)
+    expect(
+      fetched.history.some(
+        (c) => c.player === a.id && c.cmd.type === 'move' && (c.cmd as { entities?: number[] }).entities?.[0] === 7,
+      ),
+    ).toBe(true)
+    expect(fetched.history.every((c) => typeof c.tick === 'number' && !!c.cmd)).toBe(true)
+
+    a.ws.close()
+    h2.kill()
+  }, 45000)
+
+  it('relay stamps bot commands into the replay history', async () => {
+    const { host: h3, port: p3, archiveDir } = await startHost()
+    const hostC = new TestClient()
+    const guestC = new TestClient()
+
+    await hostC.connect(p3)
+    hostC.join('Host')
+    await hostC.waitFor('H_LOBBY')
+    await guestC.connect(p3)
+    guestC.join('Guest')
+    await guestC.waitFor('H_LOBBY')
+
+    hostC.addBot('easy')
+    const lobbyBot = await hostC.waitForLobby((m) => m.players.some((p) => p.bot === true))
+    const botId = lobbyBot.players.find((p) => p.bot)?.id ?? -1
+    expect(botId).toBeGreaterThanOrEqual(0)
+
+    hostC.ready(true)
+    guestC.ready(true)
+    await new Promise((r) => setTimeout(r, 150))
+    hostC.start()
+    await hostC.waitFor('S_MATCH_START')
+    await guestC.waitFor('S_MATCH_START')
+    hostC.loaded()
+    guestC.loaded()
+
+    // Let the bot drive a few seconds so the relay broadcasts its commands.
+    await new Promise((r) => setTimeout(r, 3500))
+    expect(hostC.frames.some((f) => f.commands.some((c) => c.player === botId))).toBe(true)
+
+    // Quit the host to end the match (guest already gone is not required before it).
+    guestC.ws.close()
+    hostC.ws.close()
+    await new Promise((r) => setTimeout(r, 200))
+
+    // Poll the archive for the auto-saved replay.
+    let metas: ReplayMeta[] = []
+    const deadline = Date.now() + 10000
+    while (Date.now() < deadline) {
+      const res = await fetch(`http://127.0.0.1:${p3}/api/replays`)
+      metas = ((await res.json()) as { replays: ReplayMeta[] }).replays
+      if (metas.length > 0) break
+      await new Promise((r) => setTimeout(r, 100))
+    }
+    expect(metas.length).toBeGreaterThan(0)
+
+    const fetched = (await (
+      await fetch(`http://127.0.0.1:${p3}/api/replays?name=${encodeURIComponent(metas[0].name)}`)
+    ).json()) as ReplayData
+    expect(fetched.players.some((p) => p.id === botId)).toBe(true)
+    expect(fetched.history.some((c) => c.player === botId)).toBe(true)
+
+    const raw = await readFile(join(archiveDir, metas[0].name), 'utf8')
+    expect(validReplay(JSON.parse(raw) as unknown)).toBe(true)
+
+    h3.kill()
+  }, 30000)
+
+  it('archive API: upload, list, rename, delete', async () => {
+    const { host: h2, port: p2 } = await startHost()
+    const base = `http://127.0.0.1:${p2}`
+    const replay = sampleReplay()
+
+    const upload = await fetch(`${base}/api/replays/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(replay),
+    })
+    const uploaded = (await upload.json()) as { ok: boolean; name: string }
+    expect(uploaded.ok).toBe(true)
+    expect(uploaded.name.endsWith('.json')).toBe(true)
+
+    const listed = (await (await fetch(`${base}/api/replays`)).json()) as { replays: ReplayMeta[] }
+    expect(listed.replays.some((m) => m.name === uploaded.name)).toBe(true)
+    const entry = listed.replays.find((m) => m.name === uploaded.name)
+    expect(entry?.valid).toBe(true)
+    expect(entry?.ticks).toBe(replay.ticks)
+    expect(entry?.winner).toBe(0)
+
+    const loaded = (await (await fetch(`${base}/api/replays?name=${encodeURIComponent(uploaded.name)}`)).json()) as ReplayData
+    expect(loaded.seed).toBe(replay.seed)
+    expect(loaded.history).toHaveLength(2)
+
+    const renamed = await fetch(`${base}/api/replays/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: uploaded.name, newName: 'my-favorite-battle' }),
+    })
+    const renamedBody = (await renamed.json()) as { ok: boolean; name: string }
+    expect(renamedBody.ok).toBe(true)
+
+    const del = await fetch(`${base}/api/replays/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: renamedBody.name }),
+    })
+    expect(((await del.json()) as { ok: boolean }).ok).toBe(true)
+
+    const after = (await (await fetch(`${base}/api/replays`)).json()) as { replays: ReplayMeta[] }
+    expect(after.replays.some((m) => m.name === renamedBody.name)).toBe(false)
+
+    const gone = await fetch(`${base}/api/replays?name=${encodeURIComponent(renamedBody.name)}`)
+    expect(gone.status).toBe(404)
+
+    h2.kill()
   }, 30000)
 })

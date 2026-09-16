@@ -14,7 +14,8 @@
       "settings": "Settings",
       "mobile": "Mobile Mode",
       "dev": "Dev Settings",
-      "profile": "Profile"
+      "profile": "Profile",
+      "archive": "Archive"
     },
     "mobileOn": " (ON)",
     "inviteTitle": "Invite players",
@@ -272,7 +273,7 @@
     "serverAddress": "Server address (host:port)",
     "roomCode": "Room code",
     "join": "Join",
-    "hint": "Pick a match below to auto-fill the address and room code, or use Manual connect. If a match has already started you can still watch it as a spectator.",
+    "hint": "Pick a match below to auto-fill the address and room code, or use Manual connect. If a match has already started you can re-join it or watch it as a spectator.",
     "playersTitle": "Players on your network",
     "openMatches": "Open matches",
     "lobbyChat": "LAN lobby chat",
@@ -285,6 +286,11 @@
     "inMatch": "in match",
     "waiting": "waiting · {n}/{m}",
     "spectate": "Spectate",
+    "rejoin": "Re-join",
+    "roomFullTitle": "Match already playing",
+    "roomFullBody": "All player seats are taken. Watch this match as a spectator instead?",
+    "roomFullBack": "Back",
+    "roomFullSpectate": "Play as Spectator",
     "status": {
       "left": "Left the match.",
       "creating": "Creating match…",
@@ -296,6 +302,9 @@
       "hostUnreachable": "Could not reach your local host server.",
       "serverUnreachable": "Could not connect to that server.",
       "needsPassword": "That match requires a password — enter it above.",
+      "reconnecting": "Connection lost — reconnecting to match…",
+      "reconnected": "Reconnected.",
+      "spectating": "Joining as spectator…",
       "lost": "The connection was lost — match ended.",
       "disconnectedMatch": "Disconnected from the match.",
       "disconnected": "Disconnected."
@@ -706,6 +715,7 @@
       "assets": "Assets — high-quality images (client-only, not synced)",
       "audio": "Audio — asset file overrides (client-only, not synced)",
       "match": "Match — victory cinematic (client-only, not synced)",
+      "zoom": "Camera zoom (client-only, not synced)",
       "buildingFill": "Building sprite fill (client-only, not synced)",
       "buildings": "Buildings",
       "units": "Units",
@@ -825,6 +835,10 @@
       "fxScale": { "label": "Effect size", "desc": "Size of hit flashes and burning fire as a fraction of the object's ground footprint (0.5 = half the object's size)" },
       "minimapScale": { "label": "Minimap zoom", "desc": "How much the minimap grows when you toggle it with the Map button (1 = normal size)" },
       "victoryCinematic": { "label": "Victory cinematic", "desc": "Seconds the victory/defeat text stays on screen (all players spectate) before the results popup. 0 = skip straight to results" },
+      "zoomMin": { "label": "Match zoom-out floor", "desc": "Smallest camera zoom (farthest out) allowed in normal matches" },
+      "zoomMax": { "label": "Match zoom-in ceiling", "desc": "Largest camera zoom (closest in) allowed in normal matches" },
+      "replayZoomMin": { "label": "Replay zoom-out floor", "desc": "Smallest camera zoom (farthest out) allowed in replays and spectating" },
+      "replayZoomMax": { "label": "Replay zoom-in ceiling", "desc": "Largest camera zoom (closest in) allowed in replays and spectating" },
       "unitScale": {
         "desc": "Size multiplier applied to high-quality directional sprites of that unit class (applies live)",
         "vehicle": { "label": "Vehicle sprite scale" },
@@ -942,6 +956,7 @@
     "power": "power {use}/{gen}",
     "powerDown": "power DOWN",
     "tick": "tick {t}",
+    "tickTotal": "tick {t}/{total}",
     "inSync": "in sync",
     "desync": "DESYNC!",
     "fps": "{fps} fps",
@@ -1129,11 +1144,36 @@
   "supply": {
     "fieldName": "Supply Field"
   },
+  "archive": {
+    "h1": "Match Archive",
+    "hint": "Recorded matches saved by this host are listed below. Play any replay, rename it, or delete it. You can also upload a replay file to this archive.",
+    "upload": "Upload Replay",
+    "refresh": "Refresh",
+    "empty": "No replays recorded yet.",
+    "unreachable": "Could not reach the host's archive. Is a host running?",
+    "missing": "That replay file is no longer available.",
+    "play": "Play",
+    "rename": "Rename",
+    "delete": "Delete",
+    "invalid": "Invalid",
+    "unknown": "unknown",
+    "renamePrompt": "New replay name:",
+    "renameFail": "Could not rename the replay.",
+    "invalidFile": "That file is not a valid replay.",
+    "deleteConfirm": "Delete this replay from the archive?",
+    "mpName": "Name",
+    "mpMap": "Map",
+    "mpDate": "Saved",
+    "mpTicks": "Ticks"
+  },
   "game": {
     "matchStarted": "Match started",
     "startPlayers": "Match started — {n} players ({b} bots). Build, produce, and destroy the opposition.",
     "startOffline": "Offline — your Bulldozer is selected. Pick a building in the Build menu, then click to place it. The Bulldozer walks over and builds it; it stays busy until done (Stop cancels). Right-click a damaged or unfinished building with a Bulldozer selected to build/repair it.",
     "spectating": "You are spectating this match.",
+    "replayStarted": "Replay from {date} — use the Menu button to exit when finished.",
+    "replaySaved": "Replay saved to the archive.",
+    "replayDownloaded": "No host running — replay downloaded as a file. Upload it from the Archive tab.",
     "error": "Error: {msg}",
     "rejected": "Rejected: {reason}",
     "events": {
@@ -1247,6 +1287,7 @@
     "selectLoadedTransport": "Select a transport with units inside first",
     "selectProducer": "Select a production building first",
     "spectatingTick": "Now spectating at tick {t}.",
+    "reconnected": "Reconnected — fast-forwarded to tick {t}.",
     "expandSelection": "Expand selection bar",
     "collapseSelection": "Collapse selection bar",
     "logShown": "Game log ON (L)",
@@ -1429,5 +1470,16 @@
       "five-spectates": "Spectate 5 matches in total",
       "ten-spectates": "Spectate 10 matches in total"
     }
+  },
+  "replay": {
+    "restart": "Restart replay",
+    "back": "Back 10 seconds",
+    "play": "Play ▸ pause",
+    "fwd": "Forward 10 seconds",
+    "speed": "Playback speed",
+    "seeking": "Seeking…",
+    "hudToggle": "Show / hide the minimap & selection bar",
+    "hudShown": "Minimap & selection info shown",
+    "hudHidden": "Minimap & selection info hidden"
   }
 }

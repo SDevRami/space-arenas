@@ -61,7 +61,9 @@ export class TickRelay {
   private broadcastFrame(): void {
     if (this.bots) {
       for (const cmd of this.bots.commandsForTick()) {
-        this.pending.push({ ...cmd, tick: this.tick })
+        const stamped: EnvelopeCommand = { ...cmd, tick: this.tick }
+        this.pending.push(stamped)
+        this.history.push(stamped)
       }
     }
     const commands = this.pending

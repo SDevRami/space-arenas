@@ -41,9 +41,11 @@ export class NetClient {
   private cb: Partial<NetCallbacks>
   private intentionalClose = false
   myId = -1
+  readonly clientId: string
 
   constructor(cb: Partial<NetCallbacks>) {
     this.cb = cb
+    this.clientId = loadOrCreateClientId()
   }
 
   get connected(): boolean {
@@ -130,9 +132,9 @@ export class NetClient {
     this.ws?.send(encodeControl(msg))
   }
 
-  async join(roomCode: string, passphrase: string, name: string): Promise<void> {
+  async join(roomCode: string, passphrase: string, name: string, spectator = false): Promise<void> {
     const hash = await hashPassphrase(passphrase, roomCode)
-    this.send({ kind: 'C_JOIN', roomCode, passphraseHash: hash, name })
+    this.send({ kind: 'C_JOIN', roomCode, passphraseHash: hash, name, clientId: this.clientId, ...(spectator ? { spectator: true } : {}) })
   }
 
   ready(ready: boolean): void {
@@ -215,4 +217,20 @@ export async function hashPassphrase(passphrase: string, roomCode: string): Prom
     }
   }
   return pbkdf2Sha256Hex(passphrase, salt, 100_000, 32)
+}
+
+const CLIENT_ID_KEY = 'space-arenas:clientId'
+
+/** Returns a stable per-browser id used to reclaim a player slot when reconnecting. */
+export function loadOrCreateClientId(): string {
+  const existing = localStorage.getItem(CLIENT_ID_KEY)
+  if (existing) return existing
+  const raw = crypto.getRandomValues(new Uint32Array(4))
+  const id = [...raw].map((n) => n.toString(16).padStart(8, '0')).join('')
+  try {
+    localStorage.setItem(CLIENT_ID_KEY, id)
+  } catch {
+    /* private mode — id still works for this session */
+  }
+  return id
 }

@@ -37,7 +37,7 @@ export interface ProfileTypeCounts {
 
 export interface MatchRecord {
   at: number
-  mode: 'offline' | 'net'
+  mode: 'offline' | 'net' | 'replay'
   result: 'win' | 'loss' | 'draw' | 'spectate'
   map: string
   durationSec: number
@@ -195,7 +195,7 @@ export const evaluateAchievements = (profile: Profile, config: ProfileConfig, no
 }
 
 export interface MatchRecordInput {
-  mode: 'offline' | 'net'
+  mode: 'offline' | 'net' | 'replay'
   result: 'win' | 'loss' | 'draw'
   map: string
   durationSec: number
@@ -249,7 +249,7 @@ export const resetProfile = (s: StorageLike, name: string = DEFAULT_PROFILE_NAME
 }
 
 export interface SpectateRecordInput {
-  mode: 'offline' | 'net'
+  mode: 'offline' | 'net' | 'replay'
   map: string
   durationSec: number
 }

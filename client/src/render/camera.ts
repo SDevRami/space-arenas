@@ -11,11 +11,21 @@ export class Camera implements CameraView {
   zoom = 1
   camX = 0
   camY = 0
+  /** Camera zoom-out floor (dev-settings adjustable, wider in replays). */
+  zoomMin = 0.5
+  /** Camera zoom-in ceiling (dev-settings adjustable, deeper in replays). */
+  zoomMax = 2.5
 
   constructor(
     private viewportW: number,
     private viewportH: number,
   ) {}
+
+  setZoomRange(min: number, max: number): void {
+    if (Number.isFinite(min) && min > 0) this.zoomMin = min
+    if (Number.isFinite(max) && max > this.zoomMin) this.zoomMax = max
+    this.zoom = Math.max(this.zoomMin, Math.min(this.zoomMax, this.zoom))
+  }
 
   get viewWidth(): number {
     return this.viewportW
@@ -75,7 +85,7 @@ export class Camera implements CameraView {
   zoomAt(px: number, py: number, factor: number): void {
     const sx0 = px / this.zoom - this.camX
     const sy0 = py / this.zoom - this.camY
-    this.zoom = Math.max(0.5, Math.min(2.5, this.zoom * factor))
+    this.zoom = Math.max(this.zoomMin, Math.min(this.zoomMax, this.zoom * factor))
     this.camX = px / this.zoom - sx0
     this.camY = py / this.zoom - sy0
   }

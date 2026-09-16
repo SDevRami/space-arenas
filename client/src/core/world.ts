@@ -864,7 +864,7 @@ export class World {
 
   radarActive(team: number): boolean {
     const s = this.teams.get(team)
-    return !!s && s.radar && this.hasDoneBuilding(team, 'tech-center')
+    return !!s && s.radar
   }
 
   /** Total transport slots of an APC unit or garrison building (bunker),

@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, EMP_RADIUS_TILES, AIRSTRIKE_BOMB_RADIUS, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, EMP_RADIUS_TILES, AIRSTRIKE_BOMB_RADIUS, PROTOCOL_VERSION, replayDateLabel, defaultReplayName, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type ReplayData, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
 import { World, placementExplored, type WorldGrid } from '../core/world.ts'
 import { Simulator } from '../core/Simulator.ts'
 import { GameLoop } from '../core/loop.ts'
@@ -31,7 +31,12 @@ const isTypingTarget = (target: EventTarget | null): boolean => {
   return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
 }
 
-export type GameMode = 'offline' | 'net'
+/** Skip-ahead/back jump for the replay transport bar, in sim seconds. */
+const REPLAY_JUMP_SECONDS = 10
+/** Playback speed multipliers offered on the replay transport bar. */
+const REPLAY_SPEEDS = [0.25, 0.5, 1, 2, 4] as const
+
+export type GameMode = 'offline' | 'net' | 'replay'
 
 export class Game {
   private world: World | null = null
@@ -72,6 +77,29 @@ export class Game {
   private team = 0
   private chat: ChatBox | null = null
   private pendingSpectate: SpectateSyncMessage | null = null
+  private replayHistory: EnvelopeCommand[] = []
+  private replayIndex = 0
+  private replayTicks = 0
+  private replayWinner: number | null = null
+  private recordHistory: EnvelopeCommand[] = []
+  private recordTicks = 0
+  private replayRecorded = false
+  private currentStartMsg: MatchStartMessage | null = null
+  private replayPlaying = false
+  private replaySpeed: (typeof REPLAY_SPEEDS)[number] = 1
+  private pendingSeek: number | null = null
+  private seekActive = false
+  private seekTarget = 0
+  private sliderDragging = false
+  private replayBar = document.getElementById('replay-bar') as HTMLDivElement
+  private replayTimeEl = document.getElementById('replay-time') as HTMLDivElement
+  private replaySlider = document.getElementById('replay-slider') as HTMLInputElement
+  private replayPlayBtn = document.getElementById('replay-play') as HTMLButtonElement
+  private replayRestartBtn = document.getElementById('replay-restart') as HTMLButtonElement
+  private replayBackBtn = document.getElementById('replay-back') as HTMLButtonElement
+  private replayFwdBtn = document.getElementById('replay-fwd') as HTMLButtonElement
+  private replaySpeedBtn = document.getElementById('replay-speed') as HTMLButtonElement
+  private replayHudToggle = document.getElementById('replay-hud-toggle') as HTMLButtonElement
   private menuBtn: HTMLButtonElement
   private menuOverlay: HTMLDivElement
   private menuResumeBtn: HTMLButtonElement
@@ -162,6 +190,20 @@ export class Game {
     this.menuResumeBtn.addEventListener('click', this.onMenuResumeClick)
     this.menuQuitBtn.addEventListener('click', this.onMenuQuitClick)
     this.resultsQuitBtn.addEventListener('click', this.onResultsQuitClick)
+    this.replayPlayBtn.addEventListener('click', this.onReplayPlayClick)
+    this.replayRestartBtn.addEventListener('click', this.onReplayRestartClick)
+    this.replayBackBtn.addEventListener('click', this.onReplayBackClick)
+    this.replayFwdBtn.addEventListener('click', this.onReplayFwdClick)
+    this.replaySpeedBtn.addEventListener('click', this.onReplaySpeedClick)
+    this.replayHudToggle.addEventListener('click', this.onReplayHudToggleClick)
+    this.replaySlider.addEventListener('input', () => {
+      this.sliderDragging = true
+      this.scheduleSeek(Number(this.replaySlider.value))
+    })
+    this.replaySlider.addEventListener('change', () => {
+      this.sliderDragging = false
+      this.scheduleSeek(Number(this.replaySlider.value))
+    })
     this.confirmYesBtn.addEventListener('click', this.onConfirmYesClick)
     this.confirmNoBtn.addEventListener('click', this.onConfirmNoClick)
     this.toolsBar = document.getElementById('tools-bar')
@@ -403,7 +445,7 @@ export class Game {
   }
 
   private onMenuBtnClick = (): void => {
-    if (this.mode === 'offline') this.paused = true
+    if (this.mode === 'offline' || this.mode === 'replay') this.paused = true
     const rows = this.currentStatsRows()
     if (rows) {
       this.menuStatsBoard.show(t('menu.stats'), rows)
@@ -441,6 +483,7 @@ export class Game {
     this.menuOverlay.classList.remove('visible')
     this.menuStatsBoard.hide()
     this.paused = false
+    if (this.mode === 'offline' && !this.finished && this.recordTicks > 0) this.saveOfflineReplay(null)
     this.hud.hide()
     this.destroy()
     this.onQuit?.()
@@ -454,6 +497,151 @@ export class Game {
     this.hud.hide()
     this.destroy()
     this.onQuit?.()
+  }
+
+  private scheduleSeek(t: number): void {
+    this.pendingSeek = Math.max(0, Math.min(Math.round(t), this.replayTicks))
+  }
+
+  private onReplayPlayClick = (): void => {
+    if (this.mode !== 'replay') return
+    if (this.finished) {
+      this.scheduleSeek(0)
+      this.replayPlaying = true
+    } else {
+      this.replayPlaying = !this.replayPlaying
+    }
+  }
+
+  private onReplayRestartClick = (): void => {
+    if (this.mode !== 'replay') return
+    this.scheduleSeek(0)
+    this.replayPlaying = true
+  }
+
+  private onReplayBackClick = (): void => {
+    if (this.mode !== 'replay' || !this.world) return
+    this.scheduleSeek(
+      (this.seekActive ? this.seekTarget : this.world.tick) - SIM_TICK_HZ * REPLAY_JUMP_SECONDS,
+    )
+  }
+
+  private onReplayFwdClick = (): void => {
+    if (this.mode !== 'replay' || !this.world) return
+    this.scheduleSeek(
+      (this.seekActive ? this.seekTarget : this.world.tick) + SIM_TICK_HZ * REPLAY_JUMP_SECONDS,
+    )
+  }
+
+  private onReplaySpeedClick = (): void => {
+    if (this.mode !== 'replay') return
+    const i = REPLAY_SPEEDS.indexOf(this.replaySpeed)
+    this.replaySpeed = REPLAY_SPEEDS[(i + 1) % REPLAY_SPEEDS.length]
+    this.loop?.setSpeed(this.replaySpeed)
+  }
+
+  /** Toggle the minimap + selection-bar in the replay (hide/unhide via `#hud.sel-hidden`). */
+  private onReplayHudToggleClick = (): void => {
+    if (this.mode !== 'replay') return
+    const hud = document.getElementById('hud')
+    if (!hud) return
+    const selHidden = hud.classList.toggle('sel-hidden')
+    this.replayHudToggle.classList.toggle('active', !selHidden)
+    this.hud.toast(selHidden ? t('replay.hudHidden') : t('replay.hudShown'))
+  }
+
+  /** Rebuild a deterministic replay world from the saved start message (seek/rewind). */
+  private buildReplayWorld(startMsg: MatchStartMessage): World {
+    const world = new World(startMsg.map, startMsg.seed, startMsg.players.map((p) => p.id), startMsg.settings)
+    if (startMsg.winRule) world.winRule = startMsg.winRule
+    for (const p of startMsg.players) {
+      const ts = world.teams.get(p.id)
+      if (ts && p.team !== undefined) ts.alliance = p.team
+      if (ts && p.color !== undefined) ts.color = p.color
+    }
+    world.rewireSharedStartingCredits()
+    return world
+  }
+
+  /** Movie-player seek, spread over frames so the UI never freezes: fast-forward a
+   *  short time-budgeted chunk per frame from the current state, or rebuild the
+   *  world from tick 0 when the target is behind the current position. */
+  private stepSeek(): void {
+    const startMsg = this.currentStartMsg
+    if (!startMsg || !this.world) {
+      this.seekActive = false
+      return
+    }
+    const target = Math.max(0, Math.min(this.seekTarget, this.replayTicks))
+    if (target < this.world.tick) {
+      this.world = this.buildReplayWorld(startMsg)
+      this.replayIndex = 0
+    }
+    const world = this.world
+    if (target === world.tick) {
+      this.finishSeek(world)
+      return
+    }
+    const h = this.replayHistory
+    const t0 = performance.now()
+    let steps = 0
+    while (world.tick < target && steps < 4000 && performance.now() - t0 < 20) {
+      const cmds: EnvelopeCommand[] = []
+      while (this.replayIndex < h.length && h[this.replayIndex].tick <= world.tick) {
+        if (h[this.replayIndex].tick === world.tick) cmds.push(h[this.replayIndex])
+        this.replayIndex++
+      }
+      stepWorld(world, cmds)
+      steps++
+    }
+    if (world.tick >= target) this.finishSeek(world)
+  }
+
+  private finishSeek(world: World): void {
+    this.seekActive = false
+    world.drainEvents()
+    this.stats = new StatsTracker()
+    this.localHash = 0
+    this.pendingChecks.clear()
+    this.syncOk = true
+    this.selection.clear()
+    this.clearReplayEndState()
+  }
+
+  /** Drop the finished/cinematic/results state so playback can resume after a seek. */
+  private clearReplayEndState(): void {
+    this.finished = false
+    this.paused = false
+    this.resultsShown = false
+    this.cinematicActive = false
+    this.cinematicOverlay.classList.remove('visible')
+    this.resultsOverlay.classList.remove('visible')
+    this.resultsBoard.hide()
+  }
+
+  private fmtTicks(ticks: number): string {
+    const s = Math.max(0, Math.floor(ticks / SIM_TICK_HZ))
+    const m = Math.floor(s / 60)
+    const r = s % 60
+    return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
+  }
+
+  /** Refresh the transport bar: slider position, time label, play icon, speed. */
+  private syncReplayBar(): void {
+    if (!this.world) return
+    this.replaySlider.max = String(this.replayTicks)
+    if (this.seekActive) {
+      this.replaySlider.value = String(this.seekTarget)
+      this.replayTimeEl.textContent = `${t('replay.seeking')} ${this.fmtTicks(this.seekTarget)} / ${this.fmtTicks(this.replayTicks)}`
+    } else if (this.sliderDragging) {
+      const v = Number(this.replaySlider.value)
+      this.replayTimeEl.textContent = `${this.fmtTicks(v)} / ${this.fmtTicks(this.replayTicks)}`
+    } else {
+      this.replaySlider.value = String(this.world.tick)
+      this.replayTimeEl.textContent = `${this.fmtTicks(this.world.tick)} / ${this.fmtTicks(this.replayTicks)}`
+    }
+    this.replayPlayBtn.textContent = this.replayPlaying && !this.finished ? '⏸' : '▶'
+    this.replaySpeedBtn.textContent = `${this.replaySpeed}×`
   }
 
   private showResults(winner: number | null): void {
@@ -555,6 +743,9 @@ export class Game {
     this.resultsShown = false
     this.cinematicOverlay.classList.remove('visible')
     this.cinematicActive = false
+    this.recordHistory = []
+    this.recordTicks = 0
+    this.replayRecorded = false
     await this.boot(null, cfg)
   }
 
@@ -580,6 +771,79 @@ export class Game {
     await this.boot(msg)
   }
 
+  /** Replays a recorded match from the archive: rebuilds the deterministic world
+   *  from the saved seed/map/settings and drives ticks with the command history.
+   *  The player is a passive spectator and no profile entry is recorded. */
+  async startReplay(replay: ReplayData): Promise<void> {
+    this.mode = 'replay'
+    this.localTeam = -1
+    this.spectator = true
+    this.net = null
+    this.netPlayers = replay.players
+    this.team = replay.players.find((p) => p.id === 0)?.team ?? -1
+    this.modeCfg = null
+    this.bots = []
+    this.finished = false
+    this.session = null
+    this.matchStartedAt = performance.now()
+    this.profileRecorded = true
+    this.matchMapLabel = replay.map.name
+    this.achNotified.clear()
+    this.lastAchCheckTick = -1
+    this.resultsShown = false
+    this.cinematicOverlay.classList.remove('visible')
+    this.cinematicActive = false
+    this.replayHistory = replay.history
+    this.replayIndex = 0
+    this.replayTicks = replay.ticks
+    this.replayWinner = replay.winner
+    await this.boot({
+      kind: 'S_MATCH_START',
+      protocolVersion: replay.version,
+      seed: replay.seed,
+      tickRate: replay.tickRate,
+      map: replay.map,
+      players: replay.players,
+      hostId: -1,
+      yourId: -1,
+      spectator: true,
+      settings: replay.settings,
+      winRule: replay.winRule,
+    } satisfies MatchStartMessage)
+    this.currentStartMsg = {
+      kind: 'S_MATCH_START',
+      protocolVersion: replay.version,
+      seed: replay.seed,
+      tickRate: replay.tickRate,
+      map: replay.map,
+      players: replay.players,
+      hostId: -1,
+      yourId: -1,
+      spectator: true,
+      settings: replay.settings,
+      winRule: replay.winRule,
+    }
+    this.replayPlaying = true
+    this.replaySpeed = 1
+    this.loop?.setSpeed(this.replaySpeed)
+    this.pendingSeek = null
+    this.seekActive = false
+    this.seekTarget = 0
+    this.sliderDragging = false
+    const ecoTeams = new Map<number, { name: string; color: number }>()
+    for (const p of replay.players) {
+      const alliance = p.team ?? p.id
+      if (!ecoTeams.has(alliance)) ecoTeams.set(alliance, { name: p.name, color: p.color ?? p.id })
+    }
+    this.hud.setReplayEco([...ecoTeams].map(([team, v]) => ({ team, ...v })))
+    this.replayBar.hidden = false
+    this.replaySlider.max = String(this.replayTicks)
+    document.getElementById('hud')?.classList.add('replay-hud')
+    this.replayHudToggle.classList.toggle('active', !document.getElementById('hud')?.classList.contains('sel-hidden'))
+    this.syncReplayBar()
+    this.hud.toast(t('game.replayStarted', { date: replayDateLabel(replay.createdAt) }))
+  }
+
   private async boot(startMsg: MatchStartMessage | null, cfg?: MatchConfig): Promise<void> {
     const map = startMsg ? startMsg.map : (cfg?.map ?? generateDefaultMap())
     const seed = startMsg ? startMsg.seed : (cfg?.seed ?? (Math.floor(Math.random() * 0xffffffff) >>> 0))
@@ -593,14 +857,7 @@ export class Game {
     this.renderer = renderer
 
     if (startMsg) {
-      this.world = new World(map, seed, players, startMsg.settings)
-      if (startMsg.winRule) this.world.winRule = startMsg.winRule
-      for (const p of startMsg.players) {
-        const ts = this.world.teams.get(p.id)
-        if (ts && p.team !== undefined) ts.alliance = p.team
-        if (ts && p.color !== undefined) ts.color = p.color
-      }
-      this.world.rewireSharedStartingCredits()
+      this.world = this.buildReplayWorld(startMsg)
       this.sim = null
     } else {
       this.sim = new Simulator(map, seed, players, { ...(cfg?.settings ?? {}), startingCredits: cfg?.credits ?? map.credits })
@@ -637,6 +894,8 @@ export class Game {
       renderer.camera.centerOnMap(this.world.width, this.world.height)
     }
     if (startMsg && this.spectator) renderer.showAll = true
+    const gfx = getGraphics()
+    renderer.camera.setZoomRange(this.mode === 'replay' ? gfx.replayZoomMin : gfx.zoomMin, this.mode === 'replay' ? gfx.replayZoomMax : gfx.zoomMax)
 
     const isMobile = this.isMobileView()
     const mm = new Minimap(map, isMobile ? 0.72 : 1)
@@ -767,7 +1026,7 @@ export class Game {
       },
     })
     this.loop.start()
-    if (this.pendingSpectate) this.flushSpectateSync(this.pendingSpectate)
+    if (this.pendingSpectate) this.stepToTickSync(this.pendingSpectate)
     this.pendingSpectate = null
     if (this.net && !this.spectator) {
       const go = await this.showNetCountdown()
@@ -814,11 +1073,101 @@ export class Game {
   }
 
   private onTick(): void {
-    if (this.mode !== 'offline' || !this.sim || this.paused || this.finished) return
-    const envs = this.pendingCmds
-    this.pendingCmds = []
-    for (const bot of this.bots) envs.push(...bot.tick())
-    this.sim.step(envs)
+    if (this.paused || this.finished) return
+    if (this.mode === 'offline') {
+      const sim = this.sim
+      const world = this.world
+      if (!sim || !world) return
+      const envs = this.pendingCmds
+      this.pendingCmds = []
+      for (const bot of this.bots) envs.push(...bot.tick())
+      for (const env of envs) this.recordHistory.push({ ...env, tick: world.tick })
+      sim.step(envs)
+      this.recordTicks = world.tick
+      return
+    }
+    if (this.mode === 'replay') {
+      if (!this.replayPlaying || this.seekActive) return
+      this.stepReplayTick()
+    }
+  }
+
+  /** Replay tick driver: applies every command stamped for the current world tick,
+   *  then steps the deterministic sim once. Mirrors `flushSpectateSync`. */
+  private stepReplayTick(): void {
+    const world = this.world
+    if (!world) return
+    const cmds: EnvelopeCommand[] = []
+    while (this.replayIndex < this.replayHistory.length && this.replayHistory[this.replayIndex].tick <= world.tick) {
+      if (this.replayHistory[this.replayIndex].tick === world.tick) cmds.push(this.replayHistory[this.replayIndex])
+      this.replayIndex++
+    }
+    stepWorld(world, cmds)
+    if (world.tick >= this.replayTicks) this.finishReplay()
+  }
+
+  private finishReplay(): void {
+    if (this.finished) return
+    this.finished = true
+    this.beginCinematic(this.replayWinner)
+  }
+
+  /** Offline matches run entirely on this machine, so we record the command history
+   *  ourselves and persist it the same way the host persists net replays. */
+  private saveOfflineReplay(winner: number | null): void {
+    const cfg = this.modeCfg
+    const world = this.world
+    if (!cfg || !world || this.replayRecorded) return
+    this.replayRecorded = true
+    const replay: ReplayData = {
+      version: PROTOCOL_VERSION,
+      createdAt: new Date().toISOString(),
+      seed: cfg.seed,
+      tickRate: SIM_TICK_HZ,
+      map: structuredClone(cfg.map),
+      settings: world.settings,
+      winRule: world.winRule,
+      players: cfg.slots.map((s) => ({
+        id: s.team,
+        name: s.name,
+        ready: true,
+        host: s.team === cfg.localTeam,
+        team: s.alliance,
+        spawn: s.team,
+        color: s.color,
+        bot: !!s.difficulty,
+        difficulty: s.difficulty,
+      })),
+      winner,
+      ticks: this.recordTicks,
+      history: this.recordHistory,
+    }
+    void this.persistReplay(replay)
+  }
+
+  private async persistReplay(replay: ReplayData): Promise<void> {
+    try {
+      const res = await fetch('/api/replays/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(replay),
+      })
+      if (!res.ok) throw new Error('upload rejected')
+      await res.json()
+      this.hud.toast(t('game.replaySaved'))
+      return
+    } catch {
+      // No host running (e.g. static/vite dev page) — offer the file so it can be
+      // uploaded to a host's archive later.
+      const blob = new Blob([JSON.stringify(replay)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${defaultReplayName()}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      this.hud.toast(t('game.replayDownloaded'))
+    }
   }
 
   private onFrame(): void {
@@ -831,6 +1180,18 @@ export class Game {
       this.cinematicActive = false
       this.cinematicOverlay.classList.remove('visible')
       this.showResults(this.cinematicWinner)
+    }
+
+    if (this.mode === 'replay' && !this.sliderDragging && this.pendingSeek !== null) {
+      const t = this.pendingSeek
+      this.pendingSeek = null
+      this.seekTarget = t
+      this.seekActive = true
+    }
+    if (this.mode === 'replay' && this.seekActive) this.stepSeek()
+    if (this.mode === 'replay' && this.seekActive) {
+      this.syncReplayBar()
+      return
     }
 
     const camCenter = renderer.camera.screenToWorldExact(renderer.camera.viewWidth / 2, renderer.camera.viewHeight / 2)
@@ -888,7 +1249,8 @@ export class Game {
     renderer.setDayNight(world.settings.dayNight ? this.dayPhase(world) : 0)
     if (!this.paused) this.weather?.step()
     this.weather?.draw()
-    this.hud.update(world, this.localTeam, world.tick, this.localHash, this.syncOk)
+    this.hud.update(world, this.localTeam, world.tick, this.localHash, this.syncOk, this.mode === 'replay' ? this.replayTicks : undefined)
+    if (this.mode === 'replay') this.syncReplayBar()
     this.refreshGroupsPanel()
     this.hud.selectionChanged(this.selection, world, this.localTeam, this.isMobileView())
     this.syncMobileToolButtonsForSelection()
@@ -899,7 +1261,8 @@ export class Game {
     if (this.devOverlayVisible) this.updateDevOverlay()
 
     const gfx = getGraphics()
-    for (const e of world.drainEvents()) {
+    if (!this.seekActive) {
+      for (const e of world.drainEvents()) {
       this.stats.track(e)
       this.audio.onEvent(e)
       this.session?.track(e, world)
@@ -950,10 +1313,12 @@ export class Game {
         this.hud.toast(this.netTitle(e.winner))
         this.beginCinematic(e.winner)
         if (this.mode === 'net') this.net?.gameOver(e.winner)
+        else if (this.mode === 'offline') this.saveOfflineReplay(e.winner)
       }
       if (e.type === 'command-rejected') {
         this.hud.toast(t('game.rejected', { reason: e.reason }))
       }
+    }
     }
     this.checkLiveAchievements()
   }
@@ -1415,7 +1780,7 @@ export class Game {
     const selected = new Set<number>()
     const cam = renderer.camera
     world.units.forEach((id, _u) => {
-      if (!world.canControl(this.localTeam, id)) return
+      if (!this.spectator && !world.canControl(this.localTeam, id)) return
       const t = world.transforms.require(id)
       const p = { x: 0, y: 0 }
       cam.worldToScreen(t.x, t.y, p)
@@ -2936,18 +3301,38 @@ export class Game {
       this.pendingSpectate = msg
       return
     }
-    this.flushSpectateSync(msg)
+    this.stepToTickSync(msg)
+    this.hud.toast(t('game.spectatingTick', { t: Math.max(0, msg.currentTick) }))
   }
 
-  private flushSpectateSync(msg: SpectateSyncMessage): void {
+  /** Fast-forwards the local world to the host's current tick after reconnecting,
+   *  for both re-claimed player slots and the spectator fallback. */
+  catchUpSync(msg: SpectateSyncMessage): void {
+    if (this.mode !== 'net') return
+    if (!this.world) {
+      this.pendingSpectate = msg
+      return
+    }
+    this.stepToTickSync(msg)
+    const target = Math.max(0, msg.currentTick)
+    this.hud.toast(t('game.reconnected', { t: target }))
+  }
+
+  /** Re-points the running game at a fresh connection (used after a reconnect). */
+  attachNet(net: NetClient): void {
+    this.net = net
+  }
+
+  /** Deterministically replays the relay's command log from the world's current
+   *  tick up to `msg.currentTick`. */
+  private stepToTickSync(msg: SpectateSyncMessage): void {
     const world = this.world
-    if (!world || !this.spectator) return
+    if (!world) return
     const target = Math.max(0, msg.currentTick)
     while (world.tick < target) {
       const cmds = msg.log.filter((c) => c.tick === world.tick)
       stepWorld(world, cmds)
     }
-    this.hud.toast(t('game.spectatingTick', { t: target }))
   }
 
   onNetChecksum(player: number, tick: number, crc: number): void {
@@ -3022,10 +3407,30 @@ export class Game {
     this.menuResumeBtn.removeEventListener('click', this.onMenuResumeClick)
     this.menuQuitBtn.removeEventListener('click', this.onMenuQuitClick)
     this.resultsQuitBtn.removeEventListener('click', this.onResultsQuitClick)
+    this.replayPlayBtn.removeEventListener('click', this.onReplayPlayClick)
+    this.replayRestartBtn.removeEventListener('click', this.onReplayRestartClick)
+    this.replayBackBtn.removeEventListener('click', this.onReplayBackClick)
+    this.replayFwdBtn.removeEventListener('click', this.onReplayFwdClick)
+    this.replaySpeedBtn.removeEventListener('click', this.onReplaySpeedClick)
+    this.replayHudToggle.removeEventListener('click', this.onReplayHudToggleClick)
     this.world = null
     this.sim = null
     this.pendingSpectate = null
     this.chat?.destroy()
     this.chat = null
+    this.replayHistory = []
+    this.replayIndex = 0
+    this.replayTicks = 0
+    this.replayWinner = null
+    this.replayBar.hidden = true
+    document.getElementById('hud')?.classList.remove('replay-hud', 'sel-hidden')
+    this.hud.setReplayEco(null)
+    this.currentStartMsg = null
+    this.replayPlaying = false
+    this.replaySpeed = 1
+    this.pendingSeek = null
+    this.seekActive = false
+    this.seekTarget = 0
+    this.sliderDragging = false
   }
 }

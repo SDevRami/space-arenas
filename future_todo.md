@@ -248,6 +248,7 @@ These features are deferred: either too large, blocked on the online server, or 
 - Ranked ladder play, persistent player accounts, cloud match history.
 - **Cloud profile** (#14 partial): sync stats/achievements across devices.
 - Server-side replay validation, anti-cheat.
+- **Match replays for online matches** — offline and LAN matches already record `ReplayData` (offline: client-side at `game-over`, uploaded to the host archive; LAN: host `endMatch` saves `relay.history`). When real online matches run through the server, the server should record the relayed command log into the same `ReplayData` format and expose it via a per-account match-history API (list / play / download), instead of the host's local `archive/` folder.
 
 ---
 
