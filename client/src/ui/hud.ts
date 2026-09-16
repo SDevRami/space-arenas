@@ -99,6 +99,7 @@ export class Hud {
   private selectionInfo = document.getElementById('selection-info')!
   private selectionAchievement = document.getElementById('selection-achievement')!
   private gameLog = document.getElementById('game-log')!
+  private objectiveEl = document.getElementById('hud-objective')!
   private hudEl = document.getElementById('hud')!
   private rankBtn = document.getElementById('rank-btn')!
   private rankBtnStars = document.getElementById('rank-btn-stars')!
@@ -205,6 +206,16 @@ export class Hud {
     this.gameLog.appendChild(el)
     while (this.gameLog.children.length > 8) {
       this.gameLog.removeChild(this.gameLog.firstChild!)
+    }
+  }
+
+  /** Persistent objective line for scripted modes (survival wave / campaign objective). */
+  setObjective(text: string | null): void {
+    if (text) {
+      this.objectiveEl.textContent = text
+      this.objectiveEl.hidden = false
+    } else {
+      this.objectiveEl.hidden = true
     }
   }
 

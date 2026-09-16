@@ -1,5 +1,6 @@
 import { ACHIEVEMENTS } from './achievements.ts'
 import { achievementTarget, countFor, loadProfile, loadProfileConfig, resetProfile, totalScore, unlockedCount, updateProfileName, type Profile } from './profile.ts'
+import { loadModeRecords, dailyLevel, dailyLevelXp, DAILY_XP_PER_LEVEL, type ModeRecords } from './modeRecords.ts'
 import { t } from '../i18n/index.ts'
 
 let lastRender = 0
@@ -72,6 +73,38 @@ const hexChart = (profile: Profile): string => {
   `
 }
 
+const renderModeRecords = (rec: ModeRecords): string => {
+  const survival = rec.survival
+  const daily = rec.daily
+  const campaign = rec.campaign
+  const row = (label: string, value: string): string => `<div class="profile-mode-row"><span>${esc(label)}</span><b>${esc(value)}</b></div>`
+  let survivalMarkup = ''
+  if (survival) {
+    survivalMarkup += `<div class="profile-mode-card"><div class="profile-mode-title">${esc(t('profile.modeSurvival'))}</div>` +
+      row(t('profile.modeBestWave'), String(survival.bestWave)) +
+      row(t('profile.modeBestScore'), String(survival.bestScore)) +
+      row(t('profile.modePlays'), `${survival.plays} · ${survival.wins} ${t('profile.modeWins')}`) +
+      `</div>`
+  }
+  let dailyMarkup = ''
+  if (daily) {
+    dailyMarkup += `<div class="profile-mode-card"><div class="profile-mode-title">${esc(t('profile.modeDaily'))}</div>` +
+      row(t('profile.modeLevel'), `${dailyLevel(daily)} (${dailyLevelXp(daily)}/${DAILY_XP_PER_LEVEL} XP)`) +
+      row(t('profile.modeStreak'), `${daily.streak} · ${t('profile.modeBestStreak')} ${daily.bestStreak}`) +
+      row(t('profile.modeMissionsDone'), String(Object.keys(daily.missionsDone).length)) +
+      `</div>`
+  }
+  let campaignMarkup = ''
+  if (campaign) {
+    campaignMarkup += `<div class="profile-mode-card"><div class="profile-mode-title">${esc(t('profile.modeCampaign'))}</div>` +
+      row(t('profile.modeChaptersDone'), `${campaign.chaptersDone.length}/${campaign.chaptersDone.length + (campaign.currentChapter && !campaign.chaptersDone.includes(campaign.currentChapter) ? 1 : 0)}`) +
+      row(t('profile.modePlays'), `${campaign.plays} · ${campaign.wins} ${t('profile.modeWins')}`) +
+      `</div>`
+  }
+  const body = survivalMarkup + dailyMarkup + campaignMarkup
+  return body ? `<div class="profile-mode-records"><div class="profile-mode-records-title">${esc(t('profile.modeRecords'))}</div><div class="profile-mode-cards">${body}</div></div>` : ''
+}
+
 const renderSummary = (): string => {
   const profile = loadProfile(window.localStorage)
   const c = profile.counters
@@ -79,6 +112,7 @@ const renderSummary = (): string => {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   return `
+    ${renderModeRecords(loadModeRecords(window.localStorage))}
     <div class="profile-card">
       <div class="profile-card-left">
         <div class="profile-name">${esc(profile.name)}</div>

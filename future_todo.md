@@ -266,3 +266,13 @@ These features are deferred: either too large, blocked on the online server, or 
 - Trigger/scripting system for custom game modes.
 - Terrain heightmap, water flow direction, fog-of-war prebake.
 - See existing work in sections (b) and (d)–(h) above.
+
+---
+
+## Custom Scenario — Real Feature (M, after 19.4 UI placeholder)
+
+The Day 19.4 custom-scenario button is a wire-only placeholder ("coming soon"). The real feature:
+- **Import**: upload a scenario `.json` (map seed/variant + wave definitions in the data-driven schema: `{ waves: [{ delay, units: [{ type, count }], mapVariant }] }` plus optional match settings overrides).
+- **Validate + run**: schema-check the file, then start an offline survival-style match (`mode: 'custom'`) using the imported waves/map instead of the auto-composed ones.
+- **Export**: save the currently active custom scenario back to `.json` for sharing.
+- **Library**: a small localStorage list of saved custom scenarios with rename/delete/duplicate.

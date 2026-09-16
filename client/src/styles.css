@@ -430,6 +430,13 @@
       #lobby .profile-stats label { margin: 0; font-size: 11px; color: var(--color-text-muted); }
       #lobby .profile-group { margin: 16px 0 6px; padding-top: 12px; border-top: 1px solid var(--color-divider); color: var(--color-accent); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
       #lobby .profile-group:first-of-type { border-top: none; margin-top: 6px; padding-top: 0; }
+      #lobby .profile-mode-records { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 16px; padding: 12px 14px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); }
+      #lobby .profile-mode-records-title { color: var(--color-accent); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+      #lobby .profile-mode-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+      #lobby .profile-mode-card { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: rgba(10,14,24,0.7); border: 1px solid var(--color-divider); border-radius: 4px; }
+      #lobby .profile-mode-title { color: var(--color-accent); font-weight: 700; font-size: 13px; }
+      #lobby .profile-mode-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+      #lobby .profile-mode-row b { color: var(--color-text-body); }
       #lobby .achievement { display: grid; grid-template-columns: 1fr 120px 90px; align-items: center; gap: 10px; padding: 8px 10px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); margin-bottom: 4px; }
       #lobby .achievement.unlocked { border-color: #2e8b57; background: #0d2118; }
       #lobby .achievement-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -548,6 +555,7 @@
 
       .toast { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); background: rgba(8,10,16,0.9); border: 1px solid var(--color-border-light); padding: 8px 16px; font-size: 13px; z-index: 30; opacity: 0; transition: opacity 0.25s ease, transform 0.25s ease; }
       .toast.visible { opacity: 1; }
+      .hud-objective { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); background: rgba(8,10,16,0.85); border: 1px solid var(--color-border-light); border-radius: 4px; padding: 4px 14px; font-size: 12px; color: #ffd75e; text-shadow: 0 1px 2px #000; z-index: 29; pointer-events: none; white-space: nowrap; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; }
       .toast.ach { display: flex; align-items: center; gap: 10px; left: 12px; top: 52px; transform: translateX(-130%); padding: 10px 18px; border-color: #c9a53a; background: linear-gradient(180deg, rgba(30,26,10,0.96), rgba(12,14,20,0.96)); max-width: min(360px, 90vw); transition: transform 0.38s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.3s ease; box-shadow: 4px 6px 18px rgba(0,0,0,0.5); }
       .toast.ach.visible { transform: translateX(0); opacity: 1; }
       .toast.ach .toast-icon { font-size: 20px; color: #ffd75e; text-shadow: 0 0 8px rgba(255,215,94,0.7); }
@@ -729,6 +737,21 @@
       .credits-input { width: 120px; }
       .weather-select { width: 220px; }
       .win-rule-select { width: 260px; }
+      .mode-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+      .mode-btn { flex: 1 1 auto; min-width: 130px; padding: 8px 12px; border: 1px solid var(--color-border); background: var(--color-panel-alt, rgba(16,20,32,0.9)); color: var(--color-text-body); border-radius: 4px; cursor: pointer; font-size: 13px; }
+      .mode-btn:hover { border-color: var(--color-accent); }
+      .mode-btn.active { background: var(--color-accent); border-color: var(--color-accent); color: #04070f; font-weight: 700; }
+      .mode-extras { margin: 12px 0; padding: 12px; border: 1px dashed var(--color-border); border-radius: 4px; background: rgba(10,14,24,0.6); }
+      .hidden-extras { display: none; }
+      .stat-card, .chapter-card { border: 1px solid var(--color-border); background: rgba(10,14,24,0.7); border-radius: 4px; padding: 10px 12px; margin-top: 8px; }
+      .stat-card .stat-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 12px; }
+      .stat-card .stat-row b { color: var(--color-accent); }
+      .daily-header { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-weight: 700; color: var(--color-accent); }
+      .mission-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+      .mission-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+      .mission-row .xp-badge { color: #ffd75e; font-size: 11px; }
+      .chapter-card h3 { margin: 0 0 6px; color: var(--color-accent); font-size: 15px; }
+      .chapter-card p { margin: 0 0 8px; font-size: 12px; line-height: 1.45; }
       .fps-info { color: var(--color-text-muted); }
       #log-toggle { margin-left: auto; }
 

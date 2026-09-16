@@ -15,6 +15,10 @@ import { stepWorld } from '../systems/registry.ts'
 import type { SimEvent } from '../core/events.ts'
 import { BotPlayer } from '../ai/bot.ts'
 import type { MatchConfig } from './match.ts'
+import { CampaignScript, type CampaignTickOutcome } from '../modes/campaign.ts'
+import { SurvivalDirector, survivalScore } from '../modes/survival.ts'
+import { generateDailyMissions, evaluateDailyMissions } from '../modes/daily.ts'
+import { recordSurvivalResult, recordDailyResult, recordCampaignResult, dailyLevel, dailyLevelXp, DAILY_XP_PER_LEVEL } from '../profile/modeRecords.ts'
 import { StatsBoard, StatsTracker, buildStatsRows, type StatsRow } from '../stats/stats.ts'
 import { SessionRecorder } from '../profile/recorder.ts'
 import { loadProfile, loadProfileConfig, recordMatch, recordSpectate, freshCounters, achievementTarget, type ProfileCounters, type ProfileTypeCounts } from '../profile/profile.ts'
@@ -84,6 +88,11 @@ export class Game {
   private recordHistory: EnvelopeCommand[] = []
   private recordTicks = 0
   private replayRecorded = false
+  private script: SurvivalDirector | CampaignScript | null = null
+  private survivalWave = 0
+  private lastObjective: string | null = null
+  private scriptEnded = false
+  private lastModeNote: string | null = null
   private currentStartMsg: MatchStartMessage | null = null
   private replayPlaying = false
   private replaySpeed: (typeof REPLAY_SPEEDS)[number] = 1
@@ -650,13 +659,73 @@ export class Game {
     this.finished = true
     this.paused = true
     this.recordProfileMatch(winner)
+    this.recordModeResults(winner)
     const rows = this.currentStatsRows()
     if (rows) {
-      this.resultsBoard.show(this.netTitle(winner), rows)
+      this.resultsBoard.show(this.modeTitle(winner), rows)
     } else {
       this.resultsBoard.hide()
     }
     this.resultsOverlay.classList.add('visible')
+  }
+
+  /** Persist Day 19 per-mode records (19.1 best survival score, 19.2 daily missions + XP, 19.3 campaign progress). */
+  private recordModeResults(winner: number | null): void {
+    const cfg = this.modeCfg
+    const world = this.world
+    if (!cfg || !world) return
+    const storage = window.localStorage
+    const elapsedMs = Math.max(0, performance.now() - this.matchStartedAt)
+    const durationSec = Math.round(elapsedMs / 1000)
+    const summary = this.session?.summary()
+    this.lastModeNote = null
+    if (cfg.mode === 'survival' && cfg.survival) {
+      const wave = this.script instanceof SurvivalDirector ? this.script.run.wave : this.survivalWave
+      const won = winner === this.localTeam
+      const kills = summary?.counters.kills ?? 0
+      const damageDealt = summary?.counters.damageDealt ?? 0
+      const score = survivalScore(wave, kills, damageDealt)
+      const rec = recordSurvivalResult(storage, { wave, score, durationSec, won })
+      const best = rec.survival
+      if (best) this.lastModeNote = t('survival.resultsNote', { wave, score, bestWave: best.bestWave })
+    } else if (cfg.mode === 'daily' && cfg.daily) {
+      const missions = generateDailyMissions(cfg.daily.dayKey)
+      const { done, xp } = evaluateDailyMissions(missions, {
+        won: winner === this.localTeam,
+        kills: summary?.counters.kills ?? 0,
+        unitsTrained: summary?.counters.unitsTrained ?? 0,
+        buildingsBuilt: summary?.counters.buildingsBuilt ?? 0,
+        supplyHarvested: summary?.counters.supplyHarvested ?? 0,
+      })
+      const rec = recordDailyResult(storage, { dayKey: cfg.daily.dayKey, missionsDone: done.map((m) => m.id), xpEarned: xp })
+      const daily = rec.daily
+      if (daily) this.lastModeNote = t('daily.resultsNote', { xp, level: dailyLevel(daily), progress: dailyLevelXp(daily), required: DAILY_XP_PER_LEVEL })
+    } else if (cfg.mode === 'campaign' && cfg.campaign && this.script instanceof CampaignScript) {
+      recordCampaignResult(storage, { chapterId: cfg.campaign.chapterId, completed: this.script.run.won })
+    }
+  }
+
+  private modeTitle(winner: number | null): string {
+    const base = this.netTitle(winner)
+    return this.lastModeNote ? `${base} · ${this.lastModeNote}` : base
+  }
+
+  /** Surface the campaign's evolving objective, toasts and end state on the HUD. */
+  private applyCampaignOutcome(o: CampaignTickOutcome): void {
+    if (o.objectiveKey) {
+      const progress = o.objectiveTarget > 1 ? ` ${o.objectiveProgress}/${o.objectiveTarget}` : ''
+      const text = t(o.objectiveKey) + progress
+      if (text !== this.lastObjective) {
+        this.lastObjective = text
+        this.hud.setObjective(text)
+      }
+    }
+    if (o.toastKey) this.hud.toast(t(o.toastKey))
+    if (o.logKey) this.hud.log(t(o.logKey))
+    if (o.done && !this.scriptEnded) {
+      this.scriptEnded = true
+      this.beginCinematic(o.winner ?? this.localTeam)
+    }
   }
 
   private recordProfileMatch(winner: number | null): void {
@@ -746,7 +815,33 @@ export class Game {
     this.recordHistory = []
     this.recordTicks = 0
     this.replayRecorded = false
+    this.script = null
+    this.scriptEnded = false
+    this.survivalWave = 0
+    this.lastObjective = null
+    this.hud.setObjective(null)
     await this.boot(null, cfg)
+    // Scripted modes (19.1 survival, 19.3 campaign) build their director after the world exists.
+    if (cfg.mode === 'campaign' && cfg.campaign) {
+      const camp = new CampaignScript(cfg.campaign, cfg.localTeam)
+      camp.place(this.world!)
+      this.script = camp
+      // The opening squad replaces the auto-generated base; reselect the first trooper.
+      this.selection = new Set<number>()
+      let firstUnit: number | null = null
+      this.world!.units.forEach((id, u) => {
+        if (firstUnit === null && u.team === cfg.localTeam) firstUnit = id
+      })
+      if (firstUnit !== null) {
+        const ft = this.world!.transforms.get(firstUnit)
+        if (ft) this.renderer!.camera.centerOn(ft.x, ft.y)
+      }
+      this.hud.setObjective(t('campaign.obj.journey'))
+    } else if (cfg.mode === 'survival' && cfg.survival) {
+      this.script = new SurvivalDirector(cfg.survival, cfg.localTeam)
+      this.hud.setObjective(t('survival.hud.wave', { n: 0 }))
+      this.hud.toast(t('survival.toast.starts'))
+    }
   }
 
   async startNet(net: NetClient, msg: MatchStartMessage): Promise<void> {
@@ -1084,6 +1179,18 @@ export class Game {
       for (const env of envs) this.recordHistory.push({ ...env, tick: world.tick })
       sim.step(envs)
       this.recordTicks = world.tick
+      const mode = this.modeCfg?.mode
+      if (mode === 'survival' && this.script instanceof SurvivalDirector) {
+        const out = this.script.tick(world)
+        if (out.wave !== this.survivalWave) {
+          this.survivalWave = out.wave
+          this.hud.setObjective(t('survival.hud.wave', { n: out.wave }))
+        }
+        if (out.toastKey) this.hud.toast(t(out.toastKey))
+        if (out.logKey) this.hud.log(t(out.logKey))
+      } else if (mode === 'campaign' && this.script instanceof CampaignScript) {
+        this.applyCampaignOutcome(this.script.tick(world))
+      }
       return
     }
     if (this.mode === 'replay') {
@@ -1119,6 +1226,9 @@ export class Game {
     const world = this.world
     if (!cfg || !world || this.replayRecorded) return
     this.replayRecorded = true
+    // Scripted modes (survival waves / campaign story) can't be rebuilt from the command
+    // history alone (the script places entities directly), so they skip replay recording.
+    if (cfg.mode === 'survival' || cfg.mode === 'campaign') return
     const replay: ReplayData = {
       version: PROTOCOL_VERSION,
       createdAt: new Date().toISOString(),

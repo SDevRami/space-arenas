@@ -258,7 +258,93 @@
       "tooMany": "This map supports up to {n} players.",
       "needHuman": "Add a human player slot before starting.",
       "needOpponent": "Add at least one opponent (bot or player) to start."
+    },
+    "modesHint": "Every mode below is offline and playable by yourself. Pick a mode — each one uses the same match options above, plus its own extras.",
+    "modes": {
+      "bots": "Bots Match",
+      "survival": "Survival",
+      "daily": "Daily",
+      "campaign": "Campaign",
+      "custom": "Custom Scenario"
     }
+  },
+  "bot": {
+    "easy": "Easy",
+    "medium": "Medium",
+    "hard": "Hard"
+  },
+  "survival": {
+    "hud": {
+      "wave": "Wave {n}"
+    },
+    "difficultyLabel": "Enemy bot difficulty",
+    "hint": "Survive as many waves as you can. The enemy bot hunts you too — every 4th wave arms a tougher tier of attackers.",
+    "noBest": "No survival run yet — your best wave and score will show here.",
+    "best": "Best",
+    "bestWave": "Wave {n}",
+    "bestScore": "{n} pts",
+    "plays": "Plays",
+    "wins": "wins",
+    "toast": {
+      "starts": "Survival mode: hold your base — waves are coming!",
+      "wave": "Enemy wave incoming!"
+    },
+    "log": {
+      "wave": "Wave started — hold the line."
+    },
+    "resultsNote": "Wave {wave} · {score} pts · best {bestWave}"
+  },
+  "daily": {
+    "day": "Challenge for {day}",
+    "level": "Level {level} · {xp}/{required} XP",
+    "hint": "Play the daily challenge — a fixed seed for today, the same for every player offline. Complete missions to level up. Offline modes have no leaderboard.",
+    "mission": {
+      "win": "Win a daily match",
+      "train": "Train {n} units",
+      "build": "Build {n} buildings",
+      "destroy": "Destroy {n} enemy units",
+      "supply": "Harvest {n} supply"
+    },
+    "resultsNote": "+{xp} XP · Level {level}"
+  },
+  "campaign": {
+    "hint": "A scripted story: march your squad across the scrub, collect the scattered troops, rebuild the old base with your bulldozer, hold it against raiders, then take the enemy outposts.",
+    "progress": "Progress",
+    "done": "1/1 · Completed",
+    "notStarted": "1/1 · Not started",
+    "credits": "War chest",
+    "ch1": {
+      "title": "Ashes of the Old Base",
+      "desc": "The old command center fell long ago. March your squad across the scrub, rebuild the base, and drive the invaders out."
+    },
+    "obj": {
+      "journey": "March: regroup with the scattered troops",
+      "rebuild": "Rebuild the old command center",
+      "defend": "Hold the base against raiders",
+      "attack": "Take the enemy outposts"
+    },
+    "toast": {
+      "dropFound": "Troops joined your squad!",
+      "marchComplete": "Your squad has regrouped. Rebuild the base.",
+      "baseRebuilt": "The old base is back online — defend it!",
+      "wave": "Raiders inbound!",
+      "lost": "The base has fallen. Mission failed.",
+      "reinforcements": "Reinforcements arrive for the counterattack!",
+      "victory": "All outposts destroyed — victory!"
+    },
+    "log": {
+      "dropFound": "Squad reinforced.",
+      "marchComplete": "March complete — rebuild the command center.",
+      "baseRebuilt": "The command center is whole again.",
+      "wave": "A raider group is approaching the base.",
+      "reinforcements": "Counterattack force deployed.",
+      "victory": "The invaders are driven out."
+    }
+  },
+  "custom": {
+    "uploadBtn": "Upload Custom Scenario",
+    "hint": "Custom scenarios (uploaded or shared maps with goals) are planned as a future feature, possibly with a scenario editor like the map builder. This button is a placeholder for now.",
+    "comingSoon": "Custom scenarios are a future feature — stay tuned!"
   },
   "network": {
     "h1": "Network Play",
@@ -1377,7 +1463,20 @@
       "superweapons": "Super Weapons & Tools",
       "career": "Career",
       "spectator": "Spectator"
-    }
+    },
+    "modeRecords": "Mode Records",
+    "modeSurvival": "Survival",
+    "modeBestWave": "Best wave",
+    "modeBestScore": "Best score",
+    "modePlays": "Plays",
+    "modeWins": "wins",
+    "modeDaily": "Daily",
+    "modeLevel": "Daily level",
+    "modeStreak": "Day streak",
+    "modeBestStreak": "best",
+    "modeMissionsDone": "Missions completed",
+    "modeCampaign": "Campaign",
+    "modeChaptersDone": "Chapters done"
   },
   "achievements": {
     "names": {

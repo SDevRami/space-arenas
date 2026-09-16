@@ -50,6 +50,7 @@
           </div>
         </div>
         <div class="hud-game-log" id="game-log"></div>
+        <div id="hud-objective" class="hud-objective" hidden></div>
         <div id="rank-menu-backdrop" class="rank-menu-backdrop"></div>
         <aside id="rank-menu" class="rank-menu" role="dialog" aria-hidden="true">
           <div class="rank-panel">
@@ -155,6 +156,15 @@
           <div id="offline-panel">
             <div class="panel wide">
               <h1 class="panel-title" data-i18n="offline.h1">Offline Game</h1>
+              <p class="hint" data-i18n="offline.modesHint">All modes below are offline and playable alone. Pick a mode — every mode shares the same match options below, plus its own extras.</p>
+              <div class="mode-list" id="offline-mode-list" role="tablist">
+                <button class="mode-btn active" data-mode="bots" data-i18n="offline.modes.bots">Bots Match</button>
+                <button class="mode-btn" data-mode="survival" data-i18n="offline.modes.survival">Survival</button>
+                <button class="mode-btn" data-mode="daily" data-i18n="offline.modes.daily">Daily</button>
+                <button class="mode-btn" data-mode="campaign" data-i18n="offline.modes.campaign">Campaign</button>
+                <button class="mode-btn" data-mode="custom" data-i18n="offline.modes.custom">Custom Scenario</button>
+              </div>
+              <div id="offline-options">
               <div class="map-panel">
                 <div class="map-pick">
                   <label data-i18n="offline.map">Map</label>
@@ -189,6 +199,33 @@
               <div class="hint" id="win-rule-desc" data-i18n="offline.winDesc.standard">Lose when your Command Center is destroyed and you cannot rebuild it (all Bulldozers dead, or not enough money to buy a new one).</div>
               <div class="players" id="players-list"></div>
               <button class="ghost" id="add-bot-btn" data-i18n="offline.addBot">+ Add Bot</button>
+              </div>
+              <div id="offline-survival-extras" class="mode-extras hidden-extras">
+                <label data-i18n="survival.difficultyLabel">Enemy bot difficulty</label>
+                <select id="survival-difficulty" class="fog-select">
+                  <option value="easy" data-i18n="bot.easy">Easy</option>
+                  <option value="medium" selected data-i18n="bot.medium">Medium</option>
+                  <option value="hard" data-i18n="bot.hard">Hard</option>
+                </select>
+                <div class="hint" data-i18n="survival.hint">Survive as many waves as you can. The enemy bot hunts you too — every 4th wave arms a tougher tier of attackers.</div>
+                <div class="stat-card" id="survival-best"></div>
+              </div>
+              <div id="offline-daily-extras" class="mode-extras hidden-extras">
+                <div class="daily-header">
+                  <span id="daily-day-label"></span>
+                  <span id="daily-level-label"></span>
+                </div>
+                <div class="hint" data-i18n="daily.hint">Play the daily challenge — a fixed seed for today, same for every player offline. Complete missions to level up. Offline modes have no leaderboard.</div>
+                <div class="mission-list" id="daily-missions-list"></div>
+              </div>
+              <div id="offline-campaign-extras" class="mode-extras hidden-extras">
+                <div class="chapter-card" id="campaign-chapter-card"></div>
+                <div class="hint" data-i18n="campaign.hint">A scripted story: march your squad across the scrub, collect the scattered troops, rebuild the old base with your bulldozer, hold it, then take the enemy outposts.</div>
+              </div>
+              <div id="offline-custom-extras" class="mode-extras hidden-extras">
+                <button class="ghost" id="custom-upload-btn" data-i18n="custom.uploadBtn">Upload Custom Scenario</button>
+                <div class="hint" data-i18n="custom.hint">Custom scenarios (upload / shared maps with goals) are planned as a future feature, possibly with a scenario editor like the map builder. The button stays as a placeholder for now.</div>
+              </div>
               <button class="primary" id="start-btn" data-i18n="offline.start">Start Game</button>
               <button class="ghost danger" id="cancel-btn" style="display:none;" data-i18n="offline.cancel">Cancel</button>
               <div class="status" id="offline-status"></div>

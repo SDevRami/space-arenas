@@ -406,18 +406,18 @@ Verified: client typecheck clean.
 
 ---
 
-## Day 19 — Survival Waves + Scenario Schema (M–L)
+## Day 19 — Offline Modes: Survival + Daily + Campaign (M–L) ✅ DONE
 
-AI wave system + data-driven config.
+Three offline modes behind a mode-list lobby, plus a custom-scenario UI placeholder.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Survival mode** — PvE: waves of enemy units every 2 min, escalating difficulty | #15a | `Game.ts` new mode `survival`. `bot.ts` new `spawnWave(tick, difficulty)`: spawn batch of units at map edges, strength scales with wave number. Lobby: new game mode selector "Survival". |
-| 2 | **Daily challenge** — fixed seed/map/settings, stats leaderboard (local) | #15b | `survary.ts`: seed from `Date.now()` at midnight UTC, stored in localStorage. Same wave logic, fixed parameters. Lobby: "Daily Challenge" button loads today's seed. |
-| 3 | **Campaign hint tracks** — sequential objectives shown as HUD tips | #15c | `campaign.ts` new: array of `{ trigger: 'wave-clear' | 'unit-killed', message: string }`. HUD: toast notification at top when trigger fires. |
-| 4 | **Scenario JSON schema** — data-driven wave definitions, extensible | N6a | `survival.json` schema: `{ waves: [{ delay, units: [{ type, count }], mapVariant }] }`. Loaded by `spawnWave()`. Allows custom scenarios without code changes. |
+| 1 | **Survival mode** — PvE: escaping waves of enemy units, escalating difficulty, career high score on Profile | #15a | `client/src/modes/survival.ts` new `SurvivalDirector` (grace 10s, configurable wave interval, tier-scaled squads, raider steering). `Game.ts` mode `'survival'`; scripted mode skips replay; `recordSurvivalResult()` persists best wave/score. |
+| 2 | **Daily challenge** — fixed seed per UTC day, level-up missions only (no leaderboard) | #15b | `client/src/modes/daily.ts`: 4 deterministic missions evaluated per match; `client/src/profile/modeRecords.ts`: streak + battle-pass XP (`DAILY_XP_PER_LEVEL=100`), seed from `dailySeed(dayKey)`. |
+| 3 | **Campaign** — scripted linear chapter: collect troops → rebuild old base → defend → take outposts | #15c | `client/src/modes/campaign.ts`: Chapter 1 "Ashes of the Old Base", fixed deterministic map, `CampaignScript.place()/tick()`, HUD objectives with progress, victory/loss + `recordCampaignResult()`. |
+| 4 | **Custom Scenario - UI placeholder** | N6a | Upload button + "coming soon" status; real feature moved to `future_todo.md`. |
 
-**Touch points:** `Game.ts`, `bot.ts`, `main.ts` (lobby), new `survival.ts`, new `campaign.ts`, `hud.ts` (toasts)
+**Touch points:** `Game.ts`, `match.ts` (offline modes + configs), `main.ts` (mode-list lobby + per-mode extras), `profile/ui.ts` (mode records at top of Profile), `i18n` (en/ar), `hud.ts` (objective), new `modes/survival.ts`, `modes/daily.ts`, `modes/campaign.ts`, `profile/modeRecords.ts`. Tests: `tests/day19.test.ts` (20). Suite: 373 tests.
 
 ---
 
