@@ -156,6 +156,7 @@
           <button id="tab-info" data-i18n="lobby.tab.info">Game Info</button>
           <button id="tab-settings" data-i18n="lobby.tab.settings">Settings</button>
           <button id="tab-profile" data-i18n="lobby.tab.profile">Profile</button>
+          <button id="tab-mods" data-i18n="lobby.tab.mods">Mods</button>
           <button id="tab-archive" data-i18n="lobby.tab.archive">Archive</button>
           <button id="tab-mobile" data-i18n="lobby.tab.mobile">Mobile Mode</button>
           <button id="tab-dev" data-i18n="lobby.tab.dev">Dev Settings</button>
@@ -204,6 +205,16 @@
               <div class="hint" id="win-rule-desc" data-i18n="offline.winDesc.standard">Lose when your Command Center is destroyed and you cannot rebuild it (all Bulldozers dead, or not enough money to buy a new one).</div>
               <div class="players" id="players-list"></div>
               <button class="ghost" id="add-bot-btn" data-i18n="offline.addBot">+ Add Bot</button>
+              </div>
+              <div class="mods-picker" id="offline-mods-picker">
+                <h3 class="section-h3" data-i18n="mods.offlineTitle">Balance mod</h3>
+                <label for="offline-mod-toggle" class="check-label">
+                  <input type="checkbox" id="offline-mod-toggle" />
+                  <span data-i18n="mods.enableForMatch">Use a balance mod</span>
+                </label>
+                <select id="offline-mod-select" class="fog-select"></select>
+                <div class="hint" id="offline-mod-hint"></div>
+                <div class="hint" data-i18n="mods.offlineHint">You need a host running on this machine (Network Play → Create a Match) to manage mods, or open the Mods tab.</div>
               </div>
               <div id="offline-daily-extras" class="mode-extras">
                 <div class="daily-header">
@@ -325,6 +336,17 @@
                 <option value="all" data-i18n="match.coopAll">All units + buildings</option>
               </select>
               <div class="hint" data-i18n="match.coopControlHint">Allies may command each other's units and buildings.</div>
+              <div class="mods-picker" id="match-mods-picker">
+                <h3 class="section-h3" data-i18n="mods.matchTitle">Balance mod</h3>
+                <label for="match-mod-toggle" class="check-label">
+                  <input type="checkbox" id="match-mod-toggle" />
+                  <span data-i18n="mods.enableForMatch">Use a balance mod</span>
+                </label>
+                <select id="match-mod-select" class="fog-select"></select>
+                <div class="hint" id="match-mod-hint"></div>
+                <div class="hint" id="match-mod-sync"></div>
+              </div>
+              <div class="hint" id="match-mod-note"></div>
               <label data-i18n="offline.winCondition" id="match-win-rule-label">Win condition</label>
               <select id="match-win-rule" class="win-rule-select">
                 <option value="standard" data-i18n="offline.win.standard">Standard (base destruction)</option>
@@ -625,8 +647,29 @@
               <div class="status" id="dev-status"></div>
               <div class="dev-actions">
                 <button class="ghost" id="dev-save" data-i18n="dev.save">Save changes</button>
+                <button class="ghost" id="dev-export" data-i18n="mods.exportBtn">Export as Mod</button>
                 <button class="ghost danger" id="dev-reset" data-i18n="dev.reset">Reset to defaults</button>
                 <button class="ghost" id="dev-save-default" data-i18n="dev.saveAsDefault">Save as default</button>
+              </div>
+            </div>
+          </div>
+          <div id="mods-panel" class="hidden-panel">
+            <div class="panel wide">
+              <h1 class="panel-title" data-i18n="mods.h1">Balance Mods</h1>
+              <div class="hint" data-i18n="mods.hint">Mods change the match balance — costs, build times, damage, ranges, credits and more — without touching the game code. Upload a mod or export one from the Dev Settings tab. Give the file to your friends: open the Mods tab on their machine to upload, or pick a mod in the match options so everyone in the room can grab it too.</div>
+              <div class="archive-toolbar">
+                <input type="file" id="mods-file" accept=".json" class="hidden-file" />
+                <button class="ghost" id="mods-upload" data-i18n="mods.upload">Upload Mod</button>
+                <button class="ghost" id="mods-refresh" data-i18n="mods.refresh">Refresh</button>
+              </div>
+              <div class="archive-header-row">
+                <span class="archive-col archive-name" data-i18n="mods.colName">Mod</span>
+                <span class="archive-col archive-date" data-i18n="mods.colSize">Size</span>
+                <span class="archive-col archive-dur" data-i18n="mods.colStatus">Status</span>
+                <span class="archive-col archive-actions">&nbsp;</span>
+              </div>
+              <div id="mods-list" class="archive-list">
+                <div class="hint" data-i18n="mods.empty">No mods yet — export one from the Dev Settings tab or upload a file.</div>
               </div>
             </div>
           </div>

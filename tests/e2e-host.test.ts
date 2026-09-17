@@ -23,6 +23,8 @@ import {
   type LobbyMessage,
   type ReplayData,
   type ReplayMeta,
+  type ModFile,
+  type ModMeta,
 } from '@space-arenas/shared'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -137,7 +139,7 @@ class TestClient {
     this.send({ kind: 'C_UPDATE_SLOT', ...patch })
   }
 
-  updateRoom(patch: { mapId?: string; password?: string }): void {
+  updateRoom(patch: { mapId?: string; password?: string; modId?: string }): void {
     this.send({ kind: 'C_UPDATE_ROOM', ...patch })
   }
 
@@ -192,6 +194,7 @@ const archiveDirs: string[] = []
 async function startHost(
   code = ROOM_CODE,
   pass = PASS,
+  extraEnv: Record<string, string> = {},
 ): Promise<{ host: ChildProcess; port: number; archiveDir: string }> {
   const p = await freePort()
   const archiveDir = await mkdtemp(join(tmpdir(), 'sa-archive-'))
@@ -208,6 +211,7 @@ async function startHost(
       SA_ROOM_CODE: code,
       SA_PASSPHRASE: pass,
       SA_ARCHIVE_DIR: archiveDir,
+      ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -841,6 +845,91 @@ describe('host: lobby flow', () => {
     const gone = await fetch(`${base}/api/replays?name=${encodeURIComponent(renamedBody.name)}`)
     expect(gone.status).toBe(404)
 
+    h2.kill()
+  }, 30000)
+
+  it('mods API: upload, list, read, rename, delete, and apply to a room', async () => {
+    const modesDir = await mkdtemp(join(tmpdir(), 'sa-modes-'))
+    const { host: h2, port: p2 } = await startHost(ROOM_CODE, PASS, { SA_MODES_DIR: modesDir })
+    const base = `http://127.0.0.1:${p2}`
+    const mod: ModFile = {
+      meta: { name: 'Turbo Mod', author: 'Rami', description: 'Faster everything', version: '1.0.0', requireProtocol: PROTOCOL_VERSION },
+      settings: { startingCredits: 2000, sellRefundFraction: 0.4 },
+      buildingOverrides: { 'power-plant': { cost: 400, hp: 1600 } },
+    }
+
+    const upload = await fetch(`${base}/api/mods/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mod),
+    })
+    const uploaded = (await upload.json()) as { ok: boolean; name: string }
+    expect(uploaded.ok).toBe(true)
+    expect(uploaded.name).toBe('Turbo Mod.json')
+
+    const listed = (await (await fetch(`${base}/api/mods`)).json()) as { mods: ModMeta[] }
+    expect(listed.mods.some((m) => m.name === uploaded.name)).toBe(true)
+    const modMeta = listed.mods.find((m) => m.name === uploaded.name)
+    expect(modMeta?.label).toBe('Turbo Mod')
+    expect(modMeta?.author).toBe('Rami')
+    expect(modMeta?.valid).toBe(true)
+    expect(modMeta?.protocolOk).toBe(true)
+    expect((modMeta?.size ?? 0)).toBeGreaterThan(0)
+
+    const invalid = await fetch(`${base}/api/mods/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ meta: { name: 'Broken', requireProtocol: PROTOCOL_VERSION + 1 } }),
+    })
+    expect(invalid.status).toBe(400)
+
+    const single = (await (await fetch(`${base}/api/mods?name=${encodeURIComponent(uploaded.name)}`)).json()) as ModFile
+    expect(single.meta?.name).toBe('Turbo Mod')
+    expect(single.settings?.startingCredits).toBe(2000)
+    expect(single.buildingOverrides?.['power-plant']?.cost).toBe(400)
+
+    const renamed = await fetch(`${base}/api/mods/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: uploaded.name, newName: 'my-favorite-mod' }),
+    })
+    const renamedBody = (await renamed.json()) as { ok: boolean; name: string }
+    expect(renamedBody.ok).toBe(true)
+    expect(renamedBody.name).toBe('my-favorite-mod.json')
+
+    const del = await fetch(`${base}/api/mods/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: renamedBody.name }),
+    })
+    expect(((await del.json()) as { ok: boolean }).ok).toBe(true)
+
+    const after = (await (await fetch(`${base}/api/mods`)).json()) as { mods: ModMeta[] }
+    expect(after.mods.some((m) => m.name === renamedBody.name)).toBe(false)
+
+    const hostC = new TestClient()
+    await hostC.connect(p2)
+    hostC.join('Host')
+    await hostC.waitFor('H_LOBBY')
+
+    const onboard = await fetch(`${base}/api/mods/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...mod, meta: { name: 'Match Mod', requireProtocol: PROTOCOL_VERSION } }),
+    })
+    const onboarded = (await onboard.json()) as { ok: boolean; name: string }
+    expect(onboarded.ok).toBe(true)
+
+    hostC.updateRoom({ modId: onboarded.name.replace(/\.json$/i, '') })
+    const withMod = await hostC.waitForLobby((m) => m.modId !== undefined)
+    expect(withMod.modId).toBe(onboarded.name.replace(/\.json$/i, ''))
+
+    hostC.updateRoom({ modId: '' })
+    const cleared = await hostC.waitForLobby((m) => m.modId === undefined)
+    expect(cleared.modId).toBeUndefined()
+
+    await rm(modesDir, { recursive: true, force: true })
+    hostC.ws.close()
     h2.kill()
   }, 30000)
 })

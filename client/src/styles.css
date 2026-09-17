@@ -604,6 +604,23 @@
       #lobby .archive-actions button { width: auto; margin-top: 0; padding: 5px 10px; font-size: 11px; }
       #lobby .archive-actions button:disabled { opacity: 0.45; cursor: default; }
       #lobby .archive-list .hint.error { color: var(--color-error); }
+      #lobby .mods-picker { margin: 12px 0 4px; padding: 10px 12px; border: 1px solid var(--color-divider); border-radius: 3px; background: var(--color-surface-dark); }
+      #lobby .mods-picker .fog-select { width: 100%; max-width: 420px; margin-top: 6px; }
+      #lobby .mods-picker .section-h3 { margin-top: 0; }
+      #lobby .mod-row { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--color-divider); font-size: 12px; flex-wrap: wrap; }
+      #lobby .mod-row:hover { background: #121827; }
+      #lobby .mod-row.off { opacity: 0.6; }
+      #lobby .mod-title { flex: 1 1 180px; min-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+      #lobby .mod-desc { flex: 1 1 100%; color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #lobby .mod-meta { color: var(--color-text-muted); font-size: 11px; flex: 0 1 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #lobby .mod-status { width: 72px; font-size: 11px; }
+      #lobby .mod-status.bad { color: var(--color-error); }
+      #lobby .mod-status.good { color: #6fcf97; }
+      #lobby .mod-status.off-state { color: var(--color-text-muted); }
+      #lobby .mod-row .archive-actions { gap: 4px; }
+      #lobby .mod-row .archive-actions button { padding: 4px 8px; font-size: 11px; }
+      #lobby .mod-row .archive-actions button:disabled { opacity: 0.45; cursor: default; }
+      #lobby .mods-picker button { width: auto; padding: 7px 12px; }
       #lobby .maps-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
       #lobby .maps-toolbar button { width: auto; margin-top: 0; padding: 8px 14px; }
 

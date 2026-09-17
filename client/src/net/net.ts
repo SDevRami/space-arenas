@@ -149,7 +149,7 @@ export class NetClient {
     this.send({ kind: 'C_DEV_SETTINGS', settings })
   }
 
-  updateRoom(patch: { mapId?: string; map?: MapData; password?: string; settings?: Partial<MatchSettings>; winRule?: WinRule }): void {
+  updateRoom(patch: { mapId?: string; map?: MapData; password?: string; settings?: Partial<MatchSettings>; winRule?: WinRule; modId?: string }): void {
     this.send({ kind: 'C_UPDATE_ROOM', ...patch })
   }
 

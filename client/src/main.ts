@@ -1,5 +1,5 @@
 import './styles.css'
-import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, PROTOCOL_VERSION, type ModFile, type ModMeta, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { AudioHooks } from './audio/hooks.ts'
@@ -107,6 +107,7 @@ const settingsPanel = document.getElementById('settings-panel') as HTMLDivElemen
 const devPanel = document.getElementById('dev-panel') as HTMLDivElement
 const profilePanel = document.getElementById('profile-panel') as HTMLDivElement
 const archivePanel = document.getElementById('archive-panel') as HTMLDivElement
+const modsPanel = document.getElementById('mods-panel') as HTMLDivElement
 const tabOffline = document.getElementById('tab-offline') as HTMLButtonElement
 const tabNetwork = document.getElementById('tab-network') as HTMLButtonElement
 const tabOnline = document.getElementById('tab-online') as HTMLButtonElement
@@ -116,8 +117,9 @@ const tabSettings = document.getElementById('tab-settings') as HTMLButtonElement
 const tabDev = document.getElementById('tab-dev') as HTMLButtonElement
 const tabProfile = document.getElementById('tab-profile') as HTMLButtonElement
 const tabArchive = document.getElementById('tab-archive') as HTMLButtonElement
+const tabMods = document.getElementById('tab-mods') as HTMLButtonElement
 
-const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder' | 'info' | 'settings' | 'dev' | 'profile' | 'archive'): void => {
+const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder' | 'info' | 'settings' | 'dev' | 'profile' | 'archive' | 'mods'): void => {
   offlinePanel.classList.toggle('hidden-panel', which !== 'offline')
   networkPanel.classList.toggle('hidden-panel', which !== 'network')
   matchPanel.classList.toggle('hidden-panel', which !== 'match')
@@ -128,6 +130,7 @@ const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder'
   devPanel.classList.toggle('hidden-panel', which !== 'dev')
   profilePanel.classList.toggle('hidden-panel', which !== 'profile')
   archivePanel.classList.toggle('hidden-panel', which !== 'archive')
+  modsPanel.classList.toggle('hidden-panel', which !== 'mods')
   tabOffline.classList.toggle('active', which === 'offline')
   tabNetwork.classList.toggle('active', which === 'network')
   tabOnline.classList.toggle('active', which === 'online')
@@ -137,8 +140,10 @@ const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder'
   tabDev.classList.toggle('active', which === 'dev')
   tabProfile.classList.toggle('active', which === 'profile')
   tabArchive.classList.toggle('active', which === 'archive')
+  tabMods.classList.toggle('active', which === 'mods')
   if (which === 'profile') onProfileTabShown()
   if (which === 'archive') void refreshArchive()
+  if (which === 'mods') void refreshMods()
 }
 
 tabOffline.addEventListener('click', () => setTab('offline'))
@@ -153,6 +158,7 @@ tabSettings.addEventListener('click', () => setTab('settings'))
 tabDev.addEventListener('click', () => setTab('dev'))
 tabProfile.addEventListener('click', () => setTab('profile'))
 tabArchive.addEventListener('click', () => setTab('archive'))
+tabMods.addEventListener('click', () => setTab('mods'))
 
 initProfilePanel(applyProfileName)
 
@@ -307,6 +313,400 @@ archiveFileEl.addEventListener('change', () => {
 })
 archiveRefreshBtn.addEventListener('click', () => void refreshArchive())
 
+// ---------- balance mods ----------
+
+const MODS_ACTIVE_KEY = 'space-arenas:mods-active'
+const OFFLINE_MOD_KEY = 'space-arenas:offline-mod'
+
+const modsListEl = document.getElementById('mods-list') as HTMLDivElement
+const modsFileEl = document.getElementById('mods-file') as HTMLInputElement
+const modsUploadBtn = document.getElementById('mods-upload') as HTMLButtonElement
+const modsRefreshBtn = document.getElementById('mods-refresh') as HTMLButtonElement
+
+const offlineModToggleEl = document.getElementById('offline-mod-toggle') as HTMLInputElement
+const offlineModSelectEl = document.getElementById('offline-mod-select') as HTMLSelectElement
+const offlineModHintEl = document.getElementById('offline-mod-hint') as HTMLDivElement
+
+const matchModToggleEl = document.getElementById('match-mod-toggle') as HTMLInputElement
+const matchModSelectEl = document.getElementById('match-mod-select') as HTMLSelectElement
+const matchModHintEl = document.getElementById('match-mod-hint') as HTMLDivElement
+const matchModSyncEl = document.getElementById('match-mod-sync') as HTMLDivElement
+const matchModNoteEl = document.getElementById('match-mod-note') as HTMLDivElement
+
+let modsCache: ModMeta[] = []
+let modsUnreachable = false
+let offlineModName = ''
+
+const modsActiveMap = (): Record<string, boolean> => {
+  try {
+    const raw = localStorage.getItem(MODS_ACTIVE_KEY)
+    return raw ? (JSON.parse(raw) as Record<string, boolean>) : {}
+  } catch {
+    return {}
+  }
+}
+
+const saveModsActiveMap = (m: Record<string, boolean>): void => {
+  try {
+    localStorage.setItem(MODS_ACTIVE_KEY, JSON.stringify(m))
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+const isModActive = (name: string): boolean => modsActiveMap()[name] !== false
+
+const setModActive = (name: string, active: boolean): void => {
+  const m = modsActiveMap()
+  m[name] = active
+  saveModsActiveMap(m)
+  renderMods()
+  renderModPickers()
+}
+
+const activeMods = (): ModMeta[] =>
+  modsCache.filter((m) => m.valid && m.protocolOk !== false && isModActive(m.name))
+
+const modSizeLabel = (size: number): string =>
+  size >= 1024 * 1024 ? `${(size / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(size / 1024))} KB`
+
+const modDescriptionFor = (meta: ModMeta): string => {
+  const parts: string[] = []
+  if (meta.author) parts.push(meta.author)
+  if (meta.version) parts.push(`v${meta.version}`)
+  if (meta.description) parts.push(meta.description)
+  return parts.join(' · ')
+}
+
+const downloadMod = async (meta: ModMeta): Promise<void> => {
+  try {
+    const res = await fetch(`/api/mods?name=${encodeURIComponent(meta.name)}`)
+    if (!res.ok) return
+    const data = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(data)
+    a.download = meta.name
+    a.click()
+    URL.revokeObjectURL(a.href)
+  } catch {
+    /* host unreachable */
+  }
+}
+
+const modRow = (meta: ModMeta): HTMLDivElement => {
+  const row = document.createElement('div')
+  row.className = 'mod-row' + (isModActive(meta.name) ? '' : ' off')
+  const title = document.createElement('span')
+  title.className = 'mod-title'
+  title.textContent = meta.label
+  title.title = meta.description ?? meta.label
+  const size = document.createElement('span')
+  size.className = 'archive-col mod-meta'
+  size.textContent = modSizeLabel(meta.size)
+  const status = document.createElement('span')
+  const active = isModActive(meta.name)
+  status.className = 'mod-status' + (!meta.valid ? ' bad' : active ? ' good' : ' off-state')
+  status.textContent = !meta.valid
+    ? t('mods.invalid')
+    : meta.protocolOk === false
+      ? t('mods.protocol')
+      : active
+        ? t('mods.active')
+        : t('mods.deactivated')
+  const actions = document.createElement('span')
+  actions.className = 'archive-col archive-actions'
+  const toggle = document.createElement('button')
+  toggle.className = 'ghost'
+  toggle.disabled = !meta.valid
+  toggle.textContent = meta.protocolOk === false ? t('mods.invalid') : active ? t('mods.deactivate') : t('mods.activate')
+  toggle.addEventListener('click', () => setModActive(meta.name, !isModActive(meta.name)))
+  const dl = document.createElement('button')
+  dl.className = 'ghost'
+  dl.textContent = t('mods.download')
+  dl.disabled = !meta.valid
+  dl.addEventListener('click', () => void downloadMod(meta))
+  const rename = document.createElement('button')
+  rename.className = 'ghost'
+  rename.textContent = t('mods.rename')
+  rename.addEventListener('click', () => void renameMod(meta))
+  const del = document.createElement('button')
+  del.className = 'ghost danger'
+  del.textContent = t('mods.delete')
+  del.addEventListener('click', () => void deleteMod(meta))
+  actions.append(toggle, dl, rename, del)
+  row.append(title, size, status, actions)
+  return row
+}
+
+const setModsList = (metas: ModMeta[], unreachable = false): void => {
+  modsListEl.textContent = ''
+  if (unreachable) {
+    const err = document.createElement('div')
+    err.className = 'hint error'
+    err.textContent = t('mods.unreachable')
+    modsListEl.appendChild(err)
+    return
+  }
+  if (metas.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'hint'
+    empty.textContent = t('mods.empty')
+    modsListEl.appendChild(empty)
+    return
+  }
+  for (const meta of metas) modsListEl.appendChild(modRow(meta))
+}
+
+const renderMods = (): void => {
+  setModsList(modsCache, modsUnreachable)
+}
+
+const renderModPickers = (): void => {
+  const mods = activeMods()
+  const fill = (select: HTMLSelectElement): void => {
+    const prev = select.value
+    select.innerHTML = ''
+    const none = document.createElement('option')
+    none.value = ''
+    none.textContent = t('mods.none')
+    select.appendChild(none)
+    for (const m of mods) {
+      const opt = document.createElement('option')
+      opt.value = m.name
+      opt.textContent = m.label
+      select.appendChild(opt)
+    }
+    if (mods.some((m) => m.name === prev)) select.value = prev
+  }
+  fill(offlineModSelectEl)
+  fill(matchModSelectEl)
+
+  if (modsUnreachable) {
+    offlineModToggleEl.disabled = true
+    offlineModSelectEl.disabled = true
+    offlineModHintEl.textContent = t('mods.unreachable')
+    return
+  }
+
+  const hasMods = mods.length > 0
+  offlineModToggleEl.disabled = false
+  if (offlineModName && !mods.some((m) => m.name === offlineModName)) offlineModName = ''
+  const persist = (): void => {
+    try {
+      if (offlineModName) localStorage.setItem(OFFLINE_MOD_KEY, offlineModName)
+      else localStorage.removeItem(OFFLINE_MOD_KEY)
+    } catch {
+      /* storage unavailable */
+    }
+  }
+  if (offlineModToggleEl.checked && offlineModName) {
+    offlineModSelectEl.value = offlineModName
+    offlineModSelectEl.disabled = !hasMods
+    const sel = mods.find((m) => m.name === offlineModName)
+    offlineModHintEl.textContent = sel ? modDescriptionFor(sel) : hasMods ? t('mods.pickHint') : t('mods.noMods')
+  } else {
+    offlineModSelectEl.value = hasMods ? offlineModSelectEl.value || '' : ''
+    offlineModSelectEl.disabled = true
+    offlineModHintEl.textContent = hasMods ? t('mods.pickHint') : t('mods.noMods')
+  }
+  persist()
+}
+
+const refreshMods = async (): Promise<void> => {
+  try {
+    const res = await fetch('/api/mods')
+    const data = (await res.json()) as { mods?: ModMeta[] }
+    modsCache = data.mods ?? []
+    modsUnreachable = false
+    setModsList(modsCache, false)
+  } catch {
+    modsCache = []
+    modsUnreachable = true
+    setModsList([], true)
+  }
+  renderModPickers()
+}
+
+const renameMod = async (meta: ModMeta): Promise<void> => {
+  const next = window.prompt(t('mods.renamePrompt'), meta.label)
+  if (next === null || next.trim() === '' || next.trim() === meta.label) return
+  try {
+    const res = await fetch('/api/mods/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: meta.name, newName: next.trim() }),
+    })
+    if (!res.ok) {
+      errBox.textContent = t('mods.renameFail')
+      return
+    }
+    if (offlineModName === meta.name) offlineModName = ''
+    await refreshMods()
+  } catch {
+    errBox.textContent = t('mods.unreachable')
+  }
+}
+
+const deleteMod = async (meta: ModMeta): Promise<void> => {
+  if (!window.confirm(t('mods.deleteConfirm'))) return
+  try {
+    const res = await fetch('/api/mods/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: meta.name }),
+    })
+    if (res.ok && offlineModName === meta.name) offlineModName = ''
+    await refreshMods()
+  } catch {
+    errBox.textContent = t('mods.unreachable')
+  }
+}
+
+const uploadModFile = async (file: File): Promise<boolean> => {
+  try {
+    const text = await file.text()
+    JSON.parse(text)
+    const res = await fetch('/api/mods/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: text,
+    })
+    if (!res.ok) return false
+    await refreshMods()
+    return true
+  } catch {
+    return false
+  }
+}
+
+modsUploadBtn.addEventListener('click', () => modsFileEl.click())
+modsFileEl.addEventListener('change', () => {
+  const file = modsFileEl.files?.[0]
+  if (!file) return
+  void (async () => {
+    const ok = await uploadModFile(file)
+    modsFileEl.value = ''
+    if (!ok) errBox.textContent = t('mods.invalidFile')
+  })()
+})
+modsRefreshBtn.addEventListener('click', () => void refreshMods())
+
+const fetchModByName = async (name: string): Promise<ModFile | null> => {
+  try {
+    const res = await fetch(`/api/mods?name=${encodeURIComponent(name)}`)
+    if (!res.ok) return null
+    return (await res.json()) as ModFile
+  } catch {
+    return null
+  }
+}
+
+offlineModToggleEl.addEventListener('change', () => {
+  if (!offlineModToggleEl.checked) {
+    offlineModName = ''
+    renderModPickers()
+  } else {
+    if (offlineModName && activeMods().some((m) => m.name === offlineModName)) {
+      renderModPickers()
+    } else {
+      const first = activeMods()[0]
+      offlineModName = first ? first.name : ''
+      renderModPickers()
+    }
+  }
+})
+
+offlineModSelectEl.addEventListener('change', () => {
+  offlineModName = offlineModSelectEl.value
+  renderModPickers()
+})
+
+matchModToggleEl.addEventListener('change', () => {
+  if (!lobbyState || lobbyState.yourId !== lobbyState.hostId) return
+  if (matchModToggleEl.checked) {
+    const name = matchModSelectEl.value
+    const m = activeMods().find((x) => x.name === name)
+    if (!m) {
+      matchModToggleEl.checked = false
+      return
+    }
+    net?.updateRoom({ modId: name })
+    setMatchStatus(t('mods.applied', { n: m.label }))
+  } else {
+    net?.updateRoom({ modId: '' })
+    setMatchStatus(t('mods.cleared'))
+  }
+})
+
+matchModSelectEl.addEventListener('change', () => {
+  if (!matchModToggleEl.checked || !lobbyState || lobbyState.yourId !== lobbyState.hostId) return
+  const name = matchModSelectEl.value
+  net?.updateRoom({ modId: name })
+  const m = activeMods().find((x) => x.name === name)
+  setMatchStatus(m ? t('mods.applied', { n: m.label }) : t('mods.cleared'))
+})
+
+const loadOfflineModSelection = (): void => {
+  try {
+    offlineModName = localStorage.getItem(OFFLINE_MOD_KEY) ?? ''
+  } catch {
+    offlineModName = ''
+  }
+  offlineModToggleEl.checked = offlineModName !== ''
+}
+
+const syncMatchModUi = (msg: LobbyMessage, isHost: boolean): void => {
+  const picker = document.getElementById('match-mods-picker')
+  if (!picker) return
+  matchModNoteEl.innerHTML = ''
+  matchModSyncEl.textContent = ''
+  if (!isHost) {
+    picker.style.display = 'none'
+    if (msg.modId) {
+      const known = modsCache.find((m) => m.name === msg.modId) ?? activeMods().find((m) => m.name === msg.modId)
+      const line = document.createElement('div')
+      line.className = 'match-note'
+      line.textContent = known ? t('mods.hostMod', { n: known.label }) : t('mods.hostModUnknown', { n: msg.modId })
+      matchModNoteEl.appendChild(line)
+      const dl = document.createElement('button')
+      dl.className = 'ghost'
+      dl.textContent = t('mods.getCopy')
+      dl.addEventListener('click', () => {
+        const a = document.createElement('a')
+        a.href = `/api/mods?name=${encodeURIComponent(msg.modId ?? '')}`
+        a.download = msg.modId ?? 'mod.json'
+        a.click()
+      })
+      matchModNoteEl.appendChild(dl)
+    } else {
+      const line = document.createElement('div')
+      line.className = 'match-note'
+      line.textContent = t('mods.noneForMatch')
+      matchModNoteEl.appendChild(line)
+    }
+    return
+  }
+  picker.style.display = ''
+  const active = activeMods()
+  const on = !!msg.modId
+  matchModToggleEl.checked = on
+  matchModToggleEl.disabled = active.length === 0
+  matchModSelectEl.disabled = !on
+  const current = active.find((m) => m.name === msg.modId)
+  matchModSelectEl.value = current ? msg.modId! : on && active.length > 0 ? active[0].name : ''
+  matchModHintEl.textContent = current
+    ? modDescriptionFor(current)
+    : on
+      ? t('mods.unknownSelected')
+      : active.length === 0
+        ? t('mods.noModsHost')
+        : t('mods.pickHint')
+  matchModSyncEl.textContent = on ? t('mods.syncHint') : ''
+}
+
+loadOfflineModSelection()
+void refreshMods()
+
 // ---------- language ----------
 
 initLang()
@@ -328,7 +728,10 @@ const applyLang = (lang: Lang): void => {
 
 langEnBtn.addEventListener('click', () => applyLang('en'))
 langArBtn.addEventListener('click', () => applyLang('ar'))
-onLangChange(() => refreshLobbyTexts())
+onLangChange(() => {
+  refreshLobbyTexts()
+  renderModPickers()
+})
 syncLangButtons()
 translateStatic()
 
@@ -1393,6 +1796,47 @@ devCollapseBtn.addEventListener('click', () => {
   for (const d of devFormEl.querySelectorAll<HTMLDetailsElement>('details')) d.open = false
 })
 
+const devExportBtn = document.getElementById('dev-export') as HTMLButtonElement
+devExportBtn.addEventListener('click', () => {
+  const mapKeys = ['buildingOverrides', 'unitOverrides', 'weaponOverrides', 'upgradeOverrides'] as const
+  const anyMap = mapKeys.some((k) => {
+    const v = (devOverrides as Record<string, unknown>)[k]
+    return typeof v === 'object' && v !== null && Object.keys(v as object).length > 0
+  })
+  if (Object.keys(devOverrides).length === 0 && !anyMap) {
+    setDevStatus(t('mods.exportNothing'), true)
+    return
+  }
+  const raw = window.prompt(t('mods.exportNamePrompt'), 'My Balance Mod')
+  if (raw === null) return
+  const name = (raw.trim() || 'My Balance Mod').slice(0, 60)
+  const mod = modFromSettings(devOverrides, { name, requireProtocol: PROTOCOL_VERSION })
+  const blob = new Blob([JSON.stringify(mod, null, 2)], { type: 'application/json' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  // eslint-disable-next-line no-control-regex -- scrub filesystem-hostile control chars from the download name
+  a.download = `${name.replace(/[\\/:*?"<>|\x00-\x1f]/g, '').slice(0, 60) || 'mod'}.json`
+  a.click()
+  URL.revokeObjectURL(a.href)
+  void (async () => {
+    try {
+      const res = await fetch('/api/mods/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mod),
+      })
+      if (res.ok) {
+        setDevStatus(t('mods.exported'))
+        await refreshMods()
+      } else {
+        setDevStatus(t('mods.exportNoHost'))
+      }
+    } catch {
+      setDevStatus(t('mods.exportNoHost'))
+    }
+  })()
+})
+
 try {
   const rawDefaults = localStorage.getItem(DEV_DEFAULTS_KEY)
   if (rawDefaults) savedDefaults = JSON.parse(rawDefaults) as Partial<MatchSettings>
@@ -1698,21 +2142,33 @@ startBtn.addEventListener('click', () => {
   // Mission popup + XP on finish) when the Accept toggle is on. The profile toggle
   // decides whether the match feeds counters, history and achievements at all.
   const challenge = resolveDailyChallenge(window.localStorage)
-  const cfg: MatchConfig = {
+  const baseSettings: MatchSettings = { ...resolvedDevSettings(), fogMode: startFogEl.value as FogMode, dayNight: startDayNightEl.checked }
+  const makeCfg = (settings: MatchSettings): MatchConfig => ({
     map: previewMap,
     seed: (Math.floor(Math.random() * 0xffffffff) >>> 0) || 0x5eed,
     credits,
     localTeam: humans[0].slot,
     slots: rows.map((r) => ({ team: r.slot, name: r.name, difficulty: r.difficulty, alliance: r.team, color: r.color })),
     winRule: winRuleSelect.value as WinRule,
-    settings: { ...resolvedDevSettings(), fogMode: startFogEl.value as FogMode, dayNight: startDayNightEl.checked },
+    settings,
     mode: 'bots',
     daily: { generation: challenge.generation },
     trackDaily: dailyAcceptToggle.checked,
     trackProfile: matchProfileToggle.checked,
+  })
+  const start = (cfg: MatchConfig): void => {
+    setOfflineStatus('')
+    startCountdown(cfg)
   }
-  setOfflineStatus('')
-  startCountdown(cfg)
+  if (!offlineModToggleEl.checked || !offlineModName) {
+    start(makeCfg(baseSettings))
+    return
+  }
+  void (async () => {
+    const mod = await fetchModByName(offlineModName)
+    if (mod) start(makeCfg(mergeMatchSettings({ ...baseSettings, ...modSettingsDelta(baseSettings, mod) })))
+    else start(makeCfg(baseSettings))
+  })()
 })
 
 renderMapSelect()
@@ -1874,6 +2330,7 @@ const renderMatchOptions = (msg: LobbyMessage, isHost: boolean): void => {
   matchAddBotEl.disabled = !isHost || msg.players.length >= msg.maxPlayers
   matchPassInputEl.placeholder = msg.passwordRequired ? t('match.passNewPlaceholder') : t('network.noPassPlaceholder')
   matchPassBtnEl.textContent = msg.passwordRequired ? t('match.passChange') : t('match.passSet')
+  syncMatchModUi(msg, isHost)
 }
 
 const renderMatchPanel = (msg: LobbyMessage): void => {

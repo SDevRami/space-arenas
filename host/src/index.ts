@@ -13,11 +13,13 @@ import {
   decodeChecksum,
   decodeControl,
   encodeControl,
+  isValidMod,
   makeMatchStart,
   validReplay,
   type ChatRelayMessage,
   type ControlMessage,
   type EnvelopeCommand,
+  type ModFile,
   type ReplayData,
 } from '@space-arenas/shared'
 import { RoomManager, type HostPlayer, type Room } from './rooms.ts'
@@ -27,6 +29,7 @@ import { newSeed } from './passphrase.ts'
 import { inviteQrPng, inviteUrl, refreshInviteQr } from './qr.ts'
 import { DEFAULT_BEACON_PORT, LanDiscovery, firstLanIp, lanIps } from './discovery.ts'
 import { archiveStore } from './archive.ts'
+import { MOD_MAX_BYTES, modStore } from './mods.ts'
 
 const ARCHIVE_MAX_BYTES = 64 * 1024 * 1024
 
@@ -218,6 +221,7 @@ const broadcastLobby = (): void => {
       passwordRequired: room.passwordRequired,
       winRule: room.winRule,
       settings: room.settings,
+      ...(room.modId ? { modId: room.modId } : {}),
     })
   })
 }
@@ -297,7 +301,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
           }
           const p = rooms.playerFor(ws)
           if (p) {
-            send(ws, { kind: 'H_LOBBY', roomCode: room.code, yourId: p.id, hostId: hostId(), players: rooms.slots(room), maxPlayers: room.maxPlayers, mapName: room.map.name, mapId: room.mapId, map: room.map, passwordRequired: room.passwordRequired, winRule: room.winRule, settings: room.settings })
+            send(ws, { kind: 'H_LOBBY', roomCode: room.code, yourId: p.id, hostId: hostId(), players: rooms.slots(room), maxPlayers: room.maxPlayers, mapName: room.map.name, mapId: room.mapId, map: room.map, passwordRequired: room.passwordRequired, winRule: room.winRule, settings: room.settings, ...(room.modId ? { modId: room.modId } : {}) })
             send(ws, { ...makeMatchStart(room.map, rooms.matchSlots(room), hostId(), p.id, room.seed, 25, room.settings, room.winRule), spectator: true })
             if (relay) {
               send(ws, { kind: 'S_SPECTATE_SYNC', currentTick: relay.currentTick, log: relay.history })
@@ -350,7 +354,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
         send(ws, { kind: 'H_ERROR', message: 'Only the host can change match options' })
         return
       }
-      const res = rooms.updateRoomOptions({ mapId: msg.mapId, map: msg.map, password: msg.password, settings: msg.settings, winRule: msg.winRule })
+      const res = rooms.updateRoomOptions({ mapId: msg.mapId, map: msg.map, password: msg.password, settings: msg.settings, winRule: msg.winRule, modId: msg.modId })
       if (!res.ok) {
         send(ws, { kind: 'H_ERROR', message: res.error ?? 'update failed' })
         return
@@ -637,6 +641,68 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
     }
     const ok = await archiveStore.remove(name)
     writeJson(res, ok ? 200 : 404, ok ? { ok: true } : { ok: false, error: 'replay not found' })
+    return true
+  }
+  // ----- balance mods (match-scoped JSON deltas) -----
+  if (req.method === 'GET' && urlPath.startsWith('/api/mods')) {
+    const url = new URL(req.url ?? '/api/mods', 'http://localhost')
+    const name = url.searchParams.get('name')
+    if (name) {
+      const mod = await modStore.read(name)
+      if (!mod) {
+        writeJson(res, 404, { ok: false, error: 'mod not found' })
+        return true
+      }
+      writeJson(res, 200, mod)
+      return true
+    }
+    const mods = await modStore.list()
+    writeJson(res, 200, { mods })
+    return true
+  }
+  if (req.method === 'POST' && urlPath === '/api/mods/upload') {
+    const body = await readJson(req, MOD_MAX_BYTES)
+    if (!isValidMod(body, PROTOCOL_VERSION).ok) {
+      writeJson(res, 400, { ok: false, error: 'invalid mod file' })
+      return true
+    }
+    const name = await modStore.save(body as ModFile).catch(() => null)
+    writeJson(res, name !== null ? 200 : 400, name !== null ? { ok: true, name } : { ok: false, error: 'invalid mod file' })
+    return true
+  }
+  if (req.method === 'POST' && urlPath === '/api/mods/rename') {
+    const body = await readJson(req)
+    const name = typeof body.name === 'string' ? body.name : ''
+    const newName = typeof body.newName === 'string' ? body.newName : ''
+    if (!name || !newName) {
+      writeJson(res, 400, { ok: false, error: 'rename needs name + newName' })
+      return true
+    }
+    const target = await modStore.rename(name, newName)
+    if (target === null) {
+      writeJson(res, 404, { ok: false, error: 'mod not found' })
+      return true
+    }
+    rooms.repointMod(name, target)
+    broadcastLobby()
+    writeJson(res, 200, { ok: true, name: target })
+    return true
+  }
+  if (req.method === 'POST' && urlPath === '/api/mods/delete') {
+    const body = await readJson(req)
+    const name = typeof body.name === 'string' ? body.name : ''
+    if (!name) {
+      writeJson(res, 400, { ok: false, error: 'delete needs name' })
+      return true
+    }
+    const ok = await modStore.remove(name)
+    if (!ok) {
+      writeJson(res, 404, { ok: false, error: 'mod not found' })
+      return true
+    }
+    rooms.detachMod(name)
+    broadcastLobby()
+    writeJson(res, 200, { ok: true })
     return true
   }
   return false

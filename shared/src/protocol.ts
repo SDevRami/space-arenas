@@ -449,6 +449,8 @@ export interface LobbyMessage {
   winRule?: WinRule
   settings?: Partial<MatchSettings>
   map?: MapData
+  /** Filename of the balance mod the host applied to this room (''/undefined = none). */
+  modId?: string
 }
 export interface ReadyMessage {
   kind: 'C_READY'
@@ -489,6 +491,8 @@ export interface UpdateRoomMessage {
   password?: string
   settings?: Partial<MatchSettings>
   winRule?: WinRule
+  /** Filename of the balance mod for this room ('' clears it). Host-only control. */
+  modId?: string
 }
 export interface StartMessage {
   kind: 'C_START'
