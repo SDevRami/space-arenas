@@ -29,6 +29,10 @@ export interface CampaignChapter {
   /** The old base footprint; rebuilding counts only when a command center is placed here. */
   oldBase: { minX: number; minY: number; w: number; h: number }
   enemyOutposts: { tileX: number; tileY: number; towers: number }[]
+  /** Where defence waves spawn (far from the base, so they march across the map). */
+  wavesSpawn: { tileX: number; tileY: number }
+  /** Where the counterattack force drops when the last defence wave falls. */
+  assaultSpawn: { tileX: number; tileY: number }
   waves: { delayTicks: number; units: { type: string; count: number }[] }[]
   assaultReinforcements: { type: string; count: number }[]
   credits: number
@@ -36,17 +40,18 @@ export interface CampaignChapter {
 
 /** Deterministic chapter map (a fixed seed keeps tests stable and the story the same every run). */
 const buildMap = (): MapData => {
-  const w = 48
-  const h = 48
+  const w = 96
+  const h = 96
   const tiles: number[] = new Array<number>(w * h).fill(Terrain.Ground)
   const rng = new RNG(0x5445aa)
   const obs: { type: 'tree'; x: number; y: number; w: number; h: number }[] = []
-  for (let i = 0; i < 24; i++) {
-    const x = rng.nextInt(2, w - 3)
-    const y = rng.nextInt(2, h - 3)
-    const nearStart = Math.abs(x - 5) <= 3 && Math.abs(y - 38) <= 3
-    const nearBase = Math.abs(x - 13) <= 3 && Math.abs(y - 13) <= 3
-    if (nearStart || nearBase) continue
+  for (let i = 0; i < 70; i++) {
+    const x = rng.nextInt(3, w - 4)
+    const y = rng.nextInt(3, h - 4)
+    const nearStart = Math.abs(x - 9) <= 4 && Math.abs(y - 74) <= 4
+    const nearBase = Math.abs(x - 46) <= 5 && Math.abs(y - 46) <= 5
+    const nearOutpost = (Math.abs(x - 74) <= 3 && Math.abs(y - 14) <= 3) || (Math.abs(x - 76) <= 3 && Math.abs(y - 56) <= 3)
+    if (nearStart || nearBase || nearOutpost) continue
     obs.push({ type: 'tree', x, y, w: 1, h: 1 })
   }
   return {
@@ -61,13 +66,14 @@ const buildMap = (): MapData => {
     tiles,
     obstructions: obs,
     supplyFields: [
-      { x: 7, y: 38, radius: 3, capacity: 1200 },
-      { x: 16, y: 11, radius: 3, capacity: 1600 },
+      { x: 14, y: 70, radius: 3, capacity: 1400 },
+      { x: 44, y: 39, radius: 3, capacity: 1600 },
+      { x: 62, y: 26, radius: 3, capacity: 1400 },
     ],
     oilFields: [],
     spawnPoints: [
-      { x: 4, y: 37, team: 0 },
-      { x: 34, y: 7, team: 1 },
+      { x: 8, y: 73, team: 0 },
+      { x: 74, y: 14, team: 1 },
     ],
     credits: 750,
   }
@@ -84,15 +90,17 @@ export const CHAPTER_1: CampaignChapter = {
     { type: 'scout', count: 1 },
   ],
   drops: [
-    { tileX: 9, tileY: 30, units: [{ type: 'bulldozer', count: 1 }, { type: 'rifleman', count: 4 }, { type: 'assault-walker', count: 1 }] },
-    { tileX: 12, tileY: 23, units: [{ type: 'rifleman', count: 6 }, { type: 'rocket-trooper', count: 2 }] },
-    { tileX: 15, tileY: 19, units: [{ type: 'artillery', count: 2 }, { type: 'rocket-trooper', count: 2 }, { type: 'rifleman', count: 2 }] },
+    { tileX: 20, tileY: 60, units: [{ type: 'bulldozer', count: 1 }, { type: 'rifleman', count: 4 }, { type: 'assault-walker', count: 1 }] },
+    { tileX: 32, tileY: 52, units: [{ type: 'rifleman', count: 6 }, { type: 'rocket-trooper', count: 2 }] },
+    { tileX: 44, tileY: 46, units: [{ type: 'artillery', count: 2 }, { type: 'rocket-trooper', count: 2 }, { type: 'rifleman', count: 2 }] },
   ],
-  oldBase: { minX: 11, minY: 11, w: 5, h: 5 },
+  oldBase: { minX: 44, minY: 44, w: 5, h: 5 },
   enemyOutposts: [
-    { tileX: 34, tileY: 7, towers: 2 },
-    { tileX: 34, tileY: 27, towers: 2 },
+    { tileX: 74, tileY: 14, towers: 2 },
+    { tileX: 76, tileY: 56, towers: 2 },
   ],
+  wavesSpawn: { tileX: 68, tileY: 64 },
+  assaultSpawn: { tileX: 42, tileY: 38 },
   waves: [
     { delayTicks: 420, units: [{ type: 'rifleman', count: 6 }, { type: 'rocket-trooper', count: 2 }] },
     { delayTicks: 360, units: [{ type: 'rifleman', count: 7 }, { type: 'rocket-trooper', count: 3 }, { type: 'assault-walker', count: 1 }] },
@@ -180,7 +188,7 @@ export const spawnEnemyOutpost = (world: World, o: { tileX: number; tileY: numbe
   for (let i = 0; i < o.towers; i++) {
     const ax = i === 0 ? o.tileX - 4 : o.tileX + 2
     const ay = i === 0 ? o.tileY : o.tileY - 4
-    if (ax >= 0 && ay >= 0 && isBuildableTerrain(tileAt(world.map, ax, ay))) spawnBuilding(world, 'turret', team, ax, ay, true)
+    if (ax >= 0 && ay >= 0 && ax < world.width && ay < world.height && isBuildableTerrain(tileAt(world.map, ax, ay))) spawnBuilding(world, 'turret', team, ax, ay, true)
   }
   return cc
 }
@@ -250,6 +258,16 @@ export class CampaignScript {
     }
 
     if (run.phase === 'journey') {
+      // Losing every soldier before regrouping ends the mission.
+      let playerAlive = false
+      world.units.forEach((_id, u) => {
+        if (u.team === this.localTeam) playerAlive = true
+      })
+      if (!playerAlive) {
+        run.done = true
+        run.won = false
+        return outcome(run, { toastKey: 'campaign.toast.squadLost', winner: 1 })
+      }
       for (let i = 0; i < this.chapter.drops.length; i++) {
         const d = this.chapter.drops[i]
         if (run.dropCollected[i]) continue
@@ -307,7 +325,7 @@ export class CampaignScript {
     if (run.phase === 'defend') {
       if (world.tick >= run.waveSpawnAt && run.waveIndex < this.chapter.waves.length) {
         const wave = this.chapter.waves[run.waveIndex]
-        run.raiderIds.push(...spawnSquadNear(world, 1, 18, 34, wave.units))
+        run.raiderIds.push(...spawnSquadNear(world, 1, this.chapter.wavesSpawn.tileX, this.chapter.wavesSpawn.tileY, wave.units))
         run.waveIndex++
         run.waveSpawnAt = run.waveIndex < this.chapter.waves.length ? world.tick + this.chapter.waves[run.waveIndex].delayTicks : Number.POSITIVE_INFINITY
         run.objectiveKey = 'campaign.obj.defend'
@@ -335,7 +353,7 @@ export class CampaignScript {
         let toast: string | null = null
         if (!run.assaultStarted) {
           run.assaultStarted = true
-          spawnSquadNear(world, this.localTeam, 14, 12, this.chapter.assaultReinforcements)
+          spawnSquadNear(world, this.localTeam, this.chapter.assaultSpawn.tileX, this.chapter.assaultSpawn.tileY, this.chapter.assaultReinforcements)
           toast = 'campaign.toast.reinforcements'
         }
         run.objectiveKey = 'campaign.obj.attack'

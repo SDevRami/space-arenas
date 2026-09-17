@@ -1,6 +1,7 @@
 import { ACHIEVEMENTS } from './achievements.ts'
 import { achievementTarget, countFor, loadProfile, loadProfileConfig, resetProfile, totalScore, unlockedCount, updateProfileName, type Profile } from './profile.ts'
 import { loadModeRecords, dailyLevel, dailyLevelXp, DAILY_XP_PER_LEVEL, type ModeRecords } from './modeRecords.ts'
+import { DAILY_MISSION_COUNT } from '../modes/daily.ts'
 import { t } from '../i18n/index.ts'
 
 let lastRender = 0
@@ -88,10 +89,11 @@ const renderModeRecords = (rec: ModeRecords): string => {
   }
   let dailyMarkup = ''
   if (daily) {
+    const done = daily.challenge ? daily.challenge.doneIds.length : 0
     dailyMarkup += `<div class="profile-mode-card"><div class="profile-mode-title">${esc(t('profile.modeDaily'))}</div>` +
       row(t('profile.modeLevel'), `${dailyLevel(daily)} (${dailyLevelXp(daily)}/${DAILY_XP_PER_LEVEL} XP)`) +
       row(t('profile.modeStreak'), `${daily.streak} · ${t('profile.modeBestStreak')} ${daily.bestStreak}`) +
-      row(t('profile.modeMissionsDone'), String(Object.keys(daily.missionsDone).length)) +
+      row(t('profile.modeMissionsDone'), `${done}/${DAILY_MISSION_COUNT}`) +
       `</div>`
   }
   let campaignMarkup = ''

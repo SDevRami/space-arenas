@@ -33,6 +33,7 @@
           <button class="menu-btn" id="keys-toggle" data-i18n-title="tools.keysTitle" data-i18n="tools.keys">Keys</button>
           <button class="menu-btn" id="dev-btn" data-i18n-title="dev.overlayBtnTitle" data-i18n="dev.overlayBtn">Dev</button>
           <button class="menu-btn hud-chat-btn" id="chat-btn" data-i18n-title="chat.buttonTitle"><span data-i18n="chat.button">Chat</span><span class="badge"></span></button>
+          <button class="menu-btn" id="mission-btn" data-i18n="daily.missionButton" data-i18n-title="daily.missionButtonTitle" hidden>Mission</button>
           <button class="menu-btn" id="menu-btn" data-i18n="menu.button">Menu</button>
         </div>
         <div id="replay-bar" class="replay-bar" hidden>
@@ -61,6 +62,13 @@
             <button class="rank-up-btn" id="rank-up-btn" data-i18n="rank.up"></button>
           </div>
         </aside>
+        <div id="mission-popup" class="mission-popup" hidden>
+          <div class="mission-popup-panel">
+            <button class="mission-popup-close" id="mission-popup-close" data-i18n-title="daily.close">✕</button>
+            <div class="mission-popup-title" data-i18n="daily.missionButton">Mission</div>
+            <div class="mission-list" id="mission-popup-list"></div>
+          </div>
+        </div>
         <div id="chat-overlay">
           <div class="chat-tabs">
             <button data-target="all" class="active" data-i18n="chat.global">Global</button>
@@ -201,13 +209,13 @@
               <button class="ghost" id="add-bot-btn" data-i18n="offline.addBot">+ Add Bot</button>
               </div>
               <div id="offline-survival-extras" class="mode-extras hidden-extras">
-                <label data-i18n="survival.difficultyLabel">Enemy bot difficulty</label>
+                <label data-i18n="survival.difficultyLabel">Wave difficulty</label>
                 <select id="survival-difficulty" class="fog-select">
                   <option value="easy" data-i18n="bot.easy">Easy</option>
                   <option value="medium" selected data-i18n="bot.medium">Medium</option>
                   <option value="hard" data-i18n="bot.hard">Hard</option>
                 </select>
-                <div class="hint" data-i18n="survival.hint">Survive as many waves as you can. The enemy bot hunts you too — every 4th wave arms a tougher tier of attackers.</div>
+                <div class="hint" data-i18n="survival.hint">Endless waves raid from the enemy edge. A new wave only starts after at least half of the previous one is destroyed. There is no win — survive as long as you can. If your base falls, the run is over.</div>
                 <div class="stat-card" id="survival-best"></div>
               </div>
               <div id="offline-daily-extras" class="mode-extras hidden-extras">
@@ -215,12 +223,11 @@
                   <span id="daily-day-label"></span>
                   <span id="daily-level-label"></span>
                 </div>
-                <div class="hint" data-i18n="daily.hint">Play the daily challenge — a fixed seed for today, same for every player offline. Complete missions to level up. Offline modes have no leaderboard.</div>
+                <div class="hint" data-i18n="daily.hint">A fixed set of daily missions — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up. Offline modes have no leaderboard.</div>
                 <div class="mission-list" id="daily-missions-list"></div>
               </div>
               <div id="offline-campaign-extras" class="mode-extras hidden-extras">
-                <div class="chapter-card" id="campaign-chapter-card"></div>
-                <div class="hint" data-i18n="campaign.hint">A scripted story: march your squad across the scrub, collect the scattered troops, rebuild the old base with your bulldozer, hold it, then take the enemy outposts.</div>
+                <div class="hint" data-i18n="campaign.hint">The scripted campaign is planned as a future feature. This mode is a placeholder for now.</div>
               </div>
               <div id="offline-custom-extras" class="mode-extras hidden-extras">
                 <button class="ghost" id="custom-upload-btn" data-i18n="custom.uploadBtn">Upload Custom Scenario</button>

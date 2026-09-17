@@ -17,8 +17,8 @@ import { BotPlayer } from '../ai/bot.ts'
 import type { MatchConfig } from './match.ts'
 import { CampaignScript, type CampaignTickOutcome } from '../modes/campaign.ts'
 import { SurvivalDirector, survivalScore } from '../modes/survival.ts'
-import { generateDailyMissions, evaluateDailyMissions } from '../modes/daily.ts'
-import { recordSurvivalResult, recordDailyResult, recordCampaignResult, dailyLevel, dailyLevelXp, DAILY_XP_PER_LEVEL } from '../profile/modeRecords.ts'
+import { generateDailyMissions, evaluateDailyMissions, type DailyMissionDef } from '../modes/daily.ts'
+import { recordSurvivalResult, recordDailyResult, recordCampaignResult, dailyLevel, dailyLevelXp, DAILY_XP_PER_LEVEL, remainingDailyMissions, loadModeRecords } from '../profile/modeRecords.ts'
 import { StatsBoard, StatsTracker, buildStatsRows, type StatsRow } from '../stats/stats.ts'
 import { SessionRecorder } from '../profile/recorder.ts'
 import { loadProfile, loadProfileConfig, recordMatch, recordSpectate, freshCounters, achievementTarget, type ProfileCounters, type ProfileTypeCounts } from '../profile/profile.ts'
@@ -90,6 +90,7 @@ export class Game {
   private replayRecorded = false
   private script: SurvivalDirector | CampaignScript | null = null
   private survivalWave = 0
+  private dailyMissionDefs: DailyMissionDef[] | null = null
   private lastObjective: string | null = null
   private scriptEnded = false
   private lastModeNote: string | null = null
@@ -295,6 +296,7 @@ export class Game {
         this.issue({ type: 'sw-choose', entities: [], x: 0, y: 0, choice })
       },
       onRankUp: () => this.issue({ type: 'rank-up', entities: [], x: 0, y: 0 }),
+      onMissionOpen: () => this.refreshDailyMissions(),
       slotName: (slot) => this.netPlayers.find((p) => p.id === slot)?.name ?? null,
     })
   }
@@ -689,17 +691,28 @@ export class Game {
       const best = rec.survival
       if (best) this.lastModeNote = t('survival.resultsNote', { wave, score, bestWave: best.bestWave })
     } else if (cfg.mode === 'daily' && cfg.daily) {
-      const missions = generateDailyMissions(cfg.daily.dayKey)
-      const { done, xp } = evaluateDailyMissions(missions, {
+      const missions = generateDailyMissions(cfg.daily.generation)
+      const { done } = evaluateDailyMissions(missions, {
         won: winner === this.localTeam,
         kills: summary?.counters.kills ?? 0,
         unitsTrained: summary?.counters.unitsTrained ?? 0,
         buildingsBuilt: summary?.counters.buildingsBuilt ?? 0,
         supplyHarvested: summary?.counters.supplyHarvested ?? 0,
       })
-      const rec = recordDailyResult(storage, { dayKey: cfg.daily.dayKey, missionsDone: done.map((m) => m.id), xpEarned: xp })
+      // XP is banked only for missions that weren't already finished on this challenge.
+      const prior = loadModeRecords(storage).daily
+      const already = new Set(prior?.challenge?.generation === cfg.daily.generation ? prior.challenge.doneIds : [])
+      const bankedXp = done.filter((m) => !already.has(m.id)).reduce((sum, m) => sum + m.xp, 0)
+      // Records the newly completed missions against the persisted challenge (never the date).
+      const rec = recordDailyResult(storage, { generation: cfg.daily.generation, missions, doneIds: done.map((m) => m.id) })
       const daily = rec.daily
-      if (daily) this.lastModeNote = t('daily.resultsNote', { xp, level: dailyLevel(daily), progress: dailyLevelXp(daily), required: DAILY_XP_PER_LEVEL })
+      const remaining = daily ? remainingDailyMissions(daily, cfg.daily.generation, missions) : missions.length
+      if (daily) {
+        this.lastModeNote =
+          remaining === 0
+            ? t('daily.resultsNoteComplete', { xp: bankedXp, level: dailyLevel(daily), progress: dailyLevelXp(daily), required: DAILY_XP_PER_LEVEL })
+            : t('daily.resultsNote', { xp: bankedXp, level: dailyLevel(daily), progress: dailyLevelXp(daily), required: DAILY_XP_PER_LEVEL, remaining })
+      }
     } else if (cfg.mode === 'campaign' && cfg.campaign && this.script instanceof CampaignScript) {
       recordCampaignResult(storage, { chapterId: cfg.campaign.chapterId, completed: this.script.run.won })
     }
@@ -818,7 +831,9 @@ export class Game {
     this.script = null
     this.scriptEnded = false
     this.survivalWave = 0
+    this.dailyMissionDefs = null
     this.lastObjective = null
+    this.hud.showMissionButton(false)
     this.hud.setObjective(null)
     await this.boot(null, cfg)
     // Scripted modes (19.1 survival, 19.3 campaign) build their director after the world exists.
@@ -841,7 +856,32 @@ export class Game {
       this.script = new SurvivalDirector(cfg.survival, cfg.localTeam)
       this.hud.setObjective(t('survival.hud.wave', { n: 0 }))
       this.hud.toast(t('survival.toast.starts'))
+    } else if (cfg.mode === 'daily' && cfg.daily) {
+      this.dailyMissionDefs = generateDailyMissions(cfg.daily.generation)
+      this.hud.showMissionButton(true)
+      this.refreshDailyMissions()
     }
+  }
+
+  /** Live daily challenge progress for the header Mission popup and objective line. */
+  private refreshDailyMissions(): void {
+    if (!this.dailyMissionDefs || !this.session) return
+    const summary = this.session.summary()
+    const { done } = evaluateDailyMissions(this.dailyMissionDefs, {
+      won: false,
+      kills: summary.counters.kills,
+      unitsTrained: summary.counters.unitsTrained,
+      buildingsBuilt: summary.counters.buildingsBuilt,
+      supplyHarvested: summary.counters.supplyHarvested,
+    })
+    const banked = new Set(loadModeRecords(window.localStorage).daily?.challenge?.doneIds ?? [])
+    const rows = this.dailyMissionDefs.map((m) => ({
+      text: t(m.descKey, { n: m.target }),
+      xp: m.xp,
+      done: banked.has(m.id) || done.includes(m),
+    }))
+    this.hud.setMissions(rows)
+    this.hud.setObjective(t('daily.hudRemaining', { n: rows.filter((r) => !r.done).length }))
   }
 
   async startNet(net: NetClient, msg: MatchStartMessage): Promise<void> {
@@ -852,6 +892,9 @@ export class Game {
     this.netPlayers = msg.players
     this.team = msg.players.find((p) => p.id === msg.yourId)?.team ?? msg.yourId
     this.modeCfg = null
+    this.dailyMissionDefs = null
+    this.hud.showMissionButton(false)
+    this.hud.setObjective(null)
     this.bots = []
     this.finished = false
     this.session = new SessionRecorder(msg.yourId)
@@ -877,6 +920,9 @@ export class Game {
     this.netPlayers = replay.players
     this.team = replay.players.find((p) => p.id === 0)?.team ?? -1
     this.modeCfg = null
+    this.dailyMissionDefs = null
+    this.hud.showMissionButton(false)
+    this.hud.setObjective(null)
     this.bots = []
     this.finished = false
     this.session = null
@@ -961,6 +1007,9 @@ export class Game {
 
     if (cfg) {
       this.world.winRule = cfg.winRule
+      // Survival and campaign run their own end condition via the script director,
+      // so standard win-loss (no command center => eliminated) must not fire.
+      this.world.winless = cfg.mode === 'survival' || cfg.mode === 'campaign'
       for (const s of cfg.slots) {
         const ts = this.world.teams.get(s.team)
         if (ts && s.alliance !== undefined) ts.alliance = s.alliance
@@ -1188,8 +1237,14 @@ export class Game {
         }
         if (out.toastKey) this.hud.toast(t(out.toastKey))
         if (out.logKey) this.hud.log(t(out.logKey))
+        if (out.done && !this.scriptEnded) {
+          this.scriptEnded = true
+          this.beginCinematic(out.winner ?? 1)
+        }
       } else if (mode === 'campaign' && this.script instanceof CampaignScript) {
         this.applyCampaignOutcome(this.script.tick(world))
+      } else if (mode === 'daily' && this.dailyMissionDefs) {
+        if (world.tick % 30 === 0) this.refreshDailyMissions()
       }
       return
     }

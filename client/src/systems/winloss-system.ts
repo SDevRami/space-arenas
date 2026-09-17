@@ -43,6 +43,7 @@ export const WinLossSystem = {
   update(world: World): void {
     if (world.gameOver !== null) return
     if (world.teams.size <= 1) return
+    if (world.winless) return
 
     const allTeams = [...world.teams.keys()].sort((a, b) => a - b)
     const alive = allTeams.filter((t) => !isEliminated(world, t))

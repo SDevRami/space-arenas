@@ -750,6 +750,13 @@
       .mission-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
       .mission-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
       .mission-row .xp-badge { color: #ffd75e; font-size: 11px; }
+      .mission-row.done { color: #7cf27c; }
+      .mission-popup { position: fixed; inset: 0; z-index: 62; background: rgba(4,6,12,0.6); display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+      .mission-popup[hidden] { display: none; }
+      .mission-popup-panel { position: relative; width: 380px; max-width: 90vw; max-height: 80vh; overflow-y: auto; background: var(--color-panel); border: 1px solid var(--color-border-light); border-radius: 6px; padding: 18px 22px; box-shadow: 0 12px 40px rgba(0,0,0,0.6); text-align: left; }
+      .mission-popup-title { font-size: 16px; font-weight: 700; color: var(--color-accent); margin-bottom: 10px; }
+      .mission-popup-close { position: absolute; top: 8px; right: 12px; background: none; border: none; color: var(--color-text-muted); font-size: 16px; cursor: pointer; font-family: inherit; }
+      .mission-popup-close:hover { color: #fff; }
       .chapter-card h3 { margin: 0 0 6px; color: var(--color-accent); font-size: 15px; }
       .chapter-card p { margin: 0 0 8px; font-size: 12px; line-height: 1.45; }
       .fps-info { color: var(--color-text-muted); }

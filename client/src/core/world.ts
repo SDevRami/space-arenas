@@ -433,6 +433,10 @@ export class World {
 
   tick = 0
   gameOver: number | null = null
+  /** Scripted modes (survival / campaign) drive their own end condition, so the
+   *  winloss system is bypassed and freeze-out / CC checks never force an early
+   *  game-over (e.g. a campaign squad that starts without a command center). */
+  winless = false
   lastHash = 0
   onSyncTick: ((hash: number) => void) | null = null
   winRule: WinRule = WIN_RULE_DEFAULT

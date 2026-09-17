@@ -45,6 +45,8 @@ export interface HudActions {
   onSwChoose: (choice: SwChoice) => void
   /** Day 15: raise the team's general rank (requires enough match score). */
   onRankUp: () => void
+  /** Daily mode: refresh the mission list before the popup is shown. */
+  onMissionOpen?: () => void
   /** Display name for a slot, when the caller has it (e.g. net lobby). */
   slotName?: (slot: number) => string | null
 }
@@ -100,6 +102,9 @@ export class Hud {
   private selectionAchievement = document.getElementById('selection-achievement')!
   private gameLog = document.getElementById('game-log')!
   private objectiveEl = document.getElementById('hud-objective')!
+  private missionBtn = document.getElementById('mission-btn') as HTMLButtonElement
+  private missionPopup = document.getElementById('mission-popup') as HTMLDivElement
+  private missionPopupList = document.getElementById('mission-popup-list') as HTMLDivElement
   private hudEl = document.getElementById('hud')!
   private rankBtn = document.getElementById('rank-btn')!
   private rankBtnStars = document.getElementById('rank-btn-stars')!
@@ -134,9 +139,51 @@ export class Hud {
     const close = document.getElementById('rank-close')
     close?.addEventListener('click', () => this.closeRankMenu())
     this.rankMenuBackdrop.addEventListener('click', () => this.closeRankMenu())
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.rankMenu.classList.contains('open')) this.closeRankMenu()
+    this.missionBtn.addEventListener('click', () => this.toggleMissionPopup())
+    document.getElementById('mission-popup-close')?.addEventListener('click', () => this.closeMissionPopup())
+    this.missionPopup.addEventListener('click', (e) => {
+      if (e.target === this.missionPopup) this.closeMissionPopup()
     })
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return
+      if (this.rankMenu.classList.contains('open')) this.closeRankMenu()
+      else if (!this.missionPopup.hidden) this.closeMissionPopup()
+    })
+  }
+
+  /** Show/hide the match-header Mission button (daily mode only). */
+  showMissionButton(show: boolean): void {
+    this.missionBtn.hidden = !show
+  }
+
+  /** Populate the Mission popup with the daily challenge rows. */
+  setMissions(rows: Array<{ text: string; xp: number; done: boolean }>): void {
+    this.missionPopupList.innerHTML = ''
+    for (const r of rows) {
+      const row = document.createElement('div')
+      row.className = 'mission-row' + (r.done ? ' done' : '')
+      const desc = document.createElement('span')
+      desc.textContent = r.done ? `✔ ${r.text}` : r.text
+      const badge = document.createElement('span')
+      badge.className = 'xp-badge'
+      badge.textContent = `+${r.xp} XP`
+      row.appendChild(desc)
+      row.appendChild(badge)
+      this.missionPopupList.appendChild(row)
+    }
+  }
+
+  private toggleMissionPopup(): void {
+    if (this.missionPopup.hidden) {
+      this.actions.onMissionOpen?.()
+      this.missionPopup.hidden = false
+    } else {
+      this.closeMissionPopup()
+    }
+  }
+
+  private closeMissionPopup(): void {
+    this.missionPopup.hidden = true
   }
 
   private lastWorld: World | null = null

@@ -1,4 +1,5 @@
 import type { StorageLike } from './profile.ts'
+import type { DailyMissionDef } from '../modes/daily.ts'
 
 /** Day 19.1: best survival score. Stored career-wide (kept when the profile resets). */
 export interface SurvivalRecord {
@@ -7,6 +8,15 @@ export interface SurvivalRecord {
   bestDurationSec: number
   plays: number
   wins: number
+}
+
+/** The persisted daily mission list. It is fixed until every mission is completed,
+ *  regardless of how many days it takes (no date-relative missions). */
+export interface DailyChallengeState {
+  /** Non-date generation; bumped only when the previous list is fully finished. */
+  generation: number
+  /** Ids of the missions completely finished across all plays of this challenge. */
+  doneIds: string[]
 }
 
 /** Day 19.2: daily challenge level-up progression (no leaderboard — local only). */
@@ -19,8 +29,8 @@ export interface DailyLevelRecord {
   bestStreak: number
   /** UTC day key of the last daily match played, so the streak rolls over. */
   lastPlayedDayKey: string
-  /** missionId -> dayKey it was completed on (a mission done today stays done). */
-  missionsDone: Record<string, string>
+  /** The active mission list; stays put until all of its missions are done. */
+  challenge: DailyChallengeState | null
 }
 
 /** Day 19.3: campaign progress. */
@@ -40,7 +50,7 @@ export interface ModeRecords {
 }
 
 export const MODE_RECORDS_KEY = 'space-arenas:mode-records'
-export const MODE_RECORDS_VERSION = 1
+export const MODE_RECORDS_VERSION = 2
 
 /** XP needed per daily level. The daily level only ever grows (battle-pass style). */
 export const DAILY_XP_PER_LEVEL = 100
@@ -81,10 +91,10 @@ export const saveModeRecords = (s: StorageLike, r: ModeRecords): void =>
 /** UTC "yyyy-mm-dd" — the daily day boundary. */
 export const todayKey = (now = Date.now()): string => new Date(now).toISOString().slice(0, 10)
 
-/** Deterministic seed for a given day: every client plays the same challenge on the same day. */
-export const dailySeed = (dayKey: string, salt = 'daily'): number => {
+/** Deterministic seed for a given seed string (mission lists, match maps, etc.). */
+export const dailySeed = (seedKey: string, salt = 'daily'): number => {
   let h = 2166136261
-  const str = `${salt}:${dayKey}`
+  const str = `${salt}:${seedKey}`
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i)
     h = Math.imul(h, 16777619)
@@ -94,6 +104,13 @@ export const dailySeed = (dayKey: string, salt = 'daily'): number => {
 
 export const dailyLevel = (r: DailyLevelRecord | null): number => Math.floor((r?.xp ?? 0) / DAILY_XP_PER_LEVEL)
 export const dailyLevelXp = (r: DailyLevelRecord | null): number => (r?.xp ?? 0) % DAILY_XP_PER_LEVEL
+
+/** How many missions the active challenge still needs (given its deterministic list). */
+export const remainingDailyMissions = (r: DailyLevelRecord | null, generation: number, missions: DailyMissionDef[]): number => {
+  const ch = r?.challenge
+  if (!ch || ch.generation !== generation) return missions.length
+  return missions.filter((m) => !ch.doneIds.includes(m.id)).length
+}
 
 /** Record a finished survival match; keeps the career best wave/score/duration. */
 export const recordSurvivalResult = (s: StorageLike, input: { wave: number; score: number; durationSec: number; won: boolean }): ModeRecords => {
@@ -117,21 +134,29 @@ const isNextUtcDay = (a: string, b: string): boolean => {
   return Date.UTC(by, bm, bd) - Date.UTC(ay, am, ad) === 86400000
 }
 
-/** Record a finished daily match: rolls the streak, banks XP from completed missions. */
-export const recordDailyResult = (s: StorageLike, input: { dayKey: string; missionsDone: string[]; xpEarned: number }): ModeRecords => {
+/** Record a finished daily match: rolls the streak and banks XP ONLY for missions
+ *  newly finished this play. The mission list itself never re-rolls on date change. */
+export const recordDailyResult = (s: StorageLike, input: { generation: number; missions: DailyMissionDef[]; doneIds: string[] }): ModeRecords => {
   const r = loadModeRecords(s)
-  const prev = r.daily ?? { xp: 0, streak: 0, bestStreak: 0, lastPlayedDayKey: '', missionsDone: {} }
+  const prev = r.daily ?? { xp: 0, streak: 0, bestStreak: 0, lastPlayedDayKey: '', challenge: null }
+  const dayKey = todayKey()
   let streak = 1
-  if (input.dayKey === prev.lastPlayedDayKey) streak = Math.max(1, prev.streak)
-  else if (prev.lastPlayedDayKey && isNextUtcDay(prev.lastPlayedDayKey, input.dayKey)) streak = prev.streak + 1
-  const missionsDone = { ...prev.missionsDone }
-  for (const id of input.missionsDone) missionsDone[id] = input.dayKey
+  if (dayKey === prev.lastPlayedDayKey) streak = Math.max(1, prev.streak)
+  else if (prev.lastPlayedDayKey && isNextUtcDay(prev.lastPlayedDayKey, dayKey)) streak = prev.streak + 1
+  const challenge: DailyChallengeState =
+    prev.challenge && prev.challenge.generation === input.generation
+      ? prev.challenge
+      : { generation: input.generation, doneIds: [] }
+  const alreadyDone = new Set(challenge.doneIds)
+  const newlyDone = input.doneIds.filter((id) => !alreadyDone.has(id))
+  const doneIds = [...new Set([...challenge.doneIds, ...input.doneIds])]
+  const xpEarned = input.missions.filter((m) => newlyDone.includes(m.id)).reduce((sum, m) => sum + m.xp, 0)
   r.daily = {
-    xp: prev.xp + Math.max(0, input.xpEarned),
+    xp: prev.xp + Math.max(0, xpEarned),
     streak,
     bestStreak: Math.max(prev.bestStreak, streak),
-    lastPlayedDayKey: input.dayKey,
-    missionsDone,
+    lastPlayedDayKey: dayKey,
+    challenge: { generation: challenge.generation, doneIds },
   }
   saveModeRecords(s, r)
   return r

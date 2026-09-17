@@ -277,8 +277,9 @@
     "hud": {
       "wave": "Wave {n}"
     },
-    "difficultyLabel": "Enemy bot difficulty",
-    "hint": "Survive as many waves as you can. The enemy bot hunts you too — every 4th wave arms a tougher tier of attackers.",
+    "difficultyLabel": "Wave difficulty",
+    "needSource": "Add at least one bot — every bot in the list is a wave source.",
+    "hint": "Endless waves raid from each source bot's spawn, so more bots means bigger waves. A new wave only starts after at least half of the previous one is destroyed, and every wave restocks the supply fields. There is no win — survive as long as you can. If your base falls, the run is over.",
     "noBest": "No survival run yet — your best wave and score will show here.",
     "best": "Best",
     "bestWave": "Wave {n}",
@@ -287,17 +288,25 @@
     "wins": "wins",
     "toast": {
       "starts": "Survival mode: hold your base — waves are coming!",
-      "wave": "Enemy wave incoming!"
+      "wave": "Enemy wave incoming!",
+      "lost": "The base has fallen — survival run over!"
     },
     "log": {
-      "wave": "Wave started — hold the line."
+      "wave": "Wave started — hold the line.",
+      "lost": "Command center destroyed. Run over."
     },
     "resultsNote": "Wave {wave} · {score} pts · best {bestWave}"
   },
   "daily": {
-    "day": "Challenge for {day}",
+    "challenge": "Mission list #{n}",
+    "missionButton": "Mission",
+    "missionButtonTitle": "Show the daily mission list",
+    "close": "Close",
+    "hudRemaining": "Missions left: {n}",
     "level": "Level {level} · {xp}/{required} XP",
-    "hint": "Play the daily challenge — a fixed seed for today, the same for every player offline. Complete missions to level up. Offline modes have no leaderboard.",
+    "keep": "{n} mission(s) left — the list stays exactly as-is until you finish all of them.",
+    "allDone": "Challenge complete — a brand new list is ready!",
+    "hint": "A fixed set of daily missions — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up. Offline modes have no leaderboard.",
     "mission": {
       "win": "Win a daily match",
       "train": "Train {n} units",
@@ -305,10 +314,12 @@
       "destroy": "Destroy {n} enemy units",
       "supply": "Harvest {n} supply"
     },
-    "resultsNote": "+{xp} XP · Level {level}"
+    "resultsNote": "+{xp} XP · Level {level} · {remaining} mission(s) left",
+    "resultsNoteComplete": "+{xp} XP · Level {level} · Challenge complete!"
   },
   "campaign": {
-    "hint": "A scripted story: march your squad across the scrub, collect the scattered troops, rebuild the old base with your bulldozer, hold it against raiders, then take the enemy outposts.",
+    "hint": "The scripted campaign is planned as a future feature. This mode is a placeholder for now.",
+    "comingSoon": "The campaign is a future feature — stay tuned!",
     "progress": "Progress",
     "done": "1/1 · Completed",
     "notStarted": "1/1 · Not started",
@@ -329,6 +340,7 @@
       "baseRebuilt": "The old base is back online — defend it!",
       "wave": "Raiders inbound!",
       "lost": "The base has fallen. Mission failed.",
+      "squadLost": "Your squad was wiped out before reaching the base. Mission failed.",
       "reinforcements": "Reinforcements arrive for the counterattack!",
       "victory": "All outposts destroyed — victory!"
     },
