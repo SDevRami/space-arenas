@@ -29,4 +29,8 @@ export interface MatchConfig {
   settings?: Partial<MatchSettings>
   mode?: OfflineMode
   daily?: DailyConfig
+  /** Accept/skip: whether this match counts toward the daily mission list. */
+  trackDaily: boolean
+  /** Whether this match counts toward the profile (counters, history, achievements). */
+  trackProfile: boolean
 }

@@ -288,7 +288,13 @@
       "supply": "Harvest {n} supply"
     },
     "resultsNote": "+{xp} XP · Level {level} · {remaining} mission(s) left",
-    "resultsNoteComplete": "+{xp} XP · Level {level} · Challenge complete!"
+    "resultsNoteComplete": "+{xp} XP · Level {level} · Challenge complete!",
+    "acceptLabel": "Count this match toward the daily mission list",
+    "acceptOn": "This match counts toward the daily mission list — completed tasks bank XP and the streak.",
+    "acceptOff": "Daily tasks are skipped for this match: nothing is added to the mission list or XP.",
+    "profileLabel": "Count this match toward my profile and achievements",
+    "profileOn": "This match counts toward profile stats, match history and achievements.",
+    "profileOff": "This match is not counted anywhere in the profile or achievements."
   },
   "campaign": {
     "hint": "The scripted campaign is planned as a future feature. This mode is a placeholder for now.",

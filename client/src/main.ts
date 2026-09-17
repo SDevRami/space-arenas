@@ -1573,7 +1573,19 @@ const offlineModeListEl = document.getElementById('offline-mode-list') as HTMLEl
 const offlineOptionsEl = document.getElementById('offline-options') as HTMLElement
 const offlineDailyExtrasEl = document.getElementById('offline-daily-extras') as HTMLElement
 const offlineCampaignExtrasEl = document.getElementById('offline-campaign-extras') as HTMLElement
+const dailyAcceptToggle = document.getElementById('daily-accept-toggle') as HTMLInputElement
+const dailyAcceptHint = document.getElementById('daily-accept-hint') as HTMLDivElement
+const matchProfileToggle = document.getElementById('match-profile-toggle') as HTMLInputElement
+const matchProfileHint = document.getElementById('match-profile-hint') as HTMLDivElement
 let offlineMode: OfflineMode = 'bots'
+
+/** Keep the match-option toggle hints in sync with their current state and language. */
+const updateTrackingHints = (): void => {
+  dailyAcceptHint.textContent = t(dailyAcceptToggle.checked ? 'daily.acceptOn' : 'daily.acceptOff')
+  matchProfileHint.textContent = t(matchProfileToggle.checked ? 'daily.profileOn' : 'daily.profileOff')
+}
+dailyAcceptToggle.addEventListener('change', updateTrackingHints)
+matchProfileToggle.addEventListener('change', updateTrackingHints)
 
 const renderDaily = (): void => {
   const storage = window.localStorage
@@ -1681,8 +1693,9 @@ startBtn.addEventListener('click', () => {
     setOfflineStatus(t('offline.status.needOpponent'), true)
     return
   }
-  // A bots match is also a daily challenge run: attach the persisted mission list so
-  // tasks are tracked live in the Mission popup and banked on finish.
+  // The daily mission list is attached to every bots match, but only counts (live
+  // Mission popup + XP on finish) when the Accept toggle is on. The profile toggle
+  // decides whether the match feeds counters, history and achievements at all.
   const challenge = resolveDailyChallenge(window.localStorage)
   const cfg: MatchConfig = {
     map: previewMap,
@@ -1694,6 +1707,8 @@ startBtn.addEventListener('click', () => {
     settings: { ...resolvedDevSettings(), fogMode: startFogEl.value as FogMode, dayNight: startDayNightEl.checked },
     mode: 'bots',
     daily: { generation: challenge.generation },
+    trackDaily: dailyAcceptToggle.checked,
+    trackProfile: matchProfileToggle.checked,
   }
   setOfflineStatus('')
   startCountdown(cfg)
@@ -1703,6 +1718,7 @@ renderMapSelect()
 renderPlayers()
 preview.render(previewMap, previewColorFor)
 renderDaily()
+updateTrackingHints()
 
 const WIN_RULE_KEYS: Record<WinRule, string> = {
   standard: 'standard',
@@ -2806,6 +2822,7 @@ const infoCatalogReady = import('./ui/game-info-catalog.ts').then((mod) => {
 
 const refreshLobbyTexts = (): void => {
   translateStatic()
+  updateTrackingHints()
   if (joinBusy) setJoinBusy(true)
   renderMapSelect()
   renderPlayers()

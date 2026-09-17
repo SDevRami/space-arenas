@@ -211,7 +211,17 @@
                   <span id="daily-level-label"></span>
                 </div>
                 <div class="hint" data-i18n="daily.hint">A fixed set of missions tracked from every bots match — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up. Offline modes have no leaderboard.</div>
+                <label for="daily-accept-toggle" class="check-label">
+                  <input type="checkbox" id="daily-accept-toggle" checked />
+                  <span data-i18n="daily.acceptLabel">Count this match toward the daily mission list</span>
+                </label>
+                <div class="hint" id="daily-accept-hint"></div>
                 <div class="mission-list" id="daily-missions-list"></div>
+                <label for="match-profile-toggle" class="check-label">
+                  <input type="checkbox" id="match-profile-toggle" checked />
+                  <span data-i18n="daily.profileLabel">Count this match toward my profile and achievements</span>
+                </label>
+                <div class="hint" id="match-profile-hint"></div>
               </div>
               <div id="offline-campaign-extras" class="mode-extras hidden-extras">
                 <div class="hint" data-i18n="campaign.hint">The scripted campaign is planned as a future feature. This mode is a placeholder for now.</div>

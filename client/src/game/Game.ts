@@ -74,6 +74,9 @@ export class Game {
   private achNotified = new Set<string>()
   private lastAchCheckTick = -1
   private modeCfg: MatchConfig | null = null
+  /** Match-option toggles (offline): daily missions accepted and profile counted. */
+  private trackDaily = true
+  private trackProfile = true
   private netPlayers: PlayerSlot[] = []
   private spectator = false
   private team = 0
@@ -665,11 +668,12 @@ export class Game {
     this.resultsOverlay.classList.add('visible')
   }
 
-  /** Persist the daily mission results on match finish. Every bots match is a
-   *  daily challenge run, so XP banks for any mission newly completed this play. */
+  /** Persist the daily mission results on match finish. When the daily list is
+   *  accepted on this match, XP banks for any mission newly completed this play;
+   *  a skipped daily list records nothing. */
   private recordModeResults(winner: number | null): void {
     const cfg = this.modeCfg
-    if (!cfg || !cfg.daily || !this.session) return
+    if (!cfg || !cfg.daily || !this.trackDaily || !this.session) return
     const storage = window.localStorage
     const summary = this.session.summary()
     this.lastModeNote = null
@@ -705,6 +709,8 @@ export class Game {
   private recordProfileMatch(winner: number | null): void {
     if (this.profileRecorded || !this.session) return
     this.profileRecorded = true
+    // The match-options toggle decides whether this match is counted at all.
+    if (!this.trackProfile) return
     const storage = window.localStorage
     const profile = loadProfile(storage)
     const config = loadProfileConfig(storage)
@@ -790,12 +796,16 @@ export class Game {
     this.recordTicks = 0
     this.replayRecorded = false
     this.dailyMissionDefs = null
+    this.trackDaily = cfg.trackDaily
+    this.trackProfile = cfg.trackProfile
     this.hud.showMissionButton(false)
     this.hud.setObjective(null)
     await this.boot(null, cfg)
-    // Every offline match is a daily challenge run: wire the mission popup so the
+    // A bots match can be a daily challenge run: wire the mission popup so the
     // fixed task list tracks live progress (it also progress-evaluates on finish).
-    if (cfg.daily) {
+    // When the player skips the daily list, the popup stays hidden and the match
+    // is not counted toward the tasks.
+    if (cfg.daily && this.trackDaily) {
       this.dailyMissionDefs = generateDailyMissions(cfg.daily.generation)
       this.hud.showMissionButton(true)
       this.refreshDailyMissions()
@@ -832,6 +842,8 @@ export class Game {
     this.team = msg.players.find((p) => p.id === msg.yourId)?.team ?? msg.yourId
     this.modeCfg = null
     this.dailyMissionDefs = null
+    this.trackDaily = false
+    this.trackProfile = true
     this.hud.showMissionButton(false)
     this.hud.setObjective(null)
     this.bots = []
@@ -860,6 +872,8 @@ export class Game {
     this.team = replay.players.find((p) => p.id === 0)?.team ?? -1
     this.modeCfg = null
     this.dailyMissionDefs = null
+    this.trackDaily = false
+    this.trackProfile = true
     this.hud.showMissionButton(false)
     this.hud.setObjective(null)
     this.bots = []
