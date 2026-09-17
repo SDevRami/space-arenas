@@ -98,14 +98,85 @@ describe('construction requires a bulldozer', () => {
     expect(events.some((e) => e.type === 'command-rejected' && e.reason === 'no available bulldozer')).toBe(true)
   })
 
-  it('rejects placement with a busy bulldozer', () => {
+  it('queues a building for a busy bulldozer with capacity', () => {
+    const sim = new Simulator(MAP, SEED, [0])
+    const d = dozerId(sim.world)
+    const firstBid = placePowerPlant(sim, d)
+    const spot = findSpot(sim.world, d)
+    sim.step([cmd(sim, 2, { type: 'place', entities: [d], x: spot.x, y: spot.y, buildingType: 'barracks' })])
+    const events = sim.drainEvents()
+    expect(events.some((e) => e.type === 'command-rejected')).toBe(false)
+    const queued = sim.world.buildOrderQueues.get(d)
+    expect(queued?.length).toBe(1)
+    let bid = -1
+    sim.world.buildings.forEach((id, b) => {
+      if (bid < 0 && b.buildingType === 'barracks' && b.team === 0) bid = id
+    })
+    expect(bid > 0).toBe(true)
+    const b = sim.world.buildings.require(bid)
+    expect(b.assignedDozer).toBe(0)
+    expect(sim.world.works.get(d)?.building).toBe(firstBid)
+    expect(events.some((e) => e.type === 'build-order-queued' && e.building === bid)).toBe(true)
+  })
+
+  it('rejects placement when the dozer build queue is full', () => {
+    const sim = new Simulator(MAP, SEED, [0])
+    const d = dozerId(sim.world)
+    sim.world.teamState(0).credits = 1000000
+    placePowerPlant(sim, d)
+    for (let i = 0; i < 2; i++) {
+      const spot = findSpot(sim.world, d)
+      sim.step([cmd(sim, 2 + i, { type: 'place', entities: [d], x: spot.x, y: spot.y, buildingType: 'barracks' })])
+      sim.drainEvents()
+    }
+    expect(sim.world.buildOrderQueues.get(d)?.length).toBe(2)
+    const spot = findSpot(sim.world, d)
+    sim.step([cmd(sim, 5, { type: 'place', entities: [d], x: spot.x, y: spot.y, buildingType: 'barracks' })])
+    const events = sim.drainEvents()
+    expect(events.some((e) => e.type === 'command-rejected' && e.reason === 'build order queue full')).toBe(true)
+  })
+
+  it('auto-starts the next queued building when the current one completes', () => {
     const sim = new Simulator(MAP, SEED, [0])
     const d = dozerId(sim.world)
     placePowerPlant(sim, d)
     const spot = findSpot(sim.world, d)
     sim.step([cmd(sim, 2, { type: 'place', entities: [d], x: spot.x, y: spot.y, buildingType: 'barracks' })])
-    const events = sim.drainEvents()
-    expect(events.some((e) => e.type === 'command-rejected' && e.reason === 'no available bulldozer')).toBe(true)
+    sim.drainEvents()
+    const queuedBid = sim.world.buildOrderQueues.get(d)![0]
+    sim.advance(2000)
+    expect(sim.world.buildings.get(queuedBid)?.done).toBe(true)
+    expect(sim.world.buildings.require(queuedBid).assignedDozer).toBe(0)
+    expect(sim.world.works.has(d)).toBe(false)
+    expect(sim.world.buildOrderQueues.get(d)?.length ?? 0).toBe(0)
+  })
+
+  it('stop auto-starts the next queued building instead of dropping it', () => {
+    const sim = new Simulator(MAP, SEED, [0])
+    const d = dozerId(sim.world)
+    placePowerPlant(sim, d)
+    const spot = findSpot(sim.world, d)
+    sim.step([cmd(sim, 2, { type: 'place', entities: [d], x: spot.x, y: spot.y, buildingType: 'barracks' })])
+    sim.drainEvents()
+    const queuedBid = sim.world.buildOrderQueues.get(d)![0]
+    sim.step([cmd(sim, 3, { type: 'stop', entities: [d], x: 0, y: 0 })])
+    expect(sim.world.works.has(d)).toBe(true)
+    expect(sim.world.works.get(d)?.building).toBe(queuedBid)
+    expect(sim.world.buildings.require(queuedBid).assignedDozer).toBe(d)
+    expect(sim.world.buildOrderQueues.get(d)?.length ?? 0).toBe(0)
+  })
+
+  it('drops a queued order when the building is removed', () => {
+    const sim = new Simulator(MAP, SEED, [0])
+    const d = dozerId(sim.world)
+    placePowerPlant(sim, d)
+    const spot = findSpot(sim.world, d)
+    sim.step([cmd(sim, 2, { type: 'place', entities: [d], x: spot.x, y: spot.y, buildingType: 'barracks' })])
+    sim.drainEvents()
+    const q = sim.world.buildOrderQueues.get(d)!
+    expect(q.length).toBe(1)
+    sim.world.removeEntity(q[0])
+    expect(q.length).toBe(0)
   })
 })
 

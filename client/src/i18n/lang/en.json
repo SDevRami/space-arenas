@@ -1265,6 +1265,8 @@
     "noFreeDozer": "No free Bulldozer selected",
     "place": "Place {name} — click a location, Esc to cancel",
     "cannotPlace": "Cannot place there",
+    "orderQueued": "Build order queued ({n}/{max})",
+    "orderQueueFull": "Build order queue full",
     "placementCancelled": "Placement cancelled",
     "cmdModeOn": "Command mode ON: tap map to move",
     "cmdModeOff": "Command mode OFF",

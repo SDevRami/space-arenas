@@ -400,8 +400,15 @@ export class Hud {
       if (u) {
         names.push(tn(u.unitType, UNITS[u.unitType]?.name ?? u.unitType))
         if (u.unitType === 'bulldozer' && u.team === localTeam) {
-          if (world.works.has(id)) hasWorkingDozer = true
-          else hasBuilder = true
+          const w = world.works.get(id)
+          if (w) {
+            hasWorkingDozer = true
+            // A constructing dozer can still accept more build orders (Day 20 queue),
+            // so keep the build list visible; collecting/repairing dozers cannot.
+            if (w.kind === 'construct') hasBuilder = true
+          } else {
+            hasBuilder = true
+          }
         }
       }
       if (b) names.push(tn(b.buildingType, BUILDINGS[b.buildingType]?.name ?? b.buildingType))

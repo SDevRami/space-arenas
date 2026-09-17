@@ -454,6 +454,8 @@ export class World {
   readonly oilFields = new SparseSet<OilFieldComp>()
   readonly works = new SparseSet<WorkComp>()
   readonly wrecks = new SparseSet<WreckComp>()
+  /** Day 20: bulldozer id -> ordered building ids waiting for construction. */
+  readonly buildOrderQueues = new Map<number, number[]>()
   readonly satelliteMarkers = new SparseSet<SatelliteMarkerComp>()
   readonly grenades = new SparseSet<GrenadeComp>()
   readonly smokes = new SparseSet<SmokeComp>()
@@ -597,6 +599,14 @@ export class World {
     this.scenery.delete(id)
     this.mines.delete(id)
     this.transports.delete(id)
+    if (kind === 'building') {
+      for (const q of this.buildOrderQueues.values()) {
+        const i = q.indexOf(id)
+        if (i >= 0) q.splice(i, 1)
+      }
+    } else if (kind === 'unit') {
+      this.buildOrderQueues.delete(id)
+    }
     this.entityKinds.delete(id)
     if (kind === 'building' || kind === 'field' || kind === 'scenery') this.gridDirty = true
     if (team >= 0) {

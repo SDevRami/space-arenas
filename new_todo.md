@@ -421,17 +421,25 @@ Three offline modes behind a mode-list lobby, plus a custom-scenario UI placehol
 
 ---
 
-## Day 20 — Base Templates + Mod Support (S–M)
+## Day 20 — Bulldozer Build-Order Queue + Mod Support Report (S–M)
 
-Economy QoL + data config.
+Economy QoL + data config. **Re-scoped mid-day:** the base-template idea was replaced
+by a bulldozer multi-build-order queue; mod support became a report-only deliverable.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Save building layout** — in-game button saves current building positions as a template | #20a | `Game.ts` new `saveTemplate(name)`: iterate `world.entities`, filter `buildingComp`, store `{ type, relX, relY }[]` in localStorage `space-arenas:templates`. HUD button in tools bar. |
-| 2 | **Build from template** — load template, show ghost preview, click to place all at relative offsets | #20a | `Game.ts` new `loadTemplate(id)`: enter placement mode with ghost buildings rendered at relative offsets. Click to issue batch `SimCommand::place` for each building (if enough supply + power). |
-| 3 | **JSON balance mods** — lobby toggle to load `balance.json` overrides at game start | #37a | `match.ts`: if `modPath` set, `fetch(modPath)` then deep-merge into `buildings.ts` / `units.ts` / `weapons.ts` defaults. `constants.ts` `OVERRIDE_BUILDING_FIELDS` / `OVERRIDE_UNIT_FIELDS` already support this pattern. Lobby: file input or URL field for mod JSON. |
+| 1 | **Bulldozer build-order queue** — busy dozer queues up to `maxBuildOrders` (default 3, dev settings) building orders; placement stays active so clicks append; WorkSystem auto-starts the next order when the current construct completes/cancels | Day20a | `MatchSettings.maxBuildOrders`; `World.buildOrderQueues` (`Map<dozerId, buildingId[]>`), purged in `removeEntity`; `place` accepts a dozer busy with `construct` while `active+queued < maxBuildOrders`, else rejects `'build order queue full'`; `work-system.ts` frees then `startNextQueued`; Game.ts keeps `pendingPlace` active per click and drops out on a full queue. Deep-fix: `workArrivePoint` only picks build pads in the dozer's passable component (+ working dozers no longer skip separation from *other* buildings) so a merely-blocked route rounds the obstruction instead of falling back to build-from-far; boxed-in test keeps the time fallback as a last resort. Tests: queue/auto-start/stop/full/cleanup. |
+| 2 | **JSON balance mods — report only** | #37a | Not implemented. Full design + risk + test plan: `docs/10-MOD-SUPPORT-REPORT.md`. The whole schema rides on the existing override-aware accessors (`getBuilding/getUnit/getWeapon/getUpgrade`) + `SANITIZE`, so implementation is ~1 dev day if picked up later. |
 
-**Touch points:** `Game.ts`, `hud.ts`, `placing-system.ts`, `match.ts`, `constants.ts`, localStorage
+**Touch points:** `constants.ts`, `rooms.ts`, `world.ts` (buildOrderQueues, removeEntity),
+`input-system.ts` (place/stop), `work-system.ts` (component-aware pads, startNextQueued),
+`movement-system.ts` (separation exemption), `Game.ts` (placement UX + toasts), `events.ts`,
+i18n, `tests/construction.test.ts`
+
+### Day 20 verification
+- `npm run typecheck` (4 workspaces) — pass
+- `npm test` — 369 pass (32 files), incl. new queue tests + boxed-in regression
+- `npm run build` — pass; `npm run lint` — only pre-existing untracked `.js` no-undef + untouched test warnings
 
 ---
 
@@ -495,7 +503,7 @@ New game mode overlay with guided walkthrough.
 | 17 | Replay system | M | No | |
 | 18 | Auto-reconnect | M | No | |
 | 19 | Survival + scenario | M–L | Yes | |
-| 20 | Base templates + mods | S–M | No | |
+| 20 | Bulldozer build-order queue (+ mod report) | S–M | Yes | ✅ (mods deferred → report) |
 | 21 | Hold position + formations | M | Yes | |
 | 22 | Territory capture (supply) | M | Yes | |
 | 23 | Tutorial | L | Yes | |

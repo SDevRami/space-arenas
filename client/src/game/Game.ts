@@ -1412,16 +1412,22 @@ export class Game {
         else if (this.mode === 'offline') this.saveOfflineReplay(e.winner)
       }
       if (e.type === 'command-rejected') {
-        this.hud.toast(t('game.rejected', { reason: e.reason }))
+        if (e.reason === 'build order queue full') {
+          this.pendingPlace = null
+          this.hud.toast(t('game.orderQueueFull'))
+        } else {
+          this.hud.toast(t('game.rejected', { reason: e.reason }))
+        }
       }
     }
     }
     this.checkLiveAchievements()
   }
 
-  /** Every ~1s of sim time, see whether any achievement turned on; if so, toast + sound. */
+  /** Every ~1s of sim time, see whether any achievement turned on; if so, toast + sound.
+   *  Skipped when the match was set to not count toward the profile. */
   private checkLiveAchievements(): void {
-    if (this.spectator || !this.session || !this.world) return
+    if (this.spectator || !this.trackProfile || !this.session || !this.world) return
     if (this.world.tick - this.lastAchCheckTick < SECONDS_TO_TICKS(1)) return
     this.lastAchCheckTick = this.world.tick
     const storage = window.localStorage
@@ -1620,15 +1626,33 @@ export class Game {
     return true
   }
 
+  private dozerOrderCount(world: World, id: number): number {
+    const w = world.works.get(id)
+    const queued = world.buildOrderQueues.get(id)?.length ?? 0
+    return (w && w.kind === 'construct' ? 1 : 0) + queued
+  }
+
   private startPlacement(type: string): void {
     const world = this.world
     if (!world) return
+    // A dozer may take more build orders while busy ONLY if it is constructing
+    // (not collecting/repairing) and has queue capacity (Day 20).
     const dozerId = [...this.selection].find((id) => {
       const u = world.units.get(id)
-      return !!u && world.canControl(this.localTeam, id) && u.unitType === 'bulldozer' && !world.works.has(id)
+      if (!u || !world.canControl(this.localTeam, id) || u.unitType !== 'bulldozer') return false
+      const w = world.works.get(id)
+      if (w && w.kind !== 'construct') return false
+      return this.dozerOrderCount(world, id) < world.settings.maxBuildOrders
     })
     if (dozerId === undefined) {
-      this.hud.toast(t('game.noFreeDozer'))
+      const busyButFull = [...this.selection].some((id) => {
+        const u = world.units.get(id)
+        if (!u || !world.canControl(this.localTeam, id) || u.unitType !== 'bulldozer') return false
+        const w = world.works.get(id)
+        if (w && w.kind !== 'construct') return false
+        return this.dozerOrderCount(world, id) >= world.settings.maxBuildOrders
+      })
+      this.hud.toast(busyButFull ? t('game.orderQueueFull') : t('game.noFreeDozer'))
       return
     }
     this.audio.uiClick()
@@ -1804,8 +1828,16 @@ export class Game {
       const tx = Math.floor(info.world.x / 1000)
       const ty = Math.floor(info.world.y / 1000)
       if (this.canPlace(this.pendingPlace.buildingType, tx, ty)) {
+        const busy = this.dozerOrderCount(world, this.pendingPlace.dozerId) > 0
         this.issue({ type: 'place', entities: [this.pendingPlace.dozerId], x: tx, y: ty, buildingType: this.pendingPlace.buildingType })
-        this.pendingPlace = null
+        // Keep placement active so the player can append more orders by clicking
+        // (Day 20). Once the dozer's queue is full, drop out of placement mode.
+        const orders = this.dozerOrderCount(world, this.pendingPlace.dozerId) + 1
+        if (busy) this.hud.toast(t('game.orderQueued', { n: orders, max: world.settings.maxBuildOrders }))
+        if (orders >= world.settings.maxBuildOrders) {
+          this.pendingPlace = null
+          this.hud.toast(t('game.orderQueueFull'))
+        }
       } else {
         this.hud.toast(t('game.cannotPlace'))
       }

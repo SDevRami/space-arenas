@@ -11,9 +11,30 @@ const passableFx = (world: World, x: number, y: number): boolean => {
   return !!grid.passable[ty * world.width + tx]
 }
 
-const nearestPassableFx = (world: World, cx: number, cy: number, maxRadius: number): { x: number; y: number } | null => {
+// The connected passable component the given fx point sits in (-1 when the
+// tile is impassable or the grid is not available). The dozer can only reach
+// pads inside its own component, so pick pads that share it.
+const tileComponent = (world: World, x: number, y: number): number => {
+  const grid = world.grid
+  if (!grid) return -1
+  const tx = Math.floor(x / 1000)
+  const ty = Math.floor(y / 1000)
+  if (tx < 0 || ty < 0 || tx >= world.width || ty >= world.height) return -1
+  const i = ty * world.width + tx
+  if (!grid.passable[i]) return -1
+  return grid.component[i]
+}
+
+const nearestPassableFx = (
+  world: World,
+  cx: number,
+  cy: number,
+  maxRadius: number,
+  comp: number = -1,
+): { x: number; y: number } | null => {
   const grid = world.grid
   if (!grid) return null
+  let fallback: { x: number; y: number } | null = null
   for (let r = 1; r <= maxRadius; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -21,11 +42,17 @@ const nearestPassableFx = (world: World, cx: number, cy: number, maxRadius: numb
         const nx = cx + dx
         const ny = cy + dy
         if (nx < 0 || ny < 0 || nx >= world.width || ny >= world.height) continue
-        if (grid.passable[ny * world.width + nx]) return { x: nx * 1000 + 500, y: ny * 1000 + 500 }
+        const i = ny * world.width + nx
+        if (!grid.passable[i]) continue
+        const p = { x: nx * 1000 + 500, y: ny * 1000 + 500 }
+        if (fallback === null) fallback = p
+        // Prefer a tile the dozer can actually reach; fall back to any passable
+        // tile (keeps genuinely sealed buildings buildable from far).
+        if (comp >= 0 && grid.component[i] === comp) return p
       }
     }
   }
-  return null
+  return fallback
 }
 
 const workPad = (world: World): number => world.settings.workPadDistance * 1000
@@ -38,6 +65,13 @@ const workArrivePoint = (world: World, buildingId: number, dozerId: number): { x
   const pad = workPad(world)
   const halfX = b.footprintW * 500
   const halfY = b.footprintH * 500
+  // Deep fix: only pads the dozer can actually reach are usable. A pad next to
+  // the target but separated by a building/terrain in another passable
+  // component makes the dozer march head-on into that building and then fall
+  // back to the time-based "build from far" path — which is wrong when the route
+  // is merely blocked, not sealed. Filtering by component routes the dozer
+  // around obstructions to a reachable pad instead.
+  const comp = tileComponent(world, t.x, t.y)
   const sides: Array<{ x: number; y: number }> = [
     { x: bt.x - halfX - pad, y: bt.y },
     { x: bt.x + halfX + pad, y: bt.y },
@@ -46,7 +80,7 @@ const workArrivePoint = (world: World, buildingId: number, dozerId: number): { x
   ]
   sides.sort((a, b2) => sqDist(a.x, a.y, t.x, t.y) - sqDist(b2.x, b2.y, t.x, t.y))
   for (const s of sides) {
-    if (passableFx(world, s.x, s.y)) return s
+    if (passableFx(world, s.x, s.y) && (comp < 0 || tileComponent(world, s.x, s.y) === comp)) return s
   }
   const corners: Array<{ x: number; y: number }> = [
     { x: bt.x - halfX - pad, y: bt.y - halfY - pad },
@@ -55,9 +89,9 @@ const workArrivePoint = (world: World, buildingId: number, dozerId: number): { x
     { x: bt.x + halfX + pad, y: bt.y + halfY + pad },
   ]
   for (const s of corners) {
-    if (passableFx(world, s.x, s.y)) return s
+    if (passableFx(world, s.x, s.y) && (comp < 0 || tileComponent(world, s.x, s.y) === comp)) return s
   }
-  const near = nearestPassableFx(world, Math.floor(bt.x / 1000), Math.floor(bt.y / 1000), 10)
+  const near = nearestPassableFx(world, Math.floor(bt.x / 1000), Math.floor(bt.y / 1000), 10, comp)
   if (near) return near
   return sides[0]
 }
@@ -84,10 +118,37 @@ const touchesFootprint = (
   )
 }
 
+export const startNextQueued = (world: World, dozerId: number): void => {
+  const q = world.buildOrderQueues.get(dozerId)
+  if (!q || q.length === 0) return
+  while (q.length > 0) {
+    const bid = q.shift()
+    if (bid === undefined) break
+    const b = world.buildings.get(bid)
+    // Skip orders that are no longer valid: destroyed/sold away, already done,
+    // mid-sell (refund pending), or already picked up by another dozer.
+    if (!b || b.done || b.sellingUntil > world.tick || b.assignedDozer !== 0) continue
+    b.assignedDozer = dozerId
+    world.works.set(dozerId, { kind: 'construct', building: bid })
+    world.moves.delete(dozerId)
+    world.emit({ type: 'dozer-assigned', entity: dozerId, building: bid, kind: 'construct', team: b.team })
+    return
+  }
+}
+
 export const WorkSystem = {
   name: 'Work',
   update(world: World): void {
     world.rebuildGridIfDirty()
+    // Day 20: dozers whose construct order ended this tick get the next queued
+    // order started for them once the forEach loops are done (mutating works
+    // during iteration is unsafe). Collect ids, start after.
+    const freedDozers = new Set<number>()
+    const freeDozer = (id: number): void => {
+      freedDozers.add(id)
+      world.works.delete(id)
+      world.moves.delete(id)
+    }
 
     world.buildings.forEach((_id, b) => {
       if (b.assignedDozer !== 0 && !world.isAlive(b.assignedDozer)) {
@@ -99,8 +160,7 @@ export const WorkSystem = {
       if (w.kind === 'collect' || w.kind === 'repair-unit') return
       const b = world.buildings.get(w.building)
       if (!b || b.assignedDozer !== id) {
-        world.works.delete(id)
-        world.moves.delete(id)
+        freeDozer(id)
       }
     })
 
@@ -172,14 +232,12 @@ export const WorkSystem = {
       const b = world.buildings.get(w.building)
       const bt = world.transforms.get(w.building)
       if (!b || !bt) {
-        world.works.delete(id)
-        world.moves.delete(id)
+        freeDozer(id)
         return
       }
       if (w.kind === 'construct' && b.done) {
         b.assignedDozer = 0
-        world.works.delete(id)
-        world.moves.delete(id)
+        freeDozer(id)
         return
       }
       if (w.kind === 'repair') {
@@ -235,7 +293,7 @@ export const WorkSystem = {
         }
         if (b.done) {
           b.assignedDozer = 0
-          world.works.delete(id)
+          freeDozer(id)
           world.emit({ type: 'building-completed', entity: w.building, buildingType: b.buildingType, team: b.team })
           if (def.producesUnit === 'harvester') {
             const q = world.queues.get(w.building)
@@ -254,5 +312,7 @@ export const WorkSystem = {
         h.hp = Math.min(h.maxHp, h.hp + Math.max(1, perTick))
       }
     })
+
+    for (const id of freedDozers) startNextQueued(world, id)
   },
 }

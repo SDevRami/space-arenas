@@ -290,6 +290,8 @@ export interface MatchSettings {
   planeSortieMult: number
   workPadDistance: number
   workStuckTicks: number
+  /** Day 20: max total build orders (active + queued) a single bulldozer may hold. */
+  maxBuildOrders: number
   pathBudgetPerTick: number
   pathMaxNodes: number
   veteranRank1Kills: number
@@ -401,6 +403,7 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   planeSortieMult: 4,
   workPadDistance: 1,
   workStuckTicks: 45,
+  maxBuildOrders: 3,
   pathBudgetPerTick: 8,
   pathMaxNodes: 8000,
   veteranRank1Kills: VETERAN_RANK1_KILLS,

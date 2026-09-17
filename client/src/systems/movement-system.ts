@@ -191,9 +191,15 @@ const applySeparation = (world: World): void => {
     const ta = world.transforms.get(ids[i])
     const ua = world.units.get(ids[i])
     if (!ta || !ua) continue
-    if (world.works.has(ids[i])) continue
+    // Working dozers used to be excluded from building separation entirely, but
+    // that let them march head-on into buildings standing between them and
+    // their pad. Keep them flowing AROUND every building except the exact one
+    // they are assigned to work on (that rect is exempt so they can stand on
+    // their own pad without being pushed back).
+    const wa = world.works.get(ids[i])
+    const workTarget = wa && (wa.kind === 'construct' || wa.kind === 'repair') ? wa.building : -1
     const hv = world.harvesters.get(ids[i])
-    const isTarget = (id: number): boolean => hv !== undefined && (hv.dock === id || hv.field === id)
+    const isTarget = (id: number): boolean => hv !== undefined && (hv.dock === id || hv.field === id || id === workTarget)
     const margin = (ua.class === 'vehicle' ? world.settings.buildingMarginVehicle : world.settings.buildingMarginInfantry) * 1000
     for (const r of rects) {
       if (isTarget(r.id)) continue

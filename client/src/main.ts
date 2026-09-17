@@ -614,6 +614,7 @@ const DEV_SCALAR_SECTIONS: Array<{ title: string; fields: DevFieldDef[] }> = [
       { key: 'crushDamage', unit: 'dmg', min: 0, max: 10000, step: 1 },
       { key: 'workPadDistance', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
       { key: 'workStuckTicks', unit: 'ticks', min: 5, max: 300, step: 5 },
+      { key: 'maxBuildOrders', unit: 'orders', min: 1, max: 12, step: 1 },
     ],
   },
   {

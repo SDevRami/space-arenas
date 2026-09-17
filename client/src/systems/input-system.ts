@@ -5,6 +5,7 @@ import { placementExplored, PING_TICKS } from '../core/world.ts'
 import { nearestPassablePoint } from '../core/pathfinding.ts'
 import { buildingRect, setMove, spawnBuilding } from '../entities/factories.ts'
 import { dockArrivePoint } from './economy-system.ts'
+import { startNextQueued } from './work-system.ts'
 import { spawnAirstrike } from './airstrike-system.ts'
 
 const SPAWN_POINT_RADIUS_DEFAULT = 2
@@ -69,9 +70,21 @@ const ownedBuilding = (world: World, player: number, id: number): boolean => {
   return !!b && world.canControl(player, id)
 }
 
-const isFreeDozer = (world: World, player: number, id: number): boolean => {
+/** Day 20: whether a bulldozer may take one more build order. A busy dozer is
+ *  only eligible while it is constructing (not collecting/repairing), and the
+ *  total (active construct + queued) must stay below settings.maxBuildOrders. */
+const canAcceptBuildOrder = (world: World, player: number, id: number): { ok: boolean; reason: string } => {
   const u = world.units.get(id)
-  return !!u && u.unitType === 'bulldozer' && !world.works.has(id) && world.canControl(player, id)
+  if (!u || u.unitType !== 'bulldozer' || !world.canControl(player, id)) return { ok: false, reason: 'no available bulldozer' }
+  const w = world.works.get(id)
+  const queued = world.buildOrderQueues.get(id)?.length ?? 0
+  if (w) {
+    if (w.kind !== 'construct') return { ok: false, reason: 'no available bulldozer' }
+    if (1 + queued >= world.settings.maxBuildOrders) return { ok: false, reason: 'build order queue full' }
+  } else if (queued >= world.settings.maxBuildOrders) {
+    return { ok: false, reason: 'build order queue full' }
+  }
+  return { ok: true, reason: '' }
 }
 
 const countBuilding = (world: World, type: string, team: number): number => {
@@ -669,6 +682,7 @@ export const InputSystem = {
               const b = world.buildings.get(w.building)
               if (b && b.assignedDozer === id) b.assignedDozer = 0
               world.emit({ type: 'work-cancelled', entity: id, building: w.building, team: player })
+              startNextQueued(world, id)
             }
           }
           break
@@ -1010,8 +1024,13 @@ export const InputSystem = {
             break
           }
           const dozerId = cmd.entities[0]
-          if (dozerId === undefined || !isFreeDozer(world, player, dozerId)) {
+          if (dozerId === undefined) {
             world.emit({ type: 'command-rejected', player, reason: 'no available bulldozer' })
+            break
+          }
+          const order = canAcceptBuildOrder(world, player, dozerId)
+          if (!order.ok) {
+            world.emit({ type: 'command-rejected', player, reason: order.reason })
             break
           }
           const def = getBuilding(buildingType, world.settings)
@@ -1022,11 +1041,22 @@ export const InputSystem = {
           world.spendCredits(player, def.cost)
           const id = spawnBuilding(world, buildingType, player, tx, ty, false)
           const b = world.buildings.require(id)
-          b.assignedDozer = dozerId
-          world.works.set(dozerId, { kind: 'construct', building: id })
-          world.moves.delete(dozerId)
-          world.emit({ type: 'building-placed', entity: id, buildingType, team: player })
-          world.emit({ type: 'dozer-assigned', entity: dozerId, building: id, kind: 'construct', team: player })
+          const w = world.works.get(dozerId)
+          if (w && w.kind === 'construct') {
+            // Busy dozer with queue capacity: hold the order until it finishes
+            // the current construct (WorkSystem auto-starts it afterwards).
+            const q = world.buildOrderQueues.get(dozerId)
+            if (q) q.push(id)
+            else world.buildOrderQueues.set(dozerId, [id])
+            world.emit({ type: 'building-placed', entity: id, buildingType, team: player })
+            world.emit({ type: 'build-order-queued', entity: dozerId, building: id, team: player })
+          } else {
+            b.assignedDozer = dozerId
+            world.works.set(dozerId, { kind: 'construct', building: id })
+            world.moves.delete(dozerId)
+            world.emit({ type: 'building-placed', entity: id, buildingType, team: player })
+            world.emit({ type: 'dozer-assigned', entity: dozerId, building: id, kind: 'construct', team: player })
+          }
           // Day 15 expansion score: only when the new building is far enough
           // from this team's starting base to actually count as scouting/expanding.
           const sp = world.map.spawnPoints[player]

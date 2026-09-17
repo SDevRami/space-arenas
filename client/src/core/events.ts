@@ -34,6 +34,7 @@ export type SimEvent =
   | { type: 'unit-sold'; entity: number; unitType: string; team: number; refund: number; x: number; y: number }
   | { type: 'wreck-collected'; entity: number; team: number; value: number }
   | { type: 'dozer-assigned'; entity: number; building: number; kind: 'construct' | 'repair'; team: number }
+  | { type: 'build-order-queued'; entity: number; building: number; team: number }
   | { type: 'repair-target-assigned'; entity: number; target: number; team: number }
   | { type: 'unit-loaded'; entity: number; transport: number; unitType: string; team: number }
   | { type: 'unit-unloaded'; entity: number; transport: number; unitType: string; team: number }
