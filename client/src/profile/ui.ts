@@ -75,18 +75,8 @@ const hexChart = (profile: Profile): string => {
 }
 
 const renderModeRecords = (rec: ModeRecords): string => {
-  const survival = rec.survival
   const daily = rec.daily
-  const campaign = rec.campaign
   const row = (label: string, value: string): string => `<div class="profile-mode-row"><span>${esc(label)}</span><b>${esc(value)}</b></div>`
-  let survivalMarkup = ''
-  if (survival) {
-    survivalMarkup += `<div class="profile-mode-card"><div class="profile-mode-title">${esc(t('profile.modeSurvival'))}</div>` +
-      row(t('profile.modeBestWave'), String(survival.bestWave)) +
-      row(t('profile.modeBestScore'), String(survival.bestScore)) +
-      row(t('profile.modePlays'), `${survival.plays} · ${survival.wins} ${t('profile.modeWins')}`) +
-      `</div>`
-  }
   let dailyMarkup = ''
   if (daily) {
     const done = daily.challenge ? daily.challenge.doneIds.length : 0
@@ -96,14 +86,7 @@ const renderModeRecords = (rec: ModeRecords): string => {
       row(t('profile.modeMissionsDone'), `${done}/${DAILY_MISSION_COUNT}`) +
       `</div>`
   }
-  let campaignMarkup = ''
-  if (campaign) {
-    campaignMarkup += `<div class="profile-mode-card"><div class="profile-mode-title">${esc(t('profile.modeCampaign'))}</div>` +
-      row(t('profile.modeChaptersDone'), `${campaign.chaptersDone.length}/${campaign.chaptersDone.length + (campaign.currentChapter && !campaign.chaptersDone.includes(campaign.currentChapter) ? 1 : 0)}`) +
-      row(t('profile.modePlays'), `${campaign.plays} · ${campaign.wins} ${t('profile.modeWins')}`) +
-      `</div>`
-  }
-  const body = survivalMarkup + dailyMarkup + campaignMarkup
+  const body = dailyMarkup
   return body ? `<div class="profile-mode-records"><div class="profile-mode-records-title">${esc(t('profile.modeRecords'))}</div><div class="profile-mode-cards">${body}</div></div>` : ''
 }
 

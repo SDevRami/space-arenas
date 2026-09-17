@@ -7,7 +7,7 @@ import { NetClient } from './net/net.ts'
 import type { LobbyMessage, MatchStartMessage } from '@space-arenas/shared'
 import type { MatchConfig, OfflineMode } from './game/match.ts'
 import { resolveDailyChallenge } from './modes/daily.ts'
-import { loadModeRecords, dailySeed, dailyLevel, dailyLevelXp, DAILY_XP_PER_LEVEL } from './profile/modeRecords.ts'
+import { loadModeRecords, dailyLevel, dailyLevelXp, DAILY_XP_PER_LEVEL } from './profile/modeRecords.ts'
 import { MapPreview } from './ui/map-preview.ts'
 import { createPlayerRow } from './ui/player-row.ts'
 import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
@@ -83,6 +83,8 @@ const showLobby = (): void => {
   }
   ;(document.getElementById('lobby') as HTMLDivElement).style.display = 'flex'
   if (wasNet) setTab('network')
+  // Returning from a match means new daily progress — refresh the bots tab list.
+  if (offlineMode === 'bots') renderDaily()
 }
 
 const makeGame = (): Game => new Game(document.body, { onQuit: showLobby })
@@ -1522,9 +1524,6 @@ const renderPlayers = (): void => {
       nameTitle: undefined,
       isBot: !!row.difficulty,
       difficulty: row.difficulty,
-      // Survival waves are driven by the master wave-difficulty select, so the
-      // per-bot difficulty is shown but not editable in that mode.
-      diffDisabled: offlineMode === 'survival',
       editable: true,
       showYouBadge: !row.difficulty,
       teamLabel: (n) => t('offline.playerRow.team', { n }),
@@ -1572,32 +1571,9 @@ addBotBtn.addEventListener('click', () => {
 
 const offlineModeListEl = document.getElementById('offline-mode-list') as HTMLElement
 const offlineOptionsEl = document.getElementById('offline-options') as HTMLElement
-const offlineExtras = {
-  survival: document.getElementById('offline-survival-extras') as HTMLElement,
-  daily: document.getElementById('offline-daily-extras') as HTMLElement,
-  campaign: document.getElementById('offline-campaign-extras') as HTMLElement,
-  custom: document.getElementById('offline-custom-extras') as HTMLElement,
-}
-const survivalDiffEl = document.getElementById('survival-difficulty') as HTMLSelectElement
+const offlineDailyExtrasEl = document.getElementById('offline-daily-extras') as HTMLElement
+const offlineCampaignExtrasEl = document.getElementById('offline-campaign-extras') as HTMLElement
 let offlineMode: OfflineMode = 'bots'
-
-survivalDiffEl.addEventListener('change', () => {
-  const d = survivalDiffEl.value as BotDifficulty
-  for (const r of rows) if (r.difficulty) r.difficulty = d
-  if (offlineMode === 'survival') renderPlayers()
-})
-
-const renderSurvivalBest = (): void => {
-  const box = document.getElementById('survival-best') as HTMLDivElement
-  const rec = loadModeRecords(window.localStorage).survival
-  if (!rec) {
-    box.innerHTML = `<div class="hint">${t('survival.noBest')}</div>`
-    return
-  }
-  box.innerHTML =
-    `<div class="stat-row"><span>${t('survival.best')}</span><b>${t('survival.bestWave', { n: rec.bestWave })} · ${t('survival.bestScore', { n: rec.bestScore })}</b></div>` +
-    `<div class="stat-row"><span>${t('survival.plays')}</span><b>${rec.plays} (${rec.wins} ${t('survival.wins')})</b></div>`
-}
 
 const renderDaily = (): void => {
   const storage = window.localStorage
@@ -1634,18 +1610,11 @@ const setOfflineMode = (mode: OfflineMode): void => {
   for (const btn of offlineModeListEl.querySelectorAll<HTMLButtonElement>('.mode-btn')) {
     btn.classList.toggle('active', (btn.dataset.mode as OfflineMode | undefined) === mode)
   }
-  offlineOptionsEl.classList.toggle('hidden-extras', mode === 'campaign' || mode === 'custom')
-  for (const key of ['survival', 'daily', 'campaign', 'custom'] as const) {
-    offlineExtras[key].classList.toggle('hidden-extras', mode !== key)
-  }
-  if (mode === 'survival') {
-    // Wave difficulty is the master control: it overrides every source bot's difficulty.
-    const d = survivalDiffEl.value as BotDifficulty
-    for (const r of rows) if (r.difficulty) r.difficulty = d
-    renderPlayers()
-    renderSurvivalBest()
-  }
-  if (mode === 'daily') renderDaily()
+  // The bots tab is the classic match plus the daily mission list; campaign is a placeholder.
+  offlineOptionsEl.classList.toggle('hidden-extras', mode !== 'bots')
+  offlineDailyExtrasEl.classList.toggle('hidden-extras', mode !== 'bots')
+  offlineCampaignExtrasEl.classList.toggle('hidden-extras', mode !== 'campaign')
+  if (mode === 'bots') renderDaily()
   setOfflineStatus('')
 }
 
@@ -1653,8 +1622,6 @@ offlineModeListEl.addEventListener('click', (e) => {
   const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.mode-btn')
   if (btn?.dataset.mode) setOfflineMode(btn.dataset.mode as OfflineMode)
 })
-
-document.getElementById('custom-upload-btn')?.addEventListener('click', () => setOfflineStatus(t('custom.comingSoon'), true))
 
 // ---------- countdown ----------
 
@@ -1699,10 +1666,6 @@ const beginGame = (cfg: MatchConfig): void => {
 }
 
 startBtn.addEventListener('click', () => {
-  if (offlineMode === 'custom') {
-    setOfflineStatus(t('custom.comingSoon'), true)
-    return
-  }
   if (offlineMode === 'campaign') {
     setOfflineStatus(t('campaign.comingSoon'), true)
     return
@@ -1714,67 +1677,13 @@ startBtn.addEventListener('click', () => {
   }
   const credits = Number(creditsInput.value) || DEFAULT_CREDITS
   if (WEATHERS.includes(startWeatherEl.value as WeatherId)) setWeather(startWeatherEl.value as WeatherId)
-  if (offlineMode === 'survival') {
-    // Survival is pure waves: the player fights alone, but every bot in the roster
-    // adds a wave source (N bots = N squads per wave) at its spawn point. The bots
-    // have no base and no AI — only their spawn tile matters.
-    if (!rows.some((r) => r.difficulty)) {
-      setOfflineStatus(t('survival.needSource'), true)
-      return
-    }
-    const human = humans[0]
-    const diff: BotDifficulty = survivalDiffEl.value as BotDifficulty
-    for (const r of rows) if (r.difficulty) r.difficulty = diff
-    applySpawnAssignments()
-    const localTeam = 0
-    const cfg: MatchConfig = {
-      map: previewMap,
-      credits,
-      localTeam,
-      slots: [{ team: 0, name: human.name || 'Commander', alliance: 0, color: 0 }],
-      winRule: 'standard' as WinRule,
-      settings: { ...resolvedDevSettings(), fogMode: startFogEl.value as FogMode, dayNight: startDayNightEl.checked },
-      seed: (Math.floor(Math.random() * 0xffffffff) >>> 0) || 0x5eed,
-      mode: 'survival',
-      survival: { difficulty: diff, waveIntervalTicks: SECONDS_TO_TICKS(45) },
-    }
-    setOfflineStatus('')
-    startCountdown(cfg)
-    return
-  }
-  if (offlineMode === 'daily') {
-    const human = humans[0]
-    const botDiff: BotDifficulty = (rows[0].difficulty ?? rows.find((r) => r.difficulty)?.difficulty ?? 'medium')
-    rows = [
-      { slot: 0, name: human.name || 'Commander', difficulty: undefined, team: 0, spawn: 0, color: 0 },
-      { slot: 1, name: t('offline.bot', { n: 1 }), difficulty: botDiff, team: 1, spawn: 1, color: 1 },
-    ]
-    applySpawnAssignments()
-    renderPlayers()
-    const challenge = resolveDailyChallenge(window.localStorage)
-    const localTeam = 0
-    const shared = {
-      map: previewMap,
-      credits,
-      localTeam,
-      slots: rows.map((r) => ({ team: r.slot, name: r.name, difficulty: r.difficulty, alliance: r.team, color: r.color })),
-      winRule: 'standard' as WinRule,
-      settings: { ...resolvedDevSettings(), fogMode: startFogEl.value as FogMode, dayNight: startDayNightEl.checked },
-    }
-    const cfg: MatchConfig = {
-      ...shared,
-      seed: dailySeed(`gen:${challenge.generation}`, 'match'),
-      mode: 'daily',
-      daily: { generation: challenge.generation },
-    }
-    setOfflineStatus('')
-    startCountdown(cfg)
-    return
-  }
   if (rows.length < 2) {
     setOfflineStatus(t('offline.status.needOpponent'), true)
     return
   }
+  // A bots match is also a daily challenge run: attach the persisted mission list so
+  // tasks are tracked live in the Mission popup and banked on finish.
+  const challenge = resolveDailyChallenge(window.localStorage)
   const cfg: MatchConfig = {
     map: previewMap,
     seed: (Math.floor(Math.random() * 0xffffffff) >>> 0) || 0x5eed,
@@ -1783,6 +1692,8 @@ startBtn.addEventListener('click', () => {
     slots: rows.map((r) => ({ team: r.slot, name: r.name, difficulty: r.difficulty, alliance: r.team, color: r.color })),
     winRule: winRuleSelect.value as WinRule,
     settings: { ...resolvedDevSettings(), fogMode: startFogEl.value as FogMode, dayNight: startDayNightEl.checked },
+    mode: 'bots',
+    daily: { generation: challenge.generation },
   }
   setOfflineStatus('')
   startCountdown(cfg)
@@ -1791,6 +1702,7 @@ startBtn.addEventListener('click', () => {
 renderMapSelect()
 renderPlayers()
 preview.render(previewMap, previewColorFor)
+renderDaily()
 
 const WIN_RULE_KEYS: Record<WinRule, string> = {
   standard: 'standard',

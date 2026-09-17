@@ -151,7 +151,7 @@ export class Hud {
     })
   }
 
-  /** Show/hide the match-header Mission button (daily mode only). */
+  /** Show/hide the match-header Mission button (daily tasks, tracked in bots matches). */
   showMissionButton(show: boolean): void {
     this.missionBtn.hidden = !show
   }
@@ -256,7 +256,7 @@ export class Hud {
     }
   }
 
-  /** Persistent objective line for scripted modes (survival wave / campaign objective). */
+  /** Persistent objective line (e.g. daily missions left). */
   setObjective(text: string | null): void {
     if (text) {
       this.objectiveEl.textContent = text

@@ -259,43 +259,16 @@
       "needHuman": "Add a human player slot before starting.",
       "needOpponent": "Add at least one opponent (bot or player) to start."
     },
-    "modesHint": "Every mode below is offline and playable by yourself. Pick a mode — each one uses the same match options above, plus its own extras.",
+    "modesHint": "Two offline modes. Bots Match is the classic fight against AI and also tracks your daily missions list below. Campaign is planned as a future feature.",
     "modes": {
       "bots": "Bots Match",
-      "survival": "Survival",
-      "daily": "Daily",
-      "campaign": "Campaign",
-      "custom": "Custom Scenario"
+      "campaign": "Campaign"
     }
   },
   "bot": {
     "easy": "Easy",
     "medium": "Medium",
     "hard": "Hard"
-  },
-  "survival": {
-    "hud": {
-      "wave": "Wave {n}"
-    },
-    "difficultyLabel": "Wave difficulty",
-    "needSource": "Add at least one bot — every bot in the list is a wave source.",
-    "hint": "Endless waves raid from each source bot's spawn, so more bots means bigger waves. A new wave only starts after at least half of the previous one is destroyed, and every wave restocks the supply fields. There is no win — survive as long as you can. If your base falls, the run is over.",
-    "noBest": "No survival run yet — your best wave and score will show here.",
-    "best": "Best",
-    "bestWave": "Wave {n}",
-    "bestScore": "{n} pts",
-    "plays": "Plays",
-    "wins": "wins",
-    "toast": {
-      "starts": "Survival mode: hold your base — waves are coming!",
-      "wave": "Enemy wave incoming!",
-      "lost": "The base has fallen — survival run over!"
-    },
-    "log": {
-      "wave": "Wave started — hold the line.",
-      "lost": "Command center destroyed. Run over."
-    },
-    "resultsNote": "Wave {wave} · {score} pts · best {bestWave}"
   },
   "daily": {
     "challenge": "Mission list #{n}",
@@ -306,7 +279,7 @@
     "level": "Level {level} · {xp}/{required} XP",
     "keep": "{n} mission(s) left — the list stays exactly as-is until you finish all of them.",
     "allDone": "Challenge complete — a brand new list is ready!",
-    "hint": "A fixed set of daily missions — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up. Offline modes have no leaderboard.",
+    "hint": "A fixed set of missions tracked from every bots match — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up. Offline modes have no leaderboard.",
     "mission": {
       "win": "Win a daily match",
       "train": "Train {n} units",
@@ -319,44 +292,7 @@
   },
   "campaign": {
     "hint": "The scripted campaign is planned as a future feature. This mode is a placeholder for now.",
-    "comingSoon": "The campaign is a future feature — stay tuned!",
-    "progress": "Progress",
-    "done": "1/1 · Completed",
-    "notStarted": "1/1 · Not started",
-    "credits": "War chest",
-    "ch1": {
-      "title": "Ashes of the Old Base",
-      "desc": "The old command center fell long ago. March your squad across the scrub, rebuild the base, and drive the invaders out."
-    },
-    "obj": {
-      "journey": "March: regroup with the scattered troops",
-      "rebuild": "Rebuild the old command center",
-      "defend": "Hold the base against raiders",
-      "attack": "Take the enemy outposts"
-    },
-    "toast": {
-      "dropFound": "Troops joined your squad!",
-      "marchComplete": "Your squad has regrouped. Rebuild the base.",
-      "baseRebuilt": "The old base is back online — defend it!",
-      "wave": "Raiders inbound!",
-      "lost": "The base has fallen. Mission failed.",
-      "squadLost": "Your squad was wiped out before reaching the base. Mission failed.",
-      "reinforcements": "Reinforcements arrive for the counterattack!",
-      "victory": "All outposts destroyed — victory!"
-    },
-    "log": {
-      "dropFound": "Squad reinforced.",
-      "marchComplete": "March complete — rebuild the command center.",
-      "baseRebuilt": "The command center is whole again.",
-      "wave": "A raider group is approaching the base.",
-      "reinforcements": "Counterattack force deployed.",
-      "victory": "The invaders are driven out."
-    }
-  },
-  "custom": {
-    "uploadBtn": "Upload Custom Scenario",
-    "hint": "Custom scenarios (uploaded or shared maps with goals) are planned as a future feature, possibly with a scenario editor like the map builder. This button is a placeholder for now.",
-    "comingSoon": "Custom scenarios are a future feature — stay tuned!"
+    "comingSoon": "The campaign is a future feature — stay tuned!"
   },
   "network": {
     "h1": "Network Play",
@@ -1477,18 +1413,11 @@
       "spectator": "Spectator"
     },
     "modeRecords": "Mode Records",
-    "modeSurvival": "Survival",
-    "modeBestWave": "Best wave",
-    "modeBestScore": "Best score",
-    "modePlays": "Plays",
-    "modeWins": "wins",
     "modeDaily": "Daily",
     "modeLevel": "Daily level",
     "modeStreak": "Day streak",
     "modeBestStreak": "best",
-    "modeMissionsDone": "Missions completed",
-    "modeCampaign": "Campaign",
-    "modeChaptersDone": "Chapters done"
+    "modeMissionsDone": "Missions completed"
   },
   "achievements": {
     "names": {

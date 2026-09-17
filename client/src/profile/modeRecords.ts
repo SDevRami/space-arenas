@@ -1,15 +1,6 @@
 import type { StorageLike } from './profile.ts'
 import type { DailyMissionDef } from '../modes/daily.ts'
 
-/** Day 19.1: best survival score. Stored career-wide (kept when the profile resets). */
-export interface SurvivalRecord {
-  bestWave: number
-  bestScore: number
-  bestDurationSec: number
-  plays: number
-  wins: number
-}
-
 /** The persisted daily mission list. It is fixed until every mission is completed,
  *  regardless of how many days it takes (no date-relative missions). */
 export interface DailyChallengeState {
@@ -33,20 +24,8 @@ export interface DailyLevelRecord {
   challenge: DailyChallengeState | null
 }
 
-/** Day 19.3: campaign progress. */
-export interface CampaignRecord {
-  /** Chapter ids fully completed. */
-  chaptersDone: string[]
-  /** Chapter id currently in progress (null = none started). */
-  currentChapter: string
-  plays: number
-  wins: number
-}
-
 export interface ModeRecords {
-  survival: SurvivalRecord | null
   daily: DailyLevelRecord | null
-  campaign: CampaignRecord | null
 }
 
 export const MODE_RECORDS_KEY = 'space-arenas:mode-records'
@@ -73,15 +52,13 @@ const writeJson = (s: StorageLike, key: string, value: unknown): void => {
   }
 }
 
-export const freshModeRecords = (): ModeRecords => ({ survival: null, daily: null, campaign: null })
+export const freshModeRecords = (): ModeRecords => ({ daily: null })
 
 export const loadModeRecords = (s: StorageLike): ModeRecords => {
   const raw = readJson<Partial<ModeRecords> & { v?: number } | null>(s, MODE_RECORDS_KEY, null)
   if (!raw || raw.v !== MODE_RECORDS_VERSION) return freshModeRecords()
   return {
-    survival: raw.survival ?? null,
     daily: raw.daily ?? null,
-    campaign: raw.campaign ?? null,
   }
 }
 
@@ -110,21 +87,6 @@ export const remainingDailyMissions = (r: DailyLevelRecord | null, generation: n
   const ch = r?.challenge
   if (!ch || ch.generation !== generation) return missions.length
   return missions.filter((m) => !ch.doneIds.includes(m.id)).length
-}
-
-/** Record a finished survival match; keeps the career best wave/score/duration. */
-export const recordSurvivalResult = (s: StorageLike, input: { wave: number; score: number; durationSec: number; won: boolean }): ModeRecords => {
-  const r = loadModeRecords(s)
-  const last = r.survival ?? { bestWave: 0, bestScore: 0, bestDurationSec: 0, plays: 0, wins: 0 }
-  r.survival = {
-    bestWave: Math.max(last.bestWave, input.wave),
-    bestScore: Math.max(last.bestScore, input.score),
-    bestDurationSec: Math.max(last.bestDurationSec, input.durationSec),
-    plays: last.plays + 1,
-    wins: last.wins + (input.won ? 1 : 0),
-  }
-  saveModeRecords(s, r)
-  return r
 }
 
 /** True when `b` is the UTC day immediately after `a` (both "yyyy-mm-dd"). */
@@ -157,21 +119,6 @@ export const recordDailyResult = (s: StorageLike, input: { generation: number; m
     bestStreak: Math.max(prev.bestStreak, streak),
     lastPlayedDayKey: dayKey,
     challenge: { generation: challenge.generation, doneIds },
-  }
-  saveModeRecords(s, r)
-  return r
-}
-
-/** Record a finished campaign play: notes the current chapter and marks it done on a win. */
-export const recordCampaignResult = (s: StorageLike, input: { chapterId: string; completed: boolean }): ModeRecords => {
-  const r = loadModeRecords(s)
-  const prev = r.campaign ?? { chaptersDone: [], currentChapter: '', plays: 0, wins: 0 }
-  const chaptersDone = input.completed && !prev.chaptersDone.includes(input.chapterId) ? [...prev.chaptersDone, input.chapterId] : prev.chaptersDone
-  r.campaign = {
-    chaptersDone,
-    currentChapter: input.chapterId,
-    plays: prev.plays + 1,
-    wins: prev.wins + (input.completed ? 1 : 0),
   }
   saveModeRecords(s, r)
   return r
