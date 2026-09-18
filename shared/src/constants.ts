@@ -37,7 +37,7 @@ export const EMP_MAX_LEVEL = 2
 
 export const DEFAULT_PORT = 17321
 export const DEFAULT_MAX_PLAYERS = 8
-export const PROTOCOL_VERSION = 19
+export const PROTOCOL_VERSION = 20
 
 /** Number of selectable per-player colors. */
 export const PLAYER_COLOR_COUNT = 10
@@ -145,6 +145,13 @@ export const OIL_INCOME = 50
 export const OIL_INCOME_INTERVAL_TICKS = SECONDS_TO_TICKS(10)
 export const OIL_CLAIM_TICKS = SECONDS_TO_TICKS(20)
 
+/** Day 22: extra percent a capturing team banks per supply trip from a field it holds with a scout. */
+export const SUPPLY_FIELD_BONUS = 25
+/** Day 22: scout presence needed (ticks) to flip a supply field's bonus to a new team. */
+export const SUPPLY_FIELD_CLAIM_TICKS = SECONDS_TO_TICKS(20)
+/** Day 22: scout absence tolerance (ticks) before a captured supply field drops its bonus. */
+export const SUPPLY_FIELD_HOLD_TICKS = SECONDS_TO_TICKS(10)
+
 export const DEFAULT_SELL_REFUND_FRACTION = 0.5
 export const DEFAULT_QUEUE_LIMIT = 10
 
@@ -233,6 +240,12 @@ export interface MatchSettings {
   oilClaimTicks: number
   supplyPerTrip: number
   harvesterLoadTicks: number
+  /** Day 22: extra percent a team banks per trip from a supply field it holds with a scout. */
+  supplyFieldBonus: number
+  /** Day 22: scout presence needed to flip a supply field's bonus to a new team. */
+  supplyFieldClaimTicks: number
+  /** Day 22: how long a captured supply field keeps its bonus after the scout leaves. */
+  supplyFieldHoldTicks: number
   builderRepairPerTick: number
   satelliteRevealTicks: number
   satelliteCooldownTicks: number
@@ -347,6 +360,9 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   oilClaimTicks: OIL_CLAIM_TICKS,
   supplyPerTrip: SUPPLY_PER_TRIP,
   harvesterLoadTicks: HARVESTER_LOAD_TICKS,
+  supplyFieldBonus: SUPPLY_FIELD_BONUS,
+  supplyFieldClaimTicks: SUPPLY_FIELD_CLAIM_TICKS,
+  supplyFieldHoldTicks: SUPPLY_FIELD_HOLD_TICKS,
   builderRepairPerTick: BUILDER_REPAIR_PER_TICK,
   satelliteRevealTicks: SATELLITE_REVEAL_TICKS,
   satelliteCooldownTicks: SATELLITE_COOLDOWN_TICKS,

@@ -267,6 +267,10 @@ export class Game {
       isKeepAttackActive: () => this.input?.keepAttackKey ?? false,
       onGuardToggle: () => this.toggleGuard(),
       isGuardActive: () => this.input?.guardKey ?? false,
+      onAutoFireToggle: () => this.onAutoFireToggle(),
+      isAutoFireActive: () => this.allAutoFire(),
+      onFormationClick: (mode) => this.onFormationClick(mode),
+      isFormationActive: (mode) => this.isFormationActive(mode),
       onSpawnToggle: () => this.togglePendingMarker('spawn'),
       isSpawnActive: () => this.pendingSpawnPoint,
       onFlagToggle: () => this.togglePendingMarker('flag'),
@@ -1545,7 +1549,11 @@ export class Game {
       case 'emp-strike':
         return e.team === this.localTeam ? t('game.events.empStrike') : t('game.events.empStrikeTeam', { t: e.team })
       case 'supply-harvested':
-        return t('game.events.supply', { a: e.amount })
+        return e.bonus > 0 ? t('game.events.supplyBonus', { a: e.amount, b: e.bonus }) : t('game.events.supply', { a: e.amount })
+      case 'supply-captured':
+        return e.team === this.localTeam ? t('game.events.supplyCaptured') : t('game.events.supplyCapturedTeam', { t: e.team })
+      case 'supply-captured-lost':
+        return e.team === this.localTeam ? t('game.events.supplyCapturedLost') : null
       case 'oil-claiming':
         return e.team === this.localTeam ? t('game.events.oilClaiming') : t('game.events.oilClaimingTeam', { t: e.team })
       case 'oil-claimed':
@@ -2071,6 +2079,96 @@ export class Game {
     this.hud.toast(input.guardKey ? t('game.guardOn') : t('game.guardOff'))
     this.audio.uiClick()
     this.syncMobileToolButtons()
+  }
+
+  /** Day 21: owned selected units that carry a weapon (ground or air). */
+  private selectedCombat(): number[] {
+    const world = this.world
+    if (!world) return []
+    return [...this.selection].filter((id) => {
+      const u = world.units.get(id)
+      return !!u && u.team === this.localTeam && world.attacks.has(id)
+    })
+  }
+
+  /** Day 21: owned non-air selected units (formations only apply to troops/vehicles). */
+  private selectedMovableFormations(): number[] {
+    const world = this.world
+    if (!world) return []
+    return [...this.selection].filter((id) => {
+      const u = world.units.get(id)
+      return !!u && u.team === this.localTeam && u.class !== 'air'
+    })
+  }
+
+  private onAutoFireToggle = (): void => {
+    const world = this.world
+    if (!world) return
+    const ids = this.selectedCombat()
+    if (ids.length === 0) return
+    const on = !this.allAutoFire()
+    this.issue({ type: 'set-auto-fire', entities: ids, x: 0, y: 0, autoFire: on })
+    this.hud.toast(on ? t('game.autoFireOn') : t('game.autoFireOff'))
+    this.audio.uiClick()
+  }
+
+  private allAutoFire = (): boolean => {
+    const world = this.world
+    if (!world) return false
+    const ids = this.selectedCombat()
+    if (ids.length === 0) return false
+    for (const id of ids) {
+      if (world.attacks.get(id)?.autoFire !== true) return false
+    }
+    return true
+  }
+
+  private onFormationClick = (mode: 'tight' | 'loose' | 'hold'): void => {
+    const world = this.world
+    if (!world) return
+    const ids = this.selectedMovableFormations()
+    if (ids.length === 0) return
+    const first = world.units.get(ids[0])
+    const currentSpread = first?.formationSpread ?? 1
+    const currentCode = currentSpread === 0.7 ? 1 : currentSpread === 1.5 ? 2 : 0
+    const currentRel = first?.relativeFormation ?? false
+    let spreadCode = currentCode
+    let relative = currentRel
+    if (mode === 'hold') {
+      relative = !this.isFormationActive('hold')
+    } else {
+      const active = this.isFormationActive(mode)
+      spreadCode = active ? 0 : mode === 'tight' ? 1 : 2
+    }
+    this.issue({ type: 'set-formation', entities: ids, x: 0, y: 0, spreadCode, relative })
+    if (mode === 'hold') {
+      this.hud.toast(relative ? t('game.formHoldOn') : t('game.formHoldOff'))
+    } else if (spreadCode === 1) {
+      this.hud.toast(t('game.formTightOn'))
+    } else if (spreadCode === 2) {
+      this.hud.toast(t('game.formLooseOn'))
+    } else {
+      this.hud.toast(t('game.formNormal'))
+    }
+    this.audio.uiClick()
+  }
+
+  private isFormationActive = (mode: 'tight' | 'loose' | 'hold'): boolean => {
+    const world = this.world
+    if (!world) return false
+    const ids = this.selectedMovableFormations()
+    if (ids.length === 0) return false
+    const want = mode === 'tight' ? 0.7 : mode === 'loose' ? 1.5 : 1
+    for (const id of ids) {
+      const u = world.units.get(id)
+      if (!u) return false
+      if (mode === 'hold') {
+        if (u.relativeFormation !== true) return false
+      } else if ((u.formationSpread ?? 1) !== want) {
+        return false
+      }
+    }
+    return true
   }
 
   private onMobileControlsClick = (e: MouseEvent): void => {
@@ -3011,11 +3109,42 @@ export class Game {
     const cell = hasVehicle ? 2400 : 1400
     const cols = Math.ceil(Math.sqrt(units.length))
     const rows = Math.ceil(units.length / cols)
+    // Day 21: units with "hold current position" keep their offset from the group
+    // centroid at the new spot; the rest take a grid slot scaled by their own
+    // formation density (loose/tight).
+    const relUnits = units.filter((id) => world.units.require(id).relativeFormation)
+    let cx = 0
+    let cy = 0
+    let centroidN = 0
+    if (relUnits.length > 0) {
+      let sx = 0
+      let sy = 0
+      for (const id of units) {
+        const t = world.transforms.get(id)
+        if (t) {
+          sx += t.x
+          sy += t.y
+          centroidN++
+        }
+      }
+      if (centroidN > 0) {
+        cx = sx / centroidN
+        cy = sy / centroidN
+      }
+    }
     const cmds = units.map((id, i) => {
+      const u = world.units.require(id)
+      if (u.relativeFormation && centroidN > 0) {
+        const t = world.transforms.get(id)
+        if (t) {
+          return { type: kind, entities: [id], x: Math.floor(worldPt.x + (t.x - cx)), y: Math.floor(worldPt.y + (t.y - cy)) }
+        }
+      }
+      const spread = u.formationSpread ?? 1
       const col = i % cols
       const row = Math.floor(i / cols)
-      const dx = Math.floor((col - (cols - 1) / 2) * cell)
-      const dy = Math.floor((row - (rows - 1) / 2) * cell)
+      const dx = Math.floor((col - (cols - 1) / 2) * cell * spread)
+      const dy = Math.floor((row - (rows - 1) / 2) * cell * spread)
       return { type: kind, entities: [id], x: worldPt.x + dx, y: worldPt.y + dy }
     })
     this.issueBatch(cmds)

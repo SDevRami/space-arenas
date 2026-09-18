@@ -19,6 +19,12 @@ export interface HudActions {
   isKeepAttackActive: () => boolean
   onGuardToggle: () => void
   isGuardActive: () => boolean
+  /** Day 21: idle auto-fire toggle (OFF makes units ignore in-range enemies until ordered). */
+  onAutoFireToggle: () => void
+  isAutoFireActive: () => boolean
+  /** Day 21: formation density / hold-current-position for a multi-unit selection. */
+  onFormationClick: (mode: 'tight' | 'loose' | 'hold') => void
+  isFormationActive: (mode: 'tight' | 'loose' | 'hold') => boolean
   onSpawnToggle: () => void
   isSpawnActive: () => boolean
   onFlagToggle: () => void
@@ -543,6 +549,14 @@ export class Hud {
       })
       return any
     })()
+    const movableGround: number[] = (() => {
+      const ids: number[] = []
+      selection.forEach((id) => {
+        const u = world.units.get(id)
+        if (u && u.team === localTeam && u.class !== 'air') ids.push(id)
+      })
+      return ids
+    })()
     const hasLoadedTransport = (() => {
       let any = false
       selection.forEach((id) => {
@@ -563,6 +577,11 @@ export class Hud {
       this.appendHeader(t('hud.headers.command'))
       this.addButton(t('hud.stop'), () => true, () => this.actions.onStopClick())
       this.addToggleButton(t('hud.multiPos'), () => this.actions.onMoveModeToggle(), () => this.actions.isMoveModeActive())
+      if (movableGround.length >= 2) {
+        this.addToggleButton(t('hud.formHold'), () => this.actions.onFormationClick('hold'), () => this.actions.isFormationActive('hold'))
+        this.addToggleButton(t('hud.formTight'), () => this.actions.onFormationClick('tight'), () => this.actions.isFormationActive('tight'))
+        this.addToggleButton(t('hud.formLoose'), () => this.actions.onFormationClick('loose'), () => this.actions.isFormationActive('loose'))
+      }
       if (hasThrower && world.teamState(localTeam).abilitiesUnlocked) {
         this.addToggleButton(t('hud.grenade'), () => this.actions.onGrenadeToggle(), () => this.actions.isGrenadeActive())
         this.addToggleButton(t('hud.smoke'), () => this.actions.onSmokeToggle(), () => this.actions.isSmokeActive())
@@ -659,6 +678,7 @@ export class Hud {
         this.addToggleButton(t('hud.attack'), () => this.actions.onAttackToggle(), () => this.actions.isAttackActive())
         this.addToggleButton(t('hud.keepAttack'), () => this.actions.onKeepAttackToggle(), () => this.actions.isKeepAttackActive())
         this.addToggleButton(t('hud.guard'), () => this.actions.onGuardToggle(), () => this.actions.isGuardActive())
+        this.addToggleButton(t('hud.autoFire'), () => this.actions.onAutoFireToggle(), () => this.actions.isAutoFireActive())
       }
       if (this.hasProducer(world, selection, localTeam)) {
         if (!anySection) {

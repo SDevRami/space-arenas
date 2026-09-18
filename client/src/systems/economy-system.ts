@@ -161,8 +161,11 @@ export const EconomySystem = {
             world.moves.delete(id)
             hv.phase = 'idle'
             const perTrip = world.settings.supplyPerTrip
-            world.grantCredits(u.team, perTrip)
-            world.emit({ type: 'supply-harvested', team: u.team, amount: perTrip })
+            const f = world.fields.get(hv.field)
+            const bonus = f && f.capturer === u.team ? world.settings.supplyFieldBonus : 0
+            const amount = perTrip + Math.round((perTrip * bonus) / 100)
+            world.grantCredits(u.team, amount)
+            world.emit({ type: 'supply-harvested', team: u.team, amount, bonus: amount - perTrip, field: hv.field })
             world.awardScore(u.team, SCORE_SUPPLY_PER_TRIP)
             break
           }

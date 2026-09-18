@@ -51,10 +51,11 @@ const formationSlots = (
   const cols = Math.ceil(Math.sqrt(ids.length))
   const rows = Math.ceil(ids.length / cols)
   ids.forEach((id, i) => {
+    const spread = world.units.get(id)?.formationSpread ?? 1
     const col = i % cols
     const row = Math.floor(i / cols)
-    const dx = Math.floor((col - (cols - 1) / 2) * cell)
-    const dy = Math.floor((row - (rows - 1) / 2) * cell)
+    const dx = Math.floor((col - (cols - 1) / 2) * cell * spread)
+    const dy = Math.floor((row - (rows - 1) / 2) * cell * spread)
     map.set(id, { x: cx + dx, y: cy + dy })
   })
   return map
@@ -469,6 +470,33 @@ export const InputSystem = {
             bought = true
           }
           if (bought) world.emit({ type: 'stealth-bought', team: player })
+          break
+        }
+        case 'set-auto-fire': {
+          const on = cmd.autoFire !== false
+          for (const id of cmd.entities) {
+            if (!ownedUnit(world, player, id)) continue
+            const a = world.attacks.get(id)
+            if (!a) continue
+            a.autoFire = on
+          }
+          break
+        }
+        case 'set-formation': {
+          const code = cmd.spreadCode ?? 0
+          const spread = code === 1 ? 0.7 : code === 2 ? 1.5 : 1
+          const relative = cmd.relative === true
+          for (const id of cmd.entities) {
+            if (!ownedUnit(world, player, id)) continue
+            const u = world.units.get(id)
+            if (!u) continue
+            if (u.class === 'air') {
+              world.emit({ type: 'command-rejected', player, reason: 'cannot formation air units' })
+              continue
+            }
+            u.formationSpread = spread
+            u.relativeFormation = relative
+          }
           break
         }
         case 'place-mine': {

@@ -421,15 +421,16 @@ Three offline modes behind a mode-list lobby, plus a custom-scenario UI placehol
 
 ---
 
-## Day 20 — Bulldozer Build-Order Queue + Mod Support Report (S–M)
+## Day 20 — Bulldozer Build-Order Queue + Mod Support (S–M) ✅ DONE
 
 Economy QoL + data config. **Re-scoped mid-day:** the base-template idea was replaced
-by a bulldozer multi-build-order queue; mod support became a report-only deliverable.
+by a bulldozer multi-build-order queue; mod support became a report-then-implement
+deliverable (fully shipped by end of day).
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
 | 1 | **Bulldozer build-order queue** — busy dozer queues up to `maxBuildOrders` (default 3, dev settings) building orders; placement stays active so clicks append; WorkSystem auto-starts the next order when the current construct completes/cancels | Day20a | `MatchSettings.maxBuildOrders`; `World.buildOrderQueues` (`Map<dozerId, buildingId[]>`), purged in `removeEntity`; `place` accepts a dozer busy with `construct` while `active+queued < maxBuildOrders`, else rejects `'build order queue full'`; `work-system.ts` frees then `startNextQueued`; Game.ts keeps `pendingPlace` active per click and drops out on a full queue. Deep-fix: `workArrivePoint` only picks build pads in the dozer's passable component (+ working dozers no longer skip separation from *other* buildings) so a merely-blocked route rounds the obstruction instead of falling back to build-from-far; boxed-in test keeps the time fallback as a last resort. Tests: queue/auto-start/stop/full/cleanup. |
-| 2 | **JSON balance mods — report only** | #37a | Not implemented. Full design + risk + test plan: `docs/10-MOD-SUPPORT-REPORT.md`. The whole schema rides on the existing override-aware accessors (`getBuilding/getUnit/getWeapon/getUpgrade`) + `SANITIZE`, so implementation is ~1 dev day if picked up later. |
+| 2 | **JSON balance mods — shipped** | #37a | **Implemented + shipped** (originally report-only; the report `docs/10-MOD-SUPPORT-REPORT.md` preceded the full implementation). Probe schema rides on the override-aware accessors (`getBuilding/getUnit/getWeapon/getUpgrade`) + `SANITIZE`. Delivered: protocol 19, host `ModStore` + `sanitize.ts` + room wiring, client Mods tab (choose/abandon + dev-export picker), 292 balanced entries. Tests: `tests/mods.test.ts`. |
 
 **Touch points:** `constants.ts`, `rooms.ts`, `world.ts` (buildOrderQueues, removeEntity),
 `input-system.ts` (place/stop), `work-system.ts` (component-aware pads, startNextQueued),
@@ -438,33 +439,52 @@ i18n, `tests/construction.test.ts`
 
 ### Day 20 verification
 - `npm run typecheck` (4 workspaces) — pass
-- `npm test` — 369 pass (32 files), incl. new queue tests + boxed-in regression
+- `npm test` — 393 pass (33 files), incl. queue tests + boxed-in regression + mods suite
 - `npm run build` — pass; `npm run lint` — only pre-existing untracked `.js` no-undef + untouched test warnings
+- Shipped as commits `d244100` (Day 19 follow-up) → `87a4c8f` (Day 20 queue) → `ebcfada` (Day 20 balance mods)
 
 ---
 
-## Day 21 — Military Tactics: Hold Position + Formations (M)
+## Day 21 — Military Tactics: Auto-Fire Toggle + Formations (M) ✅ DONE
 
-Input + move system.
+Input + move + combat stance.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Hold position stance** — unit ignores nearby enemies, holds position until manually ordered | N3a | New SimCommand `hold-position { unitIds }`. `UnitComp.stance: 'attack' | 'hold'`. `combat-system.ts`: auto-fire skipped when `stance === 'hold'`. HUD button in tools bar. |
-| 2 | **Formation density modes** — Loose (1.5× spread), Tight (0.7× spread) | N3b | `UnitComp.formationSpread: 1.5 | 0.7`. `move-system.ts`: when computing movement targets, multiply offset by `formationSpread`. HUD toggle button. |
+| 1 | **Auto-fire toggle** — units that can attack already have guard  stance, so no "hold position" stance needed. Instead: a toggle for **auto-fire at in-range enemies**, default ON (all units attack when an enemy enters fire range). OFF makes idle units passive (they still fire when explicitly ordered / while guard / attack-move / keep-attack). | N3a | `AttackComp.autoFire: boolean` (default true). New SimCommand `set-auto-fire { entities, autoFire }`. `combat-system.ts` idle auto-acquire skipped when `autoFire === false`. HUD **toggle button placed next to Guard** in the selection bar. |
+| 2 | **Multi-unit formations** — formation slots apply to any multi-selection (troop *or* vehicle), with **Loose (1.5×)/Tight (0.7×)** density, plus **Hold Current Position**: after commanding a move, units keep the *same relative layout* they had at selection time (offsets from the group centroid are preserved at the destination). | N3b | `UnitComp.formationSpread: 0.7 \| 1 \| 1.5` + `UnitComp.relativeFormation: boolean`. New SimCommand `set-formation { entities, spreadCode, relative }`. `Game.issueMoveCommand` (client): per-unit grid slots scaled by each unit's spread; relative units target `dest + (ownPos − centroid)`. Sim-side `formationSlots` (guard + attack-ground) scaled by spread. HUD: Hold Formation toggle + Tight/Loose density toggles (shown for ≥2 movable owned ground units). |
 
-**Touch points:** `protocol.ts`, `world.ts`, `combat-system.ts`, `move-system.ts`, `hud.ts`
+**Touch points:** `protocol.ts`, `world.ts` (comps), `combat-system.ts`, `input-system.ts`
+(commands + formationSlots), `Game.ts` (issueMoveCommand + actions), `hud.ts`, `transport-system.ts`
+(snapshot), `factories.ts`, i18n, `tests/day21.test.ts`
+
+### Day 21 verification
+- `npm run typecheck` (4 workspaces) — pass
+- `npm test` — 400 pass (34 files), incl. new auto-fire/formation/protocol tests
+- `npm run build` — pass (host rebuilt: bundled PROTOCOL_VERSION must match for the mods e2e); lint — clean on changed files
+- Auto-fire gates BOTH idle auto-acquire and the hit-retaliation reflex (`applyDamage`) when OFF; guard/attack-move/keep-attack stays explicit.
+- Formation spread (0.7/1/1.5) scales move + guard grid slots per unit; relative affordance keeps each unit's centroid offset at the new destination.
 
 ---
 
-## Day 22 — Territory Capture: Supply Twist (M)
+## Day 22 — Supply Field Capture Bonus (M)
 
-Capture neutral supply fields for income boost.
+Holding a supply field with a scout grants the holder's team a harvest bonus. Capture is non-exclusive: enemy harvesters still take **base** supply from the field — only the holding team's harvesters earn the bonus.
 
 | # | Feature | Ref | Notes |
 |---|---------|-----|-------|
-| 1 | **Neutral supply capture** — send unit to unowned supply field → gains ownership, +20% income | N2c | `EconomySystem`: when a unit stands on a neutral `supplyField` for 5 s (125 ticks), ownership transfers to that unit's team. `renderer.ts`: supply field color changes to team color. `world.ts`: supply field gains `team: number | null`. |
+| 1 | **Scout-captured supply fields** — a team that leaves a scout near a supply field captures it; its harvesters bank `supplyPerTrip × (1 + bonus%)` per trip, everyone else banks base only. | N2c | `SupplyFieldComp` gains `capturer / captureTicks / capturingScout / holdTicks`. New **`supply-capture-system.ts`** (registered after OilSystem) mirrors the oil-claim pattern: nearest live scout within `radius+1.5` cells of the field center captures after `supplyFieldClaimTicks`; switching target or losing the scout resets progress; a captured field whose scout stays away for `supplyFieldHoldTicks` releases the bonus. `economy-system.ts` unload path applies the bonus for the capturing team; `supply-harvested` event now carries the bonus amount + field id (toast shows "+X (+Y bonus)"). |
+| 2 | **Bonus % in dev settings (eco section)** | — | `MatchSettings.supplyFieldBonus` (percent), `supplyFieldClaimTicks`, `supplyFieldHoldTicks` — named defaults `SUPPLY_FIELD_BONUS` (25) / `SUPPLY_FIELD_CLAIM_TICKS` (20 s) / `SUPPLY_FIELD_HOLD_TICKS` (10 s) in `shared/constants.ts`; `DEV_SCALAR_SECTIONS` economy group (main.ts), host `SANITIZE`, i18n en/ar (`dev.fields.supplyField*`). |
 
-**Touch points:** `economy-system.ts`, `world.ts`, `renderer.ts`, `constants.ts` (capture time, income bonus)
+**Touch points:** `constants.ts`, `sanitize.ts`, `world.ts` (comp), `supply-capture-system.ts` (new), `registry.ts`, `economy-system.ts`, `events.ts`, `Game.ts` (announce), i18n, `tests/day22.test.ts`
+
+### Day 22 verification
+- `npm run typecheck` (4 workspaces) — pass
+- `npm test` — 408 pass (35 files), incl. 8 new capture/bonus/determinism tests; existing economy/oil suites still green
+- `npm run build` — pass; lint — clean on changed files
+- Capture mirrors the oil-claim flow (`supplyFieldClaimTicks` to flip, resets on target switch / scout loss) plus a `supplyFieldHoldTicks` grace before the bonus drops.
+- Non-exclusive by design: enemy harvesters always take base `supplyPerTrip`; only the holder's trips add the bonus (event + toast show the bonus amount).
+- Docs: `02-MECHANICS-SPECIFICATION.md` §4.1 updated with the capture-bonus rules.
 
 ---
 
@@ -504,8 +524,8 @@ New game mode overlay with guided walkthrough.
 | 18 | Auto-reconnect | M | No | |
 | 19 | Survival + scenario | M–L | Yes | |
 | 20 | Bulldozer build-order queue (+ mod report) | S–M | Yes | ✅ (mods deferred → report) |
-| 21 | Hold position + formations | M | Yes | |
-| 22 | Territory capture (supply) | M | Yes | |
+| 21 | Hold position + formations | M | Yes | ✅ |
+| 22 | Territory capture (supply) | M | Yes | ✅ |
 | 23 | Tutorial | L | Yes | |
 
 **Total: ~23 working days**

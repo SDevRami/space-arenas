@@ -39,6 +39,8 @@ export type CommandType =
   | 'transport-load'
   | 'transport-unload'
   | 'rank-up'
+  | 'set-auto-fire'
+  | 'set-formation'
 
 /** The three ping flavours players can drop to share intel with their team. */
 export type PingType = 'alert' | 'assist' | 'on-my-way'
@@ -64,6 +66,12 @@ export interface SimCommand {
   transportId?: number
   /** Super Weapon strike choice for the `sw-choose` command. */
   choice?: SwChoice
+  /** Day 21: turn idle auto-fire on/off for the selected units (true = attack enemies in fire range). */
+  autoFire?: boolean
+  /** Day 21: formation density code for `set-formation` (0 = normal, 1 = tight, 2 = loose). */
+  spreadCode?: number
+  /** Day 21: hold-current-position moves keep each unit's offset from the group centroid (`set-formation`). */
+  relative?: boolean
 }
 
 export interface EnvelopeCommand {
@@ -133,6 +141,8 @@ export const CMD_TYPE_IDS: Record<CommandType, number> = {
   'transport-load': 30,
   'transport-unload': 31,
   'rank-up': 35,
+  'set-auto-fire': 36,
+  'set-formation': 37,
 }
 
 export const PING_TYPE_IDS: Record<PingType, number> = {
@@ -143,7 +153,7 @@ export const PING_TYPE_IDS: Record<PingType, number> = {
 
 export const PING_TYPES: PingType[] = ['alert', 'assist', 'on-my-way']
 
-const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload', 'sw-choose', 'sw-airstrike', 'sw-emp', 'rank-up']
+const CMD_TYPES: CommandType[] = ['move', 'attack-move', 'stop', 'place', 'sell', 'queue', 'dequeue', 'attack', 'research', 'build', 'set-spawn-point', 'assign-dock', 'satellite', 'laser', 'set-flag-point', 'forfeit', 'keep-attack', 'guard', 'max-power', 'collect', 'ping', 'reorder-queue', 'grenade', 'smoke', 'set-detector', 'set-stealth', 'place-mine', 'remove-mine', 'repair-unit', 'dequeue-research', 'transport-load', 'transport-unload', 'sw-choose', 'sw-airstrike', 'sw-emp', 'rank-up', 'set-auto-fire', 'set-formation']
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -198,6 +208,8 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
     : typeName === 'ping' ? 1
     : typeName === 'attack-move' || typeName === 'attack' || typeName === 'build' || typeName === 'collect' || typeName === 'assign-dock' || typeName === 'keep-attack' || typeName === 'guard' || typeName === 'remove-mine' || typeName === 'repair-unit' || typeName === 'transport-load' ? 4
     : typeName === 'transport-unload' ? 8
+    : typeName === 'set-auto-fire' ? 1
+    : typeName === 'set-formation' ? 2
     : 0
 
   let buf = new Uint8Array(4 + 4 + 1 + 4 + 2 + cmd.entities.length * 4 + 8 + extra)
@@ -262,6 +274,11 @@ export const encodeEnvelope = (env: EnvelopeCommand): Uint8Array => {
     putI32(cmd.transportId ?? -1)
     putI32(cmd.index ?? -1)
   }
+  if (typeName === 'set-auto-fire') putU8(cmd.autoFire ? 1 : 0)
+  if (typeName === 'set-formation') {
+    putU8(cmd.spreadCode ?? 0)
+    putU8(cmd.relative ? 1 : 0)
+  }
 
   return buf.slice(0, off)
 }
@@ -308,6 +325,11 @@ export const decodeEnvelope = (data: Uint8Array): EnvelopeCommand => {
     cmd.transportId = readI32(c)
     const idx = readI32(c)
     if (idx >= 0) cmd.index = idx
+  }
+  if (typeName === 'set-auto-fire') cmd.autoFire = readU8(c) === 1
+  if (typeName === 'set-formation') {
+    cmd.spreadCode = readU8(c)
+    cmd.relative = readU8(c) === 1
   }
 
   return { player, seq, tick, cmd }
@@ -411,6 +433,10 @@ const envelopeLength = (data: Uint8Array): number => {
     off += 4
   } else if (typeName === 'transport-unload') {
     off += 8
+  } else if (typeName === 'set-auto-fire') {
+    off += 1
+  } else if (typeName === 'set-formation') {
+    off += 2
   }
   return off
 }

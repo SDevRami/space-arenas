@@ -47,7 +47,7 @@ export const spawnUnit = (
   const def = getUnit(unitType, world.settings)
   const id = world.createEntity('unit', team)
   const t: TransformComp = { x, y }
-  const u: UnitComp = { unitType, team, speed: def.speed, class: def.class, isHarvester: !!def.isHarvester, killCount: 0, veteranRank: 0, stealth: false, revealedUntil: 0, abilityCooldown: 0 }
+  const u: UnitComp = { unitType, team, speed: def.speed, class: def.class, isHarvester: !!def.isHarvester, killCount: 0, veteranRank: 0, stealth: false, revealedUntil: 0, abilityCooldown: 0, formationSpread: 1, relativeFormation: false }
   const h: HealthComp = { hp: def.hp, maxHp: def.hp }
   const v: VisionComp = { radius: def.vision }
   world.transforms.set(id, t)
@@ -56,7 +56,7 @@ export const spawnUnit = (
   world.visions.set(id, v)
   if (def.weapon) {
     const w: WeaponDef = getWeapon(def.weapon, world.settings)
-    const a: AttackComp = { weaponId: def.weapon, cooldownTicks: w.cooldownTicks, currentCooldown: 0, target: null, targetPos: null, lastHit: -1, keepAttack: null, guardMode: false, guardPost: null }
+    const a: AttackComp = { weaponId: def.weapon, cooldownTicks: w.cooldownTicks, currentCooldown: 0, target: null, targetPos: null, lastHit: -1, keepAttack: null, guardMode: false, guardPost: null, autoFire: true }
     world.attacks.set(id, a)
   }
   return id
@@ -103,7 +103,7 @@ export const spawnBuilding = (
   world.visions.set(id, { radius: 8 })
   if (def.weapon) {
     const w: WeaponDef = getWeapon(def.weapon, world.settings)
-    const a: AttackComp = { weaponId: def.weapon, cooldownTicks: w.cooldownTicks, currentCooldown: 0, target: null, targetPos: null, lastHit: -1, keepAttack: null, guardMode: false, guardPost: null }
+    const a: AttackComp = { weaponId: def.weapon, cooldownTicks: w.cooldownTicks, currentCooldown: 0, target: null, targetPos: null, lastHit: -1, keepAttack: null, guardMode: false, guardPost: null, autoFire: true }
     world.attacks.set(id, a)
   }
   if (def.transportCapacity) {

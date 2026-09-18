@@ -35,7 +35,9 @@ export const applyDamage = (world: World, target: number, amount: number, attack
   const attackerKind = world.kindOf(attacker)
   if (a && (attackerKind === 'unit' || attackerKind === 'building')) {
     a.lastHit = attacker
-    if (a.target === null && a.targetPos === null) {
+    // Day 21: auto-fire OFF (or an ordered guard/aggressor move) suppresses the
+    // reflexive counterattack — the unit only fights when told to.
+    if (a.autoFire !== false && a.target === null && a.targetPos === null) {
       const m = world.moves.get(target)
       if (!m || m.attackMove) a.target = attacker
     }
@@ -341,8 +343,10 @@ world.attacks.forEach((id, a) => {
           }
         }
       } else {
+        // Day 21 idle auto-fire: OFF auto-fire (or an active guard/move order) skips
+        // the free auto-acquire; guard/attack-move/keep-attack chains stay explicit.
         const m = world.moves.get(id)
-        const canAuto = !m || m.attackMove || m.chase || a.guardMode
+        const canAuto = (a.autoFire !== false) && (!m || m.attackMove || m.chase || a.guardMode)
         if (canAuto && a.currentCooldown === 0) {
           const lastHit = world.isAlive(a.lastHit) && world.isVisibleTo(team, a.lastHit) ? a.lastHit : -1
           const found = pickTarget(world, id, team, t.x, t.y, rangeFx, lastHit, targetsAir)

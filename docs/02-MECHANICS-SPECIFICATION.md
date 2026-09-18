@@ -105,6 +105,7 @@ One faction, designed to exercise every system. Naming is placeholder; balance d
 - **Treasury:** Cash is a single player-scoped float, stored as integer credits. Starts at **$800** on the default map.
 - **Income sources:** supply field harvesting only (no passive income).
 - **Max treasury:** 99,999 (soft cap).
+- **Supply capture bonus (Day 22):** A team that parks a Scout within ~1.5 cells of a supply field holds that field after `supplyFieldClaimTicks` (default 20 s) of uninterrupted presence; an opposing Scout resets the progress and can flip the field after the same wait. The holding team banks **+`supplyFieldBonus`%** (default 25 %) on every trip its Harvesters take from that field (rounded up to the nearest credit). The field is never exclusive — enemy Harvesters still take the base $50/trip, just without the bonus. If the Scout stays away for `supplyFieldHoldTicks` (default 10 s), the bonus drops off and the field returns to neutral.
 
 ### 4.2 Power
 

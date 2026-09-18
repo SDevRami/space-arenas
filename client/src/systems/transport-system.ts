@@ -73,7 +73,11 @@ const spawnUnloaded = (world: World, transportId: number, tc: TransportComp, rec
     su.veteranRank = rec.veteranRank
     su.stealth = rec.stealth
     su.abilityCooldown = rec.abilityCooldown
+    su.formationSpread = rec.formationSpread
+    su.relativeFormation = rec.relativeFormation
   }
+  const sa = world.attacks.get(sid)
+  if (sa) sa.autoFire = rec.autoFire
   world.emit({ type: 'unit-unloaded', entity: sid, transport: transportId, unitType: rec.unitType, team: tc.team })
   return sid
 }
@@ -100,6 +104,9 @@ const boardRider = (world: World, transportId: number, tc: TransportComp, rid: n
     veteranRank: u.veteranRank,
     stealth: u.stealth,
     abilityCooldown: u.abilityCooldown,
+    formationSpread: u.formationSpread,
+    relativeFormation: u.relativeFormation,
+    autoFire: world.attacks.get(rid)?.autoFire ?? true,
   })
   const idx = tc.loadQueue.indexOf(rid)
   if (idx >= 0) tc.loadQueue.splice(idx, 1)

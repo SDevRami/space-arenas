@@ -75,6 +75,10 @@ export interface UnitComp {
   abilityCooldown: number
   /** Day 13 EMP: ticks until the unit re-awakens (0/absent = not disabled). */
   empUntil?: number
+  /** Day 21: formation spacing multiplier. 1 = normal; loose formations = 1.5, tight = 0.7. */
+  formationSpread: number
+  /** Day 21: when issuing a group move, keep this unit's offset from the group centroid (hold current position shape). */
+  relativeFormation: boolean
 }
 
 export interface ResearchOrder {
@@ -136,6 +140,8 @@ export interface AttackComp {
   keepAttack: { x: number; y: number } | null
   guardMode: boolean
   guardPost: { x: number; y: number } | null
+  /** Day 21: when true (default), idle units attack any in-range enemy on sight; when false they wait for an order. */
+  autoFire: boolean
 }
 
 /** Cosmetic-only hit-flash marker. The renderer draws a white overlay while
@@ -179,6 +185,14 @@ export interface SupplyFieldComp {
   radius: number
   capacity: number
   trips: number
+  /** Day 22: team whose harvesters get the bonus (scout holding the field); -1 = none. */
+  capturer: number
+  /** Day 22: ticks of scout presence toward flipping the field to a new team. */
+  captureTicks: number
+  /** Day 22: the scout currently building capture progress (0 = none). */
+  capturingScout: number
+  /** Day 22: ticks the field has sat unguarded while captured; drops the bonus after the hold grace. */
+  holdTicks: number
 }
 
 export interface OilFieldComp {
@@ -383,6 +397,10 @@ export interface PassengerRecord {
   veteranRank: VeteranRank
   stealth: boolean
   abilityCooldown: number
+  /** Day 21 stance/formation state preserved across boarding. */
+  formationSpread: number
+  relativeFormation: boolean
+  autoFire: boolean
 }
 
 /** The loaded-hold of a transport unit (APC). Passengers are carried as
@@ -528,7 +546,7 @@ export class World {
       const radius = this.settings.supplyFieldRadius || f.radius
       const capacity = this.settings.supplyFieldCapacity || f.capacity
       this.transforms.set(id, { x: f.x * 1000 + 500, y: f.y * 1000 + 500 })
-      this.fields.set(id, { radius, capacity, trips: capacity })
+      this.fields.set(id, { radius, capacity, trips: capacity, capturer: -1, captureTicks: 0, capturingScout: 0, holdTicks: 0 })
     }
     for (const f of map.oilFields ?? []) {
       const id = this.staticFieldId++

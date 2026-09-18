@@ -19,7 +19,9 @@ export type SimEvent =
   | { type: 'mine-exploded'; entity: number; team: number; x: number; y: number }
   | { type: 'detector-bought'; building: number; team: number }
   | { type: 'stealth-bought'; team: number }
-  | { type: 'supply-harvested'; team: number; amount: number }
+  | { type: 'supply-harvested'; team: number; amount: number; bonus: number; field: number }
+  | { type: 'supply-captured'; field: number; team: number }
+  | { type: 'supply-captured-lost'; field: number; team: number }
   | { type: 'oil-claiming'; field: number; entity: number; team: number }
   | { type: 'oil-claimed'; field: number; entity: number; team: number }
   | { type: 'oil-income'; field: number; team: number; amount: number }

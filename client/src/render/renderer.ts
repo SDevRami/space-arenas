@@ -159,6 +159,7 @@ export class Renderer {
   private fieldSprites = new Map<number, Sprite>()
   private fieldBars = new Map<number, { bg: Sprite; fill: Sprite }>()
   private fieldLabels = new Map<number, Text>()
+  private fieldFlags = new Map<number, Sprite>()
   private fieldTex: Texture = Texture.EMPTY
   private oilFieldSprites = new Map<number, Sprite>()
   private oilFieldBars = new Map<number, { bg: Sprite; fill: Sprite }>()
@@ -2033,6 +2034,18 @@ export class Renderer {
       label.text = `${f.trips}/${f.capacity}`
       label.position.set(isoX, barY - 11)
 
+      // ownership dot beside the capacity readout (gray = unclaimed, green = allied, red = enemy)
+      let flag = this.fieldFlags.get(id)
+      if (!flag) {
+        flag = new Sprite(this.flagDotTex)
+        flag.anchor.set(0.5)
+        flag.scale.set(0.7)
+        this.barLayer.addChild(flag)
+        this.fieldFlags.set(id, flag)
+      }
+      flag.tint = f.capturer < 0 ? 0x888888 : this.localTeam >= 0 && world.sameTeam(this.localTeam, f.capturer) ? 0x3fd45a : 0xe84040
+      flag.position.set(isoX - label.width / 2 - 8, barY - 11)
+
       const pos = { x: 0, y: 0 }
       camera.worldToScreen(t.x, t.y, pos)
       const vis = camera.isInView(pos.x, pos.y, 120)
@@ -2040,6 +2053,7 @@ export class Renderer {
       pair.bg.visible = vis
       pair.fill.visible = vis
       label.visible = vis
+      flag.visible = vis
     })
     world.oilFields.forEach((id, f) => {
       seen.add(id)
@@ -2152,6 +2166,12 @@ export class Renderer {
       if (!seen.has(id)) {
         this.barLayer.removeChild(label)
         this.fieldLabels.delete(id)
+      }
+    }
+    for (const [id, flag] of this.fieldFlags) {
+      if (!seen.has(id)) {
+        this.barLayer.removeChild(flag)
+        this.fieldFlags.delete(id)
       }
     }
     for (const [id, spr] of this.oilFieldSprites) {
