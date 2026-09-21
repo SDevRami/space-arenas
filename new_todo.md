@@ -488,18 +488,6 @@ Holding a supply field with a scout grants the holder's team a harvest bonus. Ca
 
 ---
 
-## Day 23 — Interactive Tutorial (L)
-
-New game mode overlay with guided walkthrough.
-
-| # | Feature | Ref | Notes |
-|---|---------|-----|-------|
-| 1 | **Step-by-step walkthrough** — 8-step tutorial: move, build, harvest, attack, abilities, power, win | #39a | `tutorial.ts` new: array of steps `{ instruction, highlight, validate, onComplete }`. HUD: overlay panel with current step + "Next" button. `Game.ts` tutorial mode: blocks commands not related to current step; validates completion before advancing. Maps: pre-set tutorial map with scripted layout. |
-
-**Touch points:** new `tutorial.ts`, `Game.ts`, `hud.ts`, new tutorial map in `maps.ts`, `index.html`
-
----
-
 ## Summary — Estimated Effort
 
 | Day | Bundle | Effort | Sim change? | Status |
@@ -526,8 +514,7 @@ New game mode overlay with guided walkthrough.
 | 20 | Bulldozer build-order queue (+ mod report) | S–M | Yes | ✅ (mods deferred → report) |
 | 21 | Hold position + formations | M | Yes | ✅ |
 | 22 | Territory capture (supply) | M | Yes | ✅ |
-| 23 | Tutorial | L | Yes | |
 
-**Total: ~23 working days**
+**Total: ~22 working days**
 
 **Deferred** (see `future_todo.md`): sea army, full territory capture game mode, online server, cloud mods, advanced map builder.
