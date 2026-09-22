@@ -82,7 +82,9 @@
       "weatherLabel": "Weather",
       "weatherHint": "A cosmetic overlay on your screen only. It does not change the game rules.",
       "iconSize": "Thumbnail size (px)",
-      "iconSizeDesc": "Size of the unit/building thumbnails in the selection bar."
+      "iconSizeDesc": "Size of the unit/building thumbnails in the selection bar.",
+      "uiScale": "UI size",
+      "uiScaleDesc": "Scales every game-UI screen and the lobby (1 = original size)."
     },
     "audio": {
       "h2": "Audio",
@@ -758,6 +760,7 @@
       "match": "Match — victory cinematic (client-only, not synced)",
       "zoom": "Camera zoom (client-only, not synced)",
       "buildingFill": "Building sprite fill (client-only, not synced)",
+      "layerOrder": "Sprite layer z-order (client-only, not synced)",
       "buildings": "Buildings",
       "units": "Units",
       "weapons": "Weapons",
@@ -876,7 +879,11 @@
       "fieldSupply": { "label": "Supply field image path", "desc": "Fill-level image template; {frame} = 1-25, one step per 1/25 of the stored capacity" },
       "fieldOil": { "label": "Oil field image path", "desc": "Damage image template; {frame} = 1-4 at 100/75/50/25% health" },
       "fieldOffset": { "label": "High-quality field offset", "desc": "Shifts the supply/oil field images down from the tile center, as a fraction of r (center-to-bottom distance)" },
+      "fieldScale": { "label": "Field sprite scale", "desc": "Size multiplier for the supply/oil field images — both high-quality images and vector shapes (applies live)" },
+      "obstacleScale": { "label": "Obstacle sprite scale", "desc": "Size multiplier for rock/tree/wreck/mine sprites — both high-quality images and vector shapes (applies live)" },
+      "obstacleOffset": { "label": "Obstacle sprite offset", "desc": "Shifts rock/tree/wreck/mine sprites down from the base center, as a fraction of r (center-to-bottom distance)" },
       "fxScale": { "label": "Effect size", "desc": "Size of hit flashes and burning fire as a fraction of the object's ground footprint (0.5 = half the object's size)" },
+      "fxOffset": { "label": "Effect offset", "desc": "Shifts hit flashes and burning fire down from the object's base center, as a fraction of the object's ground footprint size" },
       "minimapScale": { "label": "Minimap zoom", "desc": "How much the minimap grows when you toggle it with the Map button (1 = normal size)" },
       "victoryCinematic": { "label": "Victory cinematic", "desc": "Seconds the victory/defeat text stays on screen (all players spectate) before the results popup. 0 = skip straight to results" },
       "zoomMin": { "label": "Match zoom-out floor", "desc": "Smallest camera zoom (farthest out) allowed in normal matches" },
@@ -884,10 +891,24 @@
       "replayZoomMin": { "label": "Replay zoom-out floor", "desc": "Smallest camera zoom (farthest out) allowed in replays and spectating" },
       "replayZoomMax": { "label": "Replay zoom-in ceiling", "desc": "Largest camera zoom (closest in) allowed in replays and spectating" },
       "unitScale": {
-        "desc": "Size multiplier applied to high-quality directional sprites of that unit class (applies live)",
+        "desc": "Size multiplier applied to that unit class's sprite — both high-quality directional images and vector shapes (applies live)",
         "vehicle": { "label": "Vehicle sprite scale" },
         "infantry": { "label": "Troop sprite scale" },
         "air": { "label": "Aircraft sprite scale" }
+      },
+      "unitOffset": {
+        "desc": "Vertical sprite shift down from the base center for that unit class, as a fraction of the sprite's own width (applies live)",
+        "vehicle": { "label": "Vehicle sprite offset" },
+        "infantry": { "label": "Troop sprite offset" },
+        "air": { "label": "Aircraft sprite offset" }
+      },
+      "spriteLayer": {
+        "desc": "Lower = drawn first (further behind). Lets you reorder which sprite kind draws on top of the others.",
+        "border": { "label": "Border/boundary shapes z-order" },
+        "troop": { "label": "Troops z-order" },
+        "vehicle": { "label": "Vehicles z-order" },
+        "building": { "label": "Buildings z-order" },
+        "effect": { "label": "Effects z-order" }
       },
       "achievementKillsInfantry": { "label": "Achievement: kills infantry", "desc": "Target for ‘Marine Hunter’ (kills of enemy infantry keep counting past it)" },
       "achievementKillsVehicle": { "label": "Achievement: kills vehicles", "desc": "Target for ‘Tank Buster’" },
@@ -981,6 +1002,7 @@
     "paused": "Paused",
     "button": "Menu",
     "stats": "Match Stats",
+    "saveReplay": "Save Replay",
     "resume": "Resume",
     "quit": "Quit Game",
     "back": "Back to Menu",

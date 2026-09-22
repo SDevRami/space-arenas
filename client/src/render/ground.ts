@@ -145,7 +145,8 @@ export class FogRenderer {
   }
 }
 
-export function addGroundTo(worldLayer: Container, map: MapData): void {
+export function addGroundTo(worldLayer: Container, map: MapData): Sprite {
   const { sprite } = buildGroundTexture(map)
   worldLayer.addChild(sprite)
+  return sprite
 }

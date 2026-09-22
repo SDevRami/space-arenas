@@ -109,10 +109,13 @@ export class Game {
   private replayHudToggle = document.getElementById('replay-hud-toggle') as HTMLButtonElement
   private menuBtn: HTMLButtonElement
   private menuOverlay: HTMLDivElement
+  private menuSaveReplayBtn: HTMLButtonElement
   private menuResumeBtn: HTMLButtonElement
   private menuQuitBtn: HTMLButtonElement
   private resultsOverlay: HTMLDivElement
+  private resultsSaveReplayBtn: HTMLButtonElement
   private resultsQuitBtn: HTMLButtonElement
+  private resultsWinner: number | null = null
   private cinematicOverlay: HTMLDivElement
   private cinematicText: HTMLDivElement
   private cinematicActive = false
@@ -181,9 +184,11 @@ export class Game {
     this.menuBtn = document.getElementById('menu-btn') as HTMLButtonElement
     this.menuOverlay = document.getElementById('menu-overlay') as HTMLDivElement
     this.groupsOverlay = document.getElementById('groups-overlay') as HTMLDivElement
+    this.menuSaveReplayBtn = document.getElementById('menu-save-replay') as HTMLButtonElement
     this.menuResumeBtn = document.getElementById('menu-resume') as HTMLButtonElement
     this.menuQuitBtn = document.getElementById('menu-quit') as HTMLButtonElement
     this.resultsOverlay = document.getElementById('results-overlay') as HTMLDivElement
+    this.resultsSaveReplayBtn = document.getElementById('results-save-replay') as HTMLButtonElement
     this.resultsQuitBtn = document.getElementById('results-quit') as HTMLButtonElement
     this.cinematicOverlay = document.getElementById('cinematic-overlay') as HTMLDivElement
     this.cinematicText = document.getElementById('cinematic-text') as HTMLDivElement
@@ -194,8 +199,10 @@ export class Game {
     this.menuStatsBoard = new StatsBoard(document.getElementById('menu-stats') as HTMLElement)
     this.resultsBoard = new StatsBoard(document.getElementById('results-board') as HTMLElement)
     this.menuBtn.addEventListener('click', this.onMenuBtnClick)
+    this.menuSaveReplayBtn.addEventListener('click', this.onMenuSaveReplayClick)
     this.menuResumeBtn.addEventListener('click', this.onMenuResumeClick)
     this.menuQuitBtn.addEventListener('click', this.onMenuQuitClick)
+    this.resultsSaveReplayBtn.addEventListener('click', this.onResultsSaveReplayClick)
     this.resultsQuitBtn.addEventListener('click', this.onResultsQuitClick)
     this.replayPlayBtn.addEventListener('click', this.onReplayPlayClick)
     this.replayRestartBtn.addEventListener('click', this.onReplayRestartClick)
@@ -465,6 +472,11 @@ export class Game {
       this.menuStatsBoard.hide()
     }
     this.menuOverlay.classList.add('visible')
+    this.menuSaveReplayBtn.style.display = this.canSaveReplay() ? '' : 'none'
+  }
+
+  private canSaveReplay(): boolean {
+    return this.mode === 'offline' && !this.replayRecorded && this.recordTicks > 0
   }
 
   private currentStatsRows(): StatsRow[] | null {
@@ -491,11 +503,21 @@ export class Game {
     this.paused = false
   }
 
+  private onMenuSaveReplayClick = (): void => {
+    if (!this.canSaveReplay()) return
+    this.saveOfflineReplay(null)
+  }
+
+  private onResultsSaveReplayClick = (): void => {
+    if (!this.canSaveReplay()) return
+    this.saveOfflineReplay(this.resultsWinner)
+    this.resultsSaveReplayBtn.style.display = 'none'
+  }
+
   private onMenuQuitClick = (): void => {
     this.menuOverlay.classList.remove('visible')
     this.menuStatsBoard.hide()
     this.paused = false
-    if (this.mode === 'offline' && !this.finished && this.recordTicks > 0) this.saveOfflineReplay(null)
     this.hud.hide()
     this.destroy()
     this.onQuit?.()
@@ -661,6 +683,7 @@ export class Game {
     this.resultsShown = true
     this.finished = true
     this.paused = true
+    this.resultsWinner = winner
     this.recordProfileMatch(winner)
     this.recordModeResults(winner)
     const rows = this.currentStatsRows()
@@ -670,6 +693,7 @@ export class Game {
       this.resultsBoard.hide()
     }
     this.resultsOverlay.classList.add('visible')
+    this.resultsSaveReplayBtn.style.display = this.canSaveReplay() ? '' : 'none'
   }
 
   /** Persist the daily mission results on match finish. When the daily list is
@@ -1413,7 +1437,6 @@ export class Game {
         this.hud.toast(this.netTitle(e.winner))
         this.beginCinematic(e.winner)
         if (this.mode === 'net') this.net?.gameOver(e.winner)
-        else if (this.mode === 'offline') this.saveOfflineReplay(e.winner)
       }
       if (e.type === 'command-rejected') {
         if (e.reason === 'build order queue full') {
@@ -3661,8 +3684,10 @@ export class Game {
     this.confirmYesBtn.removeEventListener('click', this.onConfirmYesClick)
     this.confirmNoBtn.removeEventListener('click', this.onConfirmNoClick)
     this.menuBtn.removeEventListener('click', this.onMenuBtnClick)
+    this.menuSaveReplayBtn.removeEventListener('click', this.onMenuSaveReplayClick)
     this.menuResumeBtn.removeEventListener('click', this.onMenuResumeClick)
     this.menuQuitBtn.removeEventListener('click', this.onMenuQuitClick)
+    this.resultsSaveReplayBtn.removeEventListener('click', this.onResultsSaveReplayClick)
     this.resultsQuitBtn.removeEventListener('click', this.onResultsQuitClick)
     this.replayPlayBtn.removeEventListener('click', this.onReplayPlayClick)
     this.replayRestartBtn.removeEventListener('click', this.onReplayRestartClick)

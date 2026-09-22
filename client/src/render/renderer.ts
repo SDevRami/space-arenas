@@ -33,6 +33,17 @@ const OBSTACLE_BASE_WIDTH = 30
 const BAR_W = 26
 const BAR_H = 4
 
+// Fixed base zIndex bands for the non-configurable worldLayer children. Each fixed
+// band has 20 units of headroom, so dev-tuned sprite-layer values (clamped to -50..50)
+// can still be pushed above or below their neighbours without colliding with the
+// fixed layers on either side.
+const FIXED_Z_GROUND = -80
+const FIXED_Z_FOG = -60
+const FIXED_Z_SHADOW = -40
+const FIXED_Z_TEAM = -20
+const FIXED_Z_OVERLAY = 50
+const FIXED_Z_DEBUG = 1000
+
 const VETERAN_PIP_COLOR = 0xffcf33
 const VETERAN_PIP_W = 3
 const VETERAN_PIP_H = 12
@@ -85,10 +96,14 @@ export class Renderer {
   showBases = true
   private localTeam = -1
   private lastFogTick = -1
+  private lastSpriteLayerOrder = ''
   private readonly vv = window.visualViewport
   private worldLayer = new Container()
+  private groundSprite: Sprite | null = null
   private teamLayer = new Container()
-  private entityLayer = new Container()
+  private troopLayer = new Container()
+  private vehicleLayer = new Container()
+  private buildingLayer = new Container()
   private hitboxLayer = new Container()
   private fieldLayer = new Container()
   private obstacleLayer = new Container()
@@ -293,12 +308,14 @@ export class Renderer {
     window.addEventListener('orientationchange', this.onWindowResize)
     this.vv?.addEventListener('resize', this.onWindowResize)
 
-    addGroundTo(this.worldLayer, map)
+    this.groundSprite = addGroundTo(this.worldLayer, map)
     this.fog = new FogRenderer(map)
     this.worldLayer.addChild(this.fog.container)
     this.worldLayer.addChild(this.shadowLayer)
     this.worldLayer.addChild(this.teamLayer)
-    this.worldLayer.addChild(this.entityLayer)
+    this.worldLayer.addChild(this.troopLayer)
+    this.worldLayer.addChild(this.vehicleLayer)
+    this.worldLayer.addChild(this.buildingLayer)
     this.worldLayer.addChild(this.hitboxLayer)
     this.worldLayer.addChild(this.fieldLayer)
     this.worldLayer.addChild(this.obstacleLayer)
@@ -322,6 +339,7 @@ export class Renderer {
     this.pathLayer.addChild(this.pathGraphics)
     this.buildStaticScenery(map)
     this.buildStaticDebug(map)
+    this.applySpriteLayerOrder()
     this.app.stage.addChild(this.worldLayer)
     this.nightOverlay.eventMode = 'none'
     this.app.stage.addChild(this.nightOverlay)
@@ -395,6 +413,13 @@ export class Renderer {
     this.updateLaserShake(world)
     const shake = this.shakeOffset(world.tick)
     this.localTeam = localTeam
+    // re-apply the sprite-layer z-order whenever a dev-setting value changed (1 call per change)
+    const { spriteLayerOrder } = getGraphics()
+    const orderSig = [spriteLayerOrder.border, spriteLayerOrder.troop, spriteLayerOrder.vehicle, spriteLayerOrder.building, spriteLayerOrder.effect].join(':')
+    if (orderSig !== this.lastSpriteLayerOrder) {
+      this.lastSpriteLayerOrder = orderSig
+      this.applySpriteLayerOrder()
+    }
     this.worldLayer.position.set(camera.camX * camera.zoom + shake.x, camera.camY * camera.zoom + shake.y)
     this.worldLayer.scale.set(camera.zoom)
     this.teamLayer.visible = this.showBases
@@ -1135,9 +1160,9 @@ export class Renderer {
         const aoTex = obstacleImageTexture('wreck')
         if (aoTex) {
           spr.texture = aoTex
-          spr.scale.set(Math.max(0.6, w.srcKind === 'building' ? 3 : 1) * (OBSTACLE_BASE_WIDTH / (aoTex.frame.width || 1)))
+          spr.scale.set(Math.max(0.6, w.srcKind === 'building' ? 3 : 1) * (OBSTACLE_BASE_WIDTH / (aoTex.frame.width || 1)) * getGraphics().obstacleScale)
         } else {
-          spr.scale.set(Math.max(0.6, w.srcKind === 'building' ? 3 : 1) * 1.1)
+          spr.scale.set(Math.max(0.6, w.srcKind === 'building' ? 3 : 1) * 1.1 * getGraphics().obstacleScale)
         }
         spr.alpha = 0.95
         this.fxLayer.addChild(spr)
@@ -1145,7 +1170,7 @@ export class Renderer {
       }
       const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
       const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
-      spr.position.set(isoX, isoY)
+      spr.position.set(isoX, isoY + getGraphics().obstacleOffset * ISO_HALF_H * (w.srcKind === 'building' ? 3 : 1))
       spr.zIndex = isoY
     })
     for (const [id, spr] of this.wreckEntitySprites) {
@@ -1428,19 +1453,71 @@ export class Renderer {
     return imgTex ?? this.burnProcedural[frame - 1] ?? this.burnProcedural[0]
   }
 
+  /** Entity sprite homeside layer, driven by the configurable sprite-layer z-order:
+   * troops and vehicles the unit sits on, buildings on their own band. Aircraft are
+   * reparented to the air layer by the caller when their class is 'air'. */
+  private baseEntityLayer(kind: 'unit' | 'building', cls: string | undefined): Container {
+    if (kind === 'building') return this.buildingLayer
+    return cls === 'infantry' ? this.troopLayer : this.vehicleLayer
+  }
+
+  /** Pins every worldLayer child below the configurable sprite-layers to its fixed
+   * base zIndex. Children that are NOT one of the configurable containers keep their
+   * insertion order relative to each other, so nothing else shifts. */
+  private applyFixedLayerZ(): void {
+    const base = Math.min(...Object.values(getGraphics().spriteLayerOrder))
+    const delta = 0 - base
+    if (this.groundSprite) this.groundSprite.zIndex = FIXED_Z_GROUND + delta
+    if (this.fog) this.fog.container.zIndex = FIXED_Z_FOG + delta
+    this.shadowLayer.zIndex = FIXED_Z_SHADOW + delta
+    this.teamLayer.zIndex = FIXED_Z_TEAM + delta
+    this.fieldLayer.zIndex = FIXED_Z_OVERLAY + delta
+    this.obstacleLayer.zIndex = FIXED_Z_OVERLAY + delta + 1
+    this.spawnLayer.zIndex = FIXED_Z_OVERLAY + delta + 2
+    this.flagLayer.zIndex = FIXED_Z_OVERLAY + delta + 3
+    this.airLayer.zIndex = FIXED_Z_OVERLAY + delta + 4
+    this.ghostLayer.zIndex = FIXED_Z_OVERLAY + delta + 5
+    this.barLayer.zIndex = FIXED_Z_OVERLAY + delta + 6
+    this.veteranPipLayer.zIndex = FIXED_Z_OVERLAY + delta + 7
+    this.stealthHatLayer.zIndex = FIXED_Z_OVERLAY + delta + 8
+    this.powerLayer.zIndex = FIXED_Z_OVERLAY + delta + 9
+    this.teamFlagLayer.zIndex = FIXED_Z_OVERLAY + delta + 10
+    this.debugLayer.zIndex = FIXED_Z_DEBUG + delta
+    this.pathLayer.zIndex = FIXED_Z_DEBUG + delta + 1
+    this.airShadowTopLayer.zIndex = FIXED_Z_DEBUG + delta + 2
+  }
+
+  /** Applies the dev-settings sprite-layer z-order: each configurable layer container
+   * gets the user's zIndex and the worldLayer re-sorts its children accordingly.
+   * Called once at init (deterministic draw order) and whenever a layer value changes. */
+  private applySpriteLayerOrder(): void {
+    const order = getGraphics().spriteLayerOrder
+    const delta = 0 - Math.min(...Object.values(order))
+    this.applyFixedLayerZ()
+    this.hitboxLayer.zIndex = order.border + delta
+    this.troopLayer.zIndex = order.troop + delta
+    this.vehicleLayer.zIndex = order.vehicle + delta
+    this.buildingLayer.zIndex = order.building + delta
+    this.fxLayer.zIndex = order.effect + delta
+    this.worldLayer.sortableChildren = true
+    this.worldLayer.sortChildren()
+  }
+
   private syncSprite(id: number, kind: 'unit' | 'building', type: string, world: World, camera: Camera): void {
     let spr = this.entitySprites.get(id)
+    const cls = kind === 'unit' ? world.units.get(id)?.class : undefined
+    const baseLayer = this.baseEntityLayer(kind, cls)
     if (!spr) {
       spr = new Sprite(textureFor(kind, type, this.app.renderer))
       spr.anchor.set(0.5)
-      this.entityLayer.addChild(spr)
+      baseLayer.addChild(spr)
       this.entitySprites.set(id, spr)
     }
     const textureColor = this.colorIndex(world, world.teamOf(id))
     // aircraft fly above everything ground-level (fields, buildings, obstacles)
-    const isAir = kind === 'unit' && world.units.get(id)?.class === 'air'
+    const isAir = kind === 'unit' && cls === 'air'
     if (kind === 'unit') {
-      const targetLayer = isAir ? this.airLayer : this.entityLayer
+      const targetLayer = isAir ? this.airLayer : baseLayer
       if (spr.parent !== targetLayer) {
         spr.parent?.removeChild(spr)
         targetLayer.addChild(spr)
@@ -1450,6 +1527,12 @@ export class Renderer {
     const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
     const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
     spr.position.set(isoX, isoY)
+    if (kind === 'unit') {
+      const cls = world.units.get(id)?.class ?? 'vehicle'
+      const scaleCls = cls === 'air' ? 'vehicle' : cls
+      const mult = getGraphics().unitScale[scaleCls] ?? 1
+      spr.position.y += (getGraphics().unitOffset[scaleCls] ?? 0) * UNIT_SPRITE_WIDTH * mult
+    }
     if (kind === 'unit') {
       let sh = this.airShadows.get(id)
       if (!sh) {
@@ -1587,6 +1670,12 @@ export class Renderer {
       const mult = getGraphics().unitScale[scaleCls] ?? 1
       const w = spr.texture.frame.width || 1
       spr.scale.set((UNIT_SPRITE_WIDTH / w) * mult)
+    } else if (kind === 'unit') {
+      // vector-shape units (low/medium quality) honor the same class scale slider
+      const cls = world.units.get(id)?.class ?? 'vehicle'
+      const scaleCls = cls === 'air' ? 'vehicle' : cls
+      const mult = getGraphics().unitScale[scaleCls] ?? 1
+      spr.scale.set(mult, mult)
     }
     const pos = { x: 0, y: 0 }
     camera.worldToScreen(t.x, t.y, pos)
@@ -1612,6 +1701,7 @@ export class Renderer {
       flash.scale.set(s)
       flash.rotation = 0
       flash.position.copyFrom(spr.position)
+      flash.position.y += getGraphics().fxOffset * this.effectWidthPx(world, id, kind)
       flash.visible = spr.visible
       const parent = spr.parent
       if (parent && flash.parent !== parent) parent.addChild(flash)
@@ -1648,6 +1738,7 @@ export class Renderer {
         flame.alpha = 0.85 + Math.sin((world.tick + id) * 0.9) * 0.15
         flame.position.copyFrom(spr.position)
         flame.position.y -= 14
+        flame.position.y += getGraphics().fxOffset * this.effectWidthPx(world, id, kind)
         flame.visible = spr.visible
         const parent = spr.parent
         if (parent && flame.parent !== parent) parent.addChild(flame)
@@ -1972,7 +2063,7 @@ export class Renderer {
         this.fieldLayer.addChild(spr)
         this.fieldSprites.set(id, spr)
       }
-      const scale = f.radius * 2
+      const scale = f.radius * 2 * getGraphics().fieldScale
       const fillFrac = f.capacity > 0 ? Math.max(0, Math.min(1, f.trips / f.capacity)) : 0
       const fillTex = supplyFieldStatusTexture(fillFrac)
       if (fillTex) {
@@ -2034,7 +2125,9 @@ export class Renderer {
       label.text = `${f.trips}/${f.capacity}`
       label.position.set(isoX, barY - 11)
 
-      // ownership dot beside the capacity readout (gray = unclaimed, green = allied, red = enemy)
+      // ownership dot beside the capacity readout — gray = unclaimed, green = allied, red = enemy.
+      // While a capture (or an ownership flip) is in progress the dot blinks gray <-> its target team colour
+      // instead of showing a solid tint, so the player sees ownership changing over time rather than instantly.
       let flag = this.fieldFlags.get(id)
       if (!flag) {
         flag = new Sprite(this.flagDotTex)
@@ -2043,7 +2136,15 @@ export class Renderer {
         this.barLayer.addChild(flag)
         this.fieldFlags.set(id, flag)
       }
-      flag.tint = f.capturer < 0 ? 0x888888 : this.localTeam >= 0 && world.sameTeam(this.localTeam, f.capturer) ? 0x3fd45a : 0xe84040
+      const captureTeam = f.capturingScout !== 0 ? (world.units.get(f.capturingScout)?.team ?? -1) : -1
+      const capturing = captureTeam >= 0 && captureTeam !== f.capturer
+      const blinkGrayPhase = (world.tick >> 4) & 1
+      if (capturing) {
+        const targetAlly = this.localTeam >= 0 && world.sameTeam(this.localTeam, captureTeam)
+        flag.tint = blinkGrayPhase === 0 ? 0x888888 : targetAlly ? 0x3fd45a : 0xe84040
+      } else {
+        flag.tint = f.capturer < 0 ? 0x888888 : this.localTeam >= 0 && world.sameTeam(this.localTeam, f.capturer) ? 0x3fd45a : 0xe84040
+      }
       flag.position.set(isoX - label.width / 2 - 8, barY - 11)
 
       const pos = { x: 0, y: 0 }
@@ -2067,7 +2168,7 @@ export class Renderer {
         this.fieldLayer.addChild(spr)
         this.oilFieldSprites.set(id, spr)
       }
-      const scale = f.radius * 2
+      const scale = f.radius * 2 * getGraphics().fieldScale
       const oh = world.healths.get(id)
       const oilTex = oilFieldStatusTexture(oh && oh.maxHp > 0 ? oh.hp / oh.maxHp : 1)
       if (oilTex) {
@@ -2209,7 +2310,8 @@ export class Renderer {
         this.obstacleLayer.addChild(spr)
         this.scenerySprites.set(id, spr)
       }
-      const scale = Math.max(s.w, s.h)
+      const scale = Math.max(s.w, s.h) * getGraphics().obstacleScale
+      const r = ((s.w + s.h) * ISO_HALF_H) / 2
       const aoTex = obstacleImageTexture(s.type)
       if (aoTex) {
         if (spr.texture !== aoTex) spr.texture = aoTex
@@ -2224,7 +2326,7 @@ export class Renderer {
       }
       const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
       const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
-      spr.position.set(isoX, isoY)
+      spr.position.set(isoX, isoY + getGraphics().obstacleOffset * r)
 
       let vis = true
       const pos = { x: 0, y: 0 }
@@ -2298,15 +2400,15 @@ export class Renderer {
         spr.tint = 0xffffff
         spr.alpha = 1
         const baseW = aoTex.frame.width || 1
-        spr.scale.set(OBSTACLE_BASE_WIDTH / baseW)
+        spr.scale.set((OBSTACLE_BASE_WIDTH / baseW) * getGraphics().obstacleScale)
       } else {
-        spr.scale.set(1)
+        spr.scale.set(getGraphics().obstacleScale)
         spr.tint = OBSTRUCTION_COLORS['mine'] ?? 0xffffff
         spr.alpha = 0.95
       }
       const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
       const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
-      spr.position.set(isoX, isoY)
+      spr.position.set(isoX, isoY + getGraphics().obstacleOffset * ISO_HALF_H)
       const pos = { x: 0, y: 0 }
       camera.worldToScreen(t.x, t.y, pos)
       spr.visible = camera.isInView(pos.x, pos.y, 120)
@@ -2381,9 +2483,9 @@ export class Renderer {
       spr.texture = aoTex
       spr.tint = 0xffffff
       spr.alpha = 1
-      spr.scale.set((Math.max(w, h) * OBSTACLE_BASE_WIDTH) / (aoTex.frame.width || 1))
+      spr.scale.set((Math.max(w, h) * OBSTACLE_BASE_WIDTH * getGraphics().obstacleScale) / (aoTex.frame.width || 1))
     } else {
-      spr.scale.set(Math.max(w, h))
+      spr.scale.set(Math.max(w, h) * getGraphics().obstacleScale)
     }
     this.fxLayer.addChild(spr)
     const isoX = (x / 1000 - y / 1000) * ISO_HALF_W
@@ -2397,7 +2499,7 @@ export class Renderer {
     const spr = new Sprite(obstacleTexture('wreck', this.app.renderer))
     spr.anchor.set(0.5)
     spr.tint = 0x9aa7b8
-    spr.scale.set(Math.max(0.6, scale) * 1.1)
+    spr.scale.set(Math.max(0.6, scale) * 1.1 * getGraphics().obstacleScale)
     const isoX = (x / 1000 - y / 1000) * ISO_HALF_W
     const isoY = (x / 1000 + y / 1000) * ISO_HALF_H
     spr.position.set(isoX, isoY)
@@ -2459,11 +2561,11 @@ export class Renderer {
   private buildStaticScenery(map: MapData): void {
     for (const o of map.obstructions) {
       if (o.type === 'rock' || o.type === 'tree') continue
-      const cx = (o.x + o.w / 2) * 1000
-      const cy = (o.y + o.h / 2) * 1000
+      const baseX = (o.x + o.w / 2) * 1000
+      const baseY = (o.y + o.h / 2) * 1000
       const spr = new Sprite(obstacleTexture(o.type, this.app.renderer))
       spr.anchor.set(0.5)
-      const scale = Math.max(o.w, o.h)
+      const scale = Math.max(o.w, o.h) * getGraphics().obstacleScale
       const aoTex = obstacleImageTexture(o.type)
       if (aoTex) {
         spr.texture = aoTex
@@ -2475,7 +2577,8 @@ export class Renderer {
         spr.tint = OBSTRUCTION_COLORS[o.type] ?? 0xffffff
         spr.alpha = 0.95
       }
-      spr.position.set((cx / 1000 - cy / 1000) * ISO_HALF_W, (cx / 1000 + cy / 1000) * ISO_HALF_H)
+      const r = ((o.w + o.h) * ISO_HALF_H) / 2
+      spr.position.set((baseX / 1000 - baseY / 1000) * ISO_HALF_W, (baseX / 1000 + baseY / 1000) * ISO_HALF_H + getGraphics().obstacleOffset * r)
       spr.alpha = 0.95
       this.obstacleLayer.addChild(spr)
     }

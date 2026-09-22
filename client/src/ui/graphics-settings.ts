@@ -10,6 +10,7 @@ import {
   setQuality,
   setWeather,
   setHudIconSize,
+  setUiScale,
   effectEnabled,
 } from './graphics.ts'
 
@@ -84,6 +85,66 @@ const renderIconSizeRow = (): HTMLElement => {
   return div
 }
 
+// Every top-level game-UI container except the Pixi canvas. In-match panels live inside
+// #hud, so zooming it covers menu/dev/confirm/selection too; the rest are the standalone
+// overlays and the whole lobby (settings, map builder, net dialogs) — all scale together.
+const UI_SCALE_TARGETS = [
+  'hud',
+  'cinematic-overlay',
+  'results-overlay',
+  'groups-overlay',
+  'countdown-overlay',
+  'reconnect-overlay',
+  'roomfull-overlay',
+  'lobby',
+  'create-overlay',
+  'invite-overlay',
+  'controls-overlay',
+  'controls-info-overlay',
+  'err-box',
+]
+
+/** Applies the user's UI-size setting to every game-UI overlay plus the lobby. */
+const applyUiScale = (): void => {
+  const v = getGraphics().uiScale
+  for (const id of UI_SCALE_TARGETS) {
+    const el = document.getElementById(id)
+    if (el) el.style.zoom = String(v)
+  }
+}
+
+const renderUiScaleRow = (): HTMLElement => {
+  const div = document.createElement('div')
+  div.className = 'ctrl-row'
+  const label = document.createElement('div')
+  label.className = 'ctrl-label'
+  const name = document.createElement('div')
+  name.textContent = t('settings.graphics.uiScale')
+  const desc = document.createElement('div')
+  desc.className = 'ctrl-desc'
+  desc.textContent = t('settings.graphics.uiScaleDesc')
+  label.appendChild(name)
+  label.appendChild(desc)
+  div.appendChild(label)
+  const input = document.createElement('input')
+  input.type = 'number'
+  input.min = '0.5'
+  input.max = '1.5'
+  input.step = '0.05'
+  input.value = String(getGraphics().uiScale)
+  input.className = 'ctrl-number'
+  input.addEventListener('change', () => {
+    const v = Number(input.value)
+    setUiScale(Number.isFinite(v) ? v : 0.8)
+    input.value = String(getGraphics().uiScale)
+    applyUiScale()
+    renderGraphicsList()
+    setGraphicsStatus(t('settings.graphics.saved'))
+  })
+  div.appendChild(input)
+  return div
+}
+
 const renderGraphicsList = (): void => {
   const g = getGraphics()
   graphicsQualityEl.textContent = t('settings.graphics.qualityLine', {
@@ -147,6 +208,8 @@ const renderGraphicsList = (): void => {
   }
   graphicsEffectsEl.appendChild(renderWeatherRow())
   graphicsEffectsEl.appendChild(renderIconSizeRow())
+  graphicsEffectsEl.appendChild(renderUiScaleRow())
+  applyUiScale()
 }
 
 const renderWeatherOptions = (select: HTMLSelectElement): void => {

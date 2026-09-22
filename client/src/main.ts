@@ -13,7 +13,7 @@ import { createPlayerRow } from './ui/player-row.ts'
 import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
 import { initControlsSettings } from './ui/controls-settings.ts'
 import { preloadFxFrames } from './render/building-sprites.ts'
-import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setUnitScale, setAssetPath, setFxScale, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_FX_SCALE, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, UNIT_ASSET_IDS, OBSTACLE_ASSET_TYPES } from './ui/graphics.ts'
+import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setFieldScale, setObstacleScale, setObstacleOffset, setUnitScale, setUnitOffset, setAssetPath, setFxScale, setFxOffset, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, setSpriteLayerOrder, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_FIELD_SCALE, DEFAULT_OBSTACLE_SCALE, DEFAULT_OBSTACLE_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_UNIT_OFFSET, DEFAULT_FX_SCALE, DEFAULT_FX_OFFSET, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, DEFAULT_SPRITE_LAYER_ORDER, SPRITE_LAYER_KINDS, UNIT_ASSET_IDS, OBSTACLE_ASSET_TYPES } from './ui/graphics.ts'
 import { getAudio, setOverride, type SoundId } from './audio/settings.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
 import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, type MapEntry } from './mapbuilder/library.ts'
@@ -1496,6 +1496,41 @@ const buildDevForm = (): void => {
       },
     )
   }
+  for (const cls of ['vehicle', 'infantry', 'air'] as const) {
+    makeNumberInput(
+      t(`dev.fields.unitOffset.${cls}.label`),
+      t('dev.fields.unitOffset.desc'),
+      devUnit('0–1'),
+      g.unitOffset[cls],
+      DEFAULT_UNIT_OFFSET[cls],
+      -2,
+      2,
+      0.05,
+      Math.abs(g.unitOffset[cls] - DEFAULT_UNIT_OFFSET[cls]) >= 1e-9,
+      (v) => {
+        setUnitOffset(cls, v)
+        setDevStatus(t('dev.status.saved'))
+      },
+    )
+  }
+  appendDevSection(t('dev.sections.layerOrder'))
+  for (const kind of SPRITE_LAYER_KINDS) {
+    makeNumberInput(
+      t(`dev.fields.spriteLayer.${kind}.label`),
+      t('dev.fields.spriteLayer.desc'),
+      devUnit('1'),
+      g.spriteLayerOrder[kind],
+      DEFAULT_SPRITE_LAYER_ORDER[kind],
+      -50,
+      50,
+      1,
+      g.spriteLayerOrder[kind] !== DEFAULT_SPRITE_LAYER_ORDER[kind],
+      (v) => {
+        setSpriteLayerOrder(kind, v)
+        setDevStatus(t('dev.status.saved'))
+      },
+    )
+  }
   appendAssetGroupLabel(t('dev.assets.fields'))
   makeTextInput(
     t('dev.assets.supplyField'),
@@ -1530,6 +1565,21 @@ const buildDevForm = (): void => {
       setDevStatus(t('dev.status.saved'))
     },
   )
+  makeNumberInput(
+    t('dev.fields.fieldScale.label'),
+    t('dev.fields.fieldScale.desc'),
+    devUnit('x'),
+    g.fieldScale,
+    DEFAULT_FIELD_SCALE,
+    0.1,
+    5,
+    0.05,
+    Math.abs(g.fieldScale - DEFAULT_FIELD_SCALE) >= 1e-9,
+    (v) => {
+      setFieldScale(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
   appendAssetGroupLabel(t('dev.assets.obstacles'))
   for (const k of OBSTACLE_ASSET_TYPES) {
     makeTextInput(k, t('dev.fields.assetObstacle.desc'), g.assetPaths[`obstacle:${k}`] ?? '', (v) => {
@@ -1537,6 +1587,36 @@ const buildDevForm = (): void => {
       setDevStatus(t('dev.status.assetSaved'))
     })
   }
+  makeNumberInput(
+    t('dev.fields.obstacleScale.label'),
+    t('dev.fields.obstacleScale.desc'),
+    devUnit('x'),
+    g.obstacleScale,
+    DEFAULT_OBSTACLE_SCALE,
+    0.1,
+    5,
+    0.05,
+    Math.abs(g.obstacleScale - DEFAULT_OBSTACLE_SCALE) >= 1e-9,
+    (v) => {
+      setObstacleScale(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  makeNumberInput(
+    t('dev.fields.obstacleOffset.label'),
+    t('dev.fields.obstacleOffset.desc'),
+    devUnit('0–1'),
+    g.obstacleOffset,
+    DEFAULT_OBSTACLE_OFFSET,
+    -2,
+    2,
+    0.05,
+    Math.abs(g.obstacleOffset - DEFAULT_OBSTACLE_OFFSET) >= 1e-9,
+    (v) => {
+      setObstacleOffset(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
   appendAssetGroupLabel(t('dev.assets.fx'))
   makeTextInput(t('dev.assets.burn'), t('dev.fields.assetBurn.desc'), g.assetPaths['fx:burn'] ?? '', (v) => {
     setAssetPath('fx:burn', v)
@@ -1555,6 +1635,21 @@ const buildDevForm = (): void => {
     Math.abs(g.fxScale - DEFAULT_FX_SCALE) >= 1e-9,
     (v) => {
       setFxScale(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  makeNumberInput(
+    t('dev.fields.fxOffset.label'),
+    t('dev.fields.fxOffset.desc'),
+    devUnit('0–1'),
+    g.fxOffset,
+    DEFAULT_FX_OFFSET,
+    -2,
+    2,
+    0.05,
+    Math.abs(g.fxOffset - DEFAULT_FX_OFFSET) >= 1e-9,
+    (v) => {
+      setFxOffset(v)
       setDevStatus(t('dev.status.saved'))
     },
   )

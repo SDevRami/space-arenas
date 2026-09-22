@@ -154,7 +154,7 @@ The **canonical map schema** lives in `shared/maps.ts` and is used identically b
 | Data | Reason |
 |---|---|
 | Passphrases | Session-only (SessionStorage); hashed in host memory; never on disk |
-| Match replays | Post-v1 feature; wire format leaves room |
+| Match replays | Host auto-archives net replays; offline matches save only when the player presses **Save Replay** (pause or results popup) — one upload/export per match, then the button hides |
 | Match result history | No leaderboard in v1 |
 | Sim state mid-match | Deterministic sim can't be "resumed" by a disconnected client safely in v1 |
 | Raw binary assets | They're code-shape-generated or build-bundled; no runtime download |

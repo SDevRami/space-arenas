@@ -12,9 +12,14 @@ export interface BuildingFillRatios {
 
 export const DEFAULT_BUILDING_FILL: BuildingFillRatios = { medium: 0.3, high: 0.5 }
 export const DEFAULT_BUILDING_OFFSET: BuildingFillRatios = { medium: 0.2, high: 0 }
+export const DEFAULT_FIELD_SCALE = 1
 export const DEFAULT_FIELD_OFFSET = 0
+export const DEFAULT_OBSTACLE_SCALE = 1
+export const DEFAULT_OBSTACLE_OFFSET = 0
 /** Hit-flash / burning-fire size as a fraction of the object's ground footprint (0.5 = half the object's size). */
 export const DEFAULT_FX_SCALE = 0.5
+/** Hit-flash / burning-fire vertical shift as a fraction of the object's ground footprint size. */
+export const DEFAULT_FX_OFFSET = 0
 /** Zoom factor the minimap jumps to when the Map button toggles it (1 = normal size). */
 export const DEFAULT_MINIMAP_SCALE = 1.6
 /** Seconds the victory cinematic stays on screen before the results popup. */
@@ -30,6 +35,21 @@ export const DEFAULT_REPLAY_ZOOM_MAX = 5
 
 export type UnitScaleClass = 'vehicle' | 'infantry' | 'air'
 export const DEFAULT_UNIT_SCALE: Record<UnitScaleClass, number> = { vehicle: 1, infantry: 1, air: 1 }
+/** Vertical sprite shift per unit class, as a fraction of the sprite's own width. */
+export const DEFAULT_UNIT_OFFSET: Record<UnitScaleClass, number> = { vehicle: 0, infantry: 0, air: 0 }
+
+export type SpriteLayerKind = 'border' | 'troop' | 'vehicle' | 'building' | 'effect'
+export const SPRITE_LAYER_KINDS: SpriteLayerKind[] = ['border', 'troop', 'vehicle', 'building', 'effect']
+/** Dev-settings sprite draw order: lower = drawn first (further behind). Matches the pre-existing renderer stacking order. */
+export const DEFAULT_SPRITE_LAYER_ORDER: Record<SpriteLayerKind, number> = {
+  border: 0,
+  troop: 1,
+  vehicle: 2,
+  building: 3,
+  effect: 4,
+}
+/** Whole-HUD size multiplier (zoom-like) for the game UI overlays. 1 = full size. */
+export const DEFAULT_UI_SCALE = 0.8
 
 const BUILDING_ASSET_FOLDERS: Record<string, string> = {
   'command-center': 'cc',
@@ -41,6 +61,7 @@ const BUILDING_ASSET_FOLDERS: Record<string, string> = {
   'tech-center': 'tc',
   'air-force': 'af',
   'super-weapon': 'sp',
+  bunker: 'bn',
 }
 
 export const UNIT_ASSET_IDS = [
@@ -96,13 +117,19 @@ export interface GraphicsSettings {
   weather: WeatherId
   buildingFill: BuildingFillRatios
   buildingOffset: BuildingFillRatios
+  fieldScale: number
   fieldOffset: number
+  obstacleScale: number
+  obstacleOffset: number
   unitScale: Record<UnitScaleClass, number>
+  unitOffset: Record<UnitScaleClass, number>
   assetPaths: Record<string, string>
   /** Selection-bar thumbnail size in px. */
   hudIconSize: number
   /** Hit-flash / burning-fire size as a fraction of the object's ground footprint. */
   fxScale: number
+  /** Hit-flash / burning-fire vertical shift as a fraction of the object's ground footprint size. */
+  fxOffset: number
   /** Zoom factor for the enlargable minimap (Map button); 1 = normal size. */
   minimapScale: number
   /** Seconds the victory cinematic stays before the results popup (0 = skip). */
@@ -115,6 +142,10 @@ export interface GraphicsSettings {
   replayZoomMin: number
   /** Camera zoom-in ceiling for replays/spectate (deeper in). */
   replayZoomMax: number
+  /** Dev-settings draw order for sprite layers (border/troop/vehicle/building/effect). */
+  spriteLayerOrder: Record<SpriteLayerKind, number>
+  /** Whole-HUD size multiplier applied to the game UI overlays (1 = full size). */
+  uiScale: number
 }
 
 export interface EffectRowDef {
@@ -140,17 +171,24 @@ const load = (): GraphicsSettings => {
     weather: 'none',
     buildingFill: { ...DEFAULT_BUILDING_FILL },
     buildingOffset: { ...DEFAULT_BUILDING_OFFSET },
+    fieldScale: DEFAULT_FIELD_SCALE,
     fieldOffset: DEFAULT_FIELD_OFFSET,
+    obstacleScale: DEFAULT_OBSTACLE_SCALE,
+    obstacleOffset: DEFAULT_OBSTACLE_OFFSET,
     unitScale: { ...DEFAULT_UNIT_SCALE },
+    unitOffset: { ...DEFAULT_UNIT_OFFSET },
     assetPaths: { ...DEFAULT_ASSET_PATHS },
     hudIconSize: 20,
     fxScale: DEFAULT_FX_SCALE,
+    fxOffset: DEFAULT_FX_OFFSET,
     minimapScale: DEFAULT_MINIMAP_SCALE,
     victoryCinematicSec: DEFAULT_VICTORY_CINEMATIC,
     zoomMin: DEFAULT_ZOOM_MIN,
     zoomMax: DEFAULT_ZOOM_MAX,
     replayZoomMin: DEFAULT_REPLAY_ZOOM_MIN,
     replayZoomMax: DEFAULT_REPLAY_ZOOM_MAX,
+    spriteLayerOrder: { ...DEFAULT_SPRITE_LAYER_ORDER },
+    uiScale: DEFAULT_UI_SCALE,
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -190,7 +228,16 @@ const load = (): GraphicsSettings => {
         }
       }
       if (parsed && typeof parsed.fieldOffset === 'number' && Number.isFinite(parsed.fieldOffset)) {
-        base.fieldOffset = parsed.fieldOffset
+        base.fieldOffset = Math.max(-2, Math.min(2, parsed.fieldOffset))
+      }
+      if (parsed && typeof parsed.fieldScale === 'number' && Number.isFinite(parsed.fieldScale)) {
+        base.fieldScale = Math.max(0.1, Math.min(5, parsed.fieldScale))
+      }
+      if (parsed && typeof parsed.obstacleScale === 'number' && Number.isFinite(parsed.obstacleScale)) {
+        base.obstacleScale = Math.max(0.1, Math.min(5, parsed.obstacleScale))
+      }
+      if (parsed && typeof parsed.obstacleOffset === 'number' && Number.isFinite(parsed.obstacleOffset)) {
+        base.obstacleOffset = Math.max(-2, Math.min(2, parsed.obstacleOffset))
       }
       if (parsed && parsed.unitScale && typeof parsed.unitScale === 'object') {
         for (const c of ['vehicle', 'infantry', 'air'] as UnitScaleClass[]) {
@@ -198,11 +245,20 @@ const load = (): GraphicsSettings => {
           if (typeof v === 'number' && Number.isFinite(v)) base.unitScale[c] = v
         }
       }
+      if (parsed && parsed.unitOffset && typeof parsed.unitOffset === 'object') {
+        for (const c of ['vehicle', 'infantry', 'air'] as UnitScaleClass[]) {
+          const v = (parsed.unitOffset as Record<string, unknown>)[c]
+          if (typeof v === 'number' && Number.isFinite(v)) base.unitOffset[c] = Math.max(-2, Math.min(2, v))
+        }
+      }
       if (parsed && typeof parsed.hudIconSize === 'number' && Number.isFinite(parsed.hudIconSize)) {
         base.hudIconSize = Math.max(8, Math.min(64, parsed.hudIconSize))
       }
       if (parsed && typeof parsed.fxScale === 'number' && Number.isFinite(parsed.fxScale)) {
         base.fxScale = Math.max(0.05, Math.min(3, parsed.fxScale))
+      }
+      if (parsed && typeof parsed.fxOffset === 'number' && Number.isFinite(parsed.fxOffset)) {
+        base.fxOffset = Math.max(-2, Math.min(2, parsed.fxOffset))
       }
       if (parsed && typeof parsed.minimapScale === 'number' && Number.isFinite(parsed.minimapScale)) {
         base.minimapScale = Math.max(1.2, Math.min(4, parsed.minimapScale))
@@ -221,6 +277,17 @@ const load = (): GraphicsSettings => {
       }
       if (parsed && typeof parsed.replayZoomMax === 'number' && Number.isFinite(parsed.replayZoomMax)) {
         base.replayZoomMax = Math.max(1, Math.min(50, parsed.replayZoomMax))
+      }
+      if (parsed && parsed.spriteLayerOrder && typeof parsed.spriteLayerOrder === 'object') {
+        for (const k of SPRITE_LAYER_KINDS) {
+          const v = (parsed.spriteLayerOrder as Record<string, unknown>)[k]
+          if (typeof v === 'number' && Number.isFinite(v)) {
+            base.spriteLayerOrder[k] = Math.max(-50, Math.min(50, Math.round(v)))
+          }
+        }
+      }
+      if (parsed && typeof parsed.uiScale === 'number' && Number.isFinite(parsed.uiScale)) {
+        base.uiScale = Math.max(0.5, Math.min(1.5, parsed.uiScale))
       }
       if (base.zoomMin >= base.zoomMax) {
         base.zoomMin = DEFAULT_ZOOM_MIN
@@ -293,8 +360,28 @@ export const setFieldOffset = (value: number): void => {
   save(state)
 }
 
+export const setFieldScale = (value: number): void => {
+  state.fieldScale = Math.max(0.1, Math.min(5, value))
+  save(state)
+}
+
+export const setObstacleScale = (value: number): void => {
+  state.obstacleScale = Math.max(0.1, Math.min(5, value))
+  save(state)
+}
+
+export const setObstacleOffset = (value: number): void => {
+  state.obstacleOffset = Math.max(-2, Math.min(2, value))
+  save(state)
+}
+
 export const setUnitScale = (cls: UnitScaleClass, value: number): void => {
   state.unitScale[cls] = Math.max(0.1, Math.min(5, value))
+  save(state)
+}
+
+export const setUnitOffset = (cls: UnitScaleClass, value: number): void => {
+  state.unitOffset[cls] = Math.max(-2, Math.min(2, value))
   save(state)
 }
 
@@ -317,6 +404,11 @@ export const setHudIconSize = (px: number): void => {
 
 export const setFxScale = (v: number): void => {
   state.fxScale = Math.max(0.05, Math.min(3, v))
+  save(state)
+}
+
+export const setFxOffset = (v: number): void => {
+  state.fxOffset = Math.max(-2, Math.min(2, v))
   save(state)
 }
 
@@ -351,6 +443,16 @@ export const setReplayZoomMin = (v: number): void => {
 export const setReplayZoomMax = (v: number): void => {
   state.replayZoomMax = Math.max(1, Math.min(50, v))
   if (state.replayZoomMin >= state.replayZoomMax) state.replayZoomMin = Math.max(0.05, state.replayZoomMax - 0.05)
+  save(state)
+}
+
+export const setSpriteLayerOrder = (kind: SpriteLayerKind, v: number): void => {
+  state.spriteLayerOrder[kind] = Math.max(-50, Math.min(50, Math.round(v)))
+  save(state)
+}
+
+export const setUiScale = (v: number): void => {
+  state.uiScale = Math.max(0.5, Math.min(1.5, v))
   save(state)
 }
 

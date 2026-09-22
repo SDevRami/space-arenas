@@ -488,6 +488,33 @@ Holding a supply field with a scout grants the holder's team a harvest bonus. Ca
 
 ---
 
+## Day 24 — UI/Replay/Asset QoL (M)
+
+Client-side polish: capture feedback, UI scaling, vector-sprite scaling, bunker assets, sprite-layer tuning, and manual replay saving. No sim or wire changes.
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | **Capture blip on supply fields** — the ownership dot blinks while a field is mid-capture or mid-hold-release, so an in-progress flip is visible even before it completes. | A | `renderer.ts` `syncFields`: the supply icon's filled dot renders gray (`0x888888`) on alternate 16-tick phases while `capturingScout ≠ 0 && owner ≠ capturer` (blink from the sim `world.tick`, so all clients blink in lockstep); solid team color otherwise. |
+| 2 | **UI scale setting** — whole game UI resizable in Settings → Graphics, default 0.8 (≈ browser zoom). | B | `GraphicsSettings.uiScale` (0.5–1.5, `DEFAULT_UI_SCALE = 0.8`) with load clamp; `setUiScale(v)`; `graphics-settings.ts` table row + `applyUiScale()` sets CSS `zoom` on every top-level game-UI container — `#hud` (covers all in-match panels, incl. menu/dev/confirm/selection which live inside it), `#cinematic-overlay`, `#results-overlay`, `#groups-overlay`, `#countdown-overlay`, `#reconnect-overlay`, `#roomfull-overlay`, `#lobby` (covers settings + map builder + net dialogs), `#create-overlay`, `#invite-overlay`, `#controls-overlay`, `#controls-info-overlay`, `#err-box`. i18n en/ar (`settings.graphics.uiScale`/`uiScaleDesc`). |
+| 3 | **Unit-scale dev scalar hits vector sprites** — previously only building/vehicle image assets were scaled by `dev.fields.unitScale`; now the same scalar scales troop/vehicle vector shapes too. | C | `renderer.ts` `syncSprite` `else if (kind === 'unit')` branch applies `mult` to the sprite's `scale`. `dev.fields.unitScale.desc` text updated in en/ar to mention vector shapes. |
+| 4 | **Bunker sprite assets** — the bunker renders its separate baked image set via the dev asset path, not a shared/factory shape. | D | `BUILDING_ASSET_FOLDERS` in `graphics.ts` gains `bunker: 'bn'`, matching the existing `bunker: 'bn'` in `building-sprites.ts` `FOLDERS` — so `client/dist/bn/…` images are selected automatically. |
+| 5 | **Sprite-layer z-order tuning** — every render layer can be re-ordered (border/troop/vehicle/building/effect) from Dev settings; base zones (ground/shadow/team/overlay/debug) stay pinned below/above. | E | `GraphicsSettings.spriteLayerOrder` (per-kind int, clamped −50..50; defaults border 0 / troop 1 / vehicle 2 / building 3 / effect 4) + `setSpriteLayerOrder(kind, v)`; `renderer.ts` splits the old `entityLayer` into `troopLayer`/`vehicleLayer`/`buildingLayer` with `baseEntityLayer(kind, cls)`, sets explicit `zIndex` bands (`FIXED_Z_GROUND -80 / FIXED_Z_FOG -60 / FIXED_Z_SHADOW -40 / FIXED_Z_TEAM -20 / FIXED_Z_OVERLAY 50 / FIXED_Z_DEBUG 1000`, all offset by `0 − min(order)`), enables `worldLayer.sortableChildren` + `sortChildren()`, and live re-applies when the signature changes (checked each `render()`); `main.ts` dev section `layerOrder` with per-kind number inputs; i18n `dev.sections.layerOrder` + `dev.fields.spriteLayer.*`. |
+| 6 | **Manual replay saving** — offline replays are no longer auto-archived on quit or game-over; a "Save Replay" button on the pause and results popups saves on demand (one time, then hides). | F | Removed the auto-save call from `onMenuQuitClick` and the offline branch of the `game-over` handler. New `#menu-save-replay` + `#results-save-replay` buttons in `index.html`; `canSaveReplay()` (offline + `recordTicks > 0` + not yet recorded) gates visibility on overlay open, and both handlers call the existing `saveOfflineReplay(winner)` — pause saves `null`, results saves the stored `resultsWinner`. i18n en/ar `menu.saveReplay`. Net-host auto-archive is untouched. |
+| 7 | **Every asset gets size + offset sliders** — the dev-settings asset/graphics sliders now cover position (offset) as well as size for every world-drawn asset kind, re-checking buildings/units/fields/obstacles/fx. | G | Buildings already had both (`buildingFill` + `buildingOffset`). New in `graphics.ts`: `unitOffset` (per class, `DEFAULT_UNIT_OFFSET` all 0 — mirrored alongside the existing `unitScale`), `fieldScale` (default 1, next to `fieldOffset`), `obstacleScale` (default 1) + `obstacleOffset` (default 0), `fxOffset` (default 0). Renderer consumption in `renderer.ts`: unit sprites shift `unitOffset * UNIT_SPRITE_WIDTH * mult` in `syncSprite`; field images scale `f.radius * 2 * fieldScale` (supply + oil); obstacle sprites scale by `obstacleScale` and shift by `obstacleOffset * r` (`r = ((w+h)*ISO_HALF_H)/2`) across scenery/mines/wrecks/static-scenery (incl. tree-fall + sell wfx for parity); hit-flash + burning-fire shift by `fxOffset * effectWidthPx`. `main.ts` dev section gains the new number rows; i18n en/ar (`dev.fields.unitOffset.*`, `fieldScale`, `obstacleScale`, `obstacleOffset`, `fxOffset`). |
+
+**Touch points:** `renderer/renderer.ts`, `ui/graphics.ts`, `ui/graphics-settings.ts`, `render/building-sprites.ts`, `render/ground.ts` (ground sprite capture for zIndex), `main.ts` (dev section), `game/Game.ts` (replay buttons), `index.html` (+css), `graphics.ts` (+ renderer) asset size/offset, i18n en/ar
+
+### Day 24 verification
+- `npm run typecheck` (4 workspaces) — pass
+- `npm test` — 408 pass (35 files)
+- `npm run build` — pass; lint — clean on changed files
+- The blink phase reads `world.tick` and drops no sim writes — render-only, deterministic across clients.
+- `uiScale` uses CSS `zoom` (browser-zoom semantics); sprite-layer bands keep fixed anchor zones above/below the tunable middle so negative order values can't sink under the ground or below the team/overlay elements.
+- Replay: still one `ReplayData` upload/export through `persistReplay`; only the *trigger* changed (manual instead of automatic).
+- Size/offset additions are render-only and clamped (`obstacleScale`/`fieldScale` 0.1–5; offsets −2..2) — they persist through `graphics.save()`/`load()` and leave the wire protocol untouched.
+
+---
+
 ## Summary — Estimated Effort
 
 | Day | Bundle | Effort | Sim change? | Status |
@@ -514,7 +541,8 @@ Holding a supply field with a scout grants the holder's team a harvest bonus. Ca
 | 20 | Bulldozer build-order queue (+ mod report) | S–M | Yes | ✅ (mods deferred → report) |
 | 21 | Hold position + formations | M | Yes | ✅ |
 | 22 | Territory capture (supply) | M | Yes | ✅ |
+| 24 | UI/Replay/Asset QoL | M | No | ✅ |
 
-**Total: ~22 working days**
+**Total: ~24 working days**
 
 **Deferred** (see `future_todo.md`): sea army, full territory capture game mode, online server, cloud mods, advanced map builder.
