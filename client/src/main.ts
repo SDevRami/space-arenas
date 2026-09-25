@@ -3164,7 +3164,8 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
   })
 
   try {
-    const connectUrl = /^wss?:\/\//i.test(addr) ? addr : `ws://${addr}/ws`
+    const base = addr.replace(/\/+$/, '')
+    const connectUrl = /^wss?:\/\//i.test(base) ? `${base}/ws` : `ws://${base}/ws`
     await net.connect(connectUrl)
   } catch {
     setJoinBusy(false)
