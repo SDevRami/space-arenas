@@ -960,6 +960,7 @@ document.getElementById('online-create')!.addEventListener('click', () => {
   createOverlay.classList.add('visible')
 })
 document.getElementById('online-join')!.addEventListener('click', onlineJoinSelected)
+document.getElementById('online-refresh')!.addEventListener('click', () => void refreshOnlineList(false))
 
 setInterval(() => {
   if (!onlinePanel.classList.contains('hidden-panel')) void refreshOnlineList(true)
@@ -2751,7 +2752,7 @@ const renderMatchPanel = (msg: LobbyMessage): void => {
     net?.updateRoom({ settings: resolvedDevSettings() })
   }
   const nonSpectators = msg.players.filter((p) => !p.spectator)
-  const allReady = nonSpectators.every((p) => p.ready)
+  const allReady = nonSpectators.every((p) => p.connected !== false && p.ready)
 
   matchPlayersListEl.innerHTML = ''
   for (const p of msg.players) {
@@ -2817,6 +2818,13 @@ const renderMatchPanel = (msg: LobbyMessage): void => {
       const badge = document.createElement('span')
       badge.className = 'p-badge spectator'
       badge.textContent = t('match.spectator')
+      div.appendChild(badge)
+    }
+    if (p.connected === false) {
+      div.classList.add('p-offline')
+      const badge = document.createElement('span')
+      badge.className = 'p-badge disconnected'
+      badge.textContent = t('match.disconnected')
       div.appendChild(badge)
     }
     if (!p.spectator) {

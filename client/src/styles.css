@@ -356,6 +356,8 @@
       #lobby .match-player .p-badge.host { color: var(--color-gold); }
       #lobby .match-player .p-badge.spectator { color: var(--color-text-muted); }
       #lobby .match-player .p-badge.bot { color: #9be0b5; }
+      #lobby .match-player .p-badge.disconnected { color: #ff8080; }
+      #lobby .match-player.p-offline { opacity: 0.55; }
       #lobby .match-player .p-team { color: var(--color-text-dim); font-size: 12px; flex: 0 0 auto; }
       #lobby .match-player .p-ready { margin: 0 0 0 auto; color: var(--color-text-dim); font-size: 12px; flex: 0 0 auto; }
       #lobby .match-player .p-ready.yes { color: #6fe08a; }

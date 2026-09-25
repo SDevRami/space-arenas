@@ -92,6 +92,8 @@ export interface PlayerSlot {
   spawn?: number
   color?: number
   spectator?: boolean
+  /** Online only: false while the slot is waiting out the reconnect grace window. */
+  connected?: boolean
   bot?: boolean
   difficulty?: BotDifficulty
   devSettings?: Partial<MatchSettings>

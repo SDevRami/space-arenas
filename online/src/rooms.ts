@@ -303,7 +303,7 @@ export class RoomRegistry {
   slots(room: Room): PlayerSlot[] {
     const slots: PlayerSlot[] = []
     room.players.forEach((p) => {
-      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, difficulty: p.difficulty, ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}) })
+      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, connected: p.connected, difficulty: p.difficulty, ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}) })
     })
     return slots.sort((a, b) => a.id - b.id)
   }

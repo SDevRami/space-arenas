@@ -620,6 +620,16 @@ wss.on('connection', (ws) => {
       closeRoom(room)
       return
     }
+    // Let the remaining players see this slot as disconnected immediately.
+    if (!wasHost) {
+      if (room.started) {
+        room.players.forEach((pp, ws2) => {
+          if (pp.connected) send(ws2, { kind: 'H_PLAYER_STATE', players: registry.slots(room) })
+        })
+      } else {
+        broadcastLobby(room)
+      }
+    }
     // Give the slot a grace window so the player can reconnect with the same clientId.
     scheduleForfeit(room, leaver.id)
   })

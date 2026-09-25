@@ -143,7 +143,8 @@
     "ok": "OK",
     "close": "Close",
     "noMatches": "No matches yet — be the first to create one.",
-    "refreshed": "Match list refreshed."
+    "refreshed": "Match list refreshed.",
+    "refresh": "Refresh"
   },
   "mapbuilder": {
     "h1": "Map Builder",
@@ -405,6 +406,7 @@
     "ready": "READY",
     "waiting": "WAITING",
     "leave": "Leave Match",
+    "disconnected": "Disconnected",
     "notReady": "Not Ready",
     "readyBtn": "Ready",
     "start": "Start Match",
@@ -1666,3 +1668,4 @@
     "hudHidden": "Minimap & selection info hidden"
   }
 }
+
