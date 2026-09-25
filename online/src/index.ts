@@ -409,8 +409,15 @@ const readJson = (req: IncomingMessage, maxBytes = 1_000_000): Promise<Record<st
   })
 
 const writeJson = (res: ServerResponse, code: number, body: unknown): void => {
-  res.writeHead(code, { 'Content-Type': 'application/json' })
+  res.writeHead(code, { 'Content-Type': 'application/json', ...CORS })
   res.end(JSON.stringify(body))
+}
+
+/** Cross-origin headers: the game runs on localhost/LAN and calls this server's REST API. */
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
 }
 
 /** ws(s) base for clients to connect to (Render sets SA_PUBLIC_URL, locally the request host). */
@@ -506,6 +513,11 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
 }
 
 const server = createServer(async (req, res) => {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, CORS)
+    res.end()
+    return
+  }
   const urlPath = (req.url ?? '/').split('?')[0]
   if (urlPath === '/') {
     writeJson(res, 200, { service: 'space-arenas-online', mode: MODE, protocol: PROTOCOL_VERSION, health: '/api/status' })
