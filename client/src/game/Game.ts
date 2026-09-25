@@ -83,6 +83,7 @@ export class Game {
   private team = 0
   private chat: ChatBox | null = null
   private pendingSpectate: SpectateSyncMessage | null = null
+  private frameQueue: Array<{ tick: number; commands: EnvelopeCommand[] }> = []
   private replayHistory: EnvelopeCommand[] = []
   private replayIndex = 0
   private replayTicks = 0
@@ -3595,14 +3596,34 @@ export class Game {
 
   applyFrame(tick: number, commands: EnvelopeCommand[]): void {
     const world = this.world
+    if (!world && this.mode === 'net') {
+      if (this.frameQueue.length < 5000) this.frameQueue.push({ tick, commands })
+      return
+    }
+    if (this.finished) return
+    this.stepToFrame(tick, commands)
+  }
+
+  /** Applies one relay frame, fast-forwarding idle ticks when a resumed or
+   *  spectating client is temporarily behind the relay. */
+  private stepToFrame(tick: number, commands: EnvelopeCommand[]): void {
+    const world = this.world
     if (!world || this.finished) return
     if (tick === world.tick) {
       stepWorld(world, commands.filter((c) => c.tick === tick))
       return
     }
-    if (this.spectator && tick > world.tick) {
+    if (this.mode !== 'net') return
+    if ((this.spectator || this.resumed) && tick > world.tick) {
       while (world.tick < tick) stepWorld(world, [])
       stepWorld(world, commands.filter((c) => c.tick === tick))
+    }
+  }
+
+  private drainFrameQueue(): void {
+    while (this.frameQueue.length > 0) {
+      const f = this.frameQueue.shift()!
+      this.stepToFrame(f.tick, f.commands)
     }
   }
 
@@ -3653,6 +3674,7 @@ export class Game {
       const cmds = msg.log.filter((c) => c.tick === world.tick)
       stepWorld(world, cmds)
     }
+    this.drainFrameQueue()
   }
 
   onNetChecksum(player: number, tick: number, crc: number): void {
@@ -3738,6 +3760,7 @@ export class Game {
     this.world = null
     this.sim = null
     this.pendingSpectate = null
+    this.frameQueue = []
     this.chat?.destroy()
     this.chat = null
     this.replayHistory = []
