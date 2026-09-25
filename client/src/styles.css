@@ -547,6 +547,16 @@
       #countdown-overlay.visible { display: flex; }
       #reconnect-overlay { position: absolute; inset: 0; z-index: 46; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.55); }
       #reconnect-overlay.visible { display: flex; }
+      #resume-overlay { position: absolute; inset: 0; z-index: 46; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.7); }
+      #resume-overlay.visible { display: flex; }
+      #resume-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 22px; width: 420px; max-width: 92vw; border-radius: 6px; }
+      #resume-overlay h2 { color: var(--color-accent); font-size: 16px; margin-bottom: 8px; }
+      #resume-overlay .hint { font-size: 13px; line-height: 1.5; color: var(--color-text-muted); margin: 0 0 8px; }
+      #resume-overlay .row { display: flex; gap: 10px; margin-top: 14px; }
+      #resume-overlay .row button { flex: 1 1 0; padding: 10px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); cursor: pointer; font-family: inherit; font-size: 13px; }
+      #resume-overlay .row button:hover { background: var(--color-surface-hover); }
+      #resume-overlay .row button.primary { background: var(--color-primary); border: none; color: white; }
+      #resume-overlay .row button.primary:hover { background: var(--color-primary-hover); }
       #reconnect-box { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 18px 26px; border-radius: 6px; font-size: 15px; color: var(--color-accent); box-shadow: 0 0 30px rgba(0,0,0,0.5); }
       #roomfull-overlay { position: absolute; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.7); }
       #roomfull-overlay.visible { display: flex; }

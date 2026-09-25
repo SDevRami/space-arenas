@@ -539,6 +539,7 @@ export interface MatchStartMessage {
   hostId: number
   yourId: number
   spectator?: boolean
+  resumed?: boolean
   settings?: Partial<MatchSettings>
   winRule?: WinRule
 }

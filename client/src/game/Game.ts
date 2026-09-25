@@ -79,6 +79,7 @@ export class Game {
   private trackProfile = true
   private netPlayers: PlayerSlot[] = []
   private spectator = false
+  private resumed = false
   private team = 0
   private chat: ChatBox | null = null
   private pendingSpectate: SpectateSyncMessage | null = null
@@ -867,6 +868,7 @@ export class Game {
     this.net = net
     this.localTeam = msg.yourId
     this.spectator = msg.spectator === true
+    this.resumed = msg.resumed === true
     this.netPlayers = msg.players
     this.team = msg.players.find((p) => p.id === msg.yourId)?.team ?? msg.yourId
     this.modeCfg = null
@@ -1152,7 +1154,7 @@ export class Game {
     this.loop.start()
     if (this.pendingSpectate) this.stepToTickSync(this.pendingSpectate)
     this.pendingSpectate = null
-    if (this.net && !this.spectator) {
+    if (this.net && !this.spectator && !this.resumed) {
       const go = await this.showNetCountdown()
       if (!go) {
         // player cancelled: leave the match before telling the host we are ready

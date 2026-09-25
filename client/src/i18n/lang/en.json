@@ -345,6 +345,10 @@
     "roomFullBody": "All player seats are taken. Watch this match as a spectator instead?",
     "roomFullBack": "Back",
     "roomFullSpectate": "Play as Spectator",
+    "resumeTitle": "Resume match?",
+    "resumeHint": "You left a running match. Reconnect and continue it?",
+    "resumeYes": "Reconnect",
+    "resumeNo": "Later",
     "status": {
       "left": "Left the match.",
       "creating": "Creating match…",

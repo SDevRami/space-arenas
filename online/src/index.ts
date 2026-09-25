@@ -244,7 +244,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
             const loaded = loadedCount.get(room.code) ?? new Set()
             loaded.add(ws)
             loadedCount.set(room.code, loaded)
-            send(ws, { ...makeMatchStart(room.map, registry.matchSlots(room), registry.hostId(room), existing.id, room.seed, 25, room.settings, room.winRule), ...(existing.spectator ? { spectator: true } : {}) })
+            send(ws, { ...makeMatchStart(room.map, registry.matchSlots(room), registry.hostId(room), existing.id, room.seed, 25, room.settings, room.winRule), ...(existing.spectator ? { spectator: true } : {}), resumed: true })
             send(ws, { kind: 'H_PLAYER_STATE', players: registry.slots(room) })
             const relay = relayFor(room)
             if (relay) send(ws, { kind: 'S_SPECTATE_SYNC', currentTick: relay.currentTick, log: relay.history })

@@ -83,6 +83,7 @@ const showLobby = (): void => {
     lobbyState = null
   }
   stopPing()
+  clearActiveMatch()
   ;(document.getElementById('lobby') as HTMLDivElement).style.display = 'flex'
   if (wasNet) {
     setTab(wasOnline ? 'online' : 'network')
@@ -3139,11 +3140,14 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
       lobbyAudio.stopAmbient()
       if (!game) game = makeGame()
       hideLobby()
+      netJoinedResumed = (msg as { resumed?: boolean }).resumed === true
       void game.startNet(net!, msg)
+      saveActiveMatch()
       if (isOnlineAddr(lastJoin?.addr)) startPing()
     },
     onSpectateSync: (msg) => {
-      game?.applySpectateSync(msg)
+      if (netJoinedResumed) game?.catchUpSync(msg)
+      else game?.applySpectateSync(msg)
     },
     onPong: () => {
       const start = netPingStart
@@ -3158,6 +3162,7 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
     onChat: (msg) => game?.onNetChat(msg),
     onGameOver: (winner) => {
       game?.onNetGameOver(winner)
+      clearActiveMatch()
       if (!game) netStatusEl.textContent = winner !== null && winner === localTeam ? t('menu.victory') : t('menu.defeat')
     },
     onError: (message) => {
@@ -3183,6 +3188,7 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
         if (reconnectPhase === 'off') beginReconnect()
         return
       }
+      clearActiveMatch()
       setJoinBusy(false)
       if (lobbyState) {
         const wasOnline = isOnlineAddr(lastJoin?.addr)
@@ -3262,11 +3268,69 @@ roomfullSpectateBtn.addEventListener('click', () => {
   if (join) void connectJoin(join.addr, join.code, join.pass, join.name, false, { spectator: true })
 })
 
+// ---------- resume prompt (offer to rejoin a running match after a tab reload) ----------
+
+const ACTIVE_MATCH_KEY = 'space-arenas:active-match'
+interface ActiveMatch {
+  addr: string
+  code: string
+  pass: string
+  name: string
+  ts: number
+}
+
+const saveActiveMatch = (): void => {
+  if (!lastJoin) return
+  try {
+    localStorage.setItem(ACTIVE_MATCH_KEY, JSON.stringify({ ...lastJoin, ts: Date.now() } as ActiveMatch))
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+const readActiveMatch = (): ActiveMatch | null => {
+  try {
+    const raw = localStorage.getItem(ACTIVE_MATCH_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw) as Partial<ActiveMatch>
+    if (typeof data.addr !== 'string' || typeof data.code !== 'string' || typeof data.name !== 'string') return null
+    return { addr: data.addr, code: data.code, pass: typeof data.pass === 'string' ? data.pass : '', name: data.name, ts: data.ts ?? 0 }
+  } catch {
+    return null
+  }
+}
+
+const clearActiveMatch = (): void => {
+  try {
+    localStorage.removeItem(ACTIVE_MATCH_KEY)
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+const resumeOverlayEl = document.getElementById('resume-overlay') as HTMLDivElement
+const resumeYesBtn = document.getElementById('resume-yes') as HTMLButtonElement
+const resumeNoBtn = document.getElementById('resume-no') as HTMLButtonElement
+let pendingResume: ActiveMatch | null = null
+
+resumeYesBtn.addEventListener('click', () => {
+  const join = pendingResume
+  resumeOverlayEl.classList.remove('visible')
+  pendingResume = null
+  if (join) void connectJoin(join.addr, join.code, join.pass, join.name)
+})
+resumeNoBtn.addEventListener('click', () => {
+  resumeOverlayEl.classList.remove('visible')
+  pendingResume = null
+  clearActiveMatch()
+})
+
 // ---------- in-game auto-reconnect (Day 18) ----------
 
 const reconnectOverlayEl = document.getElementById('reconnect-overlay') as HTMLDivElement
 const reconnectLabelEl = document.getElementById('reconnect-label') as HTMLDivElement
 let lastJoin: { addr: string; code: string; pass: string; name: string } | null = null
+let netJoinedResumed = false
 let reconnectPhase: 'off' | 'player' | 'spectator' = 'off'
 let reconnectTimer: number | null = null
 let reconnectAttempts = 0
@@ -3345,6 +3409,7 @@ const attemptReconnect = async (): Promise<void> => {
       onGameOver: (winner) => {
         if (tok !== attemptToken) return
         game?.onNetGameOver(winner)
+        clearActiveMatch()
         if (!game) netStatusEl.textContent = winner !== null && winner === localTeam ? t('menu.victory') : t('menu.defeat')
       },
       onError: (message) => {
@@ -3426,6 +3491,7 @@ const reconnectGiveUp = (message = ''): void => {
   game?.destroy()
   game = null
   stopPing()
+  clearActiveMatch()
   showLobby()
   if (isOnlineAddr(lastJoin?.addr)) {
     setTab('online')
@@ -3831,3 +3897,13 @@ void Promise.allSettled([graphicsReady, audioReady, mapBuilderReady, infoCatalog
     window.setTimeout(() => el.remove(), 500)
   }
 })
+
+// ---------- offer to resume a running match after a page reload ----------
+
+const stashedMatch = readActiveMatch()
+if (stashedMatch) {
+  pendingResume = stashedMatch
+  void Promise.allSettled([graphicsReady, audioReady, mapBuilderReady, infoCatalogReady]).then(() => {
+    if (stashedMatch === pendingResume && !inviteCode) resumeOverlayEl.classList.add('visible')
+  })
+}
