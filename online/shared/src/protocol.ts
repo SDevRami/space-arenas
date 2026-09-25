@@ -587,6 +587,9 @@ export interface DevSettingsMessage {
 export interface PingMessage {
   kind: 'C_PING'
 }
+export interface ForfeitMessage {
+  kind: 'C_FORFEIT'
+}
 export interface PongMessage {
   kind: 'H_PONG'
 }
@@ -613,6 +616,7 @@ export type ControlMessage =
   | DevSettingsMessage
   | PingMessage
   | PongMessage
+  | ForfeitMessage
 
 export const decodeControl = (data: string | ArrayBuffer): ControlMessage => {
   const text = typeof data === 'string' ? data : new TextDecoder().decode(data)

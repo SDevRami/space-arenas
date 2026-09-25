@@ -20,6 +20,8 @@ export interface HostPlayer extends PlayerSlot {
   devSettings?: Partial<MatchSettings>
   /** Persistent per-browser id used to reclaim this slot on reconnect. */
   clientId?: string
+  /** True once the player sent C_FORFEIT: the slot must not reclaim or wait out grace. */
+  forfeited?: boolean
 }
 
 export interface Room {

@@ -388,6 +388,26 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
       endMatch(ctx.room, msg.winner)
       break
     }
+    case 'C_FORFEIT': {
+      if (!ctx) return
+      const { room } = ctx
+      if (!room.started || room.ended) return
+      const p = registry.playerFor(room, ws)
+      if (!p || p.spectator) return
+      p.forfeited = true
+      const relay = relayFor(room)
+      if (relay) {
+        // Squeeze the surrender into the sim: the forfeiting player's entities
+        // are removed and the win is decided deterministically by the last
+        // remaining alliance — works for 1v1 and multi-member teams alike.
+        relay.submitForfeit(p.id)
+      } else {
+        const list = pendingForfeits.get(room.code) ?? []
+        list.push(p.id)
+        pendingForfeits.set(room.code, list)
+      }
+      break
+    }
     case 'C_CHAT': {
       if (!ctx) return
       const { room } = ctx
@@ -601,6 +621,18 @@ wss.on('connection', (ws) => {
     if (!room) return
     const leaver = registry.playerFor(room, ws)
     if (!leaver) return
+    // An explicit surrender was already relayed via C_FORFEIT: drop the slot so
+    // it cannot reclaim, and let the sim decide the match outcome. Do not close
+    // the room or open a reconnect window for a gone-by-choice player.
+    if (leaver.forfeited) {
+      registry.removePlayer(room, ws)
+      if (!room.ended && room.started) {
+        room.players.forEach((pp, ws2) => {
+          if (pp.connected) send(ws2, { kind: 'H_PLAYER_STATE', players: registry.slots(room) })
+        })
+      }
+      return
+    }
     const wasHost = leaver.host === true
     registry.disconnectPlayer(room, ws)
     loadedCount.get(room.code)?.delete(ws)

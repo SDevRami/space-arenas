@@ -128,6 +128,7 @@ export class NetClient {
       case 'C_UPDATE_BOT':
       case 'C_REMOVE_BOT':
       case 'C_GAME_OVER':
+      case 'C_FORFEIT':
         break
     }
   }
@@ -187,6 +188,12 @@ export class NetClient {
 
   gameOver(winner: number | null): void {
     this.send({ kind: 'C_GAME_OVER', winner })
+  }
+
+  /** Surrenders the active match: the server forfeits this slot to the relay
+   *  immediately, so the remaining players win without waiting for a grace timer. */
+  forfeit(): void {
+    this.send({ kind: 'C_FORFEIT' })
   }
 
   sendChecksum(tick: number, crc: number): void {

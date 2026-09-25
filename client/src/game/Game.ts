@@ -518,6 +518,7 @@ export class Game {
   }
 
   private onMenuQuitClick = (): void => {
+    if (this.mode === 'net' && !this.finished) this.net?.forfeit()
     this.menuOverlay.classList.remove('visible')
     this.menuStatsBoard.hide()
     this.paused = false
