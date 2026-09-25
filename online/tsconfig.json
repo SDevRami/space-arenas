@@ -18,7 +18,6 @@
     "allowImportingTsExtensions": true,
     "useDefineForClassFields": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
       "@space-arenas/shared": ["./shared/src/index.ts"]
     }
