@@ -132,6 +132,7 @@ export class Hud {
   private fpsFrames = 0
   private fpsTime = performance.now()
   private lastFps = 0
+  private pingMs: number | null = null
 
   constructor(private actions: HudActions) {
     this.rankBtn.addEventListener('click', () => this.toggleRankMenu())
@@ -363,12 +364,17 @@ export class Hud {
     }
   }
 
+  setPingMs(ms: number | null): void {
+    this.pingMs = ms
+  }
+
   private updateFps(): void {
     const now = performance.now()
     this.fpsFrames++
     if (now - this.fpsTime >= 500) {
       this.lastFps = Math.round((this.fpsFrames * 1000) / (now - this.fpsTime))
-      this.fpsEl.textContent = t('hud.fps', { fps: this.lastFps })
+      const fps = t('hud.fps', { fps: this.lastFps })
+      this.fpsEl.textContent = this.pingMs !== null ? `${fps} · ${t('hud.ping', { ms: this.pingMs })}` : fps
       this.fpsFrames = 0
       this.fpsTime = now
     }

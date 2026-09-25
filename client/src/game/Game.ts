@@ -3609,6 +3609,10 @@ export class Game {
     this.chat?.append(msg)
   }
 
+  setPingMs(ms: number | null): void {
+    this.hud.setPingMs(ms)
+  }
+
   applySpectateSync(msg: SpectateSyncMessage): void {
     if (this.mode !== 'net' || !this.spectator) return
     if (!this.world) {

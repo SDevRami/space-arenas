@@ -55,6 +55,7 @@ export class ChatBox {
     this.overlay.classList.add('visible')
     this.unread = 0
     this.updateBadge()
+    this.render()
     this.input.focus()
   }
 
@@ -84,9 +85,12 @@ export class ChatBox {
 
   append(msg: ChatRelayMessage): void {
     this.entries.push({ target: msg.target, name: msg.name, text: msg.text })
-    if (!this.isVisible() && msg.target !== this.target) this.unread++
-    if (this.isVisible()) this.render()
-    else this.updateBadge()
+    if (!this.isVisible()) {
+      this.unread++
+      this.updateBadge()
+    } else {
+      this.render()
+    }
   }
 
   system(text: string): void {

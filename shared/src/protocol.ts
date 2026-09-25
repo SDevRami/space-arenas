@@ -583,6 +583,13 @@ export interface DevSettingsMessage {
   settings: Partial<MatchSettings>
 }
 
+export interface PingMessage {
+  kind: 'C_PING'
+}
+export interface PongMessage {
+  kind: 'H_PONG'
+}
+
 export type ControlMessage =
   | JoinMessage
   | LobbyMessage
@@ -603,6 +610,8 @@ export type ControlMessage =
   | ChatRelayMessage
   | SpectateSyncMessage
   | DevSettingsMessage
+  | PingMessage
+  | PongMessage
 
 export const decodeControl = (data: string | ArrayBuffer): ControlMessage => {
   const text = typeof data === 'string' ? data : new TextDecoder().decode(data)

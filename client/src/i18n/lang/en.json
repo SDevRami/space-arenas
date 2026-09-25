@@ -1073,6 +1073,7 @@
     "inSync": "in sync",
     "desync": "DESYNC!",
     "fps": "{fps} fps",
+    "ping": "{ms} ms",
     "selected": "{n} selected — {names}",
     "hp": "HP {p}%",
     "cost": "cost ${c}",

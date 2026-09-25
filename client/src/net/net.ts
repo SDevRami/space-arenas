@@ -34,6 +34,7 @@ export interface NetCallbacks {
   onError: (message: string) => void
   onOpen: () => void
   onClose: () => void
+  onPong?: () => void
 }
 
 export class NetClient {
@@ -112,6 +113,9 @@ export class NetClient {
         break
       case 'S_SPECTATE_SYNC':
         this.cb.onSpectateSync?.(msg)
+        break
+      case 'H_PONG':
+        this.cb.onPong?.()
         break
       case 'C_JOIN':
       case 'C_READY':

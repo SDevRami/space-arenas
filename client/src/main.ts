@@ -77,12 +77,17 @@ const hideLobby = (): void => {
 const showLobby = (): void => {
   game = null
   const wasNet = net !== null
+  const wasOnline = wasNet && isOnlineAddr(lastJoin?.addr)
   if (wasNet) {
     net = null
     lobbyState = null
   }
+  stopPing()
   ;(document.getElementById('lobby') as HTMLDivElement).style.display = 'flex'
-  if (wasNet) setTab('network')
+  if (wasNet) {
+    setTab(wasOnline ? 'online' : 'network')
+    if (wasOnline) void refreshOnlineList(true)
+  }
   // Returning from a match means new daily progress — refresh the bots tab list.
   if (offlineMode === 'bots') renderDaily()
 }
@@ -851,7 +856,7 @@ const renderOnlineMatches = (): void => {
     const playersTd = document.createElement('td')
     playersTd.textContent = `${r.players}/${r.maxPlayers}`
     const statusTd = document.createElement('td')
-    statusTd.textContent = r.status === 'started' ? t('network.inMatch') : r.status === 'full' ? t('network.full') : t('network.waiting', { n: r.players, m: r.maxPlayers })
+    statusTd.textContent = r.status === 'started' ? t('network.inMatch') : t('network.waiting', { n: r.players, m: r.maxPlayers })
     tr.appendChild(roomTd)
     tr.appendChild(hostTd)
     tr.appendChild(mapTd)
@@ -889,7 +894,10 @@ const onlineJoinSelected = (): void => {
   }
   const room = selectedOnlineRoom
   if (room.status === 'started') {
-    setOnlineStatus(t('network.status.matchStarted'), true)
+    // Re-enter a running match: reclaims our slot (same clientId) while it's in the
+    // reconnect-grace window, otherwise the server replies "already started" and the
+    // room-full popup offers to spectate.
+    void connectJoin(ONLINE_WS_BASE, room.id, '', onlineName())
     return
   }
   if (room.status === 'full') {
@@ -964,7 +972,7 @@ document.getElementById('online-refresh')!.addEventListener('click', () => void 
 
 setInterval(() => {
   if (!onlinePanel.classList.contains('hidden-panel')) void refreshOnlineList(true)
-}, 10_000)
+}, 5_000)
 
 onlineNameEl.addEventListener('input', () => {
   const name = onlineNameEl.value.trim() || 'Commander'
@@ -2670,6 +2678,7 @@ const leaveMatch = (): void => {
   if (wasOnline) {
     setTab('online')
     setOnlineStatus(t('network.status.left'))
+    void refreshOnlineList(true)
   } else {
     setTab('network')
     setNetStatus(t('network.status.left'))
@@ -3131,9 +3140,17 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
       if (!game) game = makeGame()
       hideLobby()
       void game.startNet(net!, msg)
+      if (isOnlineAddr(lastJoin?.addr)) startPing()
     },
     onSpectateSync: (msg) => {
       game?.applySpectateSync(msg)
+    },
+    onPong: () => {
+      const start = netPingStart
+      if (start > 0) {
+        netPingStart = 0
+        game?.setPingMs(Math.max(1, Math.round(performance.now() - start)))
+      }
     },
     onFrame: (tick, commands) => game?.applyFrame(tick, commands),
     onRelayChecksum: (player, tick, crc) => game?.onNetChecksum(player, tick, crc),
@@ -3158,6 +3175,7 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
       }
       setJoinBusy(false)
       if (lobbyState) setMatchStatus(t('game.error', { msg: message }), true)
+      else if (isOnlineAddr(lastJoin?.addr)) setOnlineStatus(t('game.error', { msg: message }), true)
       else setNetStatus(t('game.error', { msg: message }), true)
     },
     onClose: () => {
@@ -3175,6 +3193,7 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
         if (wasOnline) {
           setTab('online')
           setOnlineStatus(t('network.status.disconnectedMatch'))
+          void refreshOnlineList(true)
         } else {
           setTab('network')
           setNetStatus(t('network.status.disconnectedMatch'))
@@ -3192,7 +3211,8 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
     await net.connect(connectUrl)
   } catch {
     setJoinBusy(false)
-    setNetStatus(t('network.status.serverUnreachable'), true)
+    if (isOnlineAddr(lastJoin?.addr)) setOnlineStatus(t('network.status.serverUnreachable'), true)
+    else setNetStatus(t('network.status.serverUnreachable'), true)
     return
   }
   setNetStatus(t('network.status.joining'))
@@ -3201,6 +3221,29 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
 
 // ---------- room-full popup (join a running match with no free seat) ----------
 
+// ---------- online match ping (C_PING/H_PONG round-trip, shown next to FPS) ----------
+
+let netPingTimer: number | null = null
+let netPingStart = 0
+
+const startPing = (): void => {
+  if (netPingTimer !== null) return
+  game?.setPingMs(0)
+  netPingTimer = window.setInterval(() => {
+    netPingStart = performance.now()
+    net?.send({ kind: 'C_PING' })
+  }, 2000)
+}
+
+const stopPing = (): void => {
+  if (netPingTimer !== null) {
+    window.clearInterval(netPingTimer)
+    netPingTimer = null
+  }
+  netPingStart = 0
+  game?.setPingMs(null)
+}
+
 const roomfullOverlayEl = document.getElementById('roomfull-overlay') as HTMLDivElement
 const roomfullBackBtn = document.getElementById('roomfull-back') as HTMLButtonElement
 const roomfullSpectateBtn = document.getElementById('roomfull-spectate') as HTMLButtonElement
@@ -3208,8 +3251,9 @@ let roomFullJoin: { addr: string; code: string; pass: string; name: string } | n
 
 roomfullBackBtn.addEventListener('click', () => {
   roomfullOverlayEl.classList.remove('visible')
+  if (roomFullJoin && isOnlineAddr(roomFullJoin.addr)) setOnlineStatus(t('network.status.needCode'), true)
+  else setNetStatus(t('network.status.needCode'), true)
   roomFullJoin = null
-  setNetStatus(t('network.status.needCode'), true)
 })
 roomfullSpectateBtn.addEventListener('click', () => {
   roomfullOverlayEl.classList.remove('visible')
@@ -3243,8 +3287,13 @@ const beginReconnect = (): void => {
     game?.destroy()
     game = null
     showLobby()
-    setTab('network')
-    setNetStatus(t('network.status.lost'))
+    if (isOnlineAddr(lastJoin?.addr)) {
+      setTab('online')
+      setOnlineStatus(t('network.status.lost'), true)
+    } else {
+      setTab('network')
+      setNetStatus(t('network.status.lost'), true)
+    }
     return
   }
   net?.close()
@@ -3277,6 +3326,7 @@ const attemptReconnect = async (): Promise<void> => {
         game = makeGame()
         hideLobby()
         void game.startNet(n, msg)
+        if (isOnlineAddr(join.addr)) startPing()
         finishReconnect()
       },
       onSpectateSync: (msg) => {
@@ -3375,9 +3425,15 @@ const reconnectGiveUp = (message = ''): void => {
   net = null
   game?.destroy()
   game = null
+  stopPing()
   showLobby()
-  setTab('network')
-  setNetStatus(message ? t('game.error', { msg: message }) : t('network.status.lost'))
+  if (isOnlineAddr(lastJoin?.addr)) {
+    setTab('online')
+    setOnlineStatus(message ? t('game.error', { msg: message }) : t('network.status.lost'), true)
+  } else {
+    setTab('network')
+    setNetStatus(message ? t('game.error', { msg: message }) : t('network.status.lost'))
+  }
 }
 
 const joinSelectedOrManual = (): void => {

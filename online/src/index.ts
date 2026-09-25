@@ -22,7 +22,7 @@ const EMPTY_ROOM_TTL_MS = 60_000
 /** Sweep cadence for idle/empty rooms. */
 const SWEEP_INTERVAL_MS = 10_000
 /** How long a disconnected player slot is kept before it is forfeited/cleaned up. */
-const RECONNECT_GRACE_MS = 12_000
+const RECONNECT_GRACE_MS = 30_000
 
 const PORT = Number(process.env.SA_PORT ?? 17321)
 /** 'online' enables the public room-directory API; anything else is the safe default. */
@@ -216,6 +216,9 @@ const roomForSocket = (ws: WebSocket): RoomContext | null => {
 const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
   const ctx = roomForSocket(ws)
   switch (msg.kind) {
+    case 'C_PING':
+      send(ws, { kind: 'H_PONG' })
+      break
     case 'C_JOIN': {
       if (!msg.roomCode) {
         send(ws, { kind: 'H_ERROR', message: 'No room specified' })
@@ -241,6 +244,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
             const loaded = loadedCount.get(room.code) ?? new Set()
             loaded.add(ws)
             loadedCount.set(room.code, loaded)
+            send(ws, { ...makeMatchStart(room.map, registry.matchSlots(room), registry.hostId(room), existing.id, room.seed, 25, room.settings, room.winRule), ...(existing.spectator ? { spectator: true } : {}) })
             send(ws, { kind: 'H_PLAYER_STATE', players: registry.slots(room) })
             const relay = relayFor(room)
             if (relay) send(ws, { kind: 'S_SPECTATE_SYNC', currentTick: relay.currentTick, log: relay.history })
