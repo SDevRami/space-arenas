@@ -80,10 +80,39 @@ const endMatch = (room: Room, winner: number | null): void => {
   })
 }
 
+/** Frees a room (and everything tied to it) once the last player has left. */
+const closeRoom = (room: Room): void => {
+  if (room.started && !room.ended) {
+    endMatch(room, winnerFromRemaining(room))
+  } else {
+    room.ended = true
+    relayFor(room)?.stop()
+    relays.delete(room.code)
+  }
+  const timers = reconnectTimers.get(room.code)
+  if (timers) {
+    for (const t of timers.values()) clearTimeout(t)
+    timers.clear()
+  }
+  loadedCount.delete(room.code)
+  pendingForfeits.delete(room.code)
+  socketRooms.forEach((code, ws) => {
+    if (code === room.code) {
+      socketRooms.delete(ws)
+      if (ws.readyState === 1) ws.close()
+    }
+  })
+  registry.close(room.code)
+}
+
 /** Final cleanup after the reconnect grace window expires for a still-disconnected slot. */
 const disconnectFinished = (room: Room, ws: WebSocket, p: HostPlayer): void => {
   registry.removePlayer(room, ws)
   socketRooms.delete(ws)
+  if (room.players.size === 0) {
+    closeRoom(room)
+    return
+  }
   if (room.ended) return
   if (room.started) {
     const winner = winnerFromRemaining(room)
@@ -580,7 +609,7 @@ wss.on('connection', (ws) => {
       }
       registry.removePlayer(room, ws)
       if (room.started) {
-        endMatch(room, winnerFromRemaining(room))
+        closeRoom(room)
         return
       }
       room.ended = true
@@ -588,6 +617,7 @@ wss.on('connection', (ws) => {
         send(ws2, { kind: 'H_ERROR', message: 'Host disconnected. Match ended.' })
         ws2.close()
       })
+      closeRoom(room)
       return
     }
     // Give the slot a grace window so the player can reconnect with the same clientId.

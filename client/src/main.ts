@@ -769,6 +769,9 @@ try {
 const ONLINE_URL = ((import.meta.env.VITE_SA_ONLINE_URL as string | undefined) ?? 'http://127.0.0.1:17321').replace(/\/+$/, '')
 const ONLINE_WS_BASE = ONLINE_URL.replace(/^http/, 'ws')
 
+/** Whether a join address targets the online server (has a ws/wss scheme) vs LAN (ip:port). */
+const isOnlineAddr = (addr: string | null | undefined): boolean => /^wss?:\/\//i.test(addr ?? '')
+
 const onlineStatusEl = document.getElementById('online-status') as HTMLDivElement
 const onlineMatchesBody = document.getElementById('online-matches-table')!.querySelector('tbody')!
 const onlineNameEl = document.getElementById('online-name') as HTMLInputElement
@@ -2658,12 +2661,18 @@ const setMatchStatus = (text: string, isError = false): void => {
 }
 
 const leaveMatch = (): void => {
+  const wasOnline = isOnlineAddr(lastJoin?.addr)
   net?.close()
   net = null
   lobbyState = null
   devPushedToRoom = false
-  setTab('network')
-  setNetStatus(t('network.status.left'))
+  if (wasOnline) {
+    setTab('online')
+    setOnlineStatus(t('network.status.left'))
+  } else {
+    setTab('network')
+    setNetStatus(t('network.status.left'))
+  }
 }
 
 const renderMatchOptions = (msg: LobbyMessage, isHost: boolean): void => {
@@ -3150,12 +3159,18 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
       }
       setJoinBusy(false)
       if (lobbyState) {
+        const wasOnline = isOnlineAddr(lastJoin?.addr)
         lobbyState = null
         devPushedToRoom = false
         devPublishedConn = false
         syncSelectedId = null
-        setTab('network')
-        setNetStatus(t('network.status.disconnectedMatch'))
+        if (wasOnline) {
+          setTab('online')
+          setOnlineStatus(t('network.status.disconnectedMatch'))
+        } else {
+          setTab('network')
+          setNetStatus(t('network.status.disconnectedMatch'))
+        }
         return
       }
       if (!networkPanel.classList.contains('hidden-panel')) setNetStatus(t('network.status.disconnected'))
