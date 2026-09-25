@@ -62,9 +62,9 @@ export const applyDamage = (world: World, target: number, amount: number, attack
     const srcKind: 'unit' | 'building' | null = u ? 'unit' : b ? 'building' : null
     const cost = u ? getUnit(u.unitType, world.settings).cost : b ? getBuilding(b.buildingType, world.settings).cost : 0
     const value = Math.floor(cost * world.settings.wreckValueFraction)
-    // only buildings and vehicle-class units leave a collectable wreck —
+    // only buildings and vehicle/naval-class units leave a collectable wreck —
     // troops/infantry (and aircraft) just vanish
-    const canWreck = srcKind !== null && (srcKind === 'building' || (u ? u.class === 'vehicle' : false))
+    const canWreck = srcKind !== null && (srcKind === 'building' || (u ? u.class === 'vehicle' || u.class === 'naval' : false))
     world.removeEntity(target)
     if (srcKind && canWreck && value > 0 && owner >= 0) world.spawnWreck(deadX, deadY, value, owner, srcKind)
   }
@@ -194,6 +194,9 @@ world.attacks.forEach((id, a) => {
 
       if (a.currentCooldown > 0) a.currentCooldown--
 
+      // Garrisoned turrets (bunker) fire one bullet per held trooper, so a full
+      // bunker lets off a full salvo instead of always a single shot.
+      let volleys = 1
       if (isBuilding) {
         const b = world.buildings.require(id)
         if (!b.done) return
@@ -202,7 +205,10 @@ world.attacks.forEach((id, a) => {
         // Day 12.3 garrison (bunker): a building turret only fires while it is
         // holding at least one infantryman — an empty bunker is just cover.
         const garrison = world.transports.get(id)
-        if (garrison && garrison.passengers.length === 0) return
+        if (garrison) {
+          if (garrison.passengers.length === 0) return
+          volleys = garrison.passengers.length
+        }
       }
 
       let target = a.target
@@ -233,7 +239,9 @@ world.attacks.forEach((id, a) => {
           // In fire range: stop and shoot — don't keep advancing onto the
           // target. Re-issue the standoff move only if the target pulls away.
           if (a.currentCooldown === 0) {
-            fire(world, id, target, tp.x, tp.y, weapon.damage * damageMult, weapon.splash, targetsAir)
+            for (let v = 0; v < volleys; v++) {
+              fire(world, id, target, tp.x, tp.y, weapon.damage * damageMult, weapon.splash, targetsAir)
+            }
             a.currentCooldown = weapon.cooldownTicks
           }
           const m = world.moves.get(id)

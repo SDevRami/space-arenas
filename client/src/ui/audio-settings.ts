@@ -9,6 +9,8 @@ import {
   setHaptics,
   effectsVolume,
   ambientVolume,
+  ambientInMatchVolume,
+  setAmbientInMatch,
 } from '../audio/settings.ts'
 
 // ---------- audio settings ----------
@@ -22,7 +24,7 @@ const setAudioStatus = (text: string): void => {
 }
 
 const refreshEffective = (): void => {
-  if (summaryEl) summaryEl.textContent = t('settings.audio.effective', { e: pct(effectsVolume()), a: pct(ambientVolume()) })
+  if (summaryEl) summaryEl.textContent = t('settings.audio.effective', { e: pct(effectsVolume()), a: pct(ambientVolume()), i: pct(ambientInMatchVolume()) })
 }
 
 const pct = (v: number): number => Math.round(v * 100)
@@ -108,6 +110,9 @@ const renderAudioList = (): void => {
   )
   audioListEl.appendChild(
     renderSliderRow('settings.audio.ambient', 'settings.audio.ambientDesc', a.ambient, (v) => setAmbient(v)),
+  )
+  audioListEl.appendChild(
+    renderSliderRow('settings.audio.ambientInMatch', 'settings.audio.ambientInMatchDesc', a.ambientInMatch, (v) => setAmbientInMatch(v)),
   )
   audioListEl.appendChild(
     renderToggleRow('settings.audio.muted', 'settings.audio.mutedDesc', () => getAudio().muted, (v) => setMuted(v)),

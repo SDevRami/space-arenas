@@ -12,6 +12,7 @@ const FOLDERS: Record<string, string> = {
   'air-force': 'af',
   'super-weapon': 'sp',
   bunker: 'bn',
+  dock: 'd',
 }
 
 export const BUILDING_STATUS_FRAMES = 8

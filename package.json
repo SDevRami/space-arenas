@@ -8,6 +8,7 @@
     "shared",
     "client",
     "host",
+    "online",
     "mapbuilder"
   ],
   "scripts": {
@@ -22,7 +23,8 @@
     "test:soak": "vitest run tests/determinism --pool=forks --poolOptions.forks.singleFork=true --sequence.concurrency=1 --sequence.shuffle=false",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "validate:assets": "node scripts/validate-assets.mjs"
+    "validate:assets": "node scripts/validate-assets.mjs",
+    "synth:fx": "node scripts/synth-fx.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.12.0",

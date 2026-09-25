@@ -139,6 +139,32 @@ describe('Day 12.2: Bunker garrison', () => {
     expect(world.healths.require(enemy).hp).toBeLessThan(hpBefore)
   })
 
+  it('fires one bullet per garrisoned trooper — a full bunker fires a full salvo', () => {
+    const sim = makeSim()
+    const { world } = sim
+    const bunker = poweredBunker(sim)
+    const enemy = spawnUnit(world, 'rifleman', 1, 17200, 11000)
+    for (let i = 0; i < 5; i++) {
+      world.transports.require(bunker).passengers.push({
+        unitType: 'rifleman',
+        hp: 200,
+        maxHp: 200,
+        killCount: 0,
+        veteranRank: 0,
+        stealth: false,
+        abilityCooldown: 0,
+      })
+    }
+    world.attacks.require(bunker).target = enemy
+    const hpBefore = world.healths.require(enemy).hp
+
+    sim.advance(2)
+
+    const shots = sim.drainEvents().filter((e) => e.type === 'shot-fired' && e.attacker === bunker).length
+    expect(shots).toBe(5)
+    expect(world.healths.require(enemy).hp).toBeLessThan(hpBefore)
+  })
+
   it('rejects more infantry once the garrison is full', () => {
     const sim = makeSim()
     const { world } = sim

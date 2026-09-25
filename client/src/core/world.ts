@@ -1,5 +1,5 @@
 import { SparseSet } from '../ecs/sparse-set.ts'
-import { RNG, type MapData, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR, getUnit, getBuilding, TRANSPORT_CAPACITY_PER_LEVEL, WEAPON_UPGRADE_MAX_LEVEL, type SwChoice, RANK_FLOORS, MAX_RANK, SCORE_UNIT_KILL, SCORE_BUILDING_KILL, AIRSTRIKE_MAX_LEVEL, EMP_MAX_LEVEL, EMP_DURATION_TICKS, type CoopControl } from '@space-arenas/shared'
+import { RNG, type MapData, Terrain, isPassableTerrain, tileIndex, isBuildableTerrain, tileToFx, tileAt, type WinRule, WIN_RULE_DEFAULT, type MatchSettings, mergeMatchSettings, type PingType, VETERAN_MAX_RANK, VETERAN_ARMOR_FLOOR, getUnit, getBuilding, TRANSPORT_CAPACITY_PER_LEVEL, WEAPON_UPGRADE_MAX_LEVEL, type SwChoice, RANK_FLOORS, MAX_RANK, SCORE_UNIT_KILL, SCORE_BUILDING_KILL, AIRSTRIKE_MAX_LEVEL, EMP_MAX_LEVEL, type CoopControl } from '@space-arenas/shared'
 import type { SimEvent } from './events.ts'
 import { rectFromCenter } from './geometry.ts'
 import { spawnBuilding, spawnUnit } from '../entities/factories.ts'
@@ -61,7 +61,7 @@ export interface UnitComp {
   unitType: string
   team: number
   speed: number
-  class: 'infantry' | 'vehicle' | 'air'
+  class: 'infantry' | 'vehicle' | 'air' | 'naval'
   isHarvester: boolean
   /** Enemy units this unit has destroyed (veterancy progress). */
   killCount: number
@@ -436,6 +436,10 @@ export interface WorldGrid {
   buildable: Uint8Array
   /** Every passable tile is labelled with a connected component id (4-neighbour flood fill). */
   component: Uint32Array
+  /** Tiles naval units may occupy (open water). Road bridges and terrain blocks ships. */
+  water: Uint8Array
+  /** Every water tile is labelled with a connected component id (4-neighbour flood fill). */
+  waterComponent: Uint32Array
 }
 
 export class World {
@@ -1018,6 +1022,9 @@ export class World {
     const s = this.teams.get(this.rankSlot(team))
     if (!s || pts <= 0) return s?.score ?? 0
     s.score += pts
+    // Promotion is automatic: every client sees the score cross a floor at the
+    // same sim tick, so no "rank up" button or command is needed.
+    while (this.canRankUp(team)) this.rankUp(team)
     return s.score
   }
 
@@ -1091,7 +1098,7 @@ export class World {
 
   /** Flat duration (ticks) of a leveled EMP pulse for a team. */
   empDurationTicks(team: number): number {
-    return Math.round(EMP_DURATION_TICKS * this.empDurationMultiplier(team))
+    return Math.round(this.settings.empDurationTicks * this.empDurationMultiplier(team))
   }
 
   emit(event: SimEvent): void {
@@ -1132,18 +1139,15 @@ export class World {
   rebuildGridIfDirty(): void {
     if (!this.gridDirty) return
     const { width, height, map } = this
-    const passable = new Uint8Array(width * height)
-    const buildable = new Uint8Array(width * height)
-    for (let i = 0; i < passable.length; i++) {
-      const t = map.tiles[i]
-      passable[i] = isPassableTerrain(t) ? 1 : 0
-      buildable[i] = isBuildableTerrain(t) ? 1 : 0
-    }
+    // Shared "hard blocked" layer: anything that fully occupies a tile (a building,
+    // field, oil field or solid terrain obstacle). passable/buildable/water masks
+    // are derived from terrain plus this layer so ships never sail through a built-up tile.
+    const hardBlocked = new Uint8Array(width * height)
     for (const o of map.obstructions) {
       if (o.type === 'rock' || o.type === 'tree') continue
       for (let y = o.y; y < o.y + o.h; y++) {
         for (let x = o.x; x < o.x + o.w; x++) {
-          passable[tileIndex(map, x, y)] = 0
+          hardBlocked[tileIndex(map, x, y)] = 1
         }
       }
     }
@@ -1151,7 +1155,7 @@ export class World {
       if (s.type !== 'rock') return
       for (let y = s.y; y < s.y + s.h; y++) {
         for (let x = s.x; x < s.x + s.w; x++) {
-          if (x >= 0 && y >= 0 && x < width && y < height) passable[tileIndex(map, x, y)] = 0
+          if (x >= 0 && y >= 0 && x < width && y < height) hardBlocked[tileIndex(map, x, y)] = 1
         }
       }
     })
@@ -1161,11 +1165,7 @@ export class World {
       const cy = Math.floor(t.y / 1000)
       for (let y = cy - f.radius; y <= cy + f.radius; y++) {
         for (let x = cx - f.radius; x <= cx + f.radius; x++) {
-          if (x >= 0 && y >= 0 && x < width && y < height) {
-            const idx = tileIndex(map, x, y)
-            buildable[idx] = 0
-            passable[idx] = 0
-          }
+          if (x >= 0 && y >= 0 && x < width && y < height) hardBlocked[tileIndex(map, x, y)] = 1
         }
       }
     })
@@ -1175,11 +1175,7 @@ export class World {
       const cy = Math.floor(t.y / 1000)
       for (let y = cy - f.radius; y <= cy + f.radius; y++) {
         for (let x = cx - f.radius; x <= cx + f.radius; x++) {
-          if (x >= 0 && y >= 0 && x < width && y < height) {
-            const idx = tileIndex(map, x, y)
-            buildable[idx] = 0
-            passable[idx] = 0
-          }
+          if (x >= 0 && y >= 0 && x < width && y < height) hardBlocked[tileIndex(map, x, y)] = 1
         }
       }
     })
@@ -1188,15 +1184,29 @@ export class World {
       const r = rectFromCenter(t.x, t.y, b.footprintW, b.footprintH)
       for (let y = r.y; y < r.y + r.h; y++) {
         for (let x = r.x; x < r.x + r.w; x++) {
-          if (x >= 0 && y >= 0 && x < width && y < height) {
-            const idx = tileIndex(map, x, y)
-            passable[idx] = 0
-            buildable[idx] = 0
-          }
+          if (x >= 0 && y >= 0 && x < width && y < height) hardBlocked[tileIndex(map, x, y)] = 1
         }
       }
     })
-    this.grid = { width, height, passable, buildable, component: new Uint32Array(passable.length) }
+    const passable = new Uint8Array(width * height)
+    const buildable = new Uint8Array(width * height)
+    const water = new Uint8Array(width * height)
+    for (let i = 0; i < passable.length; i++) {
+      const blocked = hardBlocked[i]
+      const t = map.tiles[i]
+      passable[i] = isPassableTerrain(t) && !blocked ? 1 : 0
+      buildable[i] = isBuildableTerrain(t) && !blocked ? 1 : 0
+      water[i] = t === Terrain.Water && !blocked ? 1 : 0
+    }
+    this.grid = {
+      width,
+      height,
+      passable,
+      buildable,
+      component: new Uint32Array(passable.length),
+      water,
+      waterComponent: new Uint32Array(passable.length),
+    }
     this.gridDirty = false
     this.computeComponents()
   }
@@ -1204,11 +1214,18 @@ export class World {
   private computeComponents(): void {
     const grid = this.grid
     if (!grid) return
-    const { width, height, passable, component } = grid
-    const queue = new Int32Array(passable.length)
+    this.computeComponentsOf(grid.passable, grid.component)
+    this.computeComponentsOf(grid.water, grid.waterComponent)
+  }
+
+  private computeComponentsOf(mask: Uint8Array, component: Uint32Array): void {
+    const grid = this.grid!
+    const { width, height } = grid
+    const queue = new Int32Array(mask.length)
     let cid = 0
-    for (let start = 0; start < passable.length; start++) {
-      if (!passable[start] || component[start] !== 0) continue
+    component.fill(0)
+    for (let start = 0; start < mask.length; start++) {
+      if (!mask[start] || component[start] !== 0) continue
       cid++
       component[start] = cid
       let head = 0
@@ -1219,22 +1236,22 @@ export class World {
         const cx = cur % width
         const cy = Math.floor(cur / width)
         const ni = cy * width + (cx - 1)
-        if (cx > 0 && passable[ni] && component[ni] === 0) {
+        if (cx > 0 && mask[ni] && component[ni] === 0) {
           component[ni] = cid
           queue[tail++] = ni
         }
         const ei = cy * width + (cx + 1)
-        if (cx + 1 < width && passable[ei] && component[ei] === 0) {
+        if (cx + 1 < width && mask[ei] && component[ei] === 0) {
           component[ei] = cid
           queue[tail++] = ei
         }
         const ui2 = (cy - 1) * width + cx
-        if (cy > 0 && passable[ui2] && component[ui2] === 0) {
+        if (cy > 0 && mask[ui2] && component[ui2] === 0) {
           component[ui2] = cid
           queue[tail++] = ui2
         }
         const di = (cy + 1) * width + cx
-        if (cy + 1 < height && passable[di] && component[di] === 0) {
+        if (cy + 1 < height && mask[di] && component[di] === 0) {
           component[di] = cid
           queue[tail++] = di
         }

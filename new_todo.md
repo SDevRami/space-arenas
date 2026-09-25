@@ -515,7 +515,247 @@ Client-side polish: capture feedback, UI scaling, vector-sprite scaling, bunker 
 
 ---
 
-## Summary — Estimated Effort
+## Day 25 — Second Super Weapon QoL: Rank Gate + Tunables + Bunker Salvos (M)
+
+Feature A: hero-style old-feature rework of the super weapon strike. Feature B: the bunker's firepower now scales with its garrison.
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | **Per-weapon dev settings** — airstrike/EMP now have their damage/radius/duration as tunable `MatchSettings` vars (previously only the cooldowns were). | A2 | New `MatchSettings` fields `airstrikeBombDamage` (default `AIRSTRIKE_BOMB_DAMAGE` = 50), `airstrikeBombRadius` (default 3), `empRadiusTiles` (default 8), `empDurationTicks` (default 5 s). Consumers switched off the raw constants: input-system `sw-airstrike`/`sw-emp`, `world.empDurationTicks`, renderer EMP pulse fade (`renderer.ts:937`), Game strike-target preview radius. New dev-settings rows under the existing `superWeapon` section (main.ts) + host `SANITIZE` clamps + i18n en/ar. Render/UI-only defaults stay identical to the old constants, so behavior is unchanged unless tuned. |
+| 2 | **Strike countdown shows the strike's own name** — the toolbar `#tool-strike` button under the laser button read the laser's label while on cooldown ("Space Laser (Xs)"). | A1 | `Game.ts updateStrikeButton`: ready → the strike name; on cooldown → `tools.strikeCountdown` `"{name} ({s}s)"` with that strike's label + timer; destroyed/powered-down (no cooldown left) → the name again with an "offline — rebuild" title. New i18n `tools.strikeCountdown` / `tools.strikeCooldown` / `tools.strikeUnavailable` (en/ar). |
+| 3 | **Second super weapon unlocks at 1★** — the airstrike/EMP *choice* at the Super Weapon is rank-gated. | A3 | `sw-choose` in input-system rejects below `world.rankOf(player) < 1` (`star rank required — reach 1★…`, checked after the super-weapon/already-armed guards). HUD SW panel buttons show the ★1 `rankBadge` and stay disabled until rank 1. Research upgrades (`airstrike-level`/`emp-level`, req 3★) are separate and untouched. |
+| 4 | **Bunker fires one bullet per garrisoned trooper** — a full 5-man bunker lets off a 5-bullet salvo at full damage per bullet (was always 1). | B | `combat-system.ts`: `volleys = garrison.passengers.length` for building turrets (bunker), so each occupied troop fires its own `shot-fired` (full `weapon.damage`). Empty-bunker no-fire rule preserved; turrets (no garrison) unchanged; `currentCooldown` still resets once per volley. |
+
+**Touch points:** `shared/constants.ts` (4 new MatchSettings fields + defaults), `host/src/sanitize.ts`, `client/src/systems/input-system.ts` (rank gate + settings consumers), `client/src/core/world.ts` (`empDurationTicks`), `client/src/render/renderer.ts` (EMP fade), `client/src/game/Game.ts` (strike button + preview radius), `client/src/ui/hud.ts` (SW choice rank badges), `client/src/systems/combat-system.ts` (bunker volleys), `client/src/main.ts` (superWeapon dev fields), i18n en/ar (`dev.fields.*` + `tools.strike*`), `tests/day12.test.ts` (salvo test), `tests/day13.test.ts` + `tests/day15.test.ts` (`arm()` rank helpers + new rank-gate test)
+
+### Day 25 verification
+- `npm run typecheck` (4 workspaces) — pass
+- `npm test` — 410 pass (35 files), incl. new bunker-salvo + sw-choose rank-gate tests; day13/day15 SW suites green
+- `npm run build` — pass; lint — clean on changed files
+- Settings additions are additive `MatchSettings` fields (no new command ids / wire types) → `PROTOCOL_VERSION` stays 20.
+- Bunker salvo and the rank gate are sim-deterministic (no RNG or clock added; extra `fire` calls consume the same seeded RNG on every client).
+- New tunables default to the exact old constant values, so balance is unchanged until the dev panel is used.
+
+---
+
+## Day 26 — Rank menu UI rework + automatic rank-up (S)
+
+The rank side menu was rebuilt (star icon → title + info column → locked/unlocked state) and promotion no longer needs a button — it happens the moment the score crosses a floor.
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | **Auto rank-up on score** — hitting a star floor promotes instantly, everywhere (players and bots), with the prize granted exactly once. | A | `world.awardScore` now calls `while (this.canRankUp(team)) this.rankUp(team)`. Deterministic (score grants are sim events), so all clients agree; the manual `rank-up` command remains in the protocol as a rejected no-op (replays still end in the same state). |
+| 2 | **Rank tier rows rebuilt** — every star gets a left icon + a left-aligned column (title over info) + a locked/unlocked badge. | B | `renderRankOverlay` builds each row as `rank-tier` → `rank-tier-stars` + `rank-tier-copy` (`rank-tier-title` + `rank-tier-info`, flex column) + `rank-tier-state`. The old "Rank Up!" footer button, its `onRankUp` action, and the `hud.rankUpReady/rankUpWait` keys were removed. |
+
+**Touch points:** `client/src/core/world.ts` (auto promote in `awardScore`), `client/src/ui/hud.ts` (overlay rows + dropped button/action), `client/src/game/Game.ts` (dropped `onRankUp` action), `client/index.html` (removed `#rank-up-btn`), `client/src/styles.css` (rank-tier layout), i18n en/ar (`rankUpReady`/`rankUpWait` removed), `tests/day15.test.ts` + `tests/day16.test.ts` (rank ladder now expects automatic promotion)
+
+### Day 26 verification
+- `npm run typecheck` (4 workspaces) — pass
+- `npm test` — all pass (rank ladder/day16-coop tests updated for automatic promotion)
+- `npm run build` — pass; lint — clean on changed files
+- Auto rank-up is sim-deterministic (score grants are deterministic sim events → the pending `rank-up` command becomes a harmless rejection in replays).
+
+---
+
+## Day 27 — Sea Army: naval units + dock production ✅ (M)
+
+First naval layer: two ships (troop-transport Carrier, fast Missile Boat) and a shoreline-producing Dock. Naval units only sail on open water; everyone can hit them; sea missiles explode with a splash but never touch aircraft.
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | **Naval movement on water** — new `naval` unit class that stands on `Terrain.Water`. | A | `world.ts` gained a water grid: `grid.water` mask + `waterComponent` weights, sharing the existing `hardBlocked` grid. Pathfinding picks the mask per unit (`resolveMask`), movement-system resolves every step/target/stuck/separation against the water mask (a ship crossing a road/bridge cell just contours back into the lake), and input-system `resolveMovePoint` snaps target points to the nearest water (fallback `nearestPassablePoint` else raw coords). Formation/A-move and `pickEntity` include naval (radius 1.3). |
+| 2 | **Dock — shoreline production building** — naval producer. | B | `input-system` placement requires every footprint tile buildable land AND at least one tile edge-adjacent to open water (4 edges only; else `'dock needs water access'`). `production-system.findSpawnTile` auto-puts a trained ship on the nearest water tile in the spawn clamp ring (r ≤ 5, Chebyshev, first match) and `set-spawn-point` is confined to that water ring. |
+| 3 | **Carrier + Missile Boat units.** | C | Carrier: $600/35 s/HP 900/speed 55/vision 8, unarmed, `transportCapacity 12` — infantry-only boarding; unload is pushed to the nearest land tile (`resolveUnloadPoint`), so transports need no carrier-specific pathing. Missile Boat: $350/20 s/HP 320/speed 80/vision 8, `sea-missile`. `sea-missile`: dmg 60, cooldown 40 t, range 9, splash 1.5, no `targetsAir` — aircraft are immune by design. Everything else can hit ships (`pickTarget`/`fire`/`splashDamage` only skip `'air'`). |
+| 4 | **Render / UI wiring.** | D | Sprite folders `v_c` / `v_mb` + `d` (dock); renderer treats naval like vehicle at hover radius, sync-bar offset, `big` shadow, burns, place surfacing and bar offsets/outlines; low + medium shapes for both ships and the dock; hud buildables + dev class tuning (scale/offset) include naval; game-info-catalog rows appear automatically via `UNIT_IDS`/`BUILDINGS`. i18n en/ar: `units.class.naval`, `units.role.carrier/missile-boat`, `names.dock/carrier/missile-boat`, and `dev.fields.unitScale/unitOffset.naval` labels. |
+
+**Deliberate decisions:** naval is NOT stealth-eligible (stealth stays infantry/vehicle-only, matching Day 9 philosophy); bots are untouched by design (they would just fail to place a dock and skip it); map-builder needs no changes (pure terrain).
+
+**Touch points:** `shared/src/balance/units.ts` `buildings.ts` `weapons.ts`, `client/src/core/world.ts` (water masks), `client/src/systems/pathfinding-system.ts` `movement-system.ts` `input-system.ts` `production-system.ts` `combat-system.ts` `profile/recorder.ts`, `client/src/game/Game.ts` (PRODUCERS, pickEntity), `client/src/render/renderer.ts` `building-sprites.ts` `shapes.ts`, `client/src/ui/graphics.ts` `hud.ts`, `client/src/main.ts`, i18n en/ar, `tests/sea-army.test.ts` (12 tests)
+
+### Day 27 verification
+- `npm run typecheck` (4 workspaces) — pass
+- `npm test` — 422 pass (36 files), incl. new `tests/sea-army.test.ts`; `e2e-host.test.ts` is flaky only when the whole file runs under load (its `startHost()` waitForHttp hiccups; all 3 affected tests pass in isolation and the built `host/dist/host.js` boots + answers HTTP 200 standalone)
+- `npm run lint` — no new issues on changed files (remaining errors are pre-existing: untracked `.js` transpiles and untouched `tests/day14.test.ts` unused imports)
+- `npm run build` — pass; en/ar.json parse clean
+- Naval logic is sim-deterministic (no RNG/clock added; the two new balances are static defs) — `PROTOCOL_VERSION` stays 20.
+
+---
+
+## Day 28 — Sound FX generation ✅ (S, No)
+
+First file-based SFX set: a deterministic WAV bakery plus 39 generated files covering every
+sound kind, and one runtime fix so the baked envelopes actually play.
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | **`scripts/synth-fx.mjs` — deterministic WAV bakery** | A | Seeded PRNG + phase-accumulator oscillators + shaped noise with attack/release envelopes, exponential sweeps and tremolo; RIFF PCM-16 writer that self-verifies headers. Recipes for all 21 `SOUND_IDS` (with shuffle variants), 44.1 kHz one-shots / 22.05 kHz ambience; per-file normalization (~ −1 dBFS) with soft-clip. Seed-fixed ⇒ identical bytes every run. |
+| 2 | **Generated assets** | B | `client/dist/sound/<id>/v1…vN.wav` — 39 files, 8.9 MB total. The host serves `client/dist` as its static root, so the existing `AudioHooks` variant probe (`v1.wav, v2.wav, …`) picks them up; `vite build` preserves them (`emptyOutDir: false`). Enabled per kind via **Dev settings → Audio** override = `sound/<id>/`. |
+| 3 | **Runtime envelope fix** | C | `hooks.ts playAsset` used to exponential-ramp gain to ~0.0001 **across the entire file duration**, which would destroy any baked envelope (long lasers/booms/arpeggios fell silent by their midpoint). Now holds the play volume and fades only the final 50 ms of each file. Ambient was already fine (its own 0.5 s crossfade). |
+
+**Note:** `opts.pitch` (class select-bleep, game-over win/lose) is runtime-only and never
+scaled file playback before or after this change — file-based sounds play at baked pitch.
+
+**Touch points:** `scripts/synth-fx.mjs` (new), `client/dist/sound/*` (generated), `client/src/audio/hooks.ts` (playAsset fade), `package.json` (`synth:fx` script), `docs/11-SOUND-FX-GENERATION.md`
+
+### Day 28 verification
+- `npm run typecheck -w client` — pass; `npm run build -w client` — pass; `dist/sound` intact (39 files / 21 kinds) after build
+- WAV headers verified byte-level by the tool (RIFF/WAVE + chunk sizes); output is deterministic and normalized
+- Awaiting **human listening test** — enable per kind in Dev settings → Audio (override `sound/<id>/`); regenerate anytime with `npm run synth:fx`
+
+## Day 29 — Audio diagnostics + tuning + playable generated SFX (S, No)
+
+Dev-settings audio instrumentation and the debugging of "generated SFX silent while ambient
+plays": the generated WAVs were proven valid and decodable in a real browser, and the dev
+panel now splits the remaining possibilities into a visible diagnosis.
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | **Headless decode proof** | A | Generated WAVs fetched **from the live host** and decoded in headless Chrome via CDP: `select`/`weapon-rocket`/`ambient-lobby` all `decodeAudioData` OK (correct durations/sample rates). File side is NOT the failure. |
+| 2 | **Silent-null trap fix** | B | `playAsset`: when `fetchBuffer` returns null (decode failure swallowed), it silently returned — now falls back to the built-in `synthSfx` so a kind can never be unconditionally silent. |
+| 3 | **`diagnose(kind)`** | C | `hooks.ts`: resolves ctx state, effective fx volume, current override, resolved URLs, then fetch+decode of the first file. Rendered by the dev **Play** button status bar and `console.warn('[audio diagnose] …')`. |
+| 4 | **`ping()` + Ping button** | D | Bare 880 Hz square tone straight through the master gain (no files/tuning) — proves the AudioContext + speakers independently of the file path; added as the first row of Dev settings → Audio. |
+| 5 | **Per-sound tuning + quick pathing** | E | Volume (0–4) & pitch (0.25–4) inputs per sound kind persist to `AudioSettings.tuning`; Play preview forces gain 1 + no positional falloff; **Use generated** / **Synth** buttons set/clear `sound/<id>/`. Both i18n (en/ar). |
+| 6 | **Probe-free resolution (no 404 noise)** | F | `scripts/synth-fx.mjs` writes `sound/manifest.json` (variant counts); `overrideUrls` resolves variants by count instead of HEAD-probing to a 404, so the console stays clean. |
+
+**Touch points:** `client/src/audio/hooks.ts`, `client/src/audio/settings.ts`, `client/src/main.ts`,
+`scripts/synth-fx.mjs`, `client/src/i18n/lang/{en,ar}.json`, `client/dist/sound/manifest.json`
+
+### Day 29 verification
+- Headless Chrome (x64) + CDP against `http://127.0.0.1:17321` — all sampled WAVs fetch+decode OK
+- `npm run typecheck -w client` — pass; `npm run build -w client` — pass; `dist/sound` 40 files intact after build
+- Remaining variable is **per-machine runtime state** (fx volume, muted, OS speakers, autoplay): the Ping button + Play-button diagnosis now pinpoint which
+
+---
+
+## Day 30 — Weather: looping ambient sounds + full-screen overlay fix (S, No)
+
+The Weather feature gained per-weather looping ambient audio paths in the dev-settings
+(Audio → Weather) and the in-match overlay scale bug (small box in the top-left corner
+instead of full-screen) was fixed.
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | Weather ambient ids in dev settings | A | `rain-ambient` / `snow-ambient` / `storm-ambient` added to `SOUND_IDS`; a new "Weather ambient (looping)" group renders the 3 rows (override path + use-generated/synth + tune + Play preview via `AMBIENT_SYNTH`), i18n en/ar. |
+| 2 | Two-layer ambient in `AudioHooks` | B | Main layer (lobby/in-match) + new weather layer refactored to shared `AmbientState` / `buildLayer` / `playNextFile` / `stopLayer`; exported `AMBIENT_SYNTH` drone map; new `startWeatherAmbient(weather)` maps rain/snow/thunder → `*-ambient` ids and `none` stops the layer. The weather layer is gated by `ambientInMatchVolume()` (obey mute + ambient-layer toggle + in-match slider) and layers **over** the game drone; `stopAmbient()` stops both layers. |
+| 3 | Full-screen overlay fix | C | `WeatherOverlay` was appended inside `#hud`, which gets `zoom` = UI scale (default 0.8) → `window.innerWidth`-sized canvas rendered ~80% anchored top-left. Moved to `#app` (unzoomed, 100%×100%) with `z-index: 11` (above `#hud` z10; below chat 35 / dev 38 / menu 40 — same global layering as before). |
+| 4 | In-match wiring | D | `Game.start`: `this.audio.startWeatherAmbient(getGraphics().weather)` right after `setWeather`; weather is fixed at match config so one call at start suffices. |
+
+**Touch points:** `client/src/audio/hooks.ts`, `client/src/audio/settings.ts`,
+`client/src/main.ts`, `client/src/game/Game.ts`, `client/src/render/weather.ts`,
+`client/src/i18n/lang/{en,ar}.json`
+
+### Day 30 verification
+- `npm run typecheck -w client` — pass; `npm run build -w client` — pass (bundle `index-BGH3k2CD.js`)
+- `client/dist/sound` 46 files (45 WAVs + manifest) intact after build; weather audio baked: `rain-ambient`/`snow-ambient`/`storm-ambient` × 2 variants each, 45 s loops @ 22.05 kHz (rain = steady hiss + drip plinks, snow = soft airy hiss with slow swell, storm = rain bed + gust swells + 4 rumble bursts clear of the loop seam)
+- Awaiting **human check**: overlay now covers the full screen; weather ambience in-match obeys the Ambient toggle + in-match slider
+
+---
+
+## Day 31 — Real CC0 sounds for all 24 kinds (S, No)
+
+Replaced the synth-generated WAVs in `client/dist/sound` with real recorded sounds fetched from
+Freesound (all **CC0**), matching each kind's manifest counts.
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | Freesound fetch pipeline | A | New `scripts/fetch-freesound.mjs`: searches the Freesound API (CC0 only, duration-filtered, name-keyword scoring), downloads HQ previews, converts via ffmpeg to mono PCM (44.1 kHz SFX / 22.05 kHz ambients, `loudnorm` matched), writes `v{n}.wav` per kind, updates `manifest.json`, and keeps `CREDITS.md` (merged across runs). Key read from `FREESOUND_TOKEN` env only — never stored. |
+| 2 | All 24 kinds populated | B | 45 WAVs: SFX from click/blip/gun/cannon/powerup/impact/boom/zap/fail/chime sources; ambiences from genuine loop recordings (space, battlefield, rain, wind, rain+thunder). Every soundtracked entry credited in `client/dist/sound/CREDITS.md`. |
+| 3 | Sample-rate guarantees | C | SFX at 44.1 kHz mono, ambients at 22.05 kHz mono; verified with `ffprobe`; `manifest.json` regenerated to match disk (24 kinds / 45 variants). |
+
+**Touch points:** `scripts/fetch-freesound.mjs`, `client/dist/sound/*` (45 WAVs +
+`manifest.json` + `CREDITS.md`)
+
+### Day 31 verification
+- All 24 kinds present, manifest counts == actual `v{n}.wav` files; spot-checked rates/channels (`44.1 kHz mono` sfx / `22.05 kHz mono` ambient) and durations via `ffprobe`
+- No build step needed (static assets); `.tmp` removed
+- **Note:** like `ambient-lobby`/`ambient-game`, real sounds play once the override path is set (Dev settings → Audio → "Use generated" fills `sound/<id>/`); empty override = built-in synth fallback
+
+---
+
+## Day 32 — Auditionable sound variants: 12 per kind + batch fetch (S, No)
+
+Bumped every sound kind from 1–2 real files to **12 variants** so each sound can be auditioned and swapped, keeping the war/sci-fi sound-pack style.
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | Batch variant fetch pipeline | A | New `scripts/fetch-freesound-many.mjs`: tops up each kind to `TARGET = 12` (keeps existing `v*.wav`), searches two stylized queries per kind (primary + alt) with name-keyword scoring, melodic-flag (skip instrument penalties) and loop-bonus (`+2`) rules, CC0 + duration filters, then downloads/ffmpeg-converts to mono (`44.1 kHz` SFX / `22.05 kHz` ambients, `loudnorm`), retrying bad downloads once. Merges `manifest.json` (count per kind) and `CREDITS.md`; `ONLY <kind>` argv filter for targeted re-runs. Key still `FREESOUND_TOKEN` env only. |
+| 2 | All 24 kinds → 12 variants | B | Third-pass tuned the thin pools (`sonar ping`, `mouse click keyboard`, `level up sound`, `hammer sound`, `power down`, …) and one-off filled the only gap (`power-down/v6`, id 159399). Result: **288 WAVs** (24 × 12), `manifest.json` == disk for every kind. |
+| 3 | Variant audition selector | C | Dev panel Audio rows got a variant `<select>` (`dev-audio-variant`) between Play and the override input. Lists the override's files via `availableSounds(id)` (manifest count → `v1..vN`) — for SFX kinds only; ambiences keep the ~4 s layer preview. Play with a variant selected calls the new public `hooks.ts` `playAudition(kind, url)` (route alias `playAsset` gain 1, synth fallback); Auto = shuffled play like in-game. i18n `dev.fields.audioVariant` added in en + ar; CSS matches `.dev-audio-btn`. |
+
+**Touch points:** `scripts/fetch-freesound-many.mjs`, `client/dist/sound/*` (288 WAVs + `manifest.json` + `CREDITS.md`), `client/src/audio/hooks.ts` (`playAudition`), `client/src/main.ts` (`audioRow` variant select), `client/src/i18n/lang/en.json` + `ar.json`, `client/src/styles.css`
+
+### Day 32 verification
+- All 24 kinds at `12/12`; `manifest.json` counts == files on disk (288), verified by script
+- Spot-checked `ffprobe`: SFX `44100,1` mono, ambients `22050,1` mono, sane durations; only strays would be `.tmp` (removed)
+- `npm run typecheck -w client` + `npm run build -w client` clean; `eslint` clean on touched files; built bundle contains `playAudition` / `dev-audio-variant` / `audioVariant`
+- `vite build` keeps `dist/sound` (emptyOutDir: false) — 288 WAVs intact after rebuild
+
+---
+
+## Day 33 — Variant selection by existing files + match-victory sound (S, No)
+
+Follow-up to Day 32: the in-game random picker must only play variants the player chose to keep, and a win must sound different from a loss.
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | Random picker plays only existing files | A | The dev-audio variant `<select>` was removed (no per-sound menu). Instead `hooks.ts` `overrideUrls` treats `manifest.json` as an upper-bound hint and probes each `v1..vN` with HEAD, returning only files that exist (gaps allowed, cached per override value per session). Deleting `client/dist/sound/<kind>/v*.wav` drops it from the shuffle deck immediately; keeping none falls back to the synth. So keeping only `select/v8.wav` → only v8 can be chosen. |
+| 2 | Match-victory sound kind | B | New `victory` in `SOUND_IDS` (`settings.ts`), dev Audio → Events row, i18n label `dev.audio.victory` (en "Match victory" / ar "فوز المباراة"), synth fallback = ascending triangle arpeggio (C5-E5-G5-C6). On `game-over` the win/loss/draw sound now plays from `Game.ts` (knows `localTeam`): win → `victory`, loss → `game-over` (full pitch), draw → `game-over` (0.5 pitch); the old one-sound-for-all case was removed from `hooks.onEvent`. |
+| 3 | 12 victory variants fetched | C | `fetch-freesound-many.mjs` gained the `victory` entry (fanfare/trumpet-RPG, CC0, melodic) → 12 WAVs in `client/dist/sound/victory/`, manifest + CREDITS updated. |
+
+**Touch points:** `client/src/audio/hooks.ts` (`overrideUrls`→`existingFiles` probe, removed `playAudition`), `client/src/main.ts` (removed variant select, victory row), `client/src/game/Game.ts` (win/loss/draw sfx), `client/src/audio/settings.ts`, `client/src/i18n/lang/en.json` + `ar.json`, `scripts/fetch-freesound-many.mjs`, `client/dist/sound/victory/*`
+
+### Day 33 verification
+- `npm run typecheck -w client`, `eslint` (touched files), `npm run build -w client` all clean
+- Current bundle: `playAudition`/`dev-audio-variant`/`audioVariant` absent; `Match victory` + Arabic label present; probe code minified in
+- The player's surviving files (e.g. `select/v8.wav` only) are intact after build — sound dir not wiped (emptyOutDir: false); FEEDBACK: many kinds now hold 1 (or 0) user-kept variants, `bomb-strike`/`emp-strike`/`victory` still 12 — re-fetch or re-trim as desired
+- **Note:** `manifest.json` counts now mean "pool size fetched", not "files present" — the client probes reality at runtime
+
+---
+
+## Day 34 — Missing-sound fixes (emp/airstrike/grenade/smoke) + rank-up toast text (S, No)
+
+FEEDBACK: some in-game parts had no sound (emp, airstrike hit, grenade, smoke), and the golden/slide-in rank-up toast carried the wrong header text (it said "Achievement unlocked").
+
+| # | Feature | Ref | Notes |
+|---|---------|-----|-------|
+| 1 | New sound kinds | A | Added `airstrike-called` (incoming flyover whistle), `grenade-exploded` (crunchy blast), `smoke-landed` (soft poof) to `SOUND_IDS` (`settings.ts`) + dev Audio → Events rows (`main.ts`) + i18n `dev.audio.*` labels (en/ar). 12 real CC0 variants each fetched into `client/dist/sound/` (airstrike-called 11 after deleting one dup id 623015 twice-picked; manifest patched to 11). |
+| 2 | Event → sound wiring | B | `hooks.ts onEvent`: `airstrike-called` → flyover whistle (positional), `airstrike-bomb` now positional + louder (`bomb-strike` 0.1), `emp-strike` positional + louder (0.09) + meatier synth (sawtooth sweep 100→40), new `grenade-exploded` positional synth (square sweep 240→70 + saw). |
+| 3 | Smoke landing sound | C | No sim event exists for smoke landing; added client-only `announceSmokeLandings()` in `Game.ts` (new `announcedSmokes` set) that plays `smoke-landed` at the canister position on `tick >= landTick`, pruning ids as clouds clear. No protocol/hash change. |
+| 4 | Rank-up toast text | D | `hud.ts` `achievementToast` gained an optional `header` (defaults to `profile.toastTitle`); `Game.ts` passes new `game.rankUpHeader` ("Rank up!" / "ترقية الرتبة!") so rank-ups no longer show "Achievement unlocked". |
+
+**Touch points:** `client/src/audio/hooks.ts`, `client/src/audio/settings.ts`, `client/src/game/Game.ts`, `client/src/ui/hud.ts`, `client/src/main.ts`, `client/src/i18n/lang/en.json` + `ar.json`, `scripts/fetch-freesound-many.mjs`, `client/dist/sound/{airstrike-called,grenade-exploded,smoke-landed}/*`
+
+### Day 34 verification
+- `npm run typecheck -w client` clean; `npm run build -w client` built in 12s; new ids + `rankUpHeader` + en/ar labels present in current bundle
+- ffprobe spot checks: new WAVs are 44100 Hz mono pcm_s16le; manifest == files (airstrike-called 11, grenade-exploded 12, smoke-landed 12)
+- eslint repo-wide fails on pre-existing browser-global `no-undef` noise (config lacks env — unrelated to these changes; no new unused-var errors in touched files)
+- **Note:** smoke landing sound is client-only (no sim event → no `SimCommand`/hash/PROTOCOL change needed)
+
+---
+
+## Day 35 — Online server Phase 1: single-repo + multi-room server + live lobby panel (M, No)
+
+DECISION (user): **one GitHub repo** `space-arenas` (pushed to `https://github.com/SDevRami/space-arenas.git`). The online server + DB live in the self-contained `online/` subfolder; Render/Supabase connect to the same repo (Render `rootDir: online`, Supabase migrations dir `online/supabase`). NO server-side bots and NO balance mods in online matches in Phase 1 (sim + bot AI are client code; the server returns a clear "not supported online yet" error). `online_todo.md` rewritten to match.
+
+| # | Feature | Notes |
+|---|---------|-------|
+| 1 | Workspaces + deploy file | `online` added to root `package.json` workspaces; `render.yaml` moved to **repo root** with `rootDir: online`, healthcheck `/api/status`, auto-HTTPS/wss, `sync:false` secrets; `online/.gitignore` + `.env.example` |
+| 2 | Server port | `online/src/passphrase.ts` (newRoomCode/newSeed/hashPassphrase), `sanitize.ts` (whitelist+clamp table, override maps), `rooms.ts` (`RoomRegistry` — `Map<string, Room>` multi-room: create/join/joinSpectator/reconnectPlayer/updateSlot/updateRoomOptions/assignSpawns/removePlayer/disconnectPlayer/hostReady, per-room hostName/timestamps, `modId` rejected unless empty), `relay.ts` (`TickRelay` minus bots), `index.ts` (per-socket room binding, per-room relay `Map<code,TickRelay>`, `C_ADD/UPDATE/REMOVE_BOT` + non-empty `modId` → `H_ERROR 'not supported online yet'`) |
+| 3 | REST + runtime switch | `GET /api/status`, `GET /api/rooms`, `GET /api/rooms/search?q=`, `POST /api/rooms` {hostName,password,mapId}, `POST /api/rooms/{code}/join` → `{ok, ws}`; `SA_MODE=online` enables the lobby API else 503 (tests cover both) |
+| 4 | Lifecycle | `IDLE_ROOM_TTL` 30 s (REST-created awaiting `C_JOIN`), `EMPTY_ROOM_TTL` 60 s, sweep every 10 s; `RECONNECT_GRACE_MS` 12 s reconnect slots; no bots in `winnerFromRemaining` |
+| 5 | Tests | `online/tests/online-server.test.ts` via `tsx --test` (spawns built server): status, create/list/search/join pre-check, 503-disabled, live 2-player ws lobby (`C_JOIN` → `H_LOBBY`), wrong-passphrase reject — **8 passing** |
+| 6 | Client lobby panel | `client/index.html` `#online-panel` rebuilt: **My Account** + **Server Setup** buttons, user-name + search bar, live rooms table (Room/Host/Map/Players/Status via `renderOnlineMatches`), Join/Create reusing the LAN create overlay + new password popup (`#joinpass-overlay`); new overlays `#account-overlay` (Phase-2 fields) + `#server-overlay` (status-only: ping `/api/status` green/red dot + DB "Phase 2" indicator); server origin bundled via `VITE_SA_ONLINE_URL` (default `http://127.0.0.1:17321`); no region select |
+| 7 | Join/create netcode | `connectJoin` now accepts full `wss://` addresses; create branches to `POST ${ONLINE_URL}/api/rooms` when opened from the online panel; name mirrors bi-directional (`#online-name` ↔ LAN name ↔ `applyProfileName`, localStorage `space-arenas:name`); `setTab('online')` auto-refreshes + 10 s poll while visible |
+
+**Touch points:** `online/src/{index,rooms,relay,sanitize,passphrase}.ts`, `online/tests/online-server.test.ts`, `online/package.json`, root `render.yaml` + `package.json`, `client/src/main.ts`, `client/index.html`, `client/src/styles.css`, `client/src/i18n/lang/{en,ar}.json`, `online_todo.md`
+
+### Day 35 verification
+- `npm run typecheck` root (shared/client/host/mapbuilder) clean; `online` typecheck + `esbuild` bundle (81.3 kb) + **8/8 tests pass**
+- `npm run build -w client` OK (23.5 s); bundle contains `api/rooms`, overlay ids + default origin; served `dist/index.html` has new panel (region select gone)
+- No sim/protocol change → no `SimCommand`/hash/PROTOCOL bump (control messages semantically identical, just routed per-room)
+- **Still pending (after deploy):** Render/Supabase dashboard linking, `VITE_SA_ONLINE_URL` set to the Render origin, 2-client online match + reconnect/spectator manual checks
+
+---
 
 | Day | Bundle | Effort | Sim change? | Status |
 |-----|--------|--------|-------------|--------|
@@ -542,7 +782,20 @@ Client-side polish: capture feedback, UI scaling, vector-sprite scaling, bunker 
 | 21 | Hold position + formations | M | Yes | ✅ |
 | 22 | Territory capture (supply) | M | Yes | ✅ |
 | 24 | UI/Replay/Asset QoL | M | No | ✅ |
+| 25 | Second super weapon QoL (rank gate + tunables + bunker salvos) | M | Yes | ✅ |
+| 26 | Rank menu UI rework + automatic rank-up | S | Yes | ✅ |
 
-**Total: ~24 working days**
+| 27 | Sea Army: naval units + dock production | M | Yes | ✓ |
+| 28 | Sound FX generation (WAV bakery + 39 SFX) | S | No | ✓ |
+| 29 | Studio audio diagnostics + tuning + split lobby/in-match ambience | S | No | ✓ |
+| 29 | Audio diagnostics + tuning + playable generated SFX | S | No | ✓ |
+| 30 | Weather ambient sounds + full-screen overlay fix | S | No | ✓ |
+| 31 | Real CC0 sounds for all 24 kinds (Freesound fetch) | S | No | ✓ |
+| 32 | 12 auditionable variants per sound + variant audition selector | S | No | ✓ |
+| 33 | Variant selection by existing files + match-victory sound | S | No | ✓ |
+| 34 | Missing-sound fixes (emp/airstrike/grenade/smoke) + rank-up toast text | S | No | ✓ |
+| 35 | Online server Phase 1 (single repo, multi-room server, live lobby panel) | M | No | ✓ |
 
-**Deferred** (see `future_todo.md`): sea army, full territory capture game mode, online server, cloud mods, advanced map builder.
+**Total: ~25 working days**
+
+**Deferred** (see `future_todo.md`): full territory capture game mode, online server Phase 2 (accounts/leaderboard) + first deploy, cloud mods, advanced map builder.

@@ -1,6 +1,6 @@
 ## (a) Online Server — lobby panel (placeholder UI)
 
-### What was added
+### What was added (just ui, online lobby panel)
 - New lobby sidebar button **Online Server** (`#tab-online`, i18n `lobby.tab.online`) and panel `#online-panel` in `client/index.html`.
 - Panel groups inputs into two columns:
   - **Account**: user name, email, password.
@@ -8,41 +8,19 @@
 - Action buttons: **Log in**, **Register**, **Change password**, **Connect**, **Refresh**, plus **+ Create match**, **Join selected**, **Clear table**.
 - **Current matches** table (`#online-matches-table`) with columns Room / Map / Players / Status, rendered by `renderOnlineMatches()` in `client/src/main.ts`.
 
-### Behaviour
-- All account/server/matchmaking buttons are **wire-only placeholders**: they write a "coming soon" status line (`online.planned`) into `#online-status`. No backend logic, networking or database code was added — the inputs document the planned flow.
-- **Refresh** re-renders the empty matches table and shows `online.refreshed`; **Clear table** re-renders the empty state.
-- i18n keys added to `client/src/i18n/lang/en.json` and `ar.json` under `online.*`.
 
-### Codebase fit
-- Reuses the existing panel system exactly: sidebar button + `hidden-panel` div, plus `setTab()` wiring in `client/src/main.ts` (the `'online'` tab was added to the union type at `setTab`).
-- Reuses existing CSS vocabulary (`.panel`, `.ghost`, `.hint`, `.status`, `.net-empty`) and adds small scoped styles (`.online-grid`, `.online-acc`, `.online-actions`, `.lobby-table`).
-- No real "online server" module existed before, so nothing interacts with the host/NetClient yet. The table is the intended anchor for future matchmaking.
+## my idea for the online system
 
----
+### the server will be hosted on render (free tier) : the server should be working as channel for the game comms like now ever y player shoudl have the game files or get an invite from player that host a game (have the game full files to host) so it working on lan , now the render server should be workingon same system for lan but it make the game playable online (player can join and play from differant places) so the game hosting not on server its on clients devices
+- so players to play online match search about host online public username or room id , or can select any room upper in the table (in online lobby panel)
+- onlnie match cannot created without password (password input filed required)
+- for anti-cheat simple sync in match player settings and values (there is now simple one for dev settings)
+- also server should have front-end landing page for game info and Online mod repository: browse, rate, download balance mods, simple Community voting and comment section for reviews
 
-## Sea Army (L+, blocked until core is stable)
+### the database will be accessed by the server and hosted on supabase (free tier) : db should save online players profiles (not related to current offline profile)
+- in online lobby should add tabs (current panel named 'quick match') and add tab 'leader board' that show player online profile status and teh list of best players (high score/rank on server)
+- account will use email and password simple signin/login system 
+- online account save only online status for player (no local data saved on db) add tab 'data' that have buttons/options to backup data (devsettings values and local profile status) and this backuped data have expire-date so the player use this bacup system only to move the his game to another pc
+- match replays saved localy for each client in the match (if press 'save replay')
 
-**4a** — Naval units (destroyer, submarine, carrier, frigate, missile-boat).
-- Full sea-rotation: underwater units, torpedo weapons, naval landing ops.
-- Requires sea-only maps, new terrain type `SeaTile`, underwater fog system.
-- Naval production building (dock), water obstacles + shoreline mechanics.
-- Blocked: needs balanced core ground/air combat first; large scope.
-
----
-
-## Online Server Backend
-
-- Replace stub account/matchmaking handlers with real WebSocket server.
-- Ranked ladder play, persistent player accounts, cloud match history.
-- **Cloud profile** (#14 partial): sync stats/achievements across devices.
-- Server-side replay validation, anti-cheat.
-- **Match replays for online matches** — offline and LAN matches already record `ReplayData` (offline: client-side at `game-over`, uploaded to the host archive; LAN: host `endMatch` saves `relay.history`). When real online matches run through the server, the server should record the relayed command log into the same `ReplayData` format and expose it via a per-account match-history API (list / play / download), instead of the host's local `archive/` folder.
-
----
-
-## Cloud Mods
-
-**N7c** — Online mod repository: browse, rate, download balance mods.
-- Requires online server + account system.
-- Community voting, mod versioning, dependency resolution.
 

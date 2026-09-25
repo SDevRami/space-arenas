@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, EMP_RADIUS_TILES, AIRSTRIKE_BOMB_RADIUS, PROTOCOL_VERSION, replayDateLabel, defaultReplayName, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type ReplayData, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, PROTOCOL_VERSION, replayDateLabel, defaultReplayName, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type ReplayData, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
 import { World, placementExplored, type WorldGrid } from '../core/world.ts'
 import { Simulator } from '../core/Simulator.ts'
 import { GameLoop } from '../core/loop.ts'
@@ -26,7 +26,7 @@ import { getControls, modifierLabel } from '../ui/controls.ts'
 import { getGraphics } from '../ui/graphics.ts'
 import { WeatherOverlay } from '../render/weather.ts'
 
-const PRODUCERS = new Set(['command-center', 'supply-dock', 'barracks', 'war-factory', 'air-force'])
+const PRODUCERS = new Set(['command-center', 'supply-dock', 'barracks', 'war-factory', 'air-force', 'dock'])
 
 const isTypingTarget = (target: EventTarget | null): boolean => {
   const el = target as HTMLElement | null
@@ -154,6 +154,8 @@ export class Game {
   /** Per-unit armed toggles: unit id → grenade or smoke throw. Selection only
    * drives the HUD buttons/rings; each unit keeps its own armed state. */
   private abilityModes = new Map<number, 'grenade' | 'smoke'>()
+  /** Smoke canisters whose landing puff audio already played (client-only). */
+  private announcedSmokes = new Set<number>()
   /** Per-unit mine toggles: unit id → place or remove. Same per-unit rule. */
   private mineModes = new Map<number, 'place' | 'remove'>()
   private pendingSpawnPoint = false
@@ -303,7 +305,6 @@ export class Game {
         if (!this.world) return
         this.issue({ type: 'sw-choose', entities: [], x: 0, y: 0, choice })
       },
-      onRankUp: () => this.issue({ type: 'rank-up', entities: [], x: 0, y: 0 }),
       onMissionOpen: () => this.refreshDailyMissions(),
       slotName: (slot) => this.netPlayers.find((p) => p.id === slot)?.name ?? null,
     })
@@ -1121,8 +1122,9 @@ export class Game {
     this.audio.startGameAmbient()
     this.audio.refitAmbient()
     this.layoutToolsBar()
-    this.weather = new WeatherOverlay(document.getElementById('hud')!)
+    this.weather = new WeatherOverlay(document.getElementById('app')!)
     this.weather.setWeather(getGraphics().weather)
+    this.audio.startWeatherAmbient(getGraphics().weather)
     this.hud.log(t('game.matchStarted'))
     if (this.mode === 'net') {
       this.chat?.destroy()
@@ -1408,7 +1410,7 @@ export class Game {
         if (gfx.effects.effects) renderer.addImpact(e.x, e.y, 0xc070ff)
       }
       if (e.type === 'rank-up' && e.team === this.localTeam) {
-        this.hud.achievementToast(t('game.rankUpTitle', { rank: e.rank }), t('game.rankUpDesc'))
+        this.hud.achievementToast(t('game.rankUpTitle', { rank: e.rank }), t('game.rankUpDesc'), t('game.rankUpHeader'), true)
         this.audio.playSfx('achievement', { gain: 0.1 })
       }
       if (e.type === 'combat-hit' && world.teamOf(e.target) === this.localTeam) {
@@ -1437,6 +1439,8 @@ export class Game {
         this.hud.toast(this.netTitle(e.winner))
         this.beginCinematic(e.winner)
         if (this.mode === 'net') this.net?.gameOver(e.winner)
+        if (e.winner === null) this.audio.playSfx('game-over', { pitch: 0.5, gain: 0.08 })
+        else this.audio.playSfx(e.winner === this.localTeam ? 'victory' : 'game-over', { gain: 0.08 })
       }
       if (e.type === 'command-rejected') {
         if (e.reason === 'build order queue full') {
@@ -1448,7 +1452,24 @@ export class Game {
       }
     }
     }
+    this.announceSmokeLandings(world)
     this.checkLiveAchievements()
+  }
+
+  /** Client-only: play a soft poof when a smoke canister lands (no sim event exists). */
+  private announceSmokeLandings(world: World): void {
+    if (this.seekActive || this.paused) return
+    world.smokes.forEach((id, s) => {
+      if (world.tick >= s.landTick && !this.announcedSmokes.has(id)) {
+        this.announcedSmokes.add(id)
+        this.audio.playSfx('smoke-landed', { x: s.x, y: s.y, gain: 0.06 })
+      }
+    })
+    if (this.announcedSmokes.size > 0) {
+      for (const id of [...this.announcedSmokes]) {
+        if (!world.smokes.has(id)) this.announcedSmokes.delete(id)
+      }
+    }
   }
 
   /** Every ~1s of sim time, see whether any achievement turned on; if so, toast + sound.
@@ -1964,7 +1985,7 @@ export class Game {
     world.units.forEach((id, u) => {
       if (!world.isVisibleTo(this.localTeam, id, revealAll)) return
       const t = world.transforms.require(id)
-      const r = u.class === 'vehicle' ? 1.3 : 1.1
+      const r = u.class === 'vehicle' || u.class === 'naval' ? 1.3 : 1.1
       const dx = tileX - t.x / 1000
       const dy = tileY - t.y / 1000
       if (dx * dx + dy * dy <= r * r) {
@@ -2334,7 +2355,7 @@ export class Game {
       x: tx * 1000 + 500,
       y: ty * 1000 + 500,
       valid: tx >= 0 && ty >= 0 && tx < world.width && ty < world.height,
-      radius: isEmp ? EMP_RADIUS_TILES : this.pendingAirstrike ? AIRSTRIKE_BOMB_RADIUS : undefined,
+      radius: isEmp ? world.settings.empRadiusTiles : this.pendingAirstrike ? world.settings.airstrikeBombRadius : undefined,
       color: isEmp ? 0xc070ff : this.pendingAirstrike ? 0xffa050 : undefined,
     }
   }
@@ -2352,8 +2373,18 @@ export class Game {
     const cooldown = choice === 'airstrike' ? world.airstrikeCooldownRemaining(this.localTeam) : world.empCooldownRemaining(this.localTeam)
     const label = choice === 'airstrike' ? t('tools.swAirstrike') : t('tools.swEmp')
     btn.disabled = !ready
-    btn.textContent = ready ? label : t('tools.laserCountdown', { s: Math.ceil(cooldown / SIM_TICK_HZ) })
-    btn.title = ready ? t('tools.strikeReady') : t('tools.laserUnavailable')
+    if (ready) {
+      btn.textContent = label
+      btn.title = t('tools.strikeReady')
+    } else if (cooldown > 0) {
+      // The countdown must name this strike (Airstrike/EMP), not the laser.
+      btn.textContent = t('tools.strikeCountdown', { name: label, s: Math.ceil(cooldown / SIM_TICK_HZ) })
+      btn.title = t('tools.strikeCooldown', { name: label })
+    } else {
+      // Super weapon destroyed / powered down — there is no timer to show.
+      btn.textContent = label
+      btn.title = t('tools.strikeUnavailable', { name: label })
+    }
   }
 
   private selectedProducer(): number | null {
@@ -3128,7 +3159,10 @@ export class Game {
       this.issue({ type: kind, entities: units, x: Math.floor(worldPt.x), y: Math.floor(worldPt.y) })
       return
     }
-    const hasVehicle = units.some((id) => world.units.require(id).class === 'vehicle')
+    const hasVehicle = units.some((id) => {
+      const c = world.units.require(id).class
+      return c === 'vehicle' || c === 'naval'
+    })
     const cell = hasVehicle ? 2400 : 1400
     const cols = Math.ceil(Math.sqrt(units.length))
     const rows = Math.ceil(units.length / cols)

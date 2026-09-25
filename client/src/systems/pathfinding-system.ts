@@ -19,10 +19,16 @@ export const PathfindingSystem = {
         return
       }
       if (m.path.length > 0 || !m.needsPath) return
-      if (world.units.get(id)?.class === 'air') {
+      const u = world.units.get(id)
+      if (u?.class === 'air') {
         m.needsPath = false
         return
       }
+      // Naval units sail exclusively on the water mask; ground units use the
+      // land-passable mask as before.
+      const naval = u?.class === 'naval'
+      const mask = naval ? grid.water : grid.passable
+      const comp = naval ? grid.waterComponent : grid.component
       const t = world.transforms.get(id)
       if (!t) return
       const sx = fxToTile(t.x)
@@ -33,7 +39,7 @@ export const PathfindingSystem = {
         m.needsPath = false
         return
       }
-      if (lineClear(grid, sx, sy, tx, ty)) {
+      if (lineClear(grid, sx, sy, tx, ty, mask)) {
         m.needsPath = false
         return
       }
@@ -53,13 +59,13 @@ export const PathfindingSystem = {
         m.needsPath = false
         m.repathCooldown = CAP_RETRY_TICKS
       }
-      if (inBounds && grid.passable[goalIdx] && grid.component[startIdx] !== grid.component[goalIdx]) {
+      if (inBounds && mask[goalIdx] && comp[startIdx] !== comp[goalIdx]) {
         marchDirect()
         return
       }
       if (budget <= 0) return
       budget--
-      const path = findPathNear(grid, sx, sy, tx, ty, 5, maxNodes, costs)
+      const path = findPathNear(grid, sx, sy, tx, ty, 5, maxNodes, costs, mask, comp)
       if (path === undefined) {
         m.repathCooldown = CAP_RETRY_TICKS
         return

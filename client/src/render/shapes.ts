@@ -76,6 +76,17 @@ function unitShape(kind: string, g: Graphics): Graphics {
       g.poly([-14, 0, -7, -6, 10, -6, 14, 0, 10, 6, -7, 6]).fill(0xffffff)
       circle(g, 0, 0, 3)
       return g
+    case 'carrier':
+      rect(g, -16, -5, 32, 10)
+      rect(g, -4, -9, 12, 4)
+      rect(g, 9, -8, 5, 3)
+      return g
+    case 'missile-boat':
+      rect(g, -11, -3, 22, 6)
+      rect(g, 3, -6, 7, 3)
+      rect(g, -6, -7, 2, 4)
+      circle(g, 6, -5, 1.5)
+      return g
     default:
       circle(g, 0, 0, 4)
       return g
@@ -124,6 +135,11 @@ function buildingShape(kind: string, g: Graphics): Graphics {
       rect(g, -9, -9, 18, 18)
       rect(g, -5, 1, 10, 7)
       circle(g, 0, -3, 4)
+      return g
+    case 'dock':
+      rect(g, -12, -9, 24, 18)
+      rect(g, -12, -9, 24, 5)
+      rect(g, -5, 3, 10, 5)
       return g
     default:
       rect(g, -8, -8, 16, 16)
@@ -340,6 +356,31 @@ function mediumUnitShape(kind: string, g: Graphics): Graphics {
       circleC(g, 5, -7, 1, DARK)
       return g
     }
+    case 'carrier': {
+      rectC(g, -16, -2, 32, 6, 0xffffff)
+      rectC(g, -15, -1, 30, 3, MID)
+      rectC(g, -11, -8, 20, 6, 0xffffff)
+      rectC(g, -10, -7, 18, 3, DARK)
+      rectC(g, 9, -6, 7, 3, 0xffffff)
+      rectC(g, 10, -5, 4, 2, DARK)
+      circleC(g, 0, -6, 1.6, 0xffffff)
+      circleC(g, -6, -6, 1.6, 0xffffff)
+      rectC(g, -12, 3, 8, 2, SHADE)
+      rectC(g, 2, 3, 12, 2, SHADE)
+      return g
+    }
+    case 'missile-boat': {
+      rectC(g, -12, -2, 24, 6, 0xffffff)
+      rectC(g, -11, -1, 22, 3, MID)
+      rectC(g, -3, -7, 12, 5, 0xffffff)
+      rectC(g, -2, -6, 10, 2, DARK)
+      rectC(g, -11, -5, 7, 2, SHADE)
+      rectC(g, 8, -9, 2, 4, MID)
+      circleC(g, 9, -10, 1.4, 0xffffff)
+      rectC(g, -9, 3, 7, 2, SHADE)
+      rectC(g, 3, 3, 9, 2, SHADE)
+      return g
+    }
     default:
       rectC(g, -6, -6, 12, 12, 0xffffff)
       rectC(g, -4, -4, 8, 8, MID)
@@ -486,6 +527,22 @@ function mediumBuildingShape(kind: string, g: Graphics): Graphics {
       circleC(g, -2, -4, 4, 0xffffff)
       circleC(g, -2, -4, 2, DARK)
       rectC(g, -13, 5, 26, 1, SHADE)
+      return g
+    }
+    case 'dock': {
+      rectC(g, -13, -9, 26, 18, 0xffffff)
+      rectC(g, -13, -11, 10, 4, 0xffffff)
+      rectC(g, -3, -11, 10, 4, 0xffffff)
+      rectC(g, -12, -10, 9, 1, MID)
+      rectC(g, -2, -10, 9, 1, MID)
+      rectC(g, -6, 3, 12, 6, MID)
+      rectC(g, -6, 3, 12, 1, LIGHT)
+      rectC(g, -4, 9, 8, 4, SHADE)
+      rectC(g, -12, -2, 24, 1, SHADE)
+      rectC(g, 9, -17, 2, 7, SHADE)
+      rectC(g, 10, -18, 5, 2, MID)
+      g.poly([6, -18, 12, -18, 9, -14]).fill(0xffffff)
+      circleC(g, 12, -17, 1.5, 0xffffff)
       return g
     }
     default:

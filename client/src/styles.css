@@ -51,18 +51,15 @@
       #rank-menu .rank-panel-title .rank-current { font-size: 12px; color: var(--color-text-muted); font-weight: 600; margin-left: 8px; letter-spacing: 0; }
       #rank-menu .rank-panel-score { color: var(--color-text-body); font-size: 12px; margin-bottom: 14px; }
       #rank-menu .rank-tier-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-      #rank-menu .rank-tier { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--color-border); background: var(--color-surface); }
+      #rank-menu .rank-tier { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--color-border); background: var(--color-surface); }
       #rank-menu .rank-tier.unlocked { border-color: #2c5c33; background: rgba(24,44,28,0.5); }
-      #rank-menu .rank-tier.current { border-color: #ffd75e; box-shadow: 0 0 10px rgba(255,215,94,0.18); }
-      #rank-menu .rank-tier-stars { color: #6a7078; font-size: 15px; letter-spacing: 1px; min-width: 52px; }
+      #rank-menu .rank-tier-stars { color: #6a7078; font-size: 18px; letter-spacing: 1px; min-width: 46px; text-align: center; }
       #rank-menu .rank-tier.unlocked .rank-tier-stars { color: #ffd75e; }
-      #rank-menu .rank-tier-floor { font-size: 12px; font-weight: 700; color: var(--color-text); min-width: 92px; }
-      #rank-menu .rank-tier-reward { flex: 1; font-size: 12px; color: var(--color-text-body); }
-      #rank-menu .rank-tier-state { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--color-text-muted); }
+      #rank-menu .rank-tier-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; }
+      #rank-menu .rank-tier-title { font-size: 13px; font-weight: 700; color: var(--color-text); }
+      #rank-menu .rank-tier-info { font-size: 11px; line-height: 1.4; color: var(--color-text-body); }
+      #rank-menu .rank-tier-state { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--color-text-muted); white-space: nowrap; }
       #rank-menu .rank-tier.unlocked .rank-tier-state { color: #7cf27c; }
-      #rank-menu .rank-tier.current .rank-tier-state { color: #ffd75e; }
-      #rank-menu .rank-up-btn { width: 100%; padding: 10px; background: var(--color-primary); color: #fff; border: 1px solid var(--color-primary-hover); cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; border-radius: 4px; }
-      #rank-menu .rank-up-btn:disabled { background: var(--color-surface); color: var(--color-text-muted); border-color: var(--color-border); cursor: default; }
       .lock-badge { display: inline-block; vertical-align: middle; margin-left: 4px; padding: 1px 5px; font-size: 10px; font-weight: 700; color: #a9afb8; border: 1px solid #56607a; border-radius: 3px; letter-spacing: 1px; }
       .lock-badge-star { color: #6a7078; }
       .sw-panel-note { font-size: 11px; color: var(--color-text-muted); padding: 2px 2px 6px; }
@@ -402,6 +399,12 @@
       #lobby .dev-group.dev-object > summary::after { content: ' — fields'; color: var(--color-text-dim); font-size: 11px; text-transform: none; letter-spacing: 0; }
       #lobby .dev-group-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 18px; padding: 10px; }
       #lobby .dev-actions { display: flex; gap: 10px; margin-top: 12px; }
+      #lobby .dev-audio-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; }
+      #lobby .dev-audio-line input[type='text'] { flex: 1 1 150px; min-width: 0; }
+      #lobby .dev-audio-btn { padding: 6px 8px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); cursor: pointer; font-family: inherit; font-size: 12px; white-space: nowrap; }
+      #lobby .dev-audio-btn:hover { background: var(--color-surface-hover); border-color: #3d4f7e; }
+      #lobby .dev-audio-tune-label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--color-text-muted); white-space: nowrap; }
+      #lobby .dev-audio-tune-label input { width: 74px; }
 
       #lobby .panel-subtitle { margin: 18px 0 6px; color: var(--color-accent); font-size: 14px; }
       #lobby .profile-name { font-size: 18px; color: var(--color-accent); font-weight: 700; margin: 12px 0 10px; }
@@ -478,6 +481,24 @@
       #invite-overlay .row button:hover { background: var(--color-surface-hover); }
       #invite-overlay .row button.primary { background: var(--color-primary); border: none; color: white; }
       #invite-overlay .row button.primary:hover { background: var(--color-primary-hover); }
+      #account-overlay, #server-overlay, #joinpass-overlay { position: absolute; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.7); }
+      #account-overlay.visible, #server-overlay.visible, #joinpass-overlay.visible { display: flex; }
+      #account-overlay .panel, #server-overlay .panel, #joinpass-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 22px; width: 380px; max-width: 92vw; border-radius: 6px; }
+      #account-overlay h2, #server-overlay h2, #joinpass-overlay h2 { color: var(--color-accent); font-size: 16px; margin-bottom: 8px; }
+      #account-overlay p, #server-overlay p, #joinpass-overlay p { font-size: 12px; color: var(--color-text-muted); margin-bottom: 10px; }
+      #account-overlay label, #server-overlay label, #joinpass-overlay label { display: block; margin: 10px 0 4px; font-size: 12px; color: var(--color-text-muted); }
+      #account-overlay input, #server-overlay input, #joinpass-overlay input { background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); padding: 8px; font-family: inherit; width: 100%; }
+      #account-overlay input:focus, #server-overlay input:focus, #joinpass-overlay input:focus { outline: none; border-color: var(--color-primary-hover); }
+      #account-overlay .row, #server-overlay .row, #joinpass-overlay .row { display: flex; gap: 10px; margin-top: 14px; }
+      #account-overlay .row button, #server-overlay .row button, #joinpass-overlay .row button { flex: 1 1 0; padding: 10px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); cursor: pointer; font-family: inherit; font-size: 13px; }
+      #account-overlay .row button:hover, #server-overlay .row button:hover, #joinpass-overlay .row button:hover { background: var(--color-surface-hover); }
+      #account-overlay .row button.primary, #server-overlay .row button.primary, #joinpass-overlay .row button.primary { background: var(--color-primary); border: none; color: white; }
+      #account-overlay .row button.primary:hover, #server-overlay .row button.primary:hover, #joinpass-overlay .row button.primary:hover { background: var(--color-primary-hover); }
+      .online-ind { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-body); padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface-dark); }
+      .online-ind .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+      .online-ind.ok .dot { background: #2e8b57; box-shadow: 0 0 6px rgba(46,139,87,0.8); }
+      .online-ind.bad .dot { background: #c0392b; box-shadow: 0 0 6px rgba(192,57,43,0.8); }
+      .online-ind.wait .dot { background: #b8a03a; box-shadow: 0 0 6px rgba(184,160,58,0.8); }
 
       #lobby .info-panel { width: 760px; max-width: 94vw; }
       #lobby .info-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
@@ -566,6 +587,7 @@
       .toast.ach .toast-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
       .toast.ach .toast-header { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #c9a53a; }
       .toast.ach .toast-title { font-size: 13px; font-weight: 700; color: #ffd75e; }
+      .toast.ach .toast-text { font-size: 13px; font-weight: 700; color: #ffd75e; }
       .toast.ach .toast-desc { font-size: 11px; color: var(--color-text-body); }
       #confirm-overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.6); z-index: 42; pointer-events: auto; }
       #confirm-overlay.visible { display: flex; }
@@ -580,9 +602,8 @@
       #err-box { position: absolute; top: 8px; left: 8px; max-width: 60vw; background: rgba(80,10,10,0.92); border: 1px solid var(--color-error); color: #ffd7d7; padding: 8px 12px; font-size: 12px; z-index: 50; display: none; white-space: pre-wrap; }
 
       #lobby .section-h3 { color: var(--color-accent); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin: 14px 0 4px; border-bottom: 1px solid var(--color-divider); padding-bottom: 3px; }
-      #lobby .online-grid { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; align-items: flex-start; }
-      #lobby .online-acc { flex: 1 1 300px; min-width: 260px; }
-      #lobby .online-acc h3 { color: var(--color-accent); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 6px; border-bottom: 1px solid var(--color-divider); padding-bottom: 3px; }
+      #lobby .online-top-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+      #lobby .online-top-row button { width: auto; padding: 8px 14px; }
       #lobby .online-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
       #lobby .online-actions button { width: auto; margin-top: 0; padding: 8px 14px; }
       #lobby .lobby-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }

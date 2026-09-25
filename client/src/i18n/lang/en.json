@@ -92,48 +92,58 @@
       "masterDesc": "Overall loudness of every sound.",
       "effects": "Effects volume",
       "effectsDesc": "UI clicks, weapon and unit sounds (scaled by master).",
-      "ambient": "Ambient volume",
-      "ambientDesc": "Lobby drone and in-game background hum.",
+      "ambient": "Lobby ambient",
+      "ambientDesc": "Menu drone/wind while in the lobby.",
+      "ambientInMatch": "In-match ambient",
+      "ambientInMatchDesc": "Field hum while a match is running.",
       "muted": "Mute all",
-      "mutedDesc": "Silences every sound and the ambient layer at once.",
+      "mutedDesc": "Silences every sound and both ambient layers at once.",
       "ambientOn": "Ambient layer",
-      "ambientOnDesc": "Toggles the ambient drone/hum entirely.",
+      "ambientOnDesc": "Master toggle for both the lobby and in-match ambient layers.",
       "haptics": "Mobile vibration",
       "hapticsDesc": "Vibrate on select, actions and taking damage (phones/tablets).",
       "on": "ON",
       "off": "OFF",
       "saved": "Audio settings saved.",
-      "effective": "Effective levels — effects {e}% · ambient {a}%"
+      "effective": "Effective levels — effects {e}% · lobby {a}% · match {i}%"
     }
   },
   "online": {
     "h1": "Online Server",
-    "hint": "Preview of the future online feature. Accounts, servers and matchmaking do not exist yet — the inputs document the planned flow.",
-    "accountH3": "Account",
+    "myAccount": "My Account",
+    "serverSetup": "Server Setup",
     "name": "User name",
     "email": "Email",
     "password": "Password",
-    "serverH3": "Server",
-    "serverLink": "Server link",
-    "dbLink": "Database link",
-    "region": "Server region",
-    "regionAuto": "Auto",
-    "login": "Log in",
     "register": "Register",
-    "changePass": "Change password",
-    "connect": "Connect",
-    "refresh": "Refresh",
+    "login": "Log in",
+    "accountPopupH2": "My Account",
+    "accountPhase2": "Sign-in and profile arrive in Phase 2. Your host name below is what other players see in the lobby.",
+    "serverPopupH2": "Server Setup",
+    "serverSetupHint": "The server address is fixed at build time — no manual editing.",
+    "serverAddress": "Server address",
+    "serverLabel": "Server connection",
+    "dbLabel": "Database",
+    "serverOnline": "Online — coaching matches and the lobby",
+    "serverDown": "Unreachable — check your connection or the deploy",
+    "dbPending": "Phase 2 (accounts & leaderboard)",
+    "search": "Search matches",
+    "searchPlaceholder": "Room code or host name…",
     "matchesH3": "Current matches",
     "thRoom": "Room",
+    "thHost": "Host",
     "thMap": "Map",
     "thPlayers": "Players",
     "thStatus": "Status",
     "create": "+ Create match",
     "join": "Join selected",
-    "clear": "Clear table",
-    "planned": "Coming soon: this button is part of the future Online Server feature.",
-    "refreshed": "Match list refreshed.",
-    "noMatches": "No matches yet."
+    "joinPassH2": "Enter password",
+    "joinPassDesc": "This match is password-protected. Ask the host for the password.",
+    "joinPassPlaceholder": "Password",
+    "ok": "OK",
+    "close": "Close",
+    "noMatches": "No matches yet — be the first to create one.",
+    "refreshed": "Match list refreshed."
   },
   "mapbuilder": {
     "h1": "Map Builder",
@@ -345,6 +355,8 @@
       "hostUnreachable": "Could not reach your local host server.",
       "serverUnreachable": "Could not connect to that server.",
       "needsPassword": "That match requires a password — enter it above.",
+      "matchStarted": "Match already started.",
+      "full": "Room is full.",
       "reconnecting": "Connection lost — reconnecting to match…",
       "reconnected": "Reconnected.",
       "spectating": "Joining as spectator…",
@@ -644,7 +656,8 @@
     "class": {
       "harvester": "harvester",
       "infantry": "infantry",
-      "vehicle": "vehicle"
+      "vehicle": "vehicle",
+      "naval": "naval"
     },
     "role": {
       "bulldozer": "Builds and repairs your base and buildings.",
@@ -655,7 +668,9 @@
       "assault-walker": "Tough frontline vehicle with a cannon.",
       "aa-platform": "Anti-air defence platform.",
       "artillery": "Long-range splash-damage bombardments.",
-      "fighter": "Ghost fighter: flies over anything, strikes once, then returns to the Air Force to reload."
+      "fighter": "Ghost fighter: flies over anything, strikes once, then returns to the Air Force to reload.",
+      "carrier": "Armoured troop transport that carries infantry across open water.",
+      "missile-boat": "Fast warship firing sea missiles that splash ground and naval targets — never aircraft."
     }
   },
   "weapon": {
@@ -785,6 +800,10 @@
       "laserCooldownTicks": { "label": "Laser cooldown", "desc": "Cooldown between space laser strikes" },
       "airstrikeCooldownTicks": { "label": "Airstrike cooldown", "desc": "Cooldown between airstrike squadrons" },
       "empCooldownTicks": { "label": "EMP cooldown", "desc": "Cooldown between EMP pulses" },
+      "airstrikeBombDamage": { "label": "Airstrike damage", "desc": "Damage dealt by each airstrike bomb" },
+      "airstrikeBombRadius": { "label": "Airstrike radius", "desc": "Splash radius of an airstrike bomb in cells" },
+      "empRadiusTiles": { "label": "EMP radius", "desc": "Area of effect radius of the EMP pulse in cells" },
+      "empDurationTicks": { "label": "EMP duration", "desc": "How long the EMP disables enemy units and buildings" },
       "laserRadius": { "label": "Laser radius", "desc": "Area of effect radius in cells" },
       "laserDurationTicks": { "label": "Laser duration", "desc": "How long a strike keeps dealing damage" },
       "laserDamagePerTick": { "label": "Laser DPS", "desc": "Damage dealt per tick to everything in the radius" },
@@ -876,6 +895,14 @@
       "assetBurn": { "label": "Burning fire path", "desc": "Animated overlay for heavily damaged units; {frame} = 0001-0002. e.g. fx/burn/burn_{frame}.png. Empty = procedural flame" },
       "assetFx": { "label": "Effects", "desc": "Effects — animated overlays (2 frames: {frame} = 1-2)" },
       "audioPath": { "label": "Sound override", "desc": "A single file (…/x.wav/.mp3/.ogg) OR a folder under client/dist such as sound/{id}/ holding v1.wav, v2.wav, … Ordinary sounds play a shuffled variant each time; ambient-lobby/ambient-game play their files one-after-another in a shuffled loop. Empty = default synth" },
+      "audioPathApply": { "label": "Use generated", "desc": "Point this sound at the generated WAV folder: sound/{id}/ under client/dist (applies live; clear to fall back to the synth)" },
+      "audioPathClear": { "label": "Synth", "desc": "Clear the override and play the built-in synth for this sound" },
+      "audioPlay": { "label": "Play", "desc": "Preview this sound right now with the current override + tuning, at full volume and without positional falloff (no match needed). Ambience previews ~4 s." },
+      "audioPing": { "label": "Ping", "desc": "Play a short 880 Hz tone straight through the audio graph (no files, no tuning) — confirms the speakers and AudioContext work. If this is silent but others are not, the problem is the file/decode side." },
+      "audioTune": {
+        "vol": { "label": "Volume", "desc": "Loudness multiplier for this sound (0–4×), applied on top of the per-kind play gain" },
+        "pitch": { "label": "Pitch", "desc": "Playback rate / pitch multiplier (0.25–4×): files repitch via PlaybackRate, synth via oscillator frequency" }
+      },
       "fieldSupply": { "label": "Supply field image path", "desc": "Fill-level image template; {frame} = 1-25, one step per 1/25 of the stored capacity" },
       "fieldOil": { "label": "Oil field image path", "desc": "Damage image template; {frame} = 1-4 at 100/75/50/25% health" },
       "fieldOffset": { "label": "High-quality field offset", "desc": "Shifts the supply/oil field images down from the tile center, as a fraction of r (center-to-bottom distance)" },
@@ -894,13 +921,15 @@
         "desc": "Size multiplier applied to that unit class's sprite — both high-quality directional images and vector shapes (applies live)",
         "vehicle": { "label": "Vehicle sprite scale" },
         "infantry": { "label": "Troop sprite scale" },
-        "air": { "label": "Aircraft sprite scale" }
+        "air": { "label": "Aircraft sprite scale" },
+        "naval": { "label": "Naval sprite scale" }
       },
       "unitOffset": {
         "desc": "Vertical sprite shift down from the base center for that unit class, as a fraction of the sprite's own width (applies live)",
         "vehicle": { "label": "Vehicle sprite offset" },
         "infantry": { "label": "Troop sprite offset" },
-        "air": { "label": "Aircraft sprite offset" }
+        "air": { "label": "Aircraft sprite offset" },
+        "naval": { "label": "Naval sprite offset" }
       },
       "spriteLayer": {
         "desc": "Lower = drawn first (further behind). Lets you reorder which sprite kind draws on top of the others.",
@@ -965,6 +994,11 @@
       "defaultsSaved": "Current values saved as your default settings.",
       "assetSaved": "Asset path saved (applies on the next match).",
       "audioSaved": "Sound path saved (plays instead of the synth).",
+      "audioTuned": "Tuned this sound (volume / pitch).",
+      "audioPing": "Ping played (880 Hz tone).",
+      "audioPreview": "Playing audio preview…",
+      "audioPreviewFiles": "Playing — sources: {urls}",
+      "audioPreviewSynth": "built-in synth",
       "scalarDefault": "{label}: default ({v})",
       "scalarSet": "{label}: {v}",
       "overrideDefault": "{id}.{field} → default ({v})",
@@ -990,12 +1024,22 @@
       "supply-harvested": "Supply harvested",
       "combat-hit": "Combat hit",
       "laser-strike": "Laser strike",
+      "airstrike-called": "Airstrike incoming",
+      "bomb-strike": "Airstrike bomb",
+      "emp-strike": "EMP strike",
+      "grenade-exploded": "Grenade explosion",
+      "smoke-landed": "Smoke landing",
       "power-down": "Power down",
       "game-over": "Game over",
+      "victory": "Match victory",
       "achievement": "Achievement unlocked",
       "ambient": "Ambient (looping)",
       "ambient-lobby": "Ambient — lobby",
-      "ambient-game": "Ambient — in match"
+      "ambient-game": "Ambient — in match",
+      "weather": "Weather ambient (looping)",
+      "rain-ambient": "Weather — rain",
+      "snow-ambient": "Weather — snow",
+      "storm-ambient": "Weather — storm"
     }
   },
   "menu": {
@@ -1011,7 +1055,8 @@
     "draw": "Draw",
     "over": "Match Over",
     "rankUpTitle": "Rank up — {rank}★",
-    "rankUpDesc": "New tech unlocked. Free of charge."
+    "rankUpDesc": "New tech unlocked. Free of charge.",
+    "rankUpHeader": "Rank up!"
   },
   "rank": {
     "buttonTitle": "General rank — click to view the ladder"
@@ -1053,8 +1098,6 @@
     "rankTier3": "Super Weapon upgrade + Space Laser bonus unlocked (Airstrike/EMP at the Super Weapon)",
     "rankUnlocked": "Unlocked",
     "rankLocked": "Locked",
-    "rankUpReady": "Rank Up! (free)",
-    "rankUpWait": "Reach the score floor to rank up",
     "rankRequired": "Requires {n}★ general rank",
     "swLaserDefault": "Space Laser: armed by default — pick an Airstrike or EMP as your second strike.",
     "headers": {
@@ -1188,7 +1231,10 @@
     "swLaser": "Laser",
     "swAirstrike": "Airstrike",
     "swEmp": "EMP",
-    "strikeReady": "Fire the Super Weapon strike"
+    "strikeReady": "Fire the Super Weapon strike",
+    "strikeCountdown": "{name} ({s}s)",
+    "strikeCooldown": "{name} on cooldown",
+    "strikeUnavailable": "{name} offline — rebuild the Super Weapon"
   },
   "mobile": {
     "label": "Touch",
@@ -1435,6 +1481,7 @@
     "turret": "Turret",
     "bunker": "Bunker",
     "tech-center": "Tech Center",
+    "dock": "Dock",
     "bulldozer": "Bulldozer",
     "harvester": "Harvester",
     "scout": "Scout",
@@ -1445,6 +1492,8 @@
     "artillery": "Artillery",
     "engineer": "Engineer",
     "apc": "APC",
+    "carrier": "Carrier",
+    "missile-boat": "Missile Boat",
     "radar": "Radar",
     "satellite": "Satellite",
     "air-force": "Air Force",

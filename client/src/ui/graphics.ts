@@ -33,10 +33,10 @@ export const DEFAULT_REPLAY_ZOOM_MIN = 0.4
 /** Camera zoom-in ceiling (closest in) for replays/spectate — dev-settings adjustable. */
 export const DEFAULT_REPLAY_ZOOM_MAX = 5
 
-export type UnitScaleClass = 'vehicle' | 'infantry' | 'air'
-export const DEFAULT_UNIT_SCALE: Record<UnitScaleClass, number> = { vehicle: 1, infantry: 1, air: 1 }
+export type UnitScaleClass = 'vehicle' | 'infantry' | 'air' | 'naval'
+export const DEFAULT_UNIT_SCALE: Record<UnitScaleClass, number> = { vehicle: 1, infantry: 1, air: 1, naval: 1 }
 /** Vertical sprite shift per unit class, as a fraction of the sprite's own width. */
-export const DEFAULT_UNIT_OFFSET: Record<UnitScaleClass, number> = { vehicle: 0, infantry: 0, air: 0 }
+export const DEFAULT_UNIT_OFFSET: Record<UnitScaleClass, number> = { vehicle: 0, infantry: 0, air: 0, naval: 0 }
 
 export type SpriteLayerKind = 'border' | 'troop' | 'vehicle' | 'building' | 'effect'
 export const SPRITE_LAYER_KINDS: SpriteLayerKind[] = ['border', 'troop', 'vehicle', 'building', 'effect']
@@ -62,6 +62,7 @@ const BUILDING_ASSET_FOLDERS: Record<string, string> = {
   'air-force': 'af',
   'super-weapon': 'sp',
   bunker: 'bn',
+  dock: 'd',
 }
 
 export const UNIT_ASSET_IDS = [
@@ -76,6 +77,8 @@ export const UNIT_ASSET_IDS = [
   'engineer',
   'apc',
   'fighter',
+  'carrier',
+  'missile-boat',
 ]
 
 export const OBSTACLE_ASSET_TYPES = ['rock', 'tree', 'wreck', 'mine']
@@ -88,6 +91,8 @@ const UNIT_ASSET_FOLDERS: Record<string, string> = {
   artillery: 'v_a',
   engineer: 'v_e',
   fighter: 'v_f',
+  carrier: 'v_c',
+  'missile-boat': 'v_mb',
 }
 
 /** Client-only high-quality asset path templates; {frame} is replaced with the 4-digit image number, {color} with the player's 1-based color folder. Units are rendered in 8 heading frames (0001-0008); {dir} is kept for legacy user overrides. */
@@ -240,13 +245,13 @@ const load = (): GraphicsSettings => {
         base.obstacleOffset = Math.max(-2, Math.min(2, parsed.obstacleOffset))
       }
       if (parsed && parsed.unitScale && typeof parsed.unitScale === 'object') {
-        for (const c of ['vehicle', 'infantry', 'air'] as UnitScaleClass[]) {
+        for (const c of ['vehicle', 'infantry', 'air', 'naval'] as UnitScaleClass[]) {
           const v = (parsed.unitScale as Record<string, unknown>)[c]
           if (typeof v === 'number' && Number.isFinite(v)) base.unitScale[c] = v
         }
       }
       if (parsed && parsed.unitOffset && typeof parsed.unitOffset === 'object') {
-        for (const c of ['vehicle', 'infantry', 'air'] as UnitScaleClass[]) {
+        for (const c of ['vehicle', 'infantry', 'air', 'naval'] as UnitScaleClass[]) {
           const v = (parsed.unitOffset as Record<string, unknown>)[c]
           if (typeof v === 'number' && Number.isFinite(v)) base.unitOffset[c] = Math.max(-2, Math.min(2, v))
         }

@@ -40,8 +40,15 @@ const ensureScratch = (area: number): {
   }
 }
 
-export const lineClear = (grid: WorldGrid, x0: number, y0: number, x1: number, y1: number): boolean => {
-  const { width, passable } = grid
+export const lineClear = (
+  grid: WorldGrid,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  mask = grid.passable,
+): boolean => {
+  const { width } = grid
   const dx = Math.abs(x1 - x0)
   const dy = -Math.abs(y1 - y0)
   const sx = x0 < x1 ? 1 : -1
@@ -49,7 +56,7 @@ export const lineClear = (grid: WorldGrid, x0: number, y0: number, x1: number, y
   let err = dx + dy
   for (;;) {
     if (x0 < 0 || y0 < 0 || x0 >= grid.width || y0 >= grid.height) return false
-    if (!passable[y0 * width + x0]) return false
+    if (!mask[y0 * width + x0]) return false
     if (x0 === x1 && y0 === y1) break
     const e2 = 2 * err
     if (e2 >= dy) {
@@ -72,15 +79,17 @@ export const findPath = (
   ty: number,
   maxNodes = 8000,
   costs: PathCosts = DEFAULT_COSTS,
+  mask = grid.passable,
+  comp = grid.component,
 ): number[] | null | undefined => {
-  const { width, height, passable, component } = grid
+  const { width, height } = grid
   if (sx < 0 || sy < 0 || tx < 0 || ty < 0 || sx >= width || sy >= height || tx >= width || ty >= height) {
     return null
   }
   const start = sy * width + sx
   const goal = ty * width + tx
-  if (!passable[start] || !passable[goal]) return null
-  if (component && component[start] !== component[goal]) return null
+  if (!mask[start] || !mask[goal]) return null
+  if (comp && comp[start] !== comp[goal]) return null
 
   const area = width * height
   const { g, closed, parent, heapIdx, heapScore } = ensureScratch(area)
@@ -169,10 +178,10 @@ export const findPath = (
         const ny = cy + dy
         if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
         if (dx !== 0 && dy !== 0) {
-          if (!passable[cy * width + nx] || !passable[ny * width + cx]) continue
+          if (!mask[cy * width + nx] || !mask[ny * width + cx]) continue
         }
         const ni = ny * width + nx
-        if (!passable[ni] || closed[ni]) continue
+        if (!mask[ni] || closed[ni]) continue
         const cost = dx !== 0 && dy !== 0 ? D2 : D
         const ng = g[cur] + cost
         if (g[ni] === -1 || ng < g[ni]) {
@@ -186,7 +195,7 @@ export const findPath = (
   return null
 }
 
-const nearestPassable = (grid: WorldGrid, tx: number, ty: number, maxRadius: number): Array<[number, number]> => {
+const nearestPassable = (grid: WorldGrid, tx: number, ty: number, maxRadius: number, mask = grid.passable): Array<[number, number]> => {
   const out: Array<[number, number]> = []
   for (let r = 1; r <= maxRadius; r++) {
     for (let dy = -r; dy <= r; dy++) {
@@ -195,7 +204,7 @@ const nearestPassable = (grid: WorldGrid, tx: number, ty: number, maxRadius: num
         const nx = tx + dx
         const ny = ty + dy
         if (nx < 0 || ny < 0 || nx >= grid.width || ny >= grid.height) continue
-        if (grid.passable[ny * grid.width + nx]) out.push([nx, ny])
+        if (mask[ny * grid.width + nx]) out.push([nx, ny])
       }
     }
   }
@@ -212,31 +221,41 @@ export const findPathNear = (
   maxRadius = 5,
   maxNodes = 8000,
   costs: PathCosts = DEFAULT_COSTS,
+  mask = grid.passable,
+  comp = grid.component,
 ): number[] | null | undefined => {
-  if (tx >= 0 && ty >= 0 && tx < grid.width && ty < grid.height && grid.passable[ty * grid.width + tx]) {
-    const p = findPath(grid, sx, sy, tx, ty, maxNodes, costs)
+  if (tx >= 0 && ty >= 0 && tx < grid.width && ty < grid.height && mask[ty * grid.width + tx]) {
+    const p = findPath(grid, sx, sy, tx, ty, maxNodes, costs, mask, comp)
     return p
   }
-  const candidates = nearestPassable(grid, tx, ty, maxRadius)
+  const candidates = nearestPassable(grid, tx, ty, maxRadius, mask)
   for (const [nx, ny] of candidates.slice(0, 3)) {
-    const p = findPath(grid, sx, sy, nx, ny, maxNodes, costs)
+    const p = findPath(grid, sx, sy, nx, ny, maxNodes, costs, mask, comp)
     if (p !== null && p !== undefined) return p
     if (p === undefined) return undefined
   }
   return null
 }
 
-export const nearestPassablePoint = (grid: WorldGrid, tx: number, ty: number, maxRadius = 8): { x: number; y: number } | null => {
-  const candidates = nearestPassable(grid, tx, ty, maxRadius)
+export const nearestPassablePoint = (grid: WorldGrid, tx: number, ty: number, maxRadius = 8, mask = grid.passable): { x: number; y: number } | null => {
+  const candidates = nearestPassable(grid, tx, ty, maxRadius, mask)
   if (candidates.length === 0) return null
   const [nx, ny] = candidates[0]
   return { x: nx * 1000 + 500, y: ny * 1000 + 500 }
 }
 
-export const sameComponent = (grid: WorldGrid, ax: number, ay: number, bx: number, by: number): boolean => {
+export const sameComponent = (
+  grid: WorldGrid,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  mask = grid.passable,
+  comp = grid.component,
+): boolean => {
   const a = ay * grid.width + ax
   const b = by * grid.width + bx
-  if (!grid.passable[a] || !grid.passable[b]) return false
-  if (!grid.component) return true
-  return grid.component[a] === grid.component[b]
+  if (!mask[a] || !mask[b]) return false
+  if (!comp) return true
+  return comp[a] === comp[b]
 }

@@ -59,7 +59,6 @@
             <div class="rank-panel-title" id="rank-panel-title">★ 0</div>
             <div class="rank-panel-score" id="rank-panel-score"></div>
             <div class="rank-tier-list" id="rank-tier-list"></div>
-            <button class="rank-up-btn" id="rank-up-btn" data-i18n="rank.up"></button>
           </div>
         </aside>
         <div id="mission-popup" class="mission-popup" hidden>
@@ -386,51 +385,21 @@
           <div id="online-panel" class="hidden-panel">
             <div class="panel wide">
               <h1 class="panel-title-compact" data-i18n="online.h1">Online Server</h1>
-              <div class="hint" data-i18n="online.hint">Preview of the future online feature. Accounts, servers and matchmaking do not exist yet — the inputs document the planned flow.</div>
-              <div class="online-grid">
-                <div class="online-acc">
-                  <h3 data-i18n="online.accountH3">Account</h3>
-                  <label data-i18n="online.name">User name</label>
-                  <input id="online-name" maxlength="24" placeholder="Commander" />
-                  <label data-i18n="online.email">Email</label>
-                  <input id="online-email" type="email" placeholder="you@example.com" />
-                  <label data-i18n="online.password">Password</label>
-                  <input id="online-pass" type="password" placeholder="••••••••" />
-                  <div class="online-actions">
-                    <button class="ghost" id="online-login" data-i18n="online.login">Log in</button>
-                    <button class="ghost" id="online-register" data-i18n="online.register">Register</button>
-                    <button class="ghost" id="online-change-pass" data-i18n="online.changePass">Change password</button>
-                  </div>
-                </div>
-                <div class="online-acc">
-                  <h3 data-i18n="online.serverH3">Server</h3>
-                  <label data-i18n="online.serverLink">Server link</label>
-                  <input id="online-server-link" placeholder="wss://example.com:443" />
-                  <label data-i18n="online.dbLink">Database link</label>
-                  <input id="online-db-link" placeholder="https://example.com/db" />
-                  <label data-i18n="online.region">Server region</label>
-                  <select id="online-region">
-                    <option value="auto" data-i18n="online.regionAuto">Auto</option>
-                    <option value="eu">Europe</option>
-                    <option value="na">North America</option>
-                    <option value="asia">Asia</option>
-                    <option value="me">Middle East</option>
-                    <option value="af">Africa</option>
-                    <option value="sa">South America</option>
-                    <option value="oc">Oceania</option>
-                  </select>
-                  <div class="online-actions">
-                    <button class="ghost" id="online-connect" data-i18n="online.connect">Connect</button>
-                    <button class="ghost" id="online-refresh" data-i18n="online.refresh">Refresh</button>
-                  </div>
-                </div>
+              <div class="online-top-row">
+                <button class="ghost" id="online-account" data-i18n="online.myAccount">My Account</button>
+                <button class="ghost" id="online-server-setup" data-i18n="online.serverSetup">Server Setup</button>
               </div>
+              <label data-i18n="online.name">User name</label>
+              <input id="online-name" maxlength="24" placeholder="Commander" />
+              <label data-i18n="online.search">Search matches</label>
+              <input id="online-search" placeholder="Room code or host name…" data-i18n-placeholder="online.searchPlaceholder" />
               <div class="status" id="online-status"></div>
               <h3 class="section-h3" data-i18n="online.matchesH3">Current matches</h3>
               <table class="lobby-table" id="online-matches-table">
                 <thead>
                   <tr>
                     <th data-i18n="online.thRoom">Room</th>
+                    <th data-i18n="online.thHost">Host</th>
                     <th data-i18n="online.thMap">Map</th>
                     <th data-i18n="online.thPlayers">Players</th>
                     <th data-i18n="online.thStatus">Status</th>
@@ -441,7 +410,6 @@
               <div class="online-actions">
                 <button class="ghost" id="online-create" data-i18n="online.create">+ Create match</button>
                 <button class="ghost" id="online-join" data-i18n="online.join">Join selected</button>
-                <button class="ghost" id="online-clear-table" data-i18n="online.clear">Clear table</button>
               </div>
             </div>
           </div>
@@ -734,6 +702,52 @@
           <div class="row">
             <button id="create-cancel" data-i18n="create.cancel">Cancel</button>
             <button class="primary" id="create-ok" data-i18n="create.create">Create</button>
+          </div>
+        </div>
+      </div>
+      <div id="account-overlay">
+        <div class="panel">
+          <h2 data-i18n="online.accountPopupH2">My Account</h2>
+          <p class="hint" data-i18n="online.accountPhase2">Sign-in and profile arrive in Phase 2. Your host name below is what other players see in the lobby.</p>
+          <label data-i18n="online.name">User name</label>
+          <input id="account-username" maxlength="24" placeholder="Commander" />
+          <label data-i18n="online.email">Email</label>
+          <input id="account-email" type="email" placeholder="you@example.com" />
+          <label data-i18n="online.password">Password</label>
+          <input id="account-pass" type="password" placeholder="••••••••" />
+          <div class="row">
+            <button id="account-register" data-i18n="online.register">Register</button>
+            <button class="primary" id="account-login" data-i18n="online.login">Log in</button>
+          </div>
+          <div class="row">
+            <button id="account-close" data-i18n="online.close">Close</button>
+          </div>
+        </div>
+      </div>
+      <div id="server-overlay">
+        <div class="panel">
+          <h2 data-i18n="online.serverPopupH2">Server Setup</h2>
+          <p class="hint" data-i18n="online.serverSetupHint">The server address is fixed at build time — no manual editing.</p>
+          <label data-i18n="online.serverAddress">Server address</label>
+          <input id="server-address" readonly />
+          <label data-i18n="online.serverLabel">Server connection</label>
+          <div class="online-ind" id="server-ind"></div>
+          <label data-i18n="online.dbLabel">Database</label>
+          <div class="online-ind" id="db-ind"></div>
+          <div class="row">
+            <button id="server-close" data-i18n="online.close">Close</button>
+          </div>
+        </div>
+      </div>
+      <div id="joinpass-overlay">
+        <div class="panel">
+          <h2 data-i18n="online.joinPassH2">Enter password</h2>
+          <p class="hint" data-i18n="online.joinPassDesc">This match is password-protected. Ask the host for the password.</p>
+          <label data-i18n="online.password">Password</label>
+          <input id="joinpass-input" type="password" placeholder="Password" data-i18n-placeholder="online.joinPassPlaceholder" />
+          <div class="row">
+            <button id="joinpass-cancel" data-i18n="online.close">Cancel</button>
+            <button class="primary" id="joinpass-ok" data-i18n="online.ok">OK</button>
           </div>
         </div>
       </div>

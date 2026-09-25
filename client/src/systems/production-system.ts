@@ -1,13 +1,17 @@
-import { getUnit, isPassableTerrain, tileAt } from '@space-arenas/shared'
+import { Terrain, getUnit, isPassableTerrain, tileAt } from '@space-arenas/shared'
 import type { World, WorldGrid } from '../core/world.ts'
 import { setMove, spawnUnit } from '../entities/factories.ts'
 
 export const findSpawnTile = (world: World, buildingId: number, grid: WorldGrid): { x: number; y: number } | null => {
   const b = world.buildings.get(buildingId)
+  // Docks produce naval units, so their spawn tile must be open water; every
+  // other producer keeps the land-passable rule.
+  const naval = b?.buildingType === 'dock'
+  const mask = naval ? grid.water : grid.passable
   if (b && b.spawnTx >= 0) {
     const sx = b.spawnTx
     const sy = b.spawnTy
-    if (sx >= 0 && sy >= 0 && sx < world.width && sy < world.height && grid.passable[sy * world.width + sx]) {
+    if (sx >= 0 && sy >= 0 && sx < world.width && sy < world.height && mask[sy * world.width + sx]) {
       return { x: sx, y: sy }
     }
   }
@@ -21,8 +25,8 @@ export const findSpawnTile = (world: World, buildingId: number, grid: WorldGrid)
         const x = cx + dx
         const y = cy + dy
         if (x < 0 || y < 0 || x >= world.width || y >= world.height) continue
-        if (!isPassableTerrain(tileAt(world.map, x, y))) continue
-        if (!grid.passable[y * world.width + x]) continue
+        if (naval ? tileAt(world.map, x, y) !== Terrain.Water : !isPassableTerrain(tileAt(world.map, x, y))) continue
+        if (!mask[y * world.width + x]) continue
         return { x, y }
       }
     }

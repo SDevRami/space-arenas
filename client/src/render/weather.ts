@@ -41,7 +41,7 @@ export class WeatherOverlay {
     this.canvas.style.position = 'absolute'
     this.canvas.style.inset = '0'
     this.canvas.style.pointerEvents = 'none'
-    this.canvas.style.zIndex = '1'
+    this.canvas.style.zIndex = '11'
     container.appendChild(this.canvas)
     this.ctx = this.canvas.getContext('2d')!
     this.resize()

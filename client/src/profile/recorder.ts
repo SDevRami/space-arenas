@@ -52,6 +52,7 @@ export class SessionRecorder {
             const cls = e.typeName ? UNITS[e.typeName]?.class : undefined
             if (cls === 'infantry') this.counters.killsInfantry += 1
             else if (cls === 'vehicle') this.counters.killsVehicle += 1
+            else if (cls === 'naval') this.counters.killsVehicle += 1
             else if (cls === 'air') this.counters.killsAir += 1
           }
         }

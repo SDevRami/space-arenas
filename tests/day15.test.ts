@@ -29,6 +29,8 @@ const powerTeam0 = (sim: Simulator): void => {
 }
 
 const arm = (sim: Simulator, team: number, choice: 'laser' | 'airstrike' | 'emp'): void => {
+  // The second super weapon only unlocks at 1★.
+  sim.world.teamState(team).rank = 1
   sim.step([sim.makeCommand(team, { type: 'sw-choose', entities: [], x: 0, y: 0, choice })])
   sim.drainEvents()
 }
@@ -105,17 +107,17 @@ describe('Day 15.2: general rank ladder', () => {
     expect(world.scoreOf(0)).toBe(100)
     expect(world.rankOf(0)).toBe(0)
     expect(world.canRankUp(0)).toBe(false)
-    for (let i = 0; i < RANK_FLOORS[0] / 100; i++) world.awardScore(0, 100)
-    expect(world.canRankUp(0)).toBe(true)
+    for (let i = 0; i < Math.ceil(RANK_FLOORS[0] / 100) - 1; i++) world.awardScore(0, 100)
+    expect(world.scoreOf(0)).toBe(100 * Math.ceil(RANK_FLOORS[0] / 100))
+    expect(world.rankOf(0)).toBe(1) // promotion is automatic once the floor is cleared
+    expect(world.canRankUp(0)).toBe(false)
   })
 
-  it('rank-up command promotes, grants the prize, keeps the score, and can climb again', () => {
+  it('auto promotion grants the prize, keeps the score, and can climb again', () => {
     const sim = makeSim()
     const { world } = sim
     const creditsBefore = world.teamState(0).credits
     world.awardScore(0, RANK_FLOORS[0] + 100)
-    expect(world.canRankUp(0)).toBe(true)
-    sim.step([sim.makeCommand(0, { type: 'rank-up', entities: [], x: 0, y: 0 })])
     const events = sim.drainEvents()
     expect(events.some((e) => e.type === 'rank-up' && e.team === 0 && e.rank === 1)).toBe(true)
     expect(world.rankOf(0)).toBe(1)
@@ -123,9 +125,11 @@ describe('Day 15.2: general rank ladder', () => {
     expect(world.teamState(0).credits).toBe(creditsBefore + world.settings.rankUpPrizeCredits)
     // Already past the floor for star 2? No — score now needs RANK_FLOORS[1].
     expect(world.canRankUp(0)).toBe(false)
+    world.awardScore(0, RANK_FLOORS[1])
+    expect(world.rankOf(0)).toBe(2)
   })
 
-  it('rejects rank-up below the floor and at max rank', () => {
+  it('rejects the rank-up command below the floor and at max rank', () => {
     const sim = makeSim()
     const { world } = sim
     world.awardScore(0, 50)
@@ -253,7 +257,26 @@ describe('Day 15.5: laser default + move of radar to Command Center + unlock def
   })
 })
 
-describe('Day 15.6: profile total score', () => {
+describe('Day 15.6: the second super weapon unlocks at 1★', () => {
+  it('rejects sw-choose below rank 1 and arms it at rank 1', () => {
+    const sim = makeSim()
+    const { world } = sim
+    spawnBuilding(world, 'super-weapon', 0, 20, 3, true)
+
+    sim.step([sim.makeCommand(0, { type: 'sw-choose', entities: [], x: 0, y: 0, choice: 'airstrike' })])
+    const rejected = sim.drainEvents()
+    expect(rejected.some((e) => e.type === 'command-rejected' && e.reason.includes('star rank required'))).toBe(true)
+    expect(world.swChoiceOf(0)).toBeNull()
+
+    world.teamState(0).rank = 1
+    sim.step([sim.makeCommand(0, { type: 'sw-choose', entities: [], x: 0, y: 0, choice: 'airstrike' })])
+    const accepted = sim.drainEvents()
+    expect(accepted.some((e) => e.type === 'sw-chosen' && e.choice === 'airstrike')).toBe(true)
+    expect(world.swChoiceOf(0)).toBe('airstrike')
+  })
+})
+
+describe('Day 15.7: profile total score', () => {
   it('recordMatch stores per-match score and totalScore sums the history', () => {
     const storage = makeStorage()
     const profile = freshProfile('Ace')

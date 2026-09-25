@@ -2,7 +2,7 @@ import './styles.css'
 import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, PROTOCOL_VERSION, type ModFile, type ModMeta, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
-import { AudioHooks } from './audio/hooks.ts'
+import { AudioHooks, AMBIENT_SYNTH } from './audio/hooks.ts'
 import { NetClient } from './net/net.ts'
 import type { LobbyMessage, MatchStartMessage } from '@space-arenas/shared'
 import type { MatchConfig, OfflineMode } from './game/match.ts'
@@ -14,7 +14,7 @@ import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
 import { initControlsSettings } from './ui/controls-settings.ts'
 import { preloadFxFrames } from './render/building-sprites.ts'
 import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setFieldScale, setObstacleScale, setObstacleOffset, setUnitScale, setUnitOffset, setAssetPath, setFxScale, setFxOffset, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, setSpriteLayerOrder, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_FIELD_SCALE, DEFAULT_OBSTACLE_SCALE, DEFAULT_OBSTACLE_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_UNIT_OFFSET, DEFAULT_FX_SCALE, DEFAULT_FX_OFFSET, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, DEFAULT_SPRITE_LAYER_ORDER, SPRITE_LAYER_KINDS, UNIT_ASSET_IDS, OBSTACLE_ASSET_TYPES } from './ui/graphics.ts'
-import { getAudio, setOverride, type SoundId } from './audio/settings.ts'
+import { getAudio, setOverride, setTuning, TUNING_VOL_MAX, TUNING_PITCH_MIN, TUNING_PITCH_MAX, type SoundId } from './audio/settings.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
 import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, type MapEntry } from './mapbuilder/library.ts'
 import { initProfilePanel, renderProfilePanel, onProfileTabShown } from './profile/ui.ts'
@@ -141,6 +141,7 @@ const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder'
   tabProfile.classList.toggle('active', which === 'profile')
   tabArchive.classList.toggle('active', which === 'archive')
   tabMods.classList.toggle('active', which === 'mods')
+  if (which === 'online') void refreshOnlineList()
   if (which === 'profile') onProfileTabShown()
   if (which === 'archive') void refreshArchive()
   if (which === 'mods') void refreshMods()
@@ -761,47 +762,215 @@ try {
   /* storage unavailable */
 }
 
-// ---------- online server (preview) ----------
+// ---------- online server (Phase 1) ----------
+
+/** Server origin the client talks REST to. Overridable at build time via VITE_SA_ONLINE_URL.
+ *  Defaults to the local online server so the panel works out of the box in dev. */
+const ONLINE_URL = ((import.meta.env.VITE_SA_ONLINE_URL as string | undefined) ?? 'http://127.0.0.1:17321').replace(/\/+$/, '')
+const ONLINE_WS_BASE = ONLINE_URL.replace(/^http/, 'ws')
 
 const onlineStatusEl = document.getElementById('online-status') as HTMLDivElement
 const onlineMatchesBody = document.getElementById('online-matches-table')!.querySelector('tbody')!
+const onlineNameEl = document.getElementById('online-name') as HTMLInputElement
+const onlineSearchEl = document.getElementById('online-search') as HTMLInputElement
+const accountOverlay = document.getElementById('account-overlay') as HTMLDivElement
+const accountUsernameEl = document.getElementById('account-username') as HTMLInputElement
+const accountRegisterBtn = document.getElementById('account-register') as HTMLButtonElement
+const accountLoginBtn = document.getElementById('account-login') as HTMLButtonElement
+const serverOverlay = document.getElementById('server-overlay') as HTMLDivElement
+const serverAddressEl = document.getElementById('server-address') as HTMLInputElement
+const serverIndEl = document.getElementById('server-ind') as HTMLDivElement
+const dbIndEl = document.getElementById('db-ind') as HTMLDivElement
+const joinpassOverlay = document.getElementById('joinpass-overlay') as HTMLDivElement
+const joinpassInputEl = document.getElementById('joinpass-input') as HTMLInputElement
+const joinpassOkBtn = document.getElementById('joinpass-ok') as HTMLButtonElement
+
+interface OnlineRoom {
+  id: string
+  hostName: string
+  mapName: string
+  players: number
+  maxPlayers: number
+  status: 'lobby' | 'started' | 'full'
+  passwordRequired: boolean
+  created: number
+}
+let onlineRooms: OnlineRoom[] = []
+let selectedOnlineRoom: OnlineRoom | null = null
+let creatingOnline = false
+
+const onlineName = (): string => onlineNameEl.value.trim() || 'Commander'
+
+try {
+  onlineNameEl.value = localStorage.getItem('space-arenas:name') ?? onlineName()
+} catch {
+  onlineNameEl.value = onlineName()
+}
 
 const setOnlineStatus = (text: string, isError = false): void => {
   onlineStatusEl.textContent = text
   onlineStatusEl.classList.toggle('error', isError)
 }
 
-const renderOnlineMatches = (): void => {
-  onlineMatchesBody.innerHTML = ''
-  const tr = document.createElement('tr')
-  const td = document.createElement('td')
-  td.colSpan = 4
-  td.className = 'net-empty'
-  td.textContent = t('online.noMatches')
-  tr.appendChild(td)
-  onlineMatchesBody.appendChild(tr)
+const ind = (el: HTMLDivElement, cls: 'ok' | 'bad' | 'wait', label: string): void => {
+  el.className = `online-ind ${cls}`
+  el.innerHTML = `<span class="dot"></span><span>${label}</span>`
 }
 
-const ONLINE_PLACEHOLDER_BUTTONS: Record<string, string> = {
-  'online-login': 'online.planned',
-  'online-register': 'online.planned',
-  'online-change-pass': 'online.planned',
-  'online-connect': 'online.planned',
-  'online-create': 'online.planned',
-  'online-join': 'online.planned',
+const roomFilter = (): string => onlineSearchEl.value.trim().toLowerCase()
+
+const renderOnlineMatches = (): void => {
+  onlineMatchesBody.innerHTML = ''
+  const query = roomFilter()
+  const rooms = query
+    ? onlineRooms.filter((r) => r.id.toLowerCase().includes(query) || r.hostName.toLowerCase().includes(query))
+    : onlineRooms
+  if (rooms.length === 0) {
+    const tr = document.createElement('tr')
+    const td = document.createElement('td')
+    td.colSpan = 5
+    td.className = 'net-empty'
+    td.textContent = t('online.noMatches')
+    tr.appendChild(td)
+    onlineMatchesBody.appendChild(tr)
+    selectedOnlineRoom = null
+    return
+  }
+  for (const r of rooms) {
+    const tr = document.createElement('tr')
+    if (selectedOnlineRoom && selectedOnlineRoom.id === r.id) tr.classList.add('selected')
+    const roomTd = document.createElement('td')
+    roomTd.textContent = `${r.id}${r.passwordRequired ? ' 🔒' : ''}`
+    const hostTd = document.createElement('td')
+    hostTd.textContent = r.hostName
+    const mapTd = document.createElement('td')
+    mapTd.textContent = r.mapName
+    const playersTd = document.createElement('td')
+    playersTd.textContent = `${r.players}/${r.maxPlayers}`
+    const statusTd = document.createElement('td')
+    statusTd.textContent = r.status === 'started' ? t('network.inMatch') : r.status === 'full' ? t('network.full') : t('network.waiting', { n: r.players, m: r.maxPlayers })
+    tr.appendChild(roomTd)
+    tr.appendChild(hostTd)
+    tr.appendChild(mapTd)
+    tr.appendChild(playersTd)
+    tr.appendChild(statusTd)
+    tr.addEventListener('click', () => {
+      selectedOnlineRoom = r
+      for (const tr2 of onlineMatchesBody.querySelectorAll('tr')) tr2.classList.remove('selected')
+      tr.classList.add('selected')
+    })
+    onlineMatchesBody.appendChild(tr)
+  }
 }
-for (const [id, msgKey] of Object.entries(ONLINE_PLACEHOLDER_BUTTONS)) {
-  document.getElementById(id)!.addEventListener('click', () => setOnlineStatus(t(msgKey)))
+
+const refreshOnlineList = async (silent = false): Promise<void> => {
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/rooms`)
+    if (!res.ok) throw new Error(String(res.status))
+    const data = (await res.json()) as { rooms?: OnlineRoom[] }
+    onlineRooms = data.rooms ?? []
+    selectedOnlineRoom = onlineRooms.some((r) => selectedOnlineRoom && r.id === selectedOnlineRoom.id) ? selectedOnlineRoom : null
+    renderOnlineMatches()
+    if (!silent) setOnlineStatus(t('online.refreshed'))
+  } catch {
+    if (!silent) setOnlineStatus(t('online.serverDown'), true)
+  }
 }
-document.getElementById('online-refresh')!.addEventListener('click', () => {
-  renderOnlineMatches()
-  setOnlineStatus(t('online.refreshed'))
+
+onlineSearchEl.addEventListener('input', renderOnlineMatches)
+
+const onlineJoinSelected = (): void => {
+  if (!selectedOnlineRoom) {
+    setOnlineStatus(t('network.status.needCode'), true)
+    return
+  }
+  const room = selectedOnlineRoom
+  if (room.status === 'started') {
+    setOnlineStatus(t('network.status.matchStarted'), true)
+    return
+  }
+  if (room.status === 'full') {
+    setOnlineStatus(t('network.status.full'), true)
+    return
+  }
+  if (!room.passwordRequired) {
+    void connectJoin(ONLINE_WS_BASE, room.id, '', onlineName())
+    return
+  }
+  if (joinpassOverlay.classList.contains('visible')) {
+    joinpassOverlay.classList.remove('visible')
+    void connectJoin(ONLINE_WS_BASE, room.id, joinpassInputEl.value, onlineName())
+  } else {
+    joinpassInputEl.value = ''
+    joinpassOverlay.classList.add('visible')
+    joinpassInputEl.focus()
+  }
+}
+
+document.getElementById('online-account')!.addEventListener('click', () => {
+  accountUsernameEl.value = onlineNameEl.value
+  accountOverlay.classList.add('visible')
 })
-document.getElementById('online-clear-table')!.addEventListener('click', () => {
-  renderOnlineMatches()
-  setOnlineStatus('')
+document.getElementById('online-server-setup')!.addEventListener('click', () => {
+  serverAddressEl.value = ONLINE_URL
+  serverOverlay.classList.add('visible')
+  void (async () => {
+    ind(serverIndEl, 'wait', t('network.status.connecting'))
+    try {
+      const res = await fetch(`${ONLINE_URL}/api/status`)
+      if (!res.ok) throw new Error(String(res.status))
+      const j = (await res.json()) as { ok: boolean; mode?: string }
+      ind(serverIndEl, j.ok ? 'ok' : 'bad', j.ok ? t('online.serverOnline') : t('online.serverDown'))
+    } catch {
+      ind(serverIndEl, 'bad', t('online.serverDown'))
+    }
+  })()
+  ind(dbIndEl, 'wait', t('online.dbPending'))
 })
-renderOnlineMatches()
+
+for (const [id, close] of [['account-close', accountOverlay], ['server-close', serverOverlay], ['joinpass-cancel', joinpassOverlay]] as const) {
+  document.getElementById(id)!.addEventListener('click', () => close.classList.remove('visible'))
+}
+joinpassOkBtn.addEventListener('click', () => onlineJoinSelected())
+accountRegisterBtn.addEventListener('click', () => {
+  accountOverlay.classList.remove('visible')
+  setOnlineStatus(t('online.accountPhase2'))
+})
+accountLoginBtn.addEventListener('click', () => {
+  accountOverlay.classList.remove('visible')
+  setOnlineStatus(t('online.accountPhase2'))
+})
+accountUsernameEl.addEventListener('input', () => {
+  onlineNameEl.value = accountUsernameEl.value
+  netNameEl.value = accountUsernameEl.value
+  try {
+    localStorage.setItem('space-arenas:name', accountUsernameEl.value.trim() || 'Commander')
+  } catch {
+    /* storage unavailable */
+  }
+})
+
+document.getElementById('online-create')!.addEventListener('click', () => {
+  creatingOnline = true
+  createAddrEl.value = ONLINE_URL
+  createPassEl.value = ''
+  createOverlay.classList.add('visible')
+})
+document.getElementById('online-join')!.addEventListener('click', onlineJoinSelected)
+
+setInterval(() => {
+  if (!onlinePanel.classList.contains('hidden-panel')) void refreshOnlineList(true)
+}, 10_000)
+
+onlineNameEl.addEventListener('input', () => {
+  const name = onlineNameEl.value.trim() || 'Commander'
+  netNameEl.value = name
+  try {
+    localStorage.setItem('space-arenas:name', name)
+  } catch {
+    /* storage unavailable */
+  }
+})
 
 // ---------- map builder ----------
 
@@ -949,6 +1118,10 @@ const DEV_SCALAR_SECTIONS: Array<{ title: string; fields: DevFieldDef[] }> = [
     fields: [
       { key: 'airstrikeCooldownTicks', unit: 'sec', min: 1, max: 600, step: 1, seconds: true },
       { key: 'empCooldownTicks', unit: 'sec', min: 1, max: 600, step: 1, seconds: true },
+      { key: 'airstrikeBombDamage', unit: 'dmg', min: 0, max: 100000, step: 10 },
+      { key: 'airstrikeBombRadius', unit: 'cells', min: 0.5, max: 30, step: 0.5 },
+      { key: 'empRadiusTiles', unit: 'cells', min: 0.5, max: 30, step: 0.5 },
+      { key: 'empDurationTicks', unit: 'sec', min: 0.1, max: 60, step: 0.5, seconds: true },
     ],
   },
   {
@@ -1346,18 +1519,118 @@ const appendAssetGroupLabel = (text: string): void => {
   devGroupEl.appendChild(h)
 }
 
-/** Dev-settings row editing the sound override folder for one sound kind. */
-const audioPathInput = (id: SoundId): void => {
-  makeTextInput(
-    t(`dev.audio.${id}`),
-    t('dev.fields.audioPath.desc'),
-    getAudio().overrides[id] ?? '',
-    (v) => {
-      setOverride(id, v)
-      setDevStatus(t('dev.status.audioSaved'))
-    },
-    'sound/{id}/',
-  )
+/** Dev-settings audio row for one sound kind: override path (with quick apply/clear)
+ * plus per-sound volume & pitch tune inputs. */
+const audioRow = (id: SoundId): void => {
+  const tun = getAudio().tuning[id] ?? { vol: 1, pitch: 1 }
+  const wrap = document.createElement('div')
+  wrap.className = 'dev-field'
+  const l = document.createElement('label')
+  l.textContent = t(`dev.audio.${id}`)
+  const d = document.createElement('div')
+  d.className = 'dev-desc'
+  d.textContent = t('dev.fields.audioPath.desc')
+  const pathLine = document.createElement('div')
+  pathLine.className = 'dev-audio-line'
+  const input = document.createElement('input')
+  input.type = 'text'
+  input.value = getAudio().overrides[id] ?? ''
+  input.placeholder = 'sound/{id}/'
+  const mark = (ov: boolean): void => {
+    wrap.classList.toggle('dev-overridden', ov)
+  }
+  const commitPath = (): void => {
+    const value = input.value.trim()
+    setOverride(id, value)
+    mark(value.length > 0)
+    setDevStatus(t('dev.status.audioSaved'))
+    renderActiveInfoTab()
+  }
+  const playBtn = document.createElement('button')
+  playBtn.type = 'button'
+  playBtn.className = 'dev-audio-btn'
+  playBtn.textContent = t('dev.fields.audioPlay.label')
+  playBtn.title = t('dev.fields.audioPlay.desc')
+  playBtn.addEventListener('click', () => {
+    lobbyAudio.unlock()
+    const spec = AMBIENT_SYNTH[id]
+    if (spec) {
+      lobbyAudio.startAmbient(id, spec)
+      window.setTimeout(() => {
+        lobbyAudio.stopAmbient()
+        if (lobbyAmbientUnlocked) lobbyAudio.startLobbyAmbient()
+      }, 4000)
+    } else {
+      lobbyAudio.playSfx(id, { gain: 1 })
+      void lobbyAudio.diagnose(id).then((msg) => {
+        setDevStatus(msg)
+        console.warn('[audio diagnose] ' + msg)
+      })
+    }
+  })
+  const applyBtn = document.createElement('button')
+  applyBtn.type = 'button'
+  applyBtn.className = 'dev-audio-btn'
+  applyBtn.textContent = t('dev.fields.audioPathApply.label')
+  applyBtn.title = t('dev.fields.audioPathApply.desc', { id })
+  applyBtn.addEventListener('click', () => {
+    input.value = `sound/${id}/`
+    commitPath()
+  })
+  const clearBtn = document.createElement('button')
+  clearBtn.type = 'button'
+  clearBtn.className = 'dev-audio-btn'
+  clearBtn.textContent = t('dev.fields.audioPathClear.label')
+  clearBtn.title = t('dev.fields.audioPathClear.desc')
+  clearBtn.addEventListener('click', () => {
+    input.value = ''
+    commitPath()
+  })
+  input.addEventListener('change', commitPath)
+  mark((getAudio().overrides[id] ?? '').length > 0)
+  pathLine.appendChild(playBtn)
+  pathLine.appendChild(input)
+  pathLine.appendChild(applyBtn)
+  pathLine.appendChild(clearBtn)
+  const tuneLine = document.createElement('div')
+  tuneLine.className = 'dev-audio-line'
+  const mkTune = (field: 'vol' | 'pitch'): HTMLInputElement => {
+    const lab = document.createElement('label')
+    lab.className = 'dev-audio-tune-label'
+    lab.textContent = t(`dev.fields.audioTune.${field}.label`)
+    lab.title = t(`dev.fields.audioTune.${field}.desc`)
+    const num = document.createElement('input')
+    num.type = 'number'
+    num.className = 'dev-audio-tune'
+    num.min = field === 'vol' ? '0' : String(TUNING_PITCH_MIN)
+    num.max = String(field === 'vol' ? TUNING_VOL_MAX : TUNING_PITCH_MAX)
+    num.step = '0.05'
+    num.value = String(tun[field])
+    lab.appendChild(num)
+    tuneLine.appendChild(lab)
+    return num
+  }
+  const volInput = mkTune('vol')
+  const pitchInput = mkTune('pitch')
+  const commitTune = (): void => {
+    const v = Number(volInput.value)
+    const p = Number(pitchInput.value)
+    if (!Number.isFinite(v) || !Number.isFinite(p)) return
+    const vol = clampNum(v, 0, TUNING_VOL_MAX)
+    const pitch = clampNum(p, TUNING_PITCH_MIN, TUNING_PITCH_MAX)
+    volInput.value = String(vol)
+    pitchInput.value = String(pitch)
+    setTuning(id, vol, pitch)
+    setDevStatus(t('dev.status.audioTuned'))
+    renderActiveInfoTab()
+  }
+  volInput.addEventListener('change', commitTune)
+  pitchInput.addEventListener('change', commitTune)
+  wrap.appendChild(l)
+  wrap.appendChild(d)
+  wrap.appendChild(pathLine)
+  wrap.appendChild(tuneLine)
+  devGroupEl.appendChild(wrap)
 }
 
 const buildOverrideInputs = (mapKey: OverrideMapKey, id: string, defs: OverrideFieldDef[]): void => {
@@ -1479,7 +1752,7 @@ const buildDevForm = (): void => {
       setDevStatus(t('dev.status.assetSaved'))
     })
   }
-  for (const cls of ['vehicle', 'infantry', 'air'] as const) {
+  for (const cls of ['vehicle', 'infantry', 'air', 'naval'] as const) {
     makeNumberInput(
       t(`dev.fields.unitScale.${cls}.label`),
       t('dev.fields.unitScale.desc'),
@@ -1496,7 +1769,7 @@ const buildDevForm = (): void => {
       },
     )
   }
-  for (const cls of ['vehicle', 'infantry', 'air'] as const) {
+  for (const cls of ['vehicle', 'infantry', 'air', 'naval'] as const) {
     makeNumberInput(
       t(`dev.fields.unitOffset.${cls}.label`),
       t('dev.fields.unitOffset.desc'),
@@ -1747,18 +2020,46 @@ const buildDevForm = (): void => {
     },
   )
   appendDevSection(t('dev.sections.audio'))
+  {
+    const wrap = document.createElement('div')
+    wrap.className = 'dev-field'
+    const l = document.createElement('label')
+    l.textContent = t('dev.fields.audioPing.label')
+    const d = document.createElement('div')
+    d.className = 'dev-desc'
+    d.textContent = t('dev.fields.audioPing.desc')
+    const line = document.createElement('div')
+    line.className = 'dev-audio-line'
+    const pingBtn = document.createElement('button')
+    pingBtn.type = 'button'
+    pingBtn.className = 'dev-audio-btn'
+    pingBtn.textContent = t('dev.fields.audioPing.label')
+    pingBtn.title = t('dev.fields.audioPing.desc')
+    pingBtn.addEventListener('click', () => {
+      lobbyAudio.unlock()
+      lobbyAudio.ping()
+      setDevStatus(t('dev.status.audioPing'))
+    })
+    line.appendChild(pingBtn)
+    wrap.appendChild(l)
+    wrap.appendChild(d)
+    wrap.appendChild(line)
+    devGroupEl.appendChild(wrap)
+  }
   appendAssetGroupLabel(t('dev.audio.ui'))
-  for (const id of ['select', 'move-bleep', 'alert'] as SoundId[]) audioPathInput(id)
+  for (const id of ['select', 'move-bleep', 'alert'] as SoundId[]) audioRow(id)
   appendAssetGroupLabel(t('dev.audio.weapons'))
   for (const id of ['weapon-rifle', 'weapon-rocket', 'weapon-cannon', 'weapon-artillery', 'weapon-air-cannon'] as SoundId[]) {
-    audioPathInput(id)
+    audioRow(id)
   }
   appendAssetGroupLabel(t('dev.audio.events'))
-  for (const id of ['unit-trained', 'building-completed', 'upgrade-completed', 'supply-harvested', 'combat-hit', 'laser-strike', 'power-down', 'game-over', 'achievement'] as SoundId[]) {
-    audioPathInput(id)
+  for (const id of ['unit-trained', 'building-completed', 'upgrade-completed', 'supply-harvested', 'combat-hit', 'laser-strike', 'airstrike-called', 'bomb-strike', 'emp-strike', 'grenade-exploded', 'smoke-landed', 'power-down', 'game-over', 'victory', 'achievement'] as SoundId[]) {
+    audioRow(id)
   }
   appendAssetGroupLabel(t('dev.audio.ambient'))
-  for (const id of ['ambient-lobby', 'ambient-game'] as SoundId[]) audioPathInput(id)
+  for (const id of ['ambient-lobby', 'ambient-game'] as SoundId[]) audioRow(id)
+  appendAssetGroupLabel(t('dev.audio.weather'))
+  for (const id of ['rain-ambient', 'snow-ambient', 'storm-ambient'] as SoundId[]) audioRow(id)
   for (const section of DEV_SCALAR_SECTIONS) {
     appendDevSection(t(`dev.sections.${section.title}`))
     for (const def of section.fields) {
@@ -2649,6 +2950,7 @@ netNameEl.addEventListener('input', () => {
   if (nameTimer !== null) clearTimeout(nameTimer)
   nameTimer = window.setTimeout(() => {
     const name = netNameEl.value.trim() || 'Commander'
+    onlineNameEl.value = name
     localStorage.setItem('space-arenas:name', name)
     void fetch('/api/self', {
       method: 'POST',
@@ -2661,6 +2963,7 @@ netNameEl.addEventListener('input', () => {
 /** Called when the profile username is saved: mirrors it into the online name field + storage. */
 function applyProfileName(name: string): void {
   netNameEl.value = name
+  onlineNameEl.value = name
   localStorage.setItem('space-arenas:name', name)
   void fetch('/api/self', {
     method: 'POST',
@@ -2861,7 +3164,8 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
   })
 
   try {
-    await net.connect(`ws://${addr}/ws`)
+    const connectUrl = /^wss?:\/\//i.test(addr) ? addr : `ws://${addr}/ws`
+    await net.connect(connectUrl)
   } catch {
     setJoinBusy(false)
     setNetStatus(t('network.status.serverUnreachable'), true)
@@ -3228,13 +3532,42 @@ netChatInputEl.addEventListener('keydown', (e) => {
 
 createCancelBtn.addEventListener('click', () => {
   createOverlay.classList.remove('visible')
+  creatingOnline = false
 })
 netCreateBtn.addEventListener('click', () => {
+  creatingOnline = false
   createAddrEl.value = netAddrEl.value || t('network.addrPlaceholder')
   createPassEl.value = ''
   createOverlay.classList.add('visible')
 })
 createOkBtn.addEventListener('click', async () => {
+  if (creatingOnline) {
+    const pass = createPassEl.value
+    const name = onlineName()
+    createOkBtn.disabled = true
+    try {
+      const res = await fetch(`${ONLINE_URL}/api/rooms`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ hostName: name, passphrase: pass }),
+      })
+      const data = (await res.json()) as { ok: boolean; roomCode?: string; error?: string }
+      if (!res.ok || !data.ok || !data.roomCode) {
+        setOnlineStatus(t('game.error', { msg: data.error ?? t('network.status.createFailed') }), true)
+        createOkBtn.disabled = false
+        return
+      }
+      createOverlay.classList.remove('visible')
+      createOkBtn.disabled = false
+      creatingOnline = false
+      setOnlineStatus(t('network.status.created', { code: data.roomCode }))
+      void connectJoin(ONLINE_WS_BASE, data.roomCode, pass, name)
+    } catch {
+      setOnlineStatus(t('online.serverDown'), true)
+      createOkBtn.disabled = false
+    }
+    return
+  }
   const pass = createPassEl.value
   const name = netNameEl.value.trim() || 'Commander'
   createOkBtn.disabled = true

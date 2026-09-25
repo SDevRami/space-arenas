@@ -7,10 +7,12 @@ const centerOf = (tile: number, width: number): { x: number; y: number } => {
   return { x: tx * 1000 + 500, y: ty * 1000 + 500 }
 }
 
-const sepSpacing = (world: World, a: string, b: string): number =>
-  (a === 'vehicle' || b === 'vehicle' ? world.settings.sepVehicle : world.settings.sepInfantry) * 1000
+const isWideClass = (c: string | undefined): boolean => c === 'vehicle' || c === 'naval'
 
-const nearestPassableSpot = (world: World, sx: number, sy: number): { x: number; y: number } | null => {
+const sepSpacing = (world: World, a: string, b: string): number =>
+  (isWideClass(a) || isWideClass(b) ? world.settings.sepVehicle : world.settings.sepInfantry) * 1000
+
+const nearestPassableSpot = (world: World, sx: number, sy: number, mask: Uint8Array): { x: number; y: number } | null => {
   const grid = world.grid
   if (!grid) return null
   for (let r = 1; r <= world.settings.stuckRelocateRadius; r++) {
@@ -20,7 +22,7 @@ const nearestPassableSpot = (world: World, sx: number, sy: number): { x: number;
         const x = sx + dx
         const y = sy + dy
         if (x < 0 || y < 0 || x >= world.width || y >= world.height) continue
-        if (grid.passable[y * world.width + x]) return { x: x * 1000 + 500, y: y * 1000 + 500 }
+        if (mask[y * world.width + x]) return { x: x * 1000 + 500, y: y * 1000 + 500 }
       }
     }
   }
@@ -33,17 +35,22 @@ const displaceStuckUnits = (world: World): void => {
   const stuck: number[] = []
   world.units.forEach((id, u) => {
     if (u.class === 'air') return
+    // Relocate each unit on its own mask — a ship out of the water is pulled
+    // to the nearest water tile, never onto land (and vice versa for ground units).
+    const mask = u.class === 'naval' ? grid.water : grid.passable
     const t = world.transforms.get(id)
     if (!t) return
     const tx = fxToTile(t.x)
     const ty = fxToTile(t.y)
     if (tx < 0 || ty < 0 || tx >= world.width || ty >= world.height) return
-    if (!grid.passable[ty * world.width + tx]) stuck.push(id)
+    if (!mask[ty * world.width + tx]) stuck.push(id)
   })
   for (const id of stuck) {
+    const u = world.units.get(id)
     const t = world.transforms.get(id)
     if (!t) continue
-    const spot = nearestPassableSpot(world, fxToTile(t.x), fxToTile(t.y))
+    const mask = u?.class === 'naval' ? grid.water : grid.passable
+    const spot = nearestPassableSpot(world, fxToTile(t.x), fxToTile(t.y), mask)
     if (!spot) continue
     t.x = spot.x
     t.y = spot.y
@@ -200,7 +207,7 @@ const applySeparation = (world: World): void => {
     const workTarget = wa && (wa.kind === 'construct' || wa.kind === 'repair') ? wa.building : -1
     const hv = world.harvesters.get(ids[i])
     const isTarget = (id: number): boolean => hv !== undefined && (hv.dock === id || hv.field === id || id === workTarget)
-    const margin = (ua.class === 'vehicle' ? world.settings.buildingMarginVehicle : world.settings.buildingMarginInfantry) * 1000
+    const margin = (isWideClass(ua.class) ? world.settings.buildingMarginVehicle : world.settings.buildingMarginInfantry) * 1000
     for (const r of rects) {
       if (isTarget(r.id)) continue
       const p = pushAwayFromRect(ta.x, ta.y, r, margin)
@@ -221,17 +228,19 @@ const applySeparation = (world: World): void => {
   const grid = world.grid
   const maxX = world.width * 1000 - 500
   const maxY = world.height * 1000 - 500
-  const ok = (x: number, y: number): boolean => {
+  const ok = (x: number, y: number, mask: Uint8Array | null): boolean => {
     if (!grid) return true
     const tx = Math.floor(x / 1000)
     const ty = Math.floor(y / 1000)
     if (tx < 0 || ty < 0 || tx >= world.width || ty >= world.height) return false
-    return !!grid.passable[ty * world.width + tx]
+    return !!mask?.[ty * world.width + tx]
   }
   const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
   for (let i = 0; i < n; i++) {
     const m = world.moves.get(ids[i])
     const mt = world.transforms.get(ids[i])
+    const ua = world.units.get(ids[i])
+    const mask = grid ? (ua?.class === 'naval' ? grid.water : grid.passable) : null
     if (m && mt) {
       const dd = isqrt(sqDist(mt.x, mt.y, m.tx, m.ty))
       if (dd > world.settings.lateralSepDist * 1000) {
@@ -252,12 +261,12 @@ const applySeparation = (world: World): void => {
     if (!t) continue
     const nx = t.x + pxx
     const ny = t.y + pyy
-    if (ok(nx, ny)) {
+    if (ok(nx, ny, mask)) {
       t.x = clamp(nx, 500, maxX)
       t.y = clamp(ny, 500, maxY)
-    } else if (ok(nx, t.y)) {
+    } else if (ok(nx, t.y, mask)) {
       t.x = clamp(nx, 500, maxX)
-    } else if (ok(t.x, ny)) {
+    } else if (ok(t.x, ny, mask)) {
       t.y = clamp(ny, 500, maxY)
     }
   }
@@ -280,13 +289,14 @@ export const MovementSystem = {
       }
       if (m.needsPath) return
       const isAir = u.class === 'air'
+      const mask = u.class === 'naval' ? grid.water : grid.passable
 
       let targetX: number
       let targetY: number
 
       if (m.pathIndex < m.path.length) {
         const tile = m.path[m.pathIndex]
-        if (!isAir && !grid.passable[tile]) {
+        if (!isAir && !mask[tile]) {
           m.path = []
           m.pathIndex = 0
           m.needsPath = true
@@ -318,7 +328,7 @@ export const MovementSystem = {
       const dx = targetX - t.x
       const dy = targetY - t.y
       const d = isqrt(sqDist(t.x, t.y, targetX, targetY))
-      const targetBlocked = !isAir && !grid.passable[fxToTile(targetY) * world.width + fxToTile(targetX)]
+      const targetBlocked = !isAir && !mask[fxToTile(targetY) * world.width + fxToTile(targetX)]
 
       if (d <= u.speed) {
         if (targetBlocked) {
@@ -347,7 +357,7 @@ export const MovementSystem = {
       } else {
         const nx = t.x + Math.floor((dx * u.speed) / d)
         const ny = t.y + Math.floor((dy * u.speed) / d)
-        if (isAir || grid.passable[fxToTile(ny) * world.width + fxToTile(nx)]) {
+        if (isAir || mask[fxToTile(ny) * world.width + fxToTile(nx)]) {
           t.x = nx
           t.y = ny
         } else if (m.path.length > 0) {

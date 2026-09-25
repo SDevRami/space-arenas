@@ -22,8 +22,19 @@ echo   This single launcher builds and starts the LAN host with
 echo   automatic player discovery. Open the URL below and pick
 echo   "Network Play" to see who is on your network, create or
 echo   join a match, and chat. "Offline Game" works the same way.
+echo.
+echo   Any leftover instance from a previous run is stopped
+echo   automatically, so you never have to fix port conflicts.
 echo  ==========================================================
 echo.
+
+REM --- stop leftover Space Arenas node processes from previous runs ---
+call :stop_stale_instances
+if errorlevel 1 exit /b 1
+
+REM --- ensure the game port is free (auto-picks the next free port) ---
+call :ensure_free_port
+if errorlevel 1 exit /b 1
 
 REM --- start loading page so the browser opens immediately ---
 set "SA_LOADING_PID="
@@ -32,7 +43,8 @@ start /b node tools/loading-server.mjs >nul 2>&1
 timeout /t 1 /nobreak >nul
 if exist "%~dp0tools\.loading-pid" set /p SA_LOADING_PID=<"%~dp0tools\.loading-pid"
 
-echo  Opening loading page...
+echo.
+echo  Opening loading page at http://localhost:%SA_PORT%/ ...
 start "" "http://localhost:%SA_PORT%/"
 
 REM --- build everything ---
@@ -48,6 +60,10 @@ if errorlevel 1 (
 
 REM --- stop loading server ---
 if defined SA_LOADING_PID taskkill /PID %SA_LOADING_PID% /F >nul 2>&1
+
+REM --- re-check the port right before hosting (defence in depth) ---
+call :ensure_free_port
+if errorlevel 1 exit /b 1
 
 REM --- LAN addresses ---
 powershell -NoProfile -Command "Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | ForEach-Object { Write-Output $_.IPAddress }" > "%TEMP%\space_arenas_lan_ips.txt"
@@ -77,3 +93,39 @@ node host/dist/host.js
 
 pause
 endlocal
+exit /b 0
+
+REM ============================================================
+REM  Safety helpers
+REM ============================================================
+
+:stop_stale_instances
+REM Kills lingering Space Arenas node processes (game host or loading page)
+REM from a previous run, so a second launch can never hit a stuck port.
+REM Only processes whose command line references this game are touched.
+powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -match 'host[\\/]dist[\\/]host\.js|loading-server\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Output ('Stopped leftover Space Arenas process (PID ' + $_.ProcessId + ')') }"
+if errorlevel 1 (
+  echo.
+  echo  Could not scan for leftover processes. Continuing anyway...
+)
+exit /b 0
+
+:ensure_free_port
+REM Verifies nothing else is listening on SA_PORT; if a foreign program holds
+REM it, automatically falls back to the next free port (up to 10 tries).
+set "SA_FREE_TRIES=0"
+:ensure_free_port_retry
+set "SA_BUSY="
+for /f "delims=" %%B in ('powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort $env:SA_PORT -State Listen -ErrorAction SilentlyContinue) { 'busy' }"') do set "SA_BUSY=%%B"
+if not defined SA_BUSY exit /b 0
+set /a SA_FREE_TRIES+=1
+if %SA_FREE_TRIES% GEQ 10 (
+  echo.
+  echo  ERROR: no free port found near %SA_PORT%.
+  echo  Close the programs using these ports and run this again.
+  pause
+  exit /b 1
+)
+set /a SA_PORT+=1
+echo    Port was busy - automatically switching to %SA_PORT%...
+goto :ensure_free_port_retry

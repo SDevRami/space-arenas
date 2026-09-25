@@ -49,15 +49,13 @@ export interface HudActions {
   onUnloadOne: (transportId: number, index: number) => void
   /** One-time Super Weapon strike choice (Laser / Airstrike / EMP). */
   onSwChoose: (choice: SwChoice) => void
-  /** Day 15: raise the team's general rank (requires enough match score). */
-  onRankUp: () => void
   /** Daily mode: refresh the mission list before the popup is shown. */
   onMissionOpen?: () => void
   /** Display name for a slot, when the caller has it (e.g. net lobby). */
   slotName?: (slot: number) => string | null
 }
 
-const BUILDER_BUILDABLES = ['command-center', 'power-plant', 'supply-dock', 'barracks', 'war-factory', 'turret', 'bunker', 'tech-center', 'air-force', 'super-weapon'] as const
+const BUILDER_BUILDABLES = ['command-center', 'power-plant', 'supply-dock', 'barracks', 'war-factory', 'turret', 'bunker', 'tech-center', 'air-force', 'super-weapon', 'dock'] as const
 
 const UPGRADES_BY_BUILDING: Record<string, UpgradeDef[]> = {}
 for (const u of Object.values(UPGRADES)) {
@@ -120,7 +118,6 @@ export class Hud {
   private rankPanelTitle = document.getElementById('rank-panel-title')!
   private rankPanelScore = document.getElementById('rank-panel-score')!
   private rankTierList = document.getElementById('rank-tier-list')!
-  private rankUpBtn = document.getElementById('rank-up-btn') as HTMLButtonElement
 
   private lastSelSig: string | null = null
   private lastQueueSig: string | null = null
@@ -138,10 +135,6 @@ export class Hud {
 
   constructor(private actions: HudActions) {
     this.rankBtn.addEventListener('click', () => this.toggleRankMenu())
-    this.rankUpBtn.addEventListener('click', () => {
-      this.actions.onRankUp()
-      if (this.lastWorld && this.lastTeam >= 0) this.renderRankOverlay(this.lastWorld, this.lastTeam)
-    })
     const close = document.getElementById('rank-close')
     close?.addEventListener('click', () => this.closeRankMenu())
     this.rankMenuBackdrop.addEventListener('click', () => this.closeRankMenu())
@@ -216,7 +209,6 @@ export class Hud {
   private renderRankOverlay(world: World, team: number): void {
     const rank = world.rankOf(team)
     const score = world.scoreOf(team)
-    const can = world.canRankUp(team)
     const starHtml = (n: number): string => '<span class="rank-star">★</span>'.repeat(Math.max(0, n))
     this.rankPanelTitle.innerHTML = `${starHtml(rank)}<span class="rank-current">${t('hud.rankStars', { n: rank })}</span>`
     this.rankPanelScore.textContent = score > 0 || rank > 0 ? t('hud.rankScore', { score, next: world.rankFloor(rank + 1) }) : t('hud.rankScoreEmpty')
@@ -224,19 +216,28 @@ export class Hud {
     this.rankTierList.innerHTML = ''
     for (let i = 1; i <= floors.length; i++) {
       const unlocked = rank >= i
-      const current = rank === i - 1 && can
       const row = document.createElement('div')
-      row.className = 'rank-tier' + (unlocked ? ' unlocked' : '') + (current ? ' current' : '')
-      row.innerHTML =
-        `<span class="rank-tier-stars">${starHtml(i)}</span>` +
-        `<span class="rank-tier-floor">${t('hud.rankFloor', { n: i, pts: floors[i - 1] })}</span>` +
-        `<span class="rank-tier-reward">${t('hud.rankTier' + i)}</span>` +
-        (unlocked ? `<span class="rank-tier-state">${t('hud.rankUnlocked')}</span>` : `<span class="rank-tier-state">${t('hud.rankLocked')}</span>`)
+      row.className = 'rank-tier' + (unlocked ? ' unlocked' : '')
+      const stars = document.createElement('span')
+      stars.className = 'rank-tier-stars'
+      stars.textContent = '★'.repeat(i)
+      // Title + info sit in their own column so the info wraps under the title
+      // instead of stretching across the row.
+      const copy = document.createElement('span')
+      copy.className = 'rank-tier-copy'
+      const title = document.createElement('span')
+      title.className = 'rank-tier-title'
+      title.textContent = t('hud.rankFloor', { n: i, pts: floors[i - 1] })
+      const info = document.createElement('span')
+      info.className = 'rank-tier-info'
+      info.textContent = t('hud.rankTier' + i)
+      copy.append(title, info)
+      const state = document.createElement('span')
+      state.className = 'rank-tier-state'
+      state.textContent = unlocked ? t('hud.rankUnlocked') : t('hud.rankLocked')
+      row.append(stars, copy, state)
       this.rankTierList.appendChild(row)
     }
-    this.rankUpBtn.disabled = !can
-    this.rankUpBtn.dataset.ready = can ? '1' : '0'
-    this.rankUpBtn.textContent = can ? t('hud.rankUpReady') : t('hud.rankUpWait')
   }
 
   show(): void {
@@ -902,9 +903,11 @@ export class Hud {
         if (choice === 'laser') continue
         const labelKey = choice === 'airstrike' ? 'tools.swAirstrike' : 'tools.swEmp'
         const isChosen = chosen === choice
+        // The second super weapon only unlocks once the team reaches 1★.
+        const rank = world.rankOf(bd.team)
         this.addButton(
-          `${t(labelKey)}${isChosen ? ' ✓' : ''}`,
-          () => chosen === null,
+          `${t(labelKey)}${isChosen ? ' ✓' : ''}${this.rankBadge(1, rank)}`,
+          () => chosen === null && world.rankOf(bd.team) >= 1,
           () => this.actions.onSwChoose(choice),
         )
       }
@@ -1299,12 +1302,15 @@ export class Hud {
     }, 4000)
   }
 
-  /** Achievement unlocked banner: pops near the top of the screen, then fades away. */
-  achievementToast(title: string, desc: string): void {
+  /** Achievement unlocked banner: pops near the top of the screen, then fades away.
+   *  Also used for rank-ups (pass a different `header`, e.g. "Rank up!"). When `combined`
+   *  is set, the body renders header + title + desc as one text (rank-up toast). */
+  achievementToast(title: string, desc: string, header = t('profile.toastTitle'), combined = false): void {
     const el = document.createElement('div')
     el.className = 'toast ach'
-    const header = t('profile.toastTitle')
-    el.innerHTML = `<span class="toast-icon">★</span><span class="toast-body"><span class="toast-header">${this.esc(header)}</span><span class="toast-title">${this.esc(title)}</span><span class="toast-desc">${this.esc(desc)}</span></span>`
+    el.innerHTML = combined
+      ? `<span class="toast-icon">★</span><span class="toast-body"><span class="toast-text">${this.esc(`${header} ${title} ${desc}`)}</span></span>`
+      : `<span class="toast-icon">★</span><span class="toast-body"><span class="toast-header">${this.esc(header)}</span><span class="toast-title">${this.esc(title)}</span><span class="toast-desc">${this.esc(desc)}</span></span>`
     document.getElementById('app')!.appendChild(el)
     requestAnimationFrame(() => el.classList.add('visible'))
     setTimeout(() => {

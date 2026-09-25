@@ -11,6 +11,8 @@ const SEED = 0xabcdef
 const makeSim = (settings?: Partial<MatchSettings>): Simulator => new Simulator(MAP, SEED, [0, 1], settings)
 
 const arm = (sim: Simulator, team: number, choice: 'laser' | 'airstrike' | 'emp'): void => {
+  // The second super weapon only unlocks at 1★.
+  sim.world.teamState(team).rank = 1
   sim.step([sim.makeCommand(team, { type: 'sw-choose', entities: [], x: 0, y: 0, choice })])
 }
 

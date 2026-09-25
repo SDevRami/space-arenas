@@ -1,5 +1,5 @@
 import type { EnvelopeCommand } from '@space-arenas/shared'
-import { canThrowBandolier, getBuilding, getUnit, getUpgrade, sqDist, tileToFx, SW_CHOICES, EMP_RADIUS_TILES, isqrt, EXPANSION_RADIUS_TILES, SCORE_EXPANSION, AIRSTRIKE_BOMB_DAMAGE, AIRSTRIKE_BOMB_RADIUS } from '@space-arenas/shared'
+import { canThrowBandolier, getBuilding, getUnit, getUpgrade, sqDist, tileToFx, SW_CHOICES, isqrt, EXPANSION_RADIUS_TILES, SCORE_EXPANSION } from '@space-arenas/shared'
 import type { World } from '../core/world.ts'
 import { placementExplored, PING_TICKS } from '../core/world.ts'
 import { nearestPassablePoint } from '../core/pathfinding.ts'
@@ -23,17 +23,25 @@ const clampToRadius = (
   return { x: Math.max(minX, Math.min(maxX, tx)), y: Math.max(minY, Math.min(maxY, ty)) }
 }
 
-const resolveMovePoint = (world: World, x: number, y: number): { x: number; y: number } => {
+const resolveMovePoint = (world: World, x: number, y: number, naval = false): { x: number; y: number } => {
   const grid = world.grid
   if (!grid) return { x, y }
   const tx = Math.floor(x / 1000)
   const ty = Math.floor(y / 1000)
-  if (tx >= 0 && ty >= 0 && tx < world.width && ty < world.height && grid.passable[ty * world.width + tx]) {
+  // Ships snap to the water mask so a clicked land tile resolves to the nearest
+  // open-water tile instead of stranding the fleet on a beach.
+  const mask = naval ? grid.water : grid.passable
+  if (tx >= 0 && ty >= 0 && tx < world.width && ty < world.height && mask[ty * world.width + tx]) {
     return { x, y }
   }
-  const p = nearestPassablePoint(grid, tx, ty)
+  const p = nearestPassablePoint(grid, tx, ty, 8, mask)
   return p ?? { x, y }
 }
+
+/** Whether any of the selected (owned) units is a naval vessel — drives move-point
+ *  resolution onto the water mask for fleet orders. */
+const selectionHasNaval = (world: World, ids: number[]): boolean =>
+  ids.some((id) => world.units.get(id)?.class === 'naval')
 
 // Deterministic formation slots around a center point for a group of units,
 // mirroring the grid layout used by a move order. Every unit gets its own slot
@@ -46,7 +54,10 @@ const formationSlots = (
 ): Map<number, { x: number; y: number }> => {
   const map = new Map<number, { x: number; y: number }>()
   if (ids.length === 0) return map
-  const hasVehicle = ids.some((id) => world.units.get(id)?.class === 'vehicle')
+  const hasVehicle = ids.some((id) => {
+    const c = world.units.get(id)?.class
+    return c === 'vehicle' || c === 'naval'
+  })
   const cell = hasVehicle ? 2400 : 1400
   const cols = Math.ceil(Math.sqrt(ids.length))
   const rows = Math.ceil(ids.length / cols)
@@ -130,6 +141,22 @@ const placementValid = (world: World, player: number, buildingType: string, tx: 
       }
     }
   }
+  // A dock must sit on the shoreline: every footprint tile is validated as land
+  // above, and at least one tile edge-adjacent to the footprint must be open water
+  // so naval units have a place to float (and to spawn from).
+  if (buildingType === 'dock') {
+    const water = grid.water
+    const waterAt = (x: number, y: number): boolean =>
+      x >= 0 && y >= 0 && x < world.width && y < world.height && !!water[y * world.width + x]
+    let hasWater = false
+    for (let i = 0; i < rect.w && !hasWater; i++) {
+      if (waterAt(tx + i, ty - 1) || waterAt(tx + i, ty + rect.h)) hasWater = true
+    }
+    for (let i = 0; i < rect.h && !hasWater; i++) {
+      if (waterAt(tx - 1, ty + i) || waterAt(tx + rect.w, ty + i)) hasWater = true
+    }
+    if (!hasWater) return 'dock needs water access'
+  }
   return null
 }
 
@@ -205,7 +232,7 @@ export const InputSystem = {
       }
       switch (cmd.type) {
         case 'move': {
-          const mp = resolveMovePoint(world, cmd.x, cmd.y)
+          const mp = resolveMovePoint(world, cmd.x, cmd.y, selectionHasNaval(world, cmd.entities))
           for (const id of cmd.entities) {
             if (!ownedUnit(world, player, id)) continue
             if (world.works.has(id)) {
@@ -227,7 +254,7 @@ export const InputSystem = {
         }
         case 'attack-move': {
           const target = cmd.target ?? -1
-          const mp = resolveMovePoint(world, cmd.x, cmd.y)
+          const mp = resolveMovePoint(world, cmd.x, cmd.y, selectionHasNaval(world, cmd.entities))
           for (const id of cmd.entities) {
             if (!ownedUnit(world, player, id)) continue
             const a = world.attacks.get(id)
@@ -248,7 +275,7 @@ export const InputSystem = {
         }
         case 'keep-attack': {
           const target = cmd.target ?? -1
-          const mp = resolveMovePoint(world, cmd.x, cmd.y)
+          const mp = resolveMovePoint(world, cmd.x, cmd.y, selectionHasNaval(world, cmd.entities))
           const explicit =
             target >= 0 && world.isAlive(target) && !world.sameTeam(player, world.teamOf(target))
           for (const id of cmd.entities) {
@@ -282,7 +309,7 @@ export const InputSystem = {
         }
         case 'guard': {
           const target = cmd.target ?? -1
-          const mp = resolveMovePoint(world, cmd.x, cmd.y)
+          const mp = resolveMovePoint(world, cmd.x, cmd.y, selectionHasNaval(world, cmd.entities))
           const explicit =
             target >= 0 && world.isAlive(target) && !world.sameTeam(player, world.teamOf(target))
           if (explicit) {
@@ -803,8 +830,12 @@ export const InputSystem = {
             break
           }
           const clamped = clampToRadius(tx, ty, buildingRect(world, id), world.settings.spawnRange ?? SPAWN_POINT_RADIUS_DEFAULT)
+          world.rebuildGridIfDirty()
           const grid = world.grid
-          if (grid && !grid.passable[clamped.y * world.width + clamped.x]) {
+          // A dock spawns naval units, so its rally/spawn tile must be open water
+          // within the clamp radius; other producers keep the land-passable rule.
+          const spawnMask = b.buildingType === 'dock' ? grid?.water : grid?.passable
+          if (!spawnMask || !spawnMask[clamped.y * world.width + clamped.x]) {
             world.emit({ type: 'command-rejected', player, reason: 'spawn point blocked' })
             break
           }
@@ -942,6 +973,11 @@ export const InputSystem = {
             world.emit({ type: 'command-rejected', player, reason: 'laser is armed by default' })
             break
           }
+          // The additional strike only opens up after the team reaches 1★.
+          if (world.rankOf(player) < 1) {
+            world.emit({ type: 'command-rejected', player, reason: 'star rank required — reach 1★ to pick a second super weapon' })
+            break
+          }
           if (teamState.swChoice !== null) {
             world.emit({ type: 'command-rejected', player, reason: 'super weapon already armed' })
             break
@@ -974,8 +1010,8 @@ export const InputSystem = {
             break
           }
           teamState.airstrikeLastUsed = world.tick
-          const airDmg = Math.round(AIRSTRIKE_BOMB_DAMAGE * world.airstrikeDamageMultiplier(player))
-          const airRad = Math.max(1, Math.round(AIRSTRIKE_BOMB_RADIUS * world.airstrikeRadiusMultiplier(player)))
+          const airDmg = Math.round(world.settings.airstrikeBombDamage * world.airstrikeDamageMultiplier(player))
+          const airRad = Math.max(1, Math.round(world.settings.airstrikeBombRadius * world.airstrikeRadiusMultiplier(player)))
           spawnAirstrike(world, player, airTx, airTy, airDmg, airRad)
           world.emit({ type: 'airstrike-called', team: player, x: airTx * 1000 + 500, y: airTy * 1000 + 500 })
           break
@@ -1008,7 +1044,7 @@ export const InputSystem = {
           const empX = empTx * 1000 + 500
           const empY = empTy * 1000 + 500
           world.transforms.set(empId, { x: empX, y: empY })
-          const empRadius = Math.max(1, Math.round(EMP_RADIUS_TILES * world.empRadiusMultiplier(player)))
+          const empRadius = Math.max(1, Math.round(world.settings.empRadiusTiles * world.empRadiusMultiplier(player)))
           const empTicks = world.empDurationTicks(player)
           world.empPulses.set(empId, { team: player, radius: empRadius, untilTick: world.tick + empTicks })
           world.emit({ type: 'emp-strike', team: player, x: empX, y: empY, radius: empRadius })

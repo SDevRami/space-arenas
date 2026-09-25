@@ -1,5 +1,5 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
-import { BUILDINGS, PLAYER_COLOR_COUNT, PLAYER_COLORS, UNITS, getBuilding, getWeapon, type MapData, type PingType, SHIELD_MAX_HP, EMP_DURATION_TICKS } from '@space-arenas/shared'
+import { BUILDINGS, PLAYER_COLOR_COUNT, PLAYER_COLORS, UNITS, getBuilding, getWeapon, type MapData, type PingType, SHIELD_MAX_HP } from '@space-arenas/shared'
 import type { World, PingComp } from '../core/world.ts'
 import { PING_TICKS } from '../core/world.ts'
 import { Camera, ISO_HALF_H, ISO_HALF_W } from './camera.ts'
@@ -678,7 +678,7 @@ export class Renderer {
       if (!this.isEntityVisible(world, id)) return
       const t = world.transforms.get(id)
       if (!t) return
-      const r = u.class === 'vehicle' ? 1.3 : 1.1
+      const r = u.class === 'vehicle' || u.class === 'naval' ? 1.3 : 1.1
       const dx = wx - t.x / 1000
       const dy = wy - t.y / 1000
       if (dx * dx + dy * dy <= r * r) {
@@ -934,7 +934,7 @@ export class Renderer {
       const t = world.transforms.get(pid)
       if (!t) return
       const left = p.untilTick - world.tick
-      const frac = Math.max(0, Math.min(1, left / EMP_DURATION_TICKS))
+      const frac = Math.max(0, Math.min(1, left / world.settings.empDurationTicks))
       const pulse = 0.5 + Math.sin(world.tick * 0.35 + pid) * 0.5
       const px = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
       const py = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
@@ -1236,7 +1236,7 @@ export class Renderer {
     world.units.forEach((id, u) => {
       if (!this.isEntityVisible(world, id)) return
       seen.add(id)
-      this.syncBar(id, world, camera, u.class === 'vehicle' ? 18 : 14, selection.has(id))
+      this.syncBar(id, world, camera, u.class === 'vehicle' || u.class === 'naval' ? 18 : 14, selection.has(id))
     })
     world.buildings.forEach((id, b) => {
       if (!this.isEntityVisible(world, id)) return
@@ -1556,7 +1556,7 @@ export class Renderer {
           this.shadowLayer.addChild(sh)
         }
         const cls = world.units.get(id)?.class
-        const big = cls === 'vehicle'
+        const big = cls === 'vehicle' || cls === 'naval'
         sh.position.set(isoX, isoY + 3)
         sh.scale.set(big ? 0.6 : 0.42, big ? 0.3 : 0.21)
         sh.alpha = 0.4
@@ -1713,7 +1713,7 @@ export class Renderer {
     // burning-fire overlay for heavily damaged buildings & vehicles (<=25% hp,
     // visual only). Troops/infantry never burn.
     let flame: Sprite | undefined
-    const burns = kind === 'building' || (kind === 'unit' && world.units.get(id)?.class === 'vehicle')
+    const burns = kind === 'building' || (kind === 'unit' && (world.units.get(id)?.class === 'vehicle' || world.units.get(id)?.class === 'naval'))
     if (burns && effectEnabled('effects')) {
       const hp = world.healths.get(id)
       if (hp && hp.maxHp > 0 && hp.hp > 0 && hp.hp / hp.maxHp <= 0.25) {
@@ -1845,7 +1845,7 @@ export class Renderer {
       const team = world.teamOf(id)
       if (team < 0) return
       const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
-      place(id, t.x, t.y, isoY - (u.class === 'vehicle' ? 18 : 14) - 8, team)
+      place(id, t.x, t.y, isoY - (u.class === 'vehicle' || u.class === 'naval' ? 18 : 14) - 8, team)
     })
     world.buildings.forEach((id, b) => {
       if (!this.isEntityVisible(world, id)) return
@@ -1876,7 +1876,7 @@ export class Renderer {
       seen.add(id)
       const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
       const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
-      const barY = isoY - (u.class === 'vehicle' ? 18 : 14) - 8
+      const barY = isoY - (u.class === 'vehicle' || u.class === 'naval' ? 18 : 14) - 8
       let g = this.veteranPips.get(id)
       if (!g) {
         g = new Graphics()
@@ -1923,7 +1923,7 @@ export class Renderer {
       }
       const isoX = (t.x / 1000 - t.y / 1000) * ISO_HALF_W
       const isoY = (t.x / 1000 + t.y / 1000) * ISO_HALF_H
-      const barY = isoY - (u.class === 'vehicle' ? 18 : 14) - 8
+      const barY = isoY - (u.class === 'vehicle' || u.class === 'naval' ? 18 : 14) - 8
       const pos = { x: 0, y: 0 }
       camera.worldToScreen(t.x, t.y, pos)
       const vis = camera.isInView(pos.x, pos.y)
@@ -1959,7 +1959,7 @@ export class Renderer {
     const key = `unit-${cls}`
     const hit = this.outlineTexCache.get(key)
     if (hit) return hit
-    const r = cls === 'vehicle' ? { hw: 34, hh: 18 } : { hw: 26, hh: 14 }
+    const r = cls === 'vehicle' || cls === 'naval' ? { hw: 34, hh: 18 } : { hw: 26, hh: 14 }
     const pad = 3
     const s = (r.hw + pad) * 2
     const c = s / 2
@@ -2016,7 +2016,7 @@ export class Renderer {
     const key = `funit-${cls}`
     const hit = this.fillTexCache.get(key)
     if (hit) return hit
-    const r = cls === 'vehicle' ? { hw: 34, hh: 18 } : { hw: 26, hh: 14 }
+    const r = cls === 'vehicle' || cls === 'naval' ? { hw: 34, hh: 18 } : { hw: 26, hh: 14 }
     const s = r.hw * 2
     const g = new Graphics()
     g.circle(s / 2, s / 2, r.hw).fill(0xffffff)
