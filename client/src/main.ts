@@ -937,6 +937,8 @@ const onlineJoinSelected = (): void => {
 document.getElementById('online-account')!.addEventListener('click', () => {
   accountUsernameEl.value = onlineNameEl.value
   accountOverlay.classList.add('visible')
+  // Re-sync games/wins/best from the server every time the popup opens (matches update them).
+  if (authSession) void adoptToken(authSession.token)
 })
 document.getElementById('online-server-setup')!.addEventListener('click', () => {
   serverAddressEl.value = ONLINE_URL
