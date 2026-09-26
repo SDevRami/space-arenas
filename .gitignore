@@ -17,6 +17,8 @@ client/dist/index.html
 .env
 .env.*
 !.env.example
+# Supabase / DB credentials (drop exports into online/.env, never commit)
+online/supabase_keys.txt
 
 # --- Stale transpile artifacts (built from .ts) ---
 client/vite.config.js
