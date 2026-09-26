@@ -1045,8 +1045,14 @@ const authPost = async (path: string, body: unknown): Promise<{ ok: boolean; err
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    const j = (await res.json().catch(() => ({}))) as { error?: string }
-    return res.ok ? { ok: true, data: j } : { ok: false, error: String(j.error ?? `HTTP ${res.status}`) }
+    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; data?: unknown }
+    if (res.ok) {
+      // The server answers auth routes with { ok, data: { ... } } — unwrap so callers can
+      // read `data.token` directly.
+      const payload = j && typeof j === 'object' && j.ok === true ? j.data : j
+      return { ok: true, data: (payload ?? {}) as Record<string, unknown> }
+    }
+    return { ok: false, error: String(j.error ?? `HTTP ${res.status}`) }
   } catch {
     return { ok: false, error: t('online.serverDown') }
   }
