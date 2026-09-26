@@ -110,6 +110,19 @@ describe('online server API', () => {
     const { status } = await json('/api/rooms/ZZZZ/join', { method: 'POST' })
     assert.equal(status, 404)
   })
+
+  it('CORS preflight allows the Authorization header (needed by /api/auth/me)', async () => {
+    const r = await fetch(`${base}/api/auth/me`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://example.com',
+        'Access-Control-Request-Method': 'GET',
+        'Access-Control-Request-Headers': 'authorization',
+      },
+    })
+    assert.equal(r.status, 204)
+    assert.match(r.headers.get('access-control-allow-headers') ?? '', /authorization/i)
+  })
 })
 
 describe('online server DB-unconfigured routes', () => {

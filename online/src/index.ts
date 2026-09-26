@@ -507,7 +507,7 @@ const writeJson = (res: ServerResponse, code: number, body: unknown): void => {
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
 /** ws(s) base for clients to connect to (Render sets SA_PUBLIC_URL, locally the request host). */
