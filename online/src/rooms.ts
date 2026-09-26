@@ -22,6 +22,8 @@ export interface HostPlayer extends PlayerSlot {
   clientId?: string
   /** True once the player sent C_FORFEIT: the slot must not reclaim or wait out grace. */
   forfeited?: boolean
+  /** Supabase account id bound at join via a verified access token (Phase 2). */
+  authUserId?: string
 }
 
 export interface Room {
@@ -45,6 +47,8 @@ export interface Room {
   winRule: WinRule
   started: boolean
   ended: boolean
+  /** Sim tick clock start (ms epoch) set when the host sends C_START. */
+  startedAt: number
   /** Participants exactly as sent in S_MATCH_START, snapshotted at start so a replay
    *  still includes players who quit mid-match. */
   startSlots: PlayerSlot[]
@@ -81,6 +85,7 @@ export class RoomRegistry {
       winRule: WIN_RULE_DEFAULT,
       started: false,
       ended: false,
+      startedAt: now,
       startSlots: [],
       createdAt: now,
       lastActivityAt: now,

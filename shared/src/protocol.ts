@@ -463,6 +463,9 @@ export interface JoinMessage {
   clientId?: string
   /** Set when joining an already-started match explicitly as a spectator. */
   spectator?: boolean
+  /** Supabase session access token (Phase 2). The server verifies it and binds the
+   *  player slot to an account so finished matches update games/wins/high_score. */
+  token?: string
 }
 export interface LobbyMessage {
   kind: 'H_LOBBY'
@@ -553,6 +556,9 @@ export interface GameOverMessage {
 export interface GameOverReportMessage {
   kind: 'C_GAME_OVER'
   winner: number | null
+  /** Final per-team scores from the reporting client, e.g. [{ team: 0, score: 1240 }].
+   *  Used server-side to update profile high scores / the leaderboard. */
+  scores?: Array<{ team: number; score: number }>
 }
 export interface PlayerStateMessage {
   kind: 'H_PLAYER_STATE'

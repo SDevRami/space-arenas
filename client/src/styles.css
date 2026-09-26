@@ -616,6 +616,10 @@
       #lobby .section-h3 { color: var(--color-accent); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin: 14px 0 4px; border-bottom: 1px solid var(--color-divider); padding-bottom: 3px; }
       #lobby .online-top-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
       #lobby .online-top-row button { width: auto; padding: 8px 14px; }
+      #lobby .online-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+      #lobby .online-tabs button { width: auto; padding: 6px 12px; font-size: 13px; opacity: 0.7; }
+      #lobby .online-tabs button.selected { opacity: 1; border-color: var(--color-accent); color: var(--color-accent); }
+      .hidden-el { display: none !important; }
       #lobby .online-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
       #lobby .online-actions button { width: auto; margin-top: 0; padding: 8px 14px; }
       #lobby .lobby-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }

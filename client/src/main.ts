@@ -790,6 +790,21 @@ const serverOverlay = document.getElementById('server-overlay') as HTMLDivElemen
 const serverAddressEl = document.getElementById('server-address') as HTMLInputElement
 const serverIndEl = document.getElementById('server-ind') as HTMLDivElement
 const dbIndEl = document.getElementById('db-ind') as HTMLDivElement
+const accountStatusEl = document.getElementById('account-status') as HTMLDivElement
+const accountEmailEl = document.getElementById('account-email') as HTMLInputElement
+const accountPassEl = document.getElementById('account-pass') as HTMLInputElement
+const accountNewPassEl = document.getElementById('account-newpass') as HTMLInputElement
+const accountAnonEl = document.getElementById('account-anon') as HTMLDivElement
+const accountAuthedEl = document.getElementById('account-authed') as HTMLDivElement
+const accountProfileSummaryEl = document.getElementById('account-profilesummary') as HTMLDivElement
+const accountChangeBtn = document.getElementById('account-change') as HTMLButtonElement
+const accountLogoutBtn = document.getElementById('account-logout') as HTMLButtonElement
+const leaderboardStatusEl = document.getElementById('leaderboard-status') as HTMLDivElement
+const leaderboardBody = document.getElementById('leaderboard-table')!.querySelector('tbody')
+const onlineMatchesSection = document.getElementById('online-matches-section') as HTMLDivElement
+const onlineLeaderboardSection = document.getElementById('online-leaderboard-section') as HTMLDivElement
+const onlineTabMatchesBtn = document.getElementById('online-tab-matches') as HTMLButtonElement
+const onlineTabLeaderboardBtn = document.getElementById('online-tab-leaderboard') as HTMLButtonElement
 const joinpassOverlay = document.getElementById('joinpass-overlay') as HTMLDivElement
 const joinpassInputEl = document.getElementById('joinpass-input') as HTMLInputElement
 const joinpassOkBtn = document.getElementById('joinpass-ok') as HTMLButtonElement
@@ -931,27 +946,22 @@ document.getElementById('online-server-setup')!.addEventListener('click', () => 
     try {
       const res = await fetch(`${ONLINE_URL}/api/status`)
       if (!res.ok) throw new Error(String(res.status))
-      const j = (await res.json()) as { ok: boolean; mode?: string }
+      const j = (await res.json()) as { ok: boolean; mode?: string; db?: boolean }
       ind(serverIndEl, j.ok ? 'ok' : 'bad', j.ok ? t('online.serverOnline') : t('online.serverDown'))
+      if (j.db === true) ind(dbIndEl, 'ok', t('online.dbOnline'))
+      else if (j.db === false) ind(dbIndEl, 'bad', t('online.dbOffline'))
+      else ind(dbIndEl, 'wait', t('online.dbPending'))
     } catch {
       ind(serverIndEl, 'bad', t('online.serverDown'))
+      ind(dbIndEl, 'wait', t('online.dbPending'))
     }
   })()
-  ind(dbIndEl, 'wait', t('online.dbPending'))
 })
 
 for (const [id, close] of [['account-close', accountOverlay], ['server-close', serverOverlay], ['joinpass-cancel', joinpassOverlay]] as const) {
   document.getElementById(id)!.addEventListener('click', () => close.classList.remove('visible'))
 }
 joinpassOkBtn.addEventListener('click', () => onlineJoinSelected())
-accountRegisterBtn.addEventListener('click', () => {
-  accountOverlay.classList.remove('visible')
-  setOnlineStatus(t('online.accountPhase2'))
-})
-accountLoginBtn.addEventListener('click', () => {
-  accountOverlay.classList.remove('visible')
-  setOnlineStatus(t('online.accountPhase2'))
-})
 accountUsernameEl.addEventListener('input', () => {
   onlineNameEl.value = accountUsernameEl.value
   netNameEl.value = accountUsernameEl.value
@@ -969,7 +979,245 @@ document.getElementById('online-create')!.addEventListener('click', () => {
   createOverlay.classList.add('visible')
 })
 document.getElementById('online-join')!.addEventListener('click', onlineJoinSelected)
-document.getElementById('online-refresh')!.addEventListener('click', () => void refreshOnlineList(false))
+document.getElementById('online-refresh')!.addEventListener('click', () => {
+  void refreshOnlineList(false)
+  void loadLeaderboard(true)
+})
+
+// ---------- account (Phase 2: Supabase auth + profiles) ----------
+
+interface AuthSession {
+  token: string
+  email: string
+  username: string
+  games: number
+  wins: number
+  highScore: number
+}
+
+const AUTH_KEY = 'space-arenas:auth'
+let authSession: AuthSession | null = null
+
+const authToken = (): string | undefined => authSession?.token
+
+const setAccountStatus = (text: string, isError = false): void => {
+  accountStatusEl.textContent = text
+  accountStatusEl.classList.toggle('error', isError)
+}
+
+const saveAuth = (s: AuthSession | null): void => {
+  authSession = s
+  try {
+    if (s) sessionStorage.setItem(AUTH_KEY, JSON.stringify(s))
+    else sessionStorage.removeItem(AUTH_KEY)
+  } catch {
+    /* storage unavailable */
+  }
+  updateAccountUI()
+}
+
+const updateAccountUI = (): void => {
+  const signedIn = authSession !== null
+  accountAnonEl.style.display = signedIn ? 'none' : ''
+  accountAuthedEl.style.display = signedIn ? '' : 'none'
+  if (signedIn) {
+    const s = authSession!
+    accountProfileSummaryEl.textContent = t('online.accountSummary', { name: s.username, games: s.games, wins: s.wins, score: s.highScore })
+  }
+}
+
+const applyAuthUsername = (name: string): void => {
+  const trimmed = name.trim() || 'Commander'
+  onlineNameEl.value = trimmed
+  accountUsernameEl.value = trimmed
+  netNameEl.value = trimmed
+  try {
+    localStorage.setItem('space-arenas:name', trimmed)
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+const authPost = async (path: string, body: unknown): Promise<{ ok: boolean; error?: string; data?: Record<string, unknown> }> => {
+  try {
+    const res = await fetch(`${ONLINE_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const j = (await res.json().catch(() => ({}))) as { error?: string }
+    return res.ok ? { ok: true, data: j } : { ok: false, error: String(j.error ?? `HTTP ${res.status}`) }
+  } catch {
+    return { ok: false, error: t('online.serverDown') }
+  }
+}
+
+const adoptToken = async (token: string): Promise<boolean> => {
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return false
+    const j = (await res.json()) as {
+      ok: boolean
+      data?: { email: string; username: string; games: number; wins: number; highScore: number }
+    }
+    if (!j.ok || !j.data) return false
+    const d = j.data
+    saveAuth({ token, email: d.email, username: d.username, games: d.games, wins: d.wins, highScore: d.highScore })
+    applyAuthUsername(d.username)
+    return true
+  } catch {
+    return false
+  }
+}
+
+accountRegisterBtn.addEventListener('click', async () => {
+  const username = accountUsernameEl.value.trim()
+  const email = accountEmailEl.value.trim()
+  const password = accountPassEl.value
+  if (!username || !email || !password) {
+    setAccountStatus(t('online.fillAll'), true)
+    return
+  }
+  if (password.length < 6) {
+    setAccountStatus(t('online.pwShort'), true)
+    return
+  }
+  setAccountStatus(t('online.working'))
+  const r = await authPost('/api/auth/register', { username, email, password })
+  if (!r.ok) {
+    setAccountStatus(r.error ?? t('online.unknownError'), true)
+    return
+  }
+  const l = await authPost('/api/auth/login', { email, password })
+  if (l.ok && typeof l.data?.token === 'string') {
+    await adoptToken(l.data.token)
+    setAccountStatus(t('online.registerOk', { name: authSession?.username ?? username }))
+  } else {
+    setAccountStatus(t('online.registeredLoginFellBack'))
+  }
+})
+
+accountLoginBtn.addEventListener('click', async () => {
+  const email = accountEmailEl.value.trim()
+  const password = accountPassEl.value
+  if (!email || !password) {
+    setAccountStatus(t('online.fillAll'), true)
+    return
+  }
+  setAccountStatus(t('online.working'))
+  const l = await authPost('/api/auth/login', { email, password })
+  if (!l.ok) {
+    setAccountStatus(l.error ?? t('online.unknownError'), true)
+    return
+  }
+  if (typeof l.data?.token === 'string') {
+    await adoptToken(l.data.token)
+    setAccountStatus(t('online.loginOk', { name: authSession?.username ?? '' }))
+  }
+})
+
+accountChangeBtn.addEventListener('click', async () => {
+  if (!authSession) return
+  const newPassword = accountNewPassEl.value
+  if (newPassword.length < 6) {
+    setAccountStatus(t('online.pwShort'), true)
+    return
+  }
+  setAccountStatus(t('online.working'))
+  const r = await authPost('/api/auth/change-password', { token: authSession.token, newPassword })
+  if (!r.ok) {
+    setAccountStatus(r.error ?? t('online.unknownError'), true)
+    return
+  }
+  const l = await authPost('/api/auth/login', { email: authSession.email, password: newPassword })
+  if (l.ok && typeof l.data?.token === 'string') await adoptToken(l.data.token)
+  accountNewPassEl.value = ''
+  setAccountStatus(t('online.passwordChanged'))
+})
+
+accountLogoutBtn.addEventListener('click', () => {
+  saveAuth(null)
+  setAccountStatus(t('online.loggedOut'))
+})
+
+try {
+  const raw = sessionStorage.getItem(AUTH_KEY)
+  if (raw) {
+    const s = JSON.parse(raw) as AuthSession
+    if (s.token) {
+      authSession = s
+      updateAccountUI()
+      void adoptToken(s.token).then((ok) => {
+        if (!ok) saveAuth(null)
+      })
+    }
+  }
+} catch {
+  /* ignore malformed session */
+}
+
+// ---------- leaderboard (Phase 2) ----------
+
+const setOnlineTab = (tab: 'matches' | 'leaderboard'): void => {
+  const matchesActive = tab === 'matches'
+  onlineMatchesSection.style.display = matchesActive ? '' : 'none'
+  onlineLeaderboardSection.style.display = matchesActive ? 'none' : ''
+  onlineTabMatchesBtn.classList.toggle('selected', matchesActive)
+  onlineTabLeaderboardBtn.classList.toggle('selected', !matchesActive)
+}
+
+const renderLeaderboard = (rows: Array<{ rank: number; username: string; score: number }>): void => {
+  if (!leaderboardBody) return
+  leaderboardBody.innerHTML = ''
+  if (rows.length === 0) {
+    const tr = document.createElement('tr')
+    const td = document.createElement('td')
+    td.colSpan = 3
+    td.className = 'net-empty'
+    td.textContent = t('online.lbEmpty')
+    tr.appendChild(td)
+    leaderboardBody.appendChild(tr)
+    return
+  }
+  for (const r of rows) {
+    const tr = document.createElement('tr')
+    if (authSession && authSession.username === r.username) tr.classList.add('selected')
+    const rankTd = document.createElement('td')
+    rankTd.textContent = String(r.rank)
+    const playerTd = document.createElement('td')
+    playerTd.textContent = r.username
+    if (authSession && authSession.username === r.username) playerTd.textContent += ` ${t('online.lbYou')}`
+    const scoreTd = document.createElement('td')
+    scoreTd.textContent = String(r.score)
+    tr.appendChild(rankTd)
+    tr.appendChild(playerTd)
+    tr.appendChild(scoreTd)
+    leaderboardBody.appendChild(tr)
+  }
+}
+
+const loadLeaderboard = async (silent = false): Promise<void> => {
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/leaderboard`)
+    if (!res.ok) throw new Error(String(res.status))
+    const j = (await res.json()) as {
+      ok: boolean
+      data?: Array<{ rank: number; username: string; score: number }>
+      error?: string
+    }
+    if (!j.ok || !j.data) throw new Error(j.error ?? 'error')
+    renderLeaderboard(j.data)
+    if (!silent) leaderboardStatusEl.textContent = ''
+  } catch {
+    if (!silent) leaderboardStatusEl.textContent = t('online.lbUnavailable')
+  }
+}
+
+onlineTabMatchesBtn.addEventListener('click', () => setOnlineTab('matches'))
+onlineTabLeaderboardBtn.addEventListener('click', () => {
+  setOnlineTab('leaderboard')
+  void loadLeaderboard(false)
+})
 
 setInterval(() => {
   if (!onlinePanel.classList.contains('hidden-panel')) void refreshOnlineList(true)
@@ -3222,7 +3470,8 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
     return
   }
   setNetStatus(t('network.status.joining'))
-  await net.join(code, pass, name, opts?.spectator === true)
+  if (isOnlineAddr(lastJoin?.addr)) await net.join(code, pass, name, opts?.spectator === true, authToken())
+  else await net.join(code, pass, name, opts?.spectator === true)
 }
 
 // ---------- room-full popup (join a running match with no free seat) ----------

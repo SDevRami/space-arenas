@@ -102,26 +102,29 @@ password-protected rooms over the Internet using the existing client protocol un
 **Goal:** email/password accounts (Supabase Auth) + "Quick match / Leaderboard" sub-tabs.
 
 ### 2.1 Supabase project bootstrap (GitHub-linked migrations, in the `online/` folder)
-- [ ] **Connect Supabase to the game repo** `space-arenas` (Supabase → Project → Settings → Integrations → GitHub): with migrations directory set to `online/supabase`. Each `git push` to `main` auto-applies pending migrations to the linked project **and** the link may point to a designated preview/production branch so the DB stays in sync with server deploys.
-- [ ] Tables (in `online/supabase/migrations/001_init.sql` — already scaffolded): `profiles (user_id uuid pk, username, games, wins, high_score)`, `matches (id, map, winner, started_at)`, `leaderboard (user_id, score, rank)` with RLS (profiles/leaderboard readable, profiles own-row writes, service-role writes for matches/leaderboard).
-- [ ] Row-level security: profiles readable, own-row writes; leaderboard readable.
-- [ ] Server-only client (service-role key via env) for lookups the anon key must not see.
-- [ ] Secret keys never committed: `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` live only in Render env vars (or `.env.example` placeholders).
+- [ ] **Connect Supabase to the game repo** (Supabase → Project → Settings → Integrations → GitHub): migrations path `online/supabase/migrations`, auto-apply on push. *(manual dashboard step — needed before live DB)*
+- [x] Tables (`001_init.sql` + `002_match_records.sql` in `online/supabase/migrations/`): `profiles (user_id uuid pk, username unique-ci, games, wins, high_score)`, `matches (id, map, winner, started_at, participants jsonb, score jsonb)`, `leaderboard (user_id, score, rank, username)` with RLS (profiles/leaderboard readable, profiles own-row writes, service-role writes for matches/leaderboard).
+- [x] Row-level security: profiles readable, own-row writes; leaderboard readable.
+- [x] Server-only client (service-role key via env) for lookups the anon key must not see.
+- [x] Secret keys never committed: `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` live only in Render env vars (or `.env.example` placeholders); `online/supabase_keys.txt` is gitignored.
 
 ### 2.2 Auth endpoints on the host (`/api/auth/*`)
-- [ ] `register` / `login` / `change-password` — proxy to Supabase Auth (email + password), return session token (never logged).
-- [ ] Token persisted in client sessionStorage only; username mirrored into `#online-name` (existing mirror at `main.ts:2793`).
+- [x] `register` / `login` / `change-password` — proxy to Supabase Auth (email + password), return session token (server returns it over the API; client keeps it in sessionStorage, never logged). Registration uses the admin users API with `email_confirm: true` (no confirmation emails).
+- [x] `GET /api/auth/me` — Bearer-token profile lookup (also used by the server to bind a joined slot to an account via `C_JOIN.token`).
+- [x] Token persisted in client sessionStorage only; username mirrored into `#online-name` via `applyAuthUsername`.
+- [x] Graceful degradation: with `SUPABASE_*` env missing, auth/leaderboard endpoints return 503 `{ error: 'database not configured' }` and roaming still works.
 
 ### 2.3 Lobby account + extra tabs
-- [ ] The **My Account** popup (`online.accountPopup`, built in §1.4) hosts the auth controls: register / login / change password fields wired to `/api/auth/*`; session token kept in sessionStorage; username mirrors to `#online-name`.
-- [ ] `#online-panel` keeps the §1.4 layout (My Account / Server Setup buttons + rooms table + Join / Create) and gains optional secondary tabs **Leaderboard / Data** beside the rooms table.
-- [ ] **Leaderboard**: `GET /api/leaderboard` → table of rank/user/score; highlight own row; i18n en+ar.
-- [ ] Match results: submit winner at `H_GAME_OVER`/`C_GAME_OVER` (`host/src/index.ts:438`) → profile `games`/`wins`/`high_score` update (server-side, trusted source).
-- [ ] **Server Setup** popup may show auth/DB status here too; still no URL input fields.
+- [x] **My Account** popup full auth UI: register / login / change-password / logout; status line; logged-in summary (games/wins/best). Session restored from sessionStorage and re-validated via `/api/auth/me`.
+- [x] `#online-panel` gains secondary tabs **Matches / Leaderboard** beside the rooms table; Refresh button shared.
+- [x] **Leaderboard**: `GET /api/leaderboard` → table of rank/user/score; own row highlighted + `(you)`; i18n en+ar.
+- [x] Match results: client reports `C_GAME_OVER` with per-team `scores`; server records the match + profile `games`/`wins`/`high_score` (server-side, trusted source), keyed by the account bound to each slot at join.
+- [x] **Server Setup** popup shows DB indicator (`/api/status` → `db: true/false`); still no URL input fields.
 
 ### 2.4 Verification
-- [ ] Register → login → change password round-trips against Supabase (test env project).
-- [ ] Leaderboard reflects a completed 2-player match; `npm run typecheck` + `npm test`.
+- [x] `npm run typecheck` (shared/online/client) + `npm test -w online` (14 tests incl. DB-unconfigured 503/401 paths) + client build green.
+- [ ] Register → login → change password round-trips against Supabase (test env project). *(after Render env vars + migrations applied)*
+- [ ] Leaderboard reflects a completed 2-player match. *(after deploy)*
 
 ---
 
@@ -181,7 +184,7 @@ expiring backup blobs. Nothing else is stored on the DB.
 | Phase | Scope | Effort | Sim change? | Status |
 |-------|-------|--------|-------------|--------|
 | P1 | Render deploy · multi-room server · real matchmaking | L | No | □ |
-| P2 | Accounts · profiles · leaderboard (Supabase) | M | No | □ |
+| P2 | Accounts · profiles · leaderboard (Supabase) | M | No | ◐ code+verif done; live DB after deploy |
 | P3 | Expiring data backups (Data tab) | S | No | □ |
 | P4 | Landing page · mod repository · ratings/comments | M | No | □ |
 | P5 | Local replay save · anti-cheat baseline | S | No | □ |

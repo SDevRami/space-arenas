@@ -14,6 +14,15 @@ import {
 import { RoomRegistry, type HostPlayer, type Room } from './rooms.ts'
 import { TickRelay } from './relay.ts'
 import { newSeed } from './passphrase.ts'
+import {
+  authChangePassword,
+  authLogin,
+  authMe,
+  authRegister,
+  dbLeaderboard,
+  dbProbe,
+  dbRecordMatch,
+} from './supabase.ts'
 
 /** How long a REST-created room may sit empty before it is reclaimed. */
 const IDLE_ROOM_TTL_MS = 30_000
@@ -65,7 +74,7 @@ const winnerFromRemaining = (room: Room): number | null => {
   return (byTeam.values().next().value as number[]).sort((a, b) => a - b)[0] ?? null
 }
 
-const endMatch = (room: Room, winner: number | null): void => {
+const endMatch = (room: Room, winner: number | null, scores?: Array<{ team: number; score: number }>): void => {
   if (room.ended) return
   room.ended = true
   const timers = reconnectTimers.get(room.code)
@@ -78,6 +87,21 @@ const endMatch = (room: Room, winner: number | null): void => {
   room.players.forEach((p, ws) => {
     if (p.connected) send(ws, { kind: 'H_GAME_OVER', winner })
   })
+  const scoreById = new Map<number, number>()
+  for (const s of scores ?? []) scoreById.set(s.team, s.score)
+  const liveId = new Map<number, string | undefined>()
+  for (const p of room.players.values()) liveId.set(p.id, p.authUserId)
+  const participants = room.startSlots
+    .filter((s) => !s.spectator)
+    .map((s) => ({
+      id: s.id,
+      username: s.name,
+      team: s.team ?? s.id,
+      score: scoreById.get(s.id) ?? 0,
+      ...(liveId.get(s.id) !== undefined ? { userId: liveId.get(s.id) } : {}),
+    }))
+  // Phase 2: best-effort persist (never blocks or fails the match flow on DB errors).
+  void dbRecordMatch({ map: room.map.name, winner, startedAt: room.startedAt, participants })
 }
 
 /** Frees a room (and everything tied to it) once the last player has left. */
@@ -213,6 +237,17 @@ const roomForSocket = (ws: WebSocket): RoomContext | null => {
   return { room, relay: relayFor(room) }
 }
 
+/** Verifies a Supabase session token and binds the socket's player slot to the account. */
+const bindAccountToken = async (ws: WebSocket, token?: string): Promise<void> => {
+  if (!token) return
+  const room = registry.get(socketRooms.get(ws) ?? '')
+  if (!room) return
+  const res = await authMe(token)
+  if (!res.ok || !res.data) return
+  const p = registry.playerFor(room, ws)
+  if (p) p.authUserId = res.data.userId
+}
+
 const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
   const ctx = roomForSocket(ws)
   switch (msg.kind) {
@@ -220,6 +255,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
       send(ws, { kind: 'H_PONG' })
       break
     case 'C_JOIN': {
+      if (msg.token) void bindAccountToken(ws, msg.token)
       if (!msg.roomCode) {
         send(ws, { kind: 'H_ERROR', message: 'No room specified' })
         return
@@ -365,6 +401,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
       }
       room.started = true
       room.seed = newSeed()
+      room.startedAt = Date.now()
       const loaded = new Set<WebSocket>()
       loadedCount.set(room.code, loaded)
       registry.assignSpawns(room)
@@ -385,7 +422,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
     case 'C_GAME_OVER': {
       if (!ctx) return
       if (ctx.room.ended) return
-      endMatch(ctx.room, msg.winner)
+      endMatch(ctx.room, msg.winner, msg.scores)
       break
     }
     case 'C_FORFEIT': {
@@ -501,7 +538,7 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       protocol: PROTOCOL_VERSION,
       rooms: registry.list().length,
       players: registry.list().reduce((n, r) => n + registry.matchSlots(r).length, 0),
-      db: false,
+      db: await dbProbe(),
     })
     return true
   }
@@ -560,6 +597,41 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       return true
     }
     writeJson(res, 200, { ok: true, ws: `${publicWsBase(req)}/ws`, roomCode: room.code })
+    return true
+  }
+  if (req.method === 'POST' && urlPath === '/api/auth/register') {
+    const body = await readJson(req)
+    const result = await authRegister(
+      String(body.email ?? '').trim(),
+      String(body.password ?? ''),
+      String(body.username ?? '').trim(),
+    )
+    writeJson(res, result.ok ? 201 : result.error === 'database not configured' ? 503 : 400, result)
+    return true
+  }
+  if (req.method === 'POST' && urlPath === '/api/auth/login') {
+    const body = await readJson(req)
+    const result = await authLogin(String(body.email ?? '').trim(), String(body.password ?? ''))
+    writeJson(res, result.ok ? 200 : result.error === 'database not configured' ? 503 : 401, result)
+    return true
+  }
+  if (req.method === 'POST' && urlPath === '/api/auth/change-password') {
+    const body = await readJson(req)
+    const token = typeof body.token === 'string' ? body.token : ''
+    const result = await authChangePassword(token, String(body.newPassword ?? ''))
+    writeJson(res, result.ok ? 200 : result.error === 'database not configured' ? 503 : 400, result)
+    return true
+  }
+  if (req.method === 'GET' && urlPath === '/api/auth/me') {
+    const auth = req.headers.authorization ?? ''
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+    const result = await authMe(token)
+    writeJson(res, result.ok ? 200 : 401, result)
+    return true
+  }
+  if (req.method === 'GET' && urlPath === '/api/leaderboard') {
+    const result = await dbLeaderboard(100)
+    writeJson(res, result.ok ? 200 : 503, result)
     return true
   }
   return false

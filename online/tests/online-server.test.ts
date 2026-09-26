@@ -112,6 +112,53 @@ describe('online server API', () => {
   })
 })
 
+describe('online server DB-unconfigured routes', () => {
+  it('status reports db:false when SUPABASE env is missing', async () => {
+    const { status, body } = await json('/api/status')
+    assert.equal(status, 200)
+    assert.equal((body as { db: boolean }).db, false)
+  })
+
+  it('auth register returns 503 without DB config', async () => {
+    const { status, body } = await json('/api/auth/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'x', email: 'x@x.com', password: '123456' }),
+    })
+    assert.equal(status, 503)
+    assert.equal((body as { error: string }).error, 'database not configured')
+  })
+
+  it('auth login returns 503 without DB config', async () => {
+    const { status } = await json('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'x@x.com', password: '123456' }),
+    })
+    assert.equal(status, 503)
+  })
+
+  it('auth change-password returns 503 without DB config', async () => {
+    const { status } = await json('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: 't', newPassword: '123456' }),
+    })
+    assert.equal(status, 503)
+  })
+
+  it('auth me returns 401 for a bogus token without DB config', async () => {
+    const { status } = await json('/api/auth/me', { headers: { authorization: 'Bearer bogus' } })
+    assert.equal(status, 401)
+  })
+
+  it('leaderboard returns 503 without DB config', async () => {
+    const { status, body } = await json('/api/leaderboard')
+    assert.equal(status, 503)
+    assert.equal((body as { error: string }).error, 'database not configured')
+  })
+})
+
 describe('online server disabled mode', () => {
   it('all API room endpoints return 503 when SA_MODE != online', async () => {
     const port = await freePort()

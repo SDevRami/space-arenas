@@ -137,9 +137,9 @@ export class NetClient {
     this.ws?.send(encodeControl(msg))
   }
 
-  async join(roomCode: string, passphrase: string, name: string, spectator = false): Promise<void> {
+  async join(roomCode: string, passphrase: string, name: string, spectator = false, token?: string): Promise<void> {
     const hash = await hashPassphrase(passphrase, roomCode)
-    this.send({ kind: 'C_JOIN', roomCode, passphraseHash: hash, name, clientId: this.clientId, ...(spectator ? { spectator: true } : {}) })
+    this.send({ kind: 'C_JOIN', roomCode, passphraseHash: hash, name, clientId: this.clientId, ...(spectator ? { spectator: true } : {}), ...(token ? { token } : {}) })
   }
 
   ready(ready: boolean): void {
@@ -186,8 +186,8 @@ export class NetClient {
     this.send({ kind: 'C_CHAT', text, target, team })
   }
 
-  gameOver(winner: number | null): void {
-    this.send({ kind: 'C_GAME_OVER', winner })
+  gameOver(winner: number | null, scores?: Array<{ team: number; score: number }>): void {
+    this.send({ kind: 'C_GAME_OVER', winner, ...(scores ? { scores } : {}) })
   }
 
   /** Surrenders the active match: the server forfeits this slot to the relay

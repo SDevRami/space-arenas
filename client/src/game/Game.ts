@@ -1442,7 +1442,7 @@ export class Game {
       if (e.type === 'game-over') {
         this.hud.toast(this.netTitle(e.winner))
         this.beginCinematic(e.winner)
-        if (this.mode === 'net') this.net?.gameOver(e.winner)
+        if (this.mode === 'net') this.net?.gameOver(e.winner, this.collectFinalScores())
         if (e.winner === null) this.audio.playSfx('game-over', { pitch: 0.5, gain: 0.08 })
         else this.audio.playSfx(e.winner === this.localTeam ? 'victory' : 'game-over', { gain: 0.08 })
       }
@@ -3626,6 +3626,15 @@ export class Game {
       const f = this.frameQueue.shift()!
       this.stepToFrame(f.tick, f.commands)
     }
+  }
+
+  /** Final per-team scores reported with C_GAME_OVER so the server can update profiles. */
+  private collectFinalScores(): Array<{ team: number; score: number }> | undefined {
+    const world = this.world
+    if (!world) return undefined
+    const out: Array<{ team: number; score: number }> = []
+    for (const [team, ts] of world.teams) out.push({ team, score: ts.score ?? 0 })
+    return out.length > 0 ? out : undefined
   }
 
   onNetChat(msg: ChatRelayMessage): void {
