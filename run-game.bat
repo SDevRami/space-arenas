@@ -103,7 +103,12 @@ REM ============================================================
 REM Kills lingering Space Arenas node processes (game host or loading page)
 REM from a previous run, so a second launch can never hit a stuck port.
 REM Only processes whose command line references this game are touched.
-powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -match 'host[\\/]dist[\\/]host\.js|loading-server\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Output ('Stopped leftover Space Arenas process (PID ' + $_.ProcessId + ')') }"
+REM 1) any node.exe that looks like this game's host or loading server
+powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -match 'host[\\/]dist[\\/]host(\.js)?|loading-server\.mjs' }; $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Output ('Stopped leftover Space Arenas process (PID ' + $_.ProcessId + ')') }"
+REM 2) backstop: if something still listens on our own port, stop it only when it
+REM    is node.exe running one of this game's servers (catches older host builds
+REM    whose command-line shape prong 1 cannot see)
+powershell -NoProfile -Command "$o = Get-NetTCPConnection -LocalPort $env:SA_PORT -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess; if ($o) { $pr = Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $o) -ErrorAction SilentlyContinue; if ($pr -and $pr.Name -eq 'node.exe' -and $pr.CommandLine -match 'space-arenas|host[\\/]dist[\\/]host') { Stop-Process -Id $o -Force -ErrorAction SilentlyContinue; Write-Output ('Stopped stale Space Arenas process holding port ' + $env:SA_PORT + ' (PID ' + $o + ')') } else { Write-Output ('NOTE: port ' + $env:SA_PORT + ' is held by a non-Space Arenas process (PID ' + $o + '); the game will switch ports instead.') } }"
 if errorlevel 1 (
   echo.
   echo  Could not scan for leftover processes. Continuing anyway...
