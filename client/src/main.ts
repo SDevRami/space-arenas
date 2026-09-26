@@ -1018,8 +1018,8 @@ const saveAuth = (s: AuthSession | null): void => {
 
 const updateAccountUI = (): void => {
   const signedIn = authSession !== null
-  accountAnonEl.style.display = signedIn ? 'none' : ''
-  accountAuthedEl.style.display = signedIn ? '' : 'none'
+  accountAnonEl.classList.toggle('hidden-el', signedIn)
+  accountAuthedEl.classList.toggle('hidden-el', !signedIn)
   if (signedIn) {
     const s = authSession!
     accountProfileSummaryEl.textContent = t('online.accountSummary', { name: s.username, games: s.games, wins: s.wins, score: s.highScore })
