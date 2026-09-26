@@ -1166,8 +1166,8 @@ try {
 
 const setOnlineTab = (tab: 'matches' | 'leaderboard'): void => {
   const matchesActive = tab === 'matches'
-  onlineMatchesSection.style.display = matchesActive ? '' : 'none'
-  onlineLeaderboardSection.style.display = matchesActive ? 'none' : ''
+  onlineMatchesSection.classList.toggle('hidden-el', !matchesActive)
+  onlineLeaderboardSection.classList.toggle('hidden-el', matchesActive)
   onlineTabMatchesBtn.classList.toggle('selected', matchesActive)
   onlineTabLeaderboardBtn.classList.toggle('selected', !matchesActive)
 }

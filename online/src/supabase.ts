@@ -169,15 +169,20 @@ export interface MatchRecord {
  *  Best effort: never fails the match flow when the DB is down. */
 export const dbRecordMatch = async (rec: MatchRecord): Promise<void> => {
   if (!dbConfigured()) return
+  const logFail = (who: string, res?: Response): void => {
+    const detail = res ? `${res.status} ${res.statusText}` : 'threw'
+    console.error(`[db] ${who} failed (${detail})`) // eslint-disable-line no-console
+  }
   try {
     const scoreMap = Object.fromEntries(rec.participants.map((p) => [p.id, p.score]))
-    await timedFetch('/rest/v1/matches', {
+    const matchesRes = await timedFetch('/rest/v1/matches', {
       method: 'POST',
       headers: restServiceHeaders(),
       body: JSON.stringify([
         { map: rec.map, winner: rec.winner !== null ? String(rec.winner) : null, started_at: new Date(rec.startedAt).toISOString(), participants: rec.participants, score: scoreMap },
       ]),
     }).catch(() => undefined)
+    if (!matchesRes || !matchesRes.ok) logFail('matches insert', matchesRes)
     for (const p of rec.participants) {
       if (!p.userId) continue
       const row = await dbProfile(p.userId)
@@ -186,16 +191,18 @@ export const dbRecordMatch = async (rec: MatchRecord): Promise<void> => {
       const wins = row.data.wins + (rec.winner !== null && p.team === rec.winner ? 1 : 0)
       const high = Math.max(row.data.high_score, p.score)
       const username = row.data.username || p.username
-      await timedFetch(`/rest/v1/profiles?user_id=eq.${p.userId}`, {
+      const profRes = await timedFetch(`/rest/v1/profiles?user_id=eq.${p.userId}`, {
         method: 'PATCH',
         headers: restServiceHeaders(),
         body: JSON.stringify({ games, wins, high_score: high }),
       }).catch(() => undefined)
-      await timedFetch('/rest/v1/leaderboard', {
+      if (!profRes || !profRes.ok) logFail(`profile patch (${username})`, profRes)
+      const lbRes = await timedFetch('/rest/v1/leaderboard', {
         method: 'POST',
         headers: restServiceHeaders(),
         body: JSON.stringify([{ user_id: p.userId, username, score: high }]),
       }).catch(() => undefined)
+      if (!lbRes || !lbRes.ok) logFail(`leaderboard upsert (${username})`, lbRes)
     }
   } catch {
     /* the match already ended client-side; stats are best-effort */

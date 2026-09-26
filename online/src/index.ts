@@ -237,13 +237,15 @@ const roomForSocket = (ws: WebSocket): RoomContext | null => {
   return { room, relay: relayFor(room) }
 }
 
-/** Verifies a Supabase session token and binds the socket's player slot to the account. */
+/** Verifies a Supabase session token and binds the socket's player slot to the account.
+ *  Re-reads the socket→room mapping only after the token round-trip resolves, because at
+ *  C_JOIN time the join handler has not finished registering the socket yet. */
 const bindAccountToken = async (ws: WebSocket, token?: string): Promise<void> => {
   if (!token) return
-  const room = registry.get(socketRooms.get(ws) ?? '')
-  if (!room) return
   const res = await authMe(token)
   if (!res.ok || !res.data) return
+  const room = registry.get(socketRooms.get(ws) ?? '')
+  if (!room) return
   const p = registry.playerFor(room, ws)
   if (p) p.authUserId = res.data.userId
 }
