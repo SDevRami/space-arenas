@@ -167,6 +167,14 @@ body {
   flex-wrap: wrap;
 }
 
+.cta-row {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 34px;
+}
+
 .btn {
   display: inline-block;
   text-decoration: none;
