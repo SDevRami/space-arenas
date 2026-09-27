@@ -393,6 +393,7 @@
                 <button class="ghost selected" id="online-tab-matches" data-i18n="online.tabMatches">Matches</button>
                 <button class="ghost" id="online-tab-leaderboard" data-i18n="online.tabLeaderboard">Leaderboard</button>
                 <button class="ghost" id="online-tab-data" data-i18n="online.tabData">Data</button>
+                <button class="ghost" id="online-tab-mods" data-i18n="online.tabMods">Mods</button>
                 <button class="ghost" id="online-refresh" data-i18n="online.refresh">Refresh</button>
               </div>
               <div id="online-matches-section">
@@ -445,6 +446,22 @@
                 </div>
                 <h3 class="section-h3" data-i18n="online.dataMy">My backups</h3>
                 <div id="data-list"></div>
+              </div>
+              <div id="online-mods-section" class="hidden-el">
+                <div class="status" id="mods-repo-status"></div>
+                <h3 class="section-h3" data-i18n="mods.repo.repoH3">Community repository</h3>
+                <p class="hint" data-i18n="mods.repo.repoHint">Browse balance mods shared by other players. Install one into your local library with a click, or publish a mod of your own.</p>
+                <div class="maps-toolbar">
+                  <input id="mods-repo-search" placeholder="Search mods…" data-i18n-placeholder="mods.repo.repoSearch" />
+                  <select id="mods-repo-sort"></select>
+                </div>
+                <div id="mods-repo-list"></div>
+                <h3 class="section-h3" data-i18n="mods.repo.repoPublishH3">Publish a mod</h3>
+                <p class="hint" data-i18n="mods.repo.repoPublishHint">Pick one of your local balance mods to share it with everyone. Only the owner can delete a published mod.</p>
+                <div class="maps-toolbar">
+                  <select id="mods-repo-publish-select"></select>
+                  <button class="ghost" id="mods-repo-publish" data-i18n="mods.repo.repoPublish">Publish</button>
+                </div>
               </div>
             </div>
           </div>

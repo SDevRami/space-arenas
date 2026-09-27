@@ -17,3 +17,17 @@ export const RATE_ROOM_WRITE_PER_MIN = 10 // create room + join pre-check
 export const RATE_WS_HANDSHAKE_PER_MIN = 20
 export const RATE_BACKUP_POST_PER_MIN = 10
 export const RATE_READ_PER_MIN = 60 // /api/auth/me + /api/leaderboard
+
+// Phase 4: mod repository + landing page.
+export const MOD_COMMENT_MAX_CHARS = 500
+export const RATE_MOD_REPO_PER_MIN = 60 // browse/list/search + single mod fetch
+export const RATE_MOD_DOWNLOAD_PER_MIN = 60
+export const RATE_MOD_WRITE_PER_MIN = 10 // upload / delete / rate / comment
+
+// Cross-origin allow-list (Phase 4). Render serves the game + landing on GitHub Pages;
+// when set (comma-separated origins) the API echoes the matching Origin instead of `*`.
+// When unset the server keeps `*` (local/LAN dev) so existing builds keep working.
+export const CORS_ALLOW_SOURCES: string[] = (process.env.SA_CORS_ALLOW ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter((s) => s !== '')

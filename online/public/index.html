@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Space Arenas</title>
+    <meta name="description" content="Space Arenas — real-time strategy battles in space. Play with friends online, tweak your own balance mods, and climb the leaderboard." />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="wrap topbar-inner">
+        <a class="brand" href="#" data-i18n="brand">Space Arenas</a>
+        <nav class="nav">
+          <a href="#features" data-i18n="nav.features">Features</a>
+          <a href="#howto" data-i18n="nav.howto">How to join</a>
+          <a href="#mods" data-i18n="nav.mods">Mods</a>
+          <a href="#footer" data-i18n="nav.repo">Source</a>
+        </nav>
+        <button id="lang-toggle" class="lang-toggle" type="button">العربية</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrap">
+          <p class="hero-badge" data-i18n="hero.badge">Real-time strategy in space</p>
+          <h1 class="hero-title" data-i18n="hero.title">Command your fleet on maps that fight back.</h1>
+          <p class="hero-subtitle" data-i18n="hero.subtitle">
+            Build your base, harvest resources, and out-think your rivals with tactical airstrikes,
+            stealth, mines and more — solo or online with friends.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="https://github.com/SDevRami/space-arenas" target="_blank" rel="noopener" data-i18n="hero.ctaRepo">
+              Get the game
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="wrap">
+          <h2 class="section-title" data-i18n="features.title">Built for deep, readable battles</h2>
+          <div class="grid">
+            <article class="card">
+              <div class="card-icon">🛰️</div>
+              <h3 data-i18n="features.rts.title">Classic RTS core</h3>
+              <p data-i18n="features.rts.text">Harvesters, supply fields, tech trees and a veteran system — all rendered on an infinite hexes canvas.</p>
+            </article>
+            <article class="card">
+              <div class="card-icon">🌓</div>
+              <h3 data-i18n="features.fog.title">Fog, day & night</h3>
+              <p data-i18n="features.fog.text">Dynamic line-of-sight, stealth units and a full day/night cycle change how you scout and strike.</p>
+            </article>
+            <article class="card">
+              <div class="card-icon">🎛️</div>
+              <h3 data-i18n="features.mods.title">Balance mods</h3>
+              <p data-i18n="features.mods.text">Tune the economy, units and weapons with downloadable mod files — then share them in the online repository.</p>
+            </article>
+            <article class="card">
+              <div class="card-icon">🌐</div>
+              <h3 data-i18n="features.online.title">Online lobbies</h3>
+              <p data-i18n="features.online.text">Create password-protected rooms, search open matches and climb the global leaderboard with a free account.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="howto" class="section section-alt">
+        <div class="wrap">
+          <h2 class="section-title" data-i18n="howto.title">Join in three steps</h2>
+          <ol class="steps">
+            <li class="step">
+              <span class="step-num">1</span>
+              <h3 data-i18n="howto.st1.title">Get the game</h3>
+              <p data-i18n="howto.st1.text">Clone the repository and run <code>run-game.bat</code> — no install required, it runs straight in your browser.</p>
+            </li>
+            <li class="step">
+              <span class="step-num">2</span>
+              <h3 data-i18n="howto.st2.title">Make an account</h3>
+              <p data-i18n="howto.st2.text">Sign up in the online lobby to unlock the leaderboard, data backups and the mod repository.</p>
+            </li>
+            <li class="step">
+              <span class="step-num">3</span>
+              <h3 data-i18n="howto.st3.title">Play & share</h3>
+              <p data-i18n="howto.st3.text">Create or join a room, pick a balance mod, and carry your progress anywhere with encrypted backups.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="mods" class="section">
+        <div class="wrap">
+          <h2 class="section-title" data-i18n="mods.title">Community balance mods</h2>
+          <p class="section-sub" data-i18n="mods.subtitle">Top-rated from the shared repository.</p>
+          <div id="top-mods" class="mods-row">
+            <p class="mods-empty" data-i18n="mods.loading">Loading…</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-alt" aria-hidden="true">
+        <div class="wrap">
+          <h2 class="section-title" data-i18n="media.title">Seen in action</h2>
+          <div class="grid">
+            <article class="card media-card"><div class="media art-1"></div><p data-i18n="media.battle">Skirmish view</p></article>
+            <article class="card media-card"><div class="media art-2"></div><p data-i18n="media.mod">Mod tuning</p></article>
+            <article class="card media-card"><div class="media art-3"></div><p data-i18n="media.online">Online lobby</p></article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="wrap">
+        <a class="brand" href="https://github.com/SDevRami/space-arenas" target="_blank" rel="noopener">Space Arenas</a>
+        <p data-i18n="footer.desc">Open-source real-time strategy game. Report issues on GitHub.</p>
+        <p class="footer-rights" data-i18n="footer.rights">Made with &#9834; — play, mod, share.</p>
+      </div>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

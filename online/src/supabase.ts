@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { BACKUPS_MAX_PER_USER, BACKUPS_MAX_PAYLOAD_BYTES, BACKUPS_TTL_MS } from './config.ts'
+import { MODS_MAX_PER_USER } from './mods.ts'
 
 // Thin Supabase client for the online server. Talks plain REST (Auth + PostgREST) so the
 // server keeps zero extra dependencies and stays compatible with both the legacy `anon`/
@@ -348,5 +349,273 @@ export const dbPurgeExpiredBackups = async (): Promise<void> => {
     ).catch(() => undefined)
   } catch {
     /* best effort */
+  }
+}
+
+// ---- Phase 4: community mod repository ------------------------------------------------
+
+const ilikeEscaped = (q: string): string => q.replace(/[\\*]/g, '\\$&')
+
+export interface ModRepoRow {
+  id: string
+  ownerId: string
+  name: string
+  author: string
+  description: string
+  version: string
+  sizeBytes: number
+  requireProtocol: number
+  downloads: number
+  ratingAvg: number | null
+  ratingCount: number
+  createdAt: string
+}
+
+/** Reads the repo listing (payload-free) with rating aggregates merged in. */
+export const dbListMods = async (
+  opts: { q?: string; sort?: string; owner?: string; limit?: number } = {},
+): Promise<SupabaseResult<ModRepoRow[]>> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  const sort = opts.sort === 'rating' || opts.sort === 'downloads' ? opts.sort : 'newest'
+  const limit = Math.max(1, Math.min(250, opts.limit ?? 100))
+  try {
+    let url = '/rest/v1/mods?select=id,owner_id,name,meta_author,meta_description,meta_version,size_bytes,require_protocol,downloads,created_at'
+    if (opts.owner) url += `&owner_id=eq.${encodeURIComponent(opts.owner)}`
+    const q = opts.q?.trim()
+    if (q && q !== '') {
+      const term = ilikeEscaped(q)
+      url += `&or=(name.ilike.*${term}*,meta_author.ilike.*${term}*)`
+    }
+    url += opts.sort === 'downloads' ? '&order=downloads.desc,name.asc' : '&order=created_at.desc,name.asc'
+    url += `&limit=${limit}`
+    const res = await timedFetch(url, { headers: restServiceHeaders() })
+    if (!res.ok) return { ok: false, error: `mod list failed (${res.status})` }
+    const rows = (await res.json()) as Array<{
+      id: string
+      owner_id: string
+      name: string
+      meta_author: string
+      meta_description: string
+      meta_version: string
+      size_bytes: number
+      require_protocol: number
+      downloads: number
+      created_at: string
+    }>
+    const ratings = await timedFetch('/rest/v1/mod_ratings?select=mod_id,rating', { headers: restServiceHeaders() })
+    const sum = new Map<string, number>()
+    const count = new Map<string, number>()
+    if (ratings.ok) {
+      for (const r of (await ratings.json()) as Array<{ mod_id: string; rating: number }>) {
+        sum.set(r.mod_id, (sum.get(r.mod_id) ?? 0) + r.rating)
+        count.set(r.mod_id, (count.get(r.mod_id) ?? 0) + 1)
+      }
+    }
+    const data: ModRepoRow[] = rows.map((r) => {
+      const c = count.get(r.id) ?? 0
+      return {
+        id: r.id,
+        ownerId: r.owner_id,
+        name: r.name,
+        author: r.meta_author,
+        description: r.meta_description,
+        version: r.meta_version,
+        sizeBytes: r.size_bytes,
+        requireProtocol: r.require_protocol,
+        downloads: r.downloads,
+        ratingAvg: c > 0 ? Math.round(((sum.get(r.id) ?? 0) / c) * 10) / 10 : null,
+        ratingCount: c,
+        createdAt: r.created_at,
+      }
+    })
+    if (sort === 'rating') {
+      data.sort((a, b) => (b.ratingAvg ?? -1) - (a.ratingAvg ?? -1) || b.downloads - a.downloads || a.name.localeCompare(b.name))
+    }
+    return { ok: true, data }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+/** Full ModFile fetch for the download path; also bumps the download counter. */
+export const dbGetMod = async (id: string): Promise<SupabaseResult<{ id: string; name: string; payload: unknown; requireProtocol: number }>> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  try {
+    const res = await timedFetch(
+      `/rest/v1/mods?id=eq.${encodeURIComponent(id)}&select=id,name,payload,require_protocol,downloads&limit=1`,
+      { headers: restServiceHeaders() },
+    )
+    if (!res.ok) return { ok: false, error: `mod read failed (${res.status})` }
+    const rows = (await res.json()) as Array<{ id: string; name: string; payload: unknown; require_protocol: number; downloads: number }>
+    if (!rows[0]) return { ok: false, error: 'mod not found' }
+    const r = rows[0]
+    await timedFetch(`/rest/v1/mods?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: headers(SERVICE, { Prefer: 'return=minimal' }),
+      body: JSON.stringify({ downloads: r.downloads + 1 }),
+    }).catch(() => undefined)
+    return { ok: true, data: { id: r.id, name: r.name, payload: r.payload, requireProtocol: r.require_protocol } }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+/** Publishes a sanitized mod (quota + name-collision checked here). */
+export const dbCreateMod = async (
+  userId: string,
+  mod: { name: string; author: string; description: string; version: string; requireProtocol: number; sizeBytes: number; payload: unknown },
+): Promise<SupabaseResult<{ id: string }>> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  try {
+    const countRes = await timedFetch(
+      `/rest/v1/mods?owner_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`,
+      { headers: { ...headers(SERVICE), Prefer: 'count=exact,return=minimal' } },
+    )
+    const total = Number(countRes.headers.get('content-range')?.split('/')[1] ?? 0)
+    if (total >= MODS_MAX_PER_USER) return { ok: false, error: 'mod quota reached' }
+    const res = await timedFetch('/rest/v1/mods', {
+      method: 'POST',
+      headers: restServiceHeaders(),
+      body: JSON.stringify([
+        {
+          owner_id: userId,
+          name: mod.name,
+          meta_author: mod.author,
+          meta_description: mod.description,
+          meta_version: mod.version,
+          size_bytes: mod.sizeBytes,
+          require_protocol: mod.requireProtocol,
+          payload: mod.payload,
+        },
+      ]),
+    })
+    if (res.status === 409) return { ok: false, error: 'name already taken' }
+    if (!res.ok) return { ok: false, error: `mod create failed (${res.status})` }
+    const rows = (await res.json().catch(() => [])) as Array<{ id: string }>
+    return { ok: true, data: { id: rows[0]?.id ?? '' } }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+/** Deletes a mod the caller owns (ownership checked before the DELETE). */
+export const dbDeleteMod = async (userId: string, id: string): Promise<SupabaseResult> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  try {
+    const res = await timedFetch(
+      `/rest/v1/mods?id=eq.${encodeURIComponent(id)}&select=owner_id&limit=1`,
+      { headers: restServiceHeaders() },
+    )
+    if (!res.ok) return { ok: false, error: `mod read failed (${res.status})` }
+    const rows = (await res.json()) as Array<{ owner_id: string }>
+    if (!rows[0]) return { ok: false, error: 'mod not found' }
+    if (rows[0].owner_id !== userId) return { ok: false, error: 'not owner' }
+    const del = await timedFetch(`/rest/v1/mods?id=eq.${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: headers(SERVICE, { Prefer: 'return=minimal' }),
+    })
+    if (del.status !== 204 && !del.ok) return { ok: false, error: `mod delete failed (${del.status})` }
+    return { ok: true }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+/** Upserts one rating per user; returns the refreshed average/count. */
+export const dbRateMod = async (
+  modId: string,
+  userId: string,
+  rating: number,
+): Promise<SupabaseResult<{ ratingAvg: number | null; ratingCount: number }>> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  try {
+    const exists = await timedFetch(
+      `/rest/v1/mods?id=eq.${encodeURIComponent(modId)}&select=id&limit=1`,
+      { headers: restServiceHeaders() },
+    )
+    if (!exists.ok) return { ok: false, error: `mod read failed (${exists.status})` }
+    if ((await exists.json() as Array<{ id: string }>).length === 0) return { ok: false, error: 'mod not found' }
+    const upsert = await timedFetch('/rest/v1/mod_ratings', {
+      method: 'POST',
+      headers: restServiceHeaders(),
+      body: JSON.stringify([{ mod_id: modId, user_id: userId, rating }]),
+    })
+    if (!upsert.ok) return { ok: false, error: `rating failed (${upsert.status})` }
+    const agg = await timedFetch(
+      `/rest/v1/mod_ratings?mod_id=eq.${encodeURIComponent(modId)}&select=rating`,
+      { headers: restServiceHeaders() },
+    )
+    const rows = agg.ok ? ((await agg.json()) as Array<{ rating: number }>) : []
+    const count = rows.length
+    const avg = count > 0 ? Math.round((rows.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10 : null
+    return { ok: true, data: { ratingAvg: avg, ratingCount: count } }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+export interface ModCommentRow {
+  id: string
+  userId: string
+  username: string
+  body: string
+  createdAt: string
+}
+
+/** Lists comments for a mod (newest first) with the author username merged in. */
+export const dbListComments = async (modId: string): Promise<SupabaseResult<ModCommentRow[]>> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  try {
+    const exists = await timedFetch(
+      `/rest/v1/mods?id=eq.${encodeURIComponent(modId)}&select=id&limit=1`,
+      { headers: restServiceHeaders() },
+    )
+    if (!exists.ok) return { ok: false, error: `mod read failed (${exists.status})` }
+    if ((await exists.json() as Array<{ id: string }>).length === 0) return { ok: false, error: 'mod not found' }
+    const res = await timedFetch(
+      `/rest/v1/mod_comments?mod_id=eq.${encodeURIComponent(modId)}&select=id,user_id,body,created_at&order=created_at.desc&limit=200`,
+      { headers: restServiceHeaders() },
+    )
+    if (!res.ok) return { ok: false, error: `comments read failed (${res.status})` }
+    const rows = (await res.json()) as Array<{ id: string; user_id: string; body: string; created_at: string }>
+    const ids = [...new Set(rows.map((r) => r.user_id))]
+    const nameById = new Map<string, string>()
+    if (ids.length > 0) {
+      const prof = await timedFetch(
+        `/rest/v1/profiles?user_id=in.(${ids.map((i) => encodeURIComponent(i)).join(',')})&select=user_id,username`,
+        { headers: restServiceHeaders() },
+      )
+      if (prof.ok) {
+        for (const p of (await prof.json()) as Array<{ user_id: string; username: string }>) nameById.set(p.user_id, p.username)
+      }
+    }
+    return {
+      ok: true,
+      data: rows.map((r) => ({ id: r.id, userId: r.user_id, username: nameById.get(r.user_id) ?? '', body: r.body, createdAt: r.created_at })),
+    }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+/** Adds a comment (auth'd caller; body length already capped by the endpoint). */
+export const dbAddComment = async (modId: string, userId: string, body: string): Promise<SupabaseResult> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  try {
+    const exists = await timedFetch(
+      `/rest/v1/mods?id=eq.${encodeURIComponent(modId)}&select=id&limit=1`,
+      { headers: restServiceHeaders() },
+    )
+    if (!exists.ok) return { ok: false, error: `mod read failed (${exists.status})` }
+    if ((await exists.json() as Array<{ id: string }>).length === 0) return { ok: false, error: 'mod not found' }
+    const res = await timedFetch('/rest/v1/mod_comments', {
+      method: 'POST',
+      headers: restServiceHeaders(),
+      body: JSON.stringify([{ mod_id: modId, user_id: userId, body }]),
+    })
+    if (!res.ok) return { ok: false, error: `comment failed (${res.status})` }
+    return { ok: true }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
   }
 }

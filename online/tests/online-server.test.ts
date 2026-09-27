@@ -6,6 +6,7 @@ import WebSocket from 'ws'
 import { decodeControl, encodeControl } from '../shared/src/index.ts'
 import { hashPassphrase } from '../src/passphrase.ts'
 import { rateLimit } from '../src/ratelimit.ts'
+import { MOD_MAX_BYTES, modLabel, sanitizeMod } from '../src/mods.ts'
 
 const freePort = (): Promise<number> =>
   new Promise((resolve, reject) => {
@@ -253,6 +254,120 @@ describe('online server backups + rate limiting', () => {
     }
     assert.equal(last, 429)
     assert.ok(retryAfter !== '', '429 must carry Retry-After')
+  })
+})
+
+describe('online server mod repository', () => {
+  it('sanitizeMod validates + scrubs a mod file (unit)', () => {
+    const clean = sanitizeMod({
+      meta: { name: '  My Mod  ', author: 'Ram', description: ' x ', version: '1.0' },
+      settings: { sellRefundFraction: 0.25, unknown: 42 },
+      buildingOverrides: { 'power-plant': { cost: 500, hp: 1500 } },
+    })
+    assert.ok(clean, 'valid mod must be accepted')
+    assert.equal(clean?.meta?.name, 'My Mod')
+    assert.equal(clean?.settings?.sellRefundFraction, 0.25)
+    assert.ok(!('unknown' in (clean?.settings ?? {})))
+    assert.equal(clean?.buildingOverrides?.['power-plant']?.cost, 500)
+    assert.equal(sanitizeMod({ buildingOverrides: {} }), null, 'empty mod must be rejected')
+    assert.equal(sanitizeMod('nope'), null)
+    assert.equal(MOD_MAX_BYTES, 4 * 1024 * 1024)
+    assert.equal(modLabel(undefined, 'fallback'), 'fallback')
+  })
+
+  it('repo list returns 503 without DB config', async () => {
+    const { status, body } = await json('/api/mods/repo')
+    assert.equal(status, 503)
+    assert.equal((body as { error: string }).error, 'database not configured')
+  })
+
+  it('mod download returns 503 without DB config', async () => {
+    const { status, body } = await json('/api/mods/00000000-0000-0000-0000-000000000000')
+    assert.equal(status, 503)
+    assert.equal((body as { error: string }).error, 'database not configured')
+  })
+
+  it('mod upload requires a session token', async () => {
+    const { status, body } = await json('/api/mods', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ meta: { name: 'X' }, settings: { sellRefundFraction: 0.1 } }),
+    })
+    assert.equal(status, 401)
+    assert.equal((body as { error: string }).error, 'login required')
+  })
+
+  it('mod rate requires a session token', async () => {
+    const { status } = await json('/api/mods/00000000-0000-0000-0000-000000000000/rate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ rating: 5 }),
+    })
+    assert.equal(status, 401)
+  })
+
+  it('mod comment POST requires a session token', async () => {
+    const { status } = await json('/api/mods/00000000-0000-0000-0000-000000000000/comments', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ body: 'hi' }),
+    })
+    assert.equal(status, 401)
+  })
+
+  it('mod delete requires a session token', async () => {
+    const { status } = await json('/api/mods/00000000-0000-0000-0000-000000000000', {
+      method: 'DELETE',
+    })
+    assert.equal(status, 401)
+  })
+
+  it('a burst of mod uploads is rate-limited with Retry-After', async () => {
+    let last = -1
+    let retryAfter = ''
+    for (let i = 0; i < 12; i++) {
+      const r = await fetch(`${base}/api/mods`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ meta: { name: 'Spam' }, settings: { sellRefundFraction: 0.1 } }),
+      })
+      last = r.status
+      retryAfter = r.headers.get('retry-after') ?? ''
+    }
+    assert.equal(last, 429)
+    assert.ok(retryAfter !== '', '429 must carry Retry-After')
+  })
+})
+
+describe('online server CORS allow-list', () => {
+  it('only echoes ACAO for an allowed origin when SA_CORS_ALLOW is set', async () => {
+    const port = await freePort()
+    const locked = spawn(process.execPath, ['dist/online.js'], {
+      env: { ...process.env, SA_MODE: 'online', SA_PORT: String(port), SA_CORS_ALLOW: 'https://example.test' },
+      stdio: 'ignore',
+    })
+    const lbase = `http://127.0.0.1:${port}`
+    const up = await waitFor(async () => {
+      const r = await fetch(`${lbase}/api/status`)
+      return r.ok
+    })
+    assert.ok(up, 'allow-list server did not come up')
+    try {
+      const allowed = await fetch(`${lbase}/api/status`, { headers: { Origin: 'https://example.test' } })
+      assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://example.test')
+
+      const denied = await fetch(`${lbase}/api/status`, { headers: { Origin: 'https://evil.example' } })
+      assert.equal(denied.headers.get('access-control-allow-origin'), null, 'unlisted origin must not receive ACAO')
+
+      const preflight = await fetch(`${lbase}/api/auth/me`, {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://example.test', 'Access-Control-Request-Method': 'GET' },
+      })
+      assert.equal(preflight.status, 204)
+      assert.equal(preflight.headers.get('access-control-allow-origin'), 'https://example.test')
+    } finally {
+      locked.kill()
+    }
   })
 })
 

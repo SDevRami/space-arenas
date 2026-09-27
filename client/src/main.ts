@@ -533,6 +533,7 @@ const refreshMods = async (): Promise<void> => {
     setModsList([], true)
   }
   renderModPickers()
+  renderRepoPublishSelect()
 }
 
 const renameMod = async (meta: ModMeta): Promise<void> => {
@@ -807,7 +808,9 @@ const onlineLeaderboardSection = document.getElementById('online-leaderboard-sec
 const onlineTabMatchesBtn = document.getElementById('online-tab-matches') as HTMLButtonElement
 const onlineTabLeaderboardBtn = document.getElementById('online-tab-leaderboard') as HTMLButtonElement
 const onlineTabDataBtn = document.getElementById('online-tab-data') as HTMLButtonElement
+const onlineTabModsBtn = document.getElementById('online-tab-mods') as HTMLButtonElement
 const onlineDataSection = document.getElementById('online-data-section') as HTMLDivElement
+const onlineModsSection = document.getElementById('online-mods-section') as HTMLDivElement
 const dataStatusEl = document.getElementById('data-status') as HTMLDivElement
 const dataPassEl = document.getElementById('data-pass') as HTMLInputElement
 const dataListEl = document.getElementById('data-list') as HTMLDivElement
@@ -992,12 +995,14 @@ document.getElementById('online-join')!.addEventListener('click', onlineJoinSele
 document.getElementById('online-refresh')!.addEventListener('click', () => {
   void refreshOnlineList(false)
   void loadLeaderboard(true)
+  if (!onlineModsSection.classList.contains('hidden-el')) void loadRepoMods(true)
 })
 
 // ---------- account (Phase 2: Supabase auth + profiles) ----------
 
 interface AuthSession {
   token: string
+  userId: string
   email: string
   username: string
   games: number
@@ -1074,11 +1079,11 @@ const adoptToken = async (token: string): Promise<boolean> => {
     if (!res.ok) return false
     const j = (await res.json()) as {
       ok: boolean
-      data?: { email: string; username: string; games: number; wins: number; highScore: number }
+      data?: { userId: string; email: string; username: string; games: number; wins: number; highScore: number }
     }
     if (!j.ok || !j.data) return false
     const d = j.data
-    saveAuth({ token, email: d.email, username: d.username, games: d.games, wins: d.wins, highScore: d.highScore })
+    saveAuth({ token, userId: d.userId, email: d.email, username: d.username, games: d.games, wins: d.wins, highScore: d.highScore })
     applyAuthUsername(d.username)
     return true
   } catch {
@@ -1174,13 +1179,15 @@ try {
 
 // ---------- leaderboard (Phase 2) ----------
 
-const setOnlineTab = (tab: 'matches' | 'leaderboard' | 'data'): void => {
+const setOnlineTab = (tab: 'matches' | 'leaderboard' | 'data' | 'mods'): void => {
   onlineMatchesSection.classList.toggle('hidden-el', tab !== 'matches')
   onlineLeaderboardSection.classList.toggle('hidden-el', tab !== 'leaderboard')
   onlineDataSection.classList.toggle('hidden-el', tab !== 'data')
+  onlineModsSection.classList.toggle('hidden-el', tab !== 'mods')
   onlineTabMatchesBtn.classList.toggle('selected', tab === 'matches')
   onlineTabLeaderboardBtn.classList.toggle('selected', tab === 'leaderboard')
   onlineTabDataBtn.classList.toggle('selected', tab === 'data')
+  onlineTabModsBtn.classList.toggle('selected', tab === 'mods')
 }
 
 const renderLeaderboard = (rows: Array<{ rank: number; username: string; score: number }>): void => {
@@ -1238,6 +1245,11 @@ onlineTabLeaderboardBtn.addEventListener('click', () => {
 onlineTabDataBtn.addEventListener('click', () => {
   setOnlineTab('data')
   void loadBackups(false)
+})
+onlineTabModsBtn.addEventListener('click', () => {
+  setOnlineTab('mods')
+  void loadRepoMods(false)
+  void refreshMods()
 })
 
 setInterval(() => {
@@ -1483,6 +1495,314 @@ const deleteBackup = async (b: BackupInfo): Promise<void> => {
 
 dataUploadDevBtn.addEventListener('click', () => void uploadBackup('devsettings'))
 dataUploadProfileBtn.addEventListener('click', () => void uploadBackup('profile'))
+
+// ---------- mod repository (Phase 4) ----------
+
+interface RepoMod {
+  id: string
+  ownerId: string
+  name: string
+  author: string
+  description: string
+  version: string
+  sizeBytes: number
+  downloads: number
+  ratingAvg: number | null
+  ratingCount: number
+  requireProtocol: number
+  createdAt: string
+}
+
+interface RepoComment {
+  id: string
+  username: string
+  body: string
+  createdAt: string
+}
+
+const modsRepoStatusEl = document.getElementById('mods-repo-status') as HTMLDivElement
+const modsRepoSearchEl = document.getElementById('mods-repo-search') as HTMLInputElement
+const modsRepoSortEl = document.getElementById('mods-repo-sort') as HTMLSelectElement
+const modsRepoListEl = document.getElementById('mods-repo-list') as HTMLDivElement
+const modsRepoPublishSelectEl = document.getElementById('mods-repo-publish-select') as HTMLSelectElement
+const modsRepoPublishBtn = document.getElementById('mods-repo-publish') as HTMLButtonElement
+
+let repoMods: RepoMod[] = []
+let repoSort = 'newest'
+
+const REPO_SORTS: Array<[string, string]> = [
+  ['newest', 'mods.repo.repoSortNewest'],
+  ['downloads', 'mods.repo.repoSortDownloads'],
+  ['rating', 'mods.repo.repoSortRating'],
+]
+
+for (const [value, i18nKey] of REPO_SORTS) {
+  const opt = document.createElement('option')
+  opt.value = value
+  opt.textContent = t(i18nKey)
+  modsRepoSortEl.appendChild(opt)
+}
+
+const setRepoStatus = (text: string, isError = false): void => {
+  modsRepoStatusEl.textContent = text
+  modsRepoStatusEl.classList.toggle('error', isError)
+}
+
+const loadRepoMods = async (silent = false): Promise<void> => {
+  try {
+    const q = modsRepoSearchEl.value.trim()
+    const url = `${ONLINE_URL}/api/mods/repo?sort=${encodeURIComponent(repoSort)}${q ? `&q=${encodeURIComponent(q)}` : ''}`
+    const res = await fetch(url)
+    const j = (await res.json()) as { ok?: boolean; error?: string; mods?: RepoMod[] }
+    if (!res.ok) throw new Error(j.error ?? String(res.status))
+    repoMods = j.mods ?? []
+    renderRepoMods()
+    if (!silent) setRepoStatus('')
+  } catch {
+    repoMods = []
+    renderRepoMods()
+    if (!silent) setRepoStatus(t('mods.repo.repoError'), true)
+  }
+}
+
+const repoStars = (avg: number | null): string => {
+  if (avg === null || avg === undefined) return '\u2606'.repeat(5)
+  return '\u2605'.repeat(Math.max(0, Math.min(5, Math.round(avg)))) + '\u2606'.repeat(Math.max(0, 5 - Math.round(avg)))
+}
+
+const installRepoMod = async (m: RepoMod): Promise<void> => {
+  setRepoStatus(t('online.working'))
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/mods/${encodeURIComponent(m.id)}`)
+    if (!res.ok) throw new Error(String(res.status))
+    const body = await res.text()
+    JSON.parse(body)
+    const up = await fetch('/api/mods/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    })
+    if (!up.ok) throw new Error(String(up.status))
+    await refreshMods()
+    setRepoStatus(t('mods.repo.repoInstalled'))
+  } catch {
+    setRepoStatus(t('mods.repo.repoInstallFail'), true)
+  }
+}
+
+const rateRepoMod = async (m: RepoMod): Promise<void> => {
+  if (!authSession) {
+    setRepoStatus(t('mods.repo.repoNeedLogin'), true)
+    return
+  }
+  const raw = window.prompt(t('mods.repo.repoRatePrompt'))
+  if (raw === null) return
+  const rating = Math.round(Number(raw))
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    setRepoStatus(t('mods.repo.repoRateInvalid'), true)
+    return
+  }
+  const r = await authApi('POST', `/api/mods/${encodeURIComponent(m.id)}/rate`, { rating })
+  if (!r.ok) {
+    setRepoStatus(r.error ?? t('mods.repo.repoRateFail'), true)
+    return
+  }
+  setRepoStatus(t('mods.repo.repoRateOk', { n: String(rating) }))
+  void loadRepoMods(true)
+}
+
+const deleteRepoMod = async (m: RepoMod): Promise<void> => {
+  if (!window.confirm(t('mods.repo.repoDeleteConfirm', { name: m.name }))) return
+  const r = await authApi('DELETE', `/api/mods/${encodeURIComponent(m.id)}`)
+  if (!r.ok) {
+    setRepoStatus(r.error ?? t('mods.repo.repoDeleteFail'), true)
+    return
+  }
+  repoMods = repoMods.filter((x) => x.id !== m.id)
+  renderRepoMods()
+  setRepoStatus(t('mods.repo.repoDeleted'))
+}
+
+const renderRepoComments = async (m: RepoMod, box: HTMLDivElement): Promise<void> => {
+  box.innerHTML = ''
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/mods/${encodeURIComponent(m.id)}/comments`)
+    const j = (await res.json()) as { ok?: boolean; comments?: RepoComment[] }
+    if (!res.ok || !j.ok) throw new Error()
+    const comments = j.comments ?? []
+    if (comments.length === 0) {
+      const none = document.createElement('div')
+      none.className = 'net-empty'
+      none.textContent = t('mods.repo.repoCommentsEmpty')
+      box.appendChild(none)
+    }
+    for (const c of comments) {
+      const line = document.createElement('div')
+      line.className = 'repo-comment'
+      const head = document.createElement('span')
+      head.className = 'mod-meta'
+      head.textContent = `${c.username || '?'} · ${new Date(c.createdAt).toLocaleDateString()}`
+      const body = document.createElement('span')
+      body.textContent = c.body
+      line.appendChild(head)
+      line.appendChild(body)
+      box.appendChild(line)
+    }
+    if (authSession) {
+      const inputRow = document.createElement('div')
+      inputRow.className = 'maps-toolbar'
+      const textarea = document.createElement('textarea')
+      textarea.maxLength = 500
+      textarea.rows = 2
+      textarea.placeholder = t('mods.repo.repoCommentPlaceholder')
+      const send = document.createElement('button')
+      send.className = 'ghost'
+      send.textContent = t('mods.repo.repoCommentSend')
+      send.addEventListener('click', () => {
+        void (async () => {
+          const text = textarea.value.trim()
+          if (!text) return
+          const r = await authApi('POST', `/api/mods/${encodeURIComponent(m.id)}/comments`, { body: text })
+          if (!r.ok) {
+            setRepoStatus(r.error ?? t('mods.repo.repoCommentFail'), true)
+            return
+          }
+          textarea.value = ''
+          await renderRepoComments(m, box)
+        })()
+      })
+      inputRow.appendChild(textarea)
+      inputRow.appendChild(send)
+      box.appendChild(inputRow)
+    }
+  } catch {
+    const fail = document.createElement('div')
+    fail.className = 'hint error'
+    fail.textContent = t('mods.repo.repoCommentsFail')
+    box.appendChild(fail)
+  }
+}
+
+const repoModRow = (m: RepoMod): HTMLDivElement => {
+  const row = document.createElement('div')
+  row.className = 'backup-row mod-row'
+  const title = document.createElement('span')
+  title.className = 'mod-title'
+  title.textContent = m.name
+  title.title = t('mods.repo.repoRating', { avg: String(m.ratingAvg ?? '—'), c: String(m.ratingCount) })
+  const meta = document.createElement('span')
+  meta.className = 'mod-meta'
+  meta.textContent = m.description || t('mods.repo.repoBy', { author: m.author || '?' })
+  const stats = document.createElement('span')
+  stats.className = 'mod-meta repo-stars'
+  stats.textContent = m.ratingCount > 0 ? `${repoStars(m.ratingAvg)} ${m.ratingAvg}/5 · ${t('mods.repo.repoDownloads', { n: String(m.downloads) })}` : `${repoStars(null)} ${t('mods.repo.repoNoRatings')} · ${t('mods.repo.repoDownloads', { n: String(m.downloads) })}`
+  const actions = document.createElement('span')
+  actions.className = 'archive-actions'
+  const commentsBtn = document.createElement('button')
+  commentsBtn.className = 'ghost'
+  commentsBtn.textContent = t('mods.repo.repoComments')
+  let commentsBox: HTMLDivElement | null = null
+  commentsBtn.addEventListener('click', () => {
+    if (!commentsBox) {
+      commentsBox = document.createElement('div')
+      commentsBox.className = 'repo-comments'
+      row.appendChild(commentsBox)
+      void renderRepoComments(m, commentsBox)
+    } else {
+      commentsBox.remove()
+      commentsBox = null
+    }
+  })
+  actions.appendChild(commentsBtn)
+  const install = document.createElement('button')
+  install.className = 'ghost'
+  install.textContent = t('mods.repo.repoInstall')
+  install.addEventListener('click', () => void installRepoMod(m))
+  actions.appendChild(install)
+  if (authSession) {
+    const rate = document.createElement('button')
+    rate.className = 'ghost'
+    rate.textContent = t('mods.repo.repoRate')
+    rate.addEventListener('click', () => void rateRepoMod(m))
+    actions.appendChild(rate)
+  }
+  if (authSession && authSession.userId === m.ownerId) {
+    const del = document.createElement('button')
+    del.className = 'ghost danger'
+    del.textContent = t('mods.repo.repoDelete')
+    del.addEventListener('click', () => void deleteRepoMod(m))
+    actions.appendChild(del)
+  }
+  row.append(title, meta, stats, actions)
+  return row
+}
+
+const renderRepoPublishSelect = (): void => {
+  const prev = modsRepoPublishSelectEl.value
+  modsRepoPublishSelectEl.innerHTML = ''
+  const publishable = modsCache.filter((m) => m.valid && m.protocolOk !== false)
+  const disabled = !authSession || publishable.length === 0
+  modsRepoPublishBtn.disabled = disabled
+  modsRepoPublishSelectEl.disabled = disabled
+  if (!authSession) return
+  for (const m of publishable) {
+    const opt = document.createElement('option')
+    opt.value = m.name
+    opt.textContent = m.label
+    modsRepoPublishSelectEl.appendChild(opt)
+  }
+  if (publishable.some((m) => m.name === prev)) modsRepoPublishSelectEl.value = prev
+}
+
+const renderRepoMods = (): void => {
+  modsRepoListEl.innerHTML = ''
+  if (repoMods.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'net-empty'
+    empty.textContent = t('mods.repo.repoEmpty')
+    modsRepoListEl.appendChild(empty)
+  }
+  for (const m of repoMods) modsRepoListEl.appendChild(repoModRow(m))
+  renderRepoPublishSelect()
+}
+
+const publishRepoMod = async (): Promise<void> => {
+  if (!authSession) {
+    setRepoStatus(t('mods.repo.repoNeedLogin'), true)
+    return
+  }
+  const name = modsRepoPublishSelectEl.value
+  if (!name) {
+    setRepoStatus(t('mods.repo.repoPublishNoMods'), true)
+    return
+  }
+  setRepoStatus(t('online.working'))
+  try {
+    const read = await fetch(`/api/mods?name=${encodeURIComponent(name)}`)
+    if (!read.ok) throw new Error(String(read.status))
+    const payload = (await read.json()) as unknown
+    const r = await authApi('POST', '/api/mods', payload)
+    if (!r.ok) {
+      setRepoStatus(r.error ?? t('mods.repo.repoPublishFail'), true)
+      return
+    }
+    await loadRepoMods(true)
+    setRepoStatus(t('mods.repo.repoPublishOk', { name }))
+  } catch {
+    setRepoStatus(t('mods.repo.repoInstallFail'), true)
+  }
+}
+
+let repoSearchTimer: number | undefined
+modsRepoSearchEl.addEventListener('input', () => {
+  window.clearTimeout(repoSearchTimer)
+  repoSearchTimer = window.setTimeout(() => void loadRepoMods(true), 350)
+})
+modsRepoSortEl.addEventListener('change', () => {
+  repoSort = modsRepoSortEl.value
+  void loadRepoMods(true)
+})
+modsRepoPublishBtn.addEventListener('click', () => void publishRepoMod())
 
 // ---------- map builder ----------
 

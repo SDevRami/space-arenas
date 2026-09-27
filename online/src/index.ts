@@ -17,9 +17,14 @@ import { newSeed } from './passphrase.ts'
 import {
   BACKUPS_MAX_PAYLOAD_BYTES,
   BACKUPS_PURGE_INTERVAL_MS,
+  CORS_ALLOW_SOURCES,
+  MOD_COMMENT_MAX_CHARS,
   RATE_AUTH_PER_MIN,
   RATE_BACKUP_POST_PER_MIN,
   RATE_LOGIN_PER_ACCOUNT_MIN,
+  RATE_MOD_DOWNLOAD_PER_MIN,
+  RATE_MOD_REPO_PER_MIN,
+  RATE_MOD_WRITE_PER_MIN,
   RATE_READ_PER_MIN,
   RATE_ROOM_WRITE_PER_MIN,
   RATE_WS_HANDSHAKE_PER_MIN,
@@ -30,15 +35,23 @@ import {
   authLogin,
   authMe,
   authRegister,
+  dbAddComment,
   dbCreateBackup,
+  dbCreateMod,
   dbDeleteBackup,
+  dbDeleteMod,
   dbGetBackup,
+  dbGetMod,
   dbLeaderboard,
   dbListBackups,
+  dbListComments,
+  dbListMods,
   dbProbe,
   dbPurgeExpiredBackups,
+  dbRateMod,
   dbRecordMatch,
 } from './supabase.ts'
+import { MOD_MAX_BYTES, modLabel, sanitizeMod } from './mods.ts'
 
 /** How long a REST-created room may sit empty before it is reclaimed. */
 const IDLE_ROOM_TTL_MS = 30_000
@@ -517,7 +530,7 @@ const readJson = (req: IncomingMessage, maxBytes = 1_000_000): Promise<Record<st
   })
 
 const writeJson = (res: ServerResponse, code: number, body: unknown): void => {
-  res.writeHead(code, { 'Content-Type': 'application/json', ...CORS })
+  res.writeHead(code, { 'Content-Type': 'application/json' })
   res.end(JSON.stringify(body))
 }
 
@@ -531,16 +544,30 @@ const limited = (res: ServerResponse, scope: string, limit: number, key: string)
   const r = rateLimit(`${scope}:${key}`, limit)
   if (r.ok) return false
   const secs = r.retryAfterSeconds
-  res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': String(secs), ...CORS })
+  res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': String(secs) })
   res.end(JSON.stringify({ ok: false, error: 'too many requests', retryAfter: secs }))
   return true
 }
 
-/** Cross-origin headers: the game runs on localhost/LAN and calls this server's REST API. */
+/** Cross-origin headers: the game runs on localhost/LAN and calls this server's REST API.
+ *  With no allow-list configured (dev/LAN) every origin is allowed; when `SA_CORS_ALLOW`
+ *  is set only the listed origins get an echoed `Access-Control-Allow-Origin`, so browsers
+ *  block the API for any other frontend (Render stays callable by the game/landing pages). */
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+}
+
+const corsHeaders = (req: IncomingMessage): Record<string, string> => {
+  if (CORS_ALLOW_SOURCES.length === 0) return CORS
+  const origin = req.headers.origin
+  if (typeof origin === 'string' && CORS_ALLOW_SOURCES.includes(origin)) {
+    return { ...CORS, 'Access-Control-Allow-Origin': origin, Vary: 'Origin' }
+  }
+  const withoutOrigin: Record<string, string> = { ...CORS }
+  delete withoutOrigin['Access-Control-Allow-Origin']
+  return withoutOrigin
 }
 
 /** ws(s) base for clients to connect to (Render sets SA_PUBLIC_URL, locally the request host). */
@@ -666,6 +693,166 @@ const handleBackups = async (req: IncomingMessage, res: ServerResponse, urlPath:
   return true
 }
 
+/** Phase 4: community mod repository (browse / download / publish / rate / comment). */
+const handleMods = async (req: IncomingMessage, res: ServerResponse, urlPath: string): Promise<boolean> => {
+  const idPath = urlPath.match(/^\/api\/mods\/([^/]+)\/(rate|comments)$/)
+  const downloadPath = urlPath.match(/^\/api\/mods\/([^/]+)$/)
+
+  if (req.method === 'GET' && urlPath === '/api/mods/repo') {
+    if (limited(res, 'modRepo', RATE_MOD_REPO_PER_MIN, clientIp(req))) return true
+    const url = new URL(req.url ?? '/api/mods/repo', 'http://localhost')
+    const q = url.searchParams.get('q') ?? ''
+    const sort = url.searchParams.get('sort') ?? 'newest'
+    const owner = url.searchParams.get('owner') ?? ''
+    const result = await dbListMods({ q: q.slice(0, 80), sort, owner: owner.slice(0, 64) || undefined })
+    writeJson(res, result.ok ? 200 : result.error === 'database not configured' ? 503 : 400, { ok: result.ok, error: result.error ?? undefined, mods: result.data ?? [] })
+    return true
+  }
+
+  if (req.method === 'GET' && downloadPath && downloadPath[1]) {
+    if (limited(res, 'modDownload', RATE_MOD_DOWNLOAD_PER_MIN, clientIp(req))) return true
+    const result = await dbGetMod(downloadPath[1])
+    if (!result.ok || !result.data) {
+      writeJson(res, result.error === 'database not configured' ? 503 : result.error === 'mod not found' ? 404 : 400, result)
+      return true
+    }
+    // Same body shape the LAN `/api/mods?name=` returns, so the client's existing
+    // mod-import code can feed it straight into the local host's upload endpoint.
+    writeJson(res, 200, result.data.payload)
+    return true
+  }
+
+  if (req.method === 'POST' && urlPath === '/api/mods') {
+    if (limited(res, 'modWrite', RATE_MOD_WRITE_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const body = await readJson(req, MOD_MAX_BYTES)
+    const clean = sanitizeMod(body)
+    if (!clean) {
+      writeJson(res, 400, { ok: false, error: 'invalid mod file' })
+      return true
+    }
+    const name = modLabel(clean.meta)
+    const payloadBytes = Buffer.byteLength(JSON.stringify(clean), 'utf8')
+    if (payloadBytes > MOD_MAX_BYTES) {
+      writeJson(res, 413, { ok: false, error: 'mod file too large' })
+      return true
+    }
+    const result = await dbCreateMod(me.data.userId, {
+      name,
+      author: clean.meta?.author?.slice(0, 60) ?? '',
+      description: clean.meta?.description?.slice(0, 160) ?? '',
+      version: clean.meta?.version?.slice(0, 24) ?? '',
+      requireProtocol: clean.meta?.requireProtocol ?? PROTOCOL_VERSION,
+      sizeBytes: payloadBytes,
+      payload: clean,
+    })
+    if (!result.ok) {
+      const code = result.error === 'database not configured' ? 503 : result.error === 'mod quota reached' || result.error === 'name already taken' ? 409 : 400
+      writeJson(res, code, result)
+      return true
+    }
+    writeJson(res, 201, { ok: true, id: result.data?.id })
+    return true
+  }
+
+  if (req.method === 'DELETE' && downloadPath && downloadPath[1]) {
+    if (limited(res, 'modWrite', RATE_MOD_WRITE_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const result = await dbDeleteMod(me.data.userId, downloadPath[1])
+    if (!result.ok) {
+      const code = result.error === 'database not configured' ? 503 : result.error === 'not owner' ? 403 : result.error === 'mod not found' ? 404 : 400
+      writeJson(res, code, result)
+      return true
+    }
+    writeJson(res, 200, { ok: true })
+    return true
+  }
+
+  if (req.method === 'POST' && idPath && idPath[1] && idPath[2] === 'rate') {
+    if (limited(res, 'modWrite', RATE_MOD_WRITE_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const body = await readJson(req)
+    const rating = Math.round(Number(body.rating))
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      writeJson(res, 400, { ok: false, error: 'rating must be 1-5' })
+      return true
+    }
+    const result = await dbRateMod(idPath[1], me.data.userId, rating)
+    if (!result.ok) {
+      const code = result.error === 'database not configured' ? 503 : result.error === 'mod not found' ? 404 : 400
+      writeJson(res, code, result)
+      return true
+    }
+    writeJson(res, 200, { ok: true, ...result.data })
+    return true
+  }
+
+  if (req.method === 'GET' && idPath && idPath[1] && idPath[2] === 'comments') {
+    if (limited(res, 'modRepo', RATE_MOD_REPO_PER_MIN, clientIp(req))) return true
+    const result = await dbListComments(idPath[1])
+    if (!result.ok && !result.data) {
+      writeJson(res, result.error === 'database not configured' ? 503 : result.error === 'mod not found' ? 404 : 400, result)
+      return true
+    }
+    writeJson(res, 200, { ok: true, comments: result.data ?? [] })
+    return true
+  }
+
+  if (req.method === 'POST' && idPath && idPath[1] && idPath[2] === 'comments') {
+    if (limited(res, 'modWrite', RATE_MOD_WRITE_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const body = await readJson(req)
+    const text = typeof body.body === 'string' ? body.body.trim() : ''
+    if (text === '' || text.length > MOD_COMMENT_MAX_CHARS) {
+      writeJson(res, 400, { ok: false, error: `comment must be 1-${MOD_COMMENT_MAX_CHARS} characters` })
+      return true
+    }
+    const result = await dbAddComment(idPath[1], me.data.userId, text)
+    if (!result.ok) {
+      const code = result.error === 'database not configured' ? 503 : result.error === 'mod not found' ? 404 : 400
+      writeJson(res, code, result)
+      return true
+    }
+    writeJson(res, 201, { ok: true })
+    return true
+  }
+
+  writeJson(res, 405, { ok: false, error: 'method not allowed' })
+  return true
+}
+
 const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: string): Promise<boolean> => {
   if (req.method === 'GET' && urlPath === '/api/status') {
     writeJson(res, 200, {
@@ -780,12 +967,17 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
   if (urlPath === '/api/backups' || urlPath.startsWith('/api/backups/')) {
     return handleBackups(req, res, urlPath)
   }
+  if (urlPath === '/api/mods' || urlPath.startsWith('/api/mods/')) {
+    return handleMods(req, res, urlPath)
+  }
   return false
 }
 
 const server = createServer(async (req, res) => {
+  // CORS is per-request: with an allow-list, only permitted origins get an ACAO echo.
+  for (const [k, v] of Object.entries(corsHeaders(req))) res.setHeader(k, v)
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, CORS)
+    res.writeHead(204)
     res.end()
     return
   }

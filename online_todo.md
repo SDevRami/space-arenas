@@ -138,31 +138,83 @@ backups, and later P4 comments/ratings) stay abuse-resistant. Nothing else is st
 **quota** (max 10 backups, ≤ 64 KB each); **Web Crypto AES-GCM** client-side encryption
 (PBKDF2 passphrase → key, random salt+IV; only ciphertext touches the server).
 
-- [ ] `003_backups.sql`: `backups (id uuid pk default gen_random_uuid(), user_id uuid not null ref profiles(user_id), kind text check (kind in ('devsettings','profile')), payload text not null, passphrase_hash text not null, created_at timestamptz not null default now(), expires_at timestamptz not null)` + index on `expires_at` (purge) and `user_id`.
-- [ ] `POST /api/backups` (auth) — body `{ kind, payload, passphraseHash }`; stores with `expires_at = now + 7 days` (TTL constant `backups.ttlDays`, `online/src/config.ts`); quota: row count ≥ 10 → 409, payload > 64 KB → 413; returns `{ ok, id, expiresAt }`.
-- [ ] `GET /api/backups` (auth) — my backups list (id, kind, created, expires, expired?).
-- [ ] `GET /api/backups/{id}` (auth, ownership-checked) — payload unless expired (410) or `passphraseHash` mismatch (403).
-- [ ] `DELETE /api/backups/{id}` (auth, ownership) — used from the UI.
-- [ ] Expired purge: sweep every 10 min (pattern of the room TTL sweep) + skip-on-read.
-- [ ] Client encryption: AsyncCrypto helper (AES-GCM + PBKDF2, salt/IV stored beside ciphertext in `payload`); `passphraseHash = sha256(passphrase)` lets the server reject wrong passphrases without shipping blobs.
-- [ ] "Data" tab UI (online panel, visible when logged in): list my backups with kind + expiry countdown ("expires in N days · DATE") — the TTL feedback the player asked for; upload Dev-settings / upload Profile buttons with a "stored for 7 days" note; restore (asks passphrase, decrypts client-side, writes to the same storage keys dev-settings/profile use); delete.
-- [ ] i18n en+ar (`backup.*` keys).
-- [ ] **Rate limiting (zero-dep, in-memory sliding window, keyed by client IP):** shared helper `online/src/ratelimit.ts` applied to REST + ws. Limits: register/login/change-password **5/min/IP** (login also **10/min/account**), room create + join pre-check **10/min/IP**, ws handshake **20/min/IP**, backups POST **10/min/IP**, `/api/auth/me` + `/api/leaderboard` GET **60/min/IP**. Respond 429 `{ error, retryAfter }` + `Retry-After`; client i18n error; trust Render's `X-Forwarded-For` for the client IP (fallback to socket remote-address in dev). Reused unchanged by P4 comment/rating endpoints.
-- [ ] Verification: online REST tests — auth-required, ownership, quota 409, size 413, TTL 7-day write then purge (unit), wrong passphrase 403, 429 after a burst. Client typecheck + build green. Manual: backup→restore round-trip on a second profile under the same account, expiry countdown visible.
+- [x] `003_backups.sql`: `backups (id uuid pk default gen_random_uuid(), user_id uuid not null ref profiles(user_id), kind text check (kind in ('devsettings','profile')), payload text not null, passphrase_hash text not null, created_at timestamptz not null default now(), expires_at timestamptz not null)` + index on `expires_at` (purge) and `user_id`.
+- [x] `POST /api/backups` (auth) — body `{ kind, payload, passphraseHash }`; stores with `expires_at = now + 7 days` (TTL constant `backups.ttlDays`, `online/src/config.ts`); quota: row count ≥ 10 → 409, payload > 64 KB → 413; returns `{ ok, id, expiresAt }`.
+- [x] `GET /api/backups` (auth) — my backups list (id, kind, created, expires, expired?).
+- [x] `GET /api/backups/{id}` (auth, ownership-checked) — payload unless expired (410) or `passphraseHash` mismatch (403).
+- [x] `DELETE /api/backups/{id}` (auth, ownership) — used from the UI.
+- [x] Expired purge: sweep every 10 min (pattern of the room TTL sweep) + skip-on-read.
+- [x] Client encryption: AsyncCrypto helper (AES-GCM + PBKDF2, salt/IV stored beside ciphertext in `payload`); `passphraseHash = sha256(passphrase)` lets the server reject wrong passphrases without shipping blobs.
+- [x] "Data" tab UI (online panel, visible when logged in): list my backups with kind + expiry countdown ("expires in N days · DATE") — the TTL feedback the player asked for; upload Dev-settings / upload Profile buttons with a "stored for 7 days" note; restore (asks passphrase, decrypts client-side, writes to the same storage keys dev-settings/profile use); delete.
+- [x] i18n en+ar (`backup.*` keys).
+- [x] **Rate limiting (zero-dep, in-memory sliding window, keyed by client IP):** shared helper `online/src/ratelimit.ts` applied to REST + ws. Limits: register/login/change-password **5/min/IP** (login also **10/min/account**), room create + join pre-check **10/min/IP**, ws handshake **20/min/IP**, backups POST **10/min/IP**, `/api/auth/me` + `/api/leaderboard` GET **60/min/IP**. Respond 429 `{ error, retryAfter }` + `Retry-After`; client i18n error; trust Render's `X-Forwarded-For` for the client IP (fallback to socket remote-address in dev). Reused unchanged by P4 comment/rating endpoints.
+- [x] Verification: online REST tests — auth-required, ownership, quota 409, size 413, TTL 7-day write then purge (unit), wrong passphrase 403, 429 after a burst. Client typecheck + build green. Manual: backup→restore round-trip on a second profile under the same account, expiry countdown visible. *(shipped + user-verified; DELETE CORS + full dev-sections coverage + live-value capture added during fix-ups)*
 
 ---
 
-## Phase 4 — Landing page + online mod repository
+## Phase 4 — Landing page (GitHub Pages) + online mod repository
 
-**Goal:** public game-info page at `/` served by Render + community mod repository
-(browse / rate / download / vote / comment).
+**Goal:** a public game-info page hosted on **GitHub Pages** (static, free, zero runtime),
+plus a community mod repository (browse / download / rate / comment) with per-account
+publishing served by the existing Render API.
 
-- [ ] Static landing page (HTML/CSS) at `/` (game at a sub-path like `/game/`): game info, system requirements, how-to-join, screenshots.
-- [ ] Mod repository backed by DB: `mods (id, name, description, owner_id, size_bytes, downloads, rating_avg, rating_count, votes)`; file blob kept in existing `modStore` format (`/api/mods*` shape reused, `host/src/mods.ts` + `isValidMod` validation).
-- [ ] `/api/mods/repo` (browse+filter), `/api/mods/{id}/rate` (1–5, one per user), `/api/mods/{id}/vote`, `/api/mods/{id}/comments` (list/post).
-- [ ] Download = mod JSON via existing `/api/mods?name=`; client "Mods" tab gains an "Online repository" section reusing `fetchModByName` (`main.ts:594`).
-- [ ] Landing page is not dependent on the game client; served by the `online/` Render service (same repo, future sub-route like `/` while the API stays under `/api/*`).
-- [ ] i18n for the tab additions; verification: rate+comment appear for other users; download imports a valid `ModFile`.
+**Decided (user):** mod uploads require login and the **owner can delete** their own mod
+(server validates + sanitizes every upload); landing page is **bilingual EN/AR with a
+toggle** and hosted on **GitHub Pages** (Render stays API-only); client Mods tab ships
+**browse, download+install, upload, delete own**; social signals are **1–5 rating (one
+per user, averaged) + download count** (no separate vote).
+
+**Hosting split (decided):** Pages serves a static build produced from `online/public/`
+via a GitHub Actions workflow; Render keeps serving only the API (it already serves no
+static files). CORS is hardened from `*` to an **allow-list env** (`SA_CORS_ALLOW`, default
+`*` in dev) so Render only answers browser calls from Pages (game client keeps `*` via the
+env default). The API data itself (repo, leaderboard, rooms) is already public; sensitive
+ops stay token-protected + rate-limited. The landing page caches API reads (top-mods strip)
+in localStorage with a short TTL to avoid hammering Render.
+
+- [x] **4.1 Landing page** — static site in `online/public/` + **GitHub Pages deploy**
+  (`.github/workflows/pages.yml`: build+upload artifact from `online/public`, Pages
+  `actions/deploy-pages`):
+  - Sections: hero, features grid, 3-step how-to-join, screenshots, footer linking to the repo.
+  - i18n: embedded EN/AR dictionaries + toggle (localStorage + URL param), RTL via `dir="rtl"`.
+  - Read-only "top mods" strip calls `GET /api/mods/repo` (public) with a
+    localStorage TTL cache; the API base URL is a build-time constant (`SA_ONLINE_URL`).
+- [x] **4.2 Repository backend** (DB-backed, `online/supabase/migrations/004_mods.sql`):
+  - `mods (id uuid pk, owner_id uuid → auth.users, name text, size_bytes int, require_protocol int,
+    payload jsonb, downloads int default 0, created_at timestamptz)`; `mod_ratings (mod_id, user_id,
+    rating smallint check 1–5, pk(mod_id,user_id))`; `mod_comments (id, mod_id, user_id, body text, created_at)`.
+    RLS: reads public; writes via service role after server-side validation. Indexes on
+    `created_at`, `downloads`, `mod_ratings(mod_id)`. Denormalized `meta_author/meta_description/meta_version`
+    hydrated at upload for fast list queries; unique `lower(name)` backstop.
+  - Port `sanitizeMod`/`MOD_MAX_BYTES` from `host/src/mods.ts` into `online/src/mods.ts`
+    (reuses existing `sanitizeSettings`/`sanitizeOverrideMaps` + vendored `isValidMod`/`PROTOCOL_VERSION`).
+  - Endpoints (all behind the P3 rate limiter; upload/comment sizes capped):
+    - `GET /api/mods/repo?q=&sort=rating|downloads|newest&owner=` → list with
+      `{ id, name, author, description, version, sizeBytes, downloads, ratingAvg, ratingCount, requireProtocol, createdAt, ownerId }` (no payload).
+    - `GET /api/mods/{id}` → the full ModFile JSON (same body shape the LAN `/api/mods?name=` returns,
+      so the client's existing mod-import code reuses it) + bumps `downloads`.
+    - `POST /api/mods` (auth) — body = ModFile JSON; server validates/sanitizes; name collision → 409,
+      `MODS_MAX_PER_USER` per-account cap → 409, ≥ `MOD_MAX_BYTES` → 413; returns `{ ok, id }`.
+    - `DELETE /api/mods/{id}` (auth, owner-checked) → 200/404.
+    - `POST /api/mods/{id}/rate` (auth, 1–5, upsert per user) → `{ ok, ratingAvg, ratingCount }`.
+    - `GET /api/mods/{id}/comments` (public) / `POST /api/mods/{id}/comments` (auth, ≤ 500 chars).
+  - **Reuses the P3 rate limiter unchanged** (`online/src/ratelimit.ts`): repo GET/browse 60/min/IP,
+    downloads 60/IP, upload/delete/rate/comment 10/min/IP.
+- [x] **4.1b CORS allow-list:** config `SA_CORS_ALLOW` (comma-separated origins) in `online/src/config.ts`;
+  `CORS` in `online/src/index.ts` echoes the matching `Origin` (or `*` when unset/not matched). Landing
+  page + game client on Pages work in real use; dev/localhost keeps `*` by default.
+- [x] **4.3 Client Mods tab — online repository section** (`client/`):
+  - Browse/search/sort the repo (name, author, downloads, rating stars, list row like the Data tab).
+  - Download: fetch `/api/mods/{id}`, then install into the local LAN-host store via the existing
+    `/api/mods/upload` call (same "import a ModFile" path the tab already uses).
+  - Upload own: pick a local mod from the list → POST its JSON to `/api/mods` (auth token, login gate).
+  - Delete own: only rows where `ownerId === myUserId` get a delete button.
+  - Rate any mod (1–5, logged in); expandable comments thread (read + post).
+  - i18n en+ar (`mods.repo.*` keys).
+- [ ] **4.4 Verification**: online REST tests **shipped (29/29, incl. sanitize unit, CORS allow-list)** —
+  manual still open on live DB: browser A uploads → browser B browses/rates/downloads + installs locally,
+  comments round-trip, owner deletes, non-owner delete rejected; landing page EN/AR toggle + RTL + `/api/*`
+  still API. Client typecheck + build green.
 
 ---
 
@@ -197,8 +249,8 @@ backups, and later P4 comments/ratings) stay abuse-resistant. Nothing else is st
 |-------|-------|--------|-------------|--------|
 | P1 | Render deploy · multi-room server · real matchmaking | L | No | □ |
 | P2 | Accounts · profiles · leaderboard (Supabase) | M | No | ◐ code+verif done; live DB after deploy |
-| P3 | Expiring data backups (Data tab) + rate limiting/abuse hardening | M | No | □ |
-| P4 | Landing page · mod repository · ratings/comments | M | No | □ |
+| P3 | Expiring data backups (Data tab) + rate limiting/abuse hardening | M | No | ✓ shipped + verified live |
+| P4 | Landing page (GitHub Pages) · mod repository · ratings/comments | M | No | ◐ code+verif done; live after DB paste + Pages/Render env |
 | P5 | Local replay save · anti-cheat baseline | S | No | □ |
 
 ---
@@ -209,4 +261,4 @@ backups, and later P4 comments/ratings) stay abuse-resistant. Nothing else is st
 2. **Password model:** one shared room password (like today's passphrase) or per-player credentials?
 3. **Leaderboard source:** server-reported results at `H_GAME_OVER` (trusted) vs client self-report (MVP-simple)?
 4. **Backup TTL:** fixed **7 days**, quota 10 rows / 64 KB per account, AES-GCM client-side encryption — **decided** (P3).
-5. **Landing/game split:** game under `/game/` on the same Render app (matches current `CLIENT_DIST` static serving) ?
+5. **Landing/game split:** landing page on **GitHub Pages** (static `online/public/` via Actions), Render API-only with `SA_CORS_ALLOW` allow-list + client-side TTL caching — **decided** (P4). Game itself stays a local/Vite client as today.

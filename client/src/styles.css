@@ -670,6 +670,19 @@
       #lobby .mods-picker button { width: auto; padding: 7px 12px; }
       #lobby .maps-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
       #lobby .maps-toolbar button { width: auto; margin-top: 0; padding: 8px 14px; }
+      #lobby .maps-toolbar input, #lobby .maps-toolbar select, #lobby .maps-toolbar textarea {
+        flex: 1 1 200px; padding: 7px 10px; background: var(--color-surface);
+        color: var(--color-text); border: 1px solid var(--color-border); border-radius: 3px; font-family: inherit; font-size: 12px;
+      }
+      #lobby .maps-toolbar textarea { resize: vertical; }
+      #lobby .mod-row .repo-stars { flex: 0 1 170px; color: var(--color-accent); }
+      #lobby .mod-row .repo-stars .gar { color: var(--color-text-muted); }
+      #lobby .mod-row .danger { color: #ff6b6b; border-color: #ff6b6b; }
+      #lobby .mod-row .danger:hover { background: rgba(255, 107, 107, 0.12); }
+      #lobby .repo-comments { flex: 1 1 100%; display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); border-radius: 3px; }
+      #lobby .repo-comments .net-empty { padding: 4px 0; color: var(--color-text-muted); }
+      #lobby .repo-comments .maps-toolbar { margin: 4px 0 0; }
+      #lobby .repo-comment { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; background: var(--color-surface); border: 1px solid var(--color-divider); border-radius: 3px; }
 
       .mb-overlay { position: fixed; inset: 0; z-index: 60; display: none; flex-direction: column; background: var(--color-bg); }
       .mb-overlay.visible { display: flex; }
