@@ -3,7 +3,7 @@ name: Deploy landing page to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['online/public/**']
+    paths: ['online/public/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
