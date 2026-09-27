@@ -1,6 +1,6 @@
 import './styles.css'
 import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, PROTOCOL_VERSION, type ModFile, type ModMeta, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
-import { MAP_PRESETS, mapForPreset, type MapData } from '@space-arenas/shared'
+import { MAP_PRESETS, mapForPreset, validateMap, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { AudioHooks, AMBIENT_SYNTH } from './audio/hooks.ts'
 import { NetClient } from './net/net.ts'
@@ -16,7 +16,7 @@ import { preloadFxFrames } from './render/building-sprites.ts'
 import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setFieldScale, setObstacleScale, setObstacleOffset, setUnitScale, setUnitOffset, setAssetPath, setFxScale, setFxOffset, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, setSpriteLayerOrder, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_FIELD_SCALE, DEFAULT_OBSTACLE_SCALE, DEFAULT_OBSTACLE_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_UNIT_OFFSET, DEFAULT_FX_SCALE, DEFAULT_FX_OFFSET, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, DEFAULT_SPRITE_LAYER_ORDER, SPRITE_LAYER_KINDS, UNIT_ASSET_IDS, OBSTACLE_ASSET_TYPES, reloadGraphics } from './ui/graphics.ts'
 import { getAudio, setOverride, setTuning, reloadAudio, TUNING_VOL_MAX, TUNING_PITCH_MIN, TUNING_PITCH_MAX, type SoundId } from './audio/settings.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
-import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, type MapEntry } from './mapbuilder/library.ts'
+import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, saveCustomMap, type MapEntry } from './mapbuilder/library.ts'
 import { initProfilePanel, renderProfilePanel, onProfileTabShown } from './profile/ui.ts'
 import { loadProfileConfig, saveProfileConfig } from './profile/profile.ts'
 import { decryptPayload, encryptPayload, sha256Hex } from './net/crypto.ts'
@@ -1822,6 +1822,334 @@ modsRepoPublishSelectEl.addEventListener('change', () => {
   modsRepoPublishBtn.disabled = locked || modsRepoPublishSelectEl.value === '' || modsRepoPublishDescEl.value.trim() === ''
 })
 modsRepoPublishBtn.addEventListener('click', () => void publishRepoMod())
+
+// ---------- community maps (Phase 5: mirrors the mod repository) ----------
+
+interface RepoMap {
+  id: string
+  ownerId: string
+  ownerName: string
+  name: string
+  author: string
+  description: string
+  version: string
+  sizeBytes: number
+  width: number
+  height: number
+  players: number
+  requireProtocol: number
+  downloads: number
+  ratingAvg: number | null
+  ratingCount: number
+  createdAt: string
+}
+
+const MAP_REPO_SORTS: Array<[string, string]> = [
+  ['newest', 'maps.repo.repoSortNewest'],
+  ['rating', 'maps.repo.repoSortRating'],
+  ['downloads', 'maps.repo.repoSortDownloads'],
+  ['players', 'maps.repo.repoSortPlayers'],
+]
+
+const mapsRepoStatusEl = document.getElementById('maps-repo-status') as HTMLDivElement
+const mapsRepoListEl = document.getElementById('maps-repo-list') as HTMLDivElement
+const mapsRepoSearchEl = document.getElementById('maps-repo-search') as HTMLInputElement
+const mapsRepoSortEl = document.getElementById('maps-repo-sort') as HTMLSelectElement
+const mapsRepoPublishSelectEl = document.getElementById('maps-repo-publish-select') as HTMLSelectElement
+const mapsRepoPublishDescEl = document.getElementById('maps-repo-publish-desc') as HTMLInputElement
+const mapsRepoPublishBtn = document.getElementById('maps-repo-publish') as HTMLButtonElement
+
+let repoMaps: RepoMap[] = []
+let mapRepoSort = 'newest'
+
+const setMapRepoStatus = (text: string, isError = false): void => {
+  mapsRepoStatusEl.textContent = text
+  mapsRepoStatusEl.classList.toggle('error', isError)
+}
+
+for (const [value, i18nKey] of MAP_REPO_SORTS) {
+  const opt = document.createElement('option')
+  opt.value = value
+  opt.textContent = t(i18nKey)
+  mapsRepoSortEl.appendChild(opt)
+}
+
+const loadRepoMaps = async (silent = false): Promise<void> => {
+  try {
+    const q = mapsRepoSearchEl.value.trim()
+    const url = `${ONLINE_URL}/api/maps/repo?sort=${encodeURIComponent(mapRepoSort)}${q ? `&q=${encodeURIComponent(q)}` : ''}`
+    const res = await fetch(url)
+    const j = (await res.json()) as { ok?: boolean; error?: string; maps?: RepoMap[] }
+    if (!res.ok) throw new Error(j.error ?? String(res.status))
+    repoMaps = j.maps ?? []
+    renderRepoMaps()
+    if (!silent) setMapRepoStatus('')
+  } catch {
+    repoMaps = []
+    renderRepoMaps()
+    if (!silent) setMapRepoStatus(t('maps.repo.repoError'), true)
+  }
+}
+
+const repoMapStars = (avg: number | null): string => {
+  if (avg === null || avg === undefined) return '\u2606'.repeat(5)
+  return '\u2605'.repeat(Math.max(0, Math.min(5, Math.round(avg)))) + '\u2606'.repeat(Math.max(0, 5 - Math.round(avg)))
+}
+
+const installRepoMap = async (m: RepoMap): Promise<void> => {
+  setMapRepoStatus(t('online.working'))
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/maps/${encodeURIComponent(m.id)}`)
+    if (!res.ok) throw new Error(String(res.status))
+    const parsed = (await res.json()) as MapData
+    const saved = saveCustomMap(parsed)
+    if (!saved.ok) {
+      setMapRepoStatus(t('maps.repo.repoInstallFail') + (saved.errors[0] ? ` — ${saved.errors[0]}` : ''), true)
+      return
+    }
+    renderMapBuilderTable()
+    renderMapSelect()
+    await loadRepoMaps(true)
+    setMapRepoStatus(t('maps.repo.repoInstalled'))
+  } catch {
+    setMapRepoStatus(t('maps.repo.repoInstallFail'), true)
+  }
+}
+
+const rateRepoMap = async (m: RepoMap): Promise<void> => {
+  if (!authSession) {
+    setMapRepoStatus(t('maps.repo.repoNeedLogin'), true)
+    return
+  }
+  const raw = window.prompt(t('maps.repo.repoRatePrompt'))
+  if (raw === null) return
+  const rating = Math.round(Number(raw))
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    setMapRepoStatus(t('maps.repo.repoRateInvalid'), true)
+    return
+  }
+  const r = await authApi('POST', `/api/maps/${encodeURIComponent(m.id)}/rate`, { rating })
+  if (!r.ok) {
+    setMapRepoStatus(r.error ?? t('maps.repo.repoRateFail'), true)
+    return
+  }
+  setMapRepoStatus(t('maps.repo.repoRateOk', { n: String(rating) }))
+  void loadRepoMaps(true)
+}
+
+const deleteRepoMap = async (m: RepoMap): Promise<void> => {
+  if (!window.confirm(t('maps.repo.repoDeleteConfirm', { name: m.name }))) return
+  const r = await authApi('DELETE', `/api/maps/${encodeURIComponent(m.id)}`)
+  if (!r.ok) {
+    setMapRepoStatus(r.error ?? t('maps.repo.repoDeleteFail'), true)
+    return
+  }
+  repoMaps = repoMaps.filter((x) => x.id !== m.id)
+  renderRepoMaps()
+  setMapRepoStatus(t('maps.repo.repoDeleted'))
+}
+
+const renderRepoMapComments = async (m: RepoMap, box: HTMLDivElement): Promise<void> => {
+  box.innerHTML = ''
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/maps/${encodeURIComponent(m.id)}/comments`)
+    const j = (await res.json()) as { ok?: boolean; comments?: RepoComment[] }
+    if (!res.ok || !j.ok) throw new Error()
+    const comments = j.comments ?? []
+    if (comments.length === 0) {
+      const none = document.createElement('div')
+      none.className = 'net-empty'
+      none.textContent = t('maps.repo.repoCommentsEmpty')
+      box.appendChild(none)
+    }
+    for (const c of comments) {
+      const line = document.createElement('div')
+      line.className = 'repo-comment'
+      const head = document.createElement('span')
+      head.className = 'mod-meta'
+      head.textContent = `${c.username || '?'} · ${new Date(c.createdAt).toLocaleDateString()}`
+      const body = document.createElement('span')
+      body.textContent = c.body
+      line.appendChild(head)
+      line.appendChild(body)
+      box.appendChild(line)
+    }
+    if (authSession) {
+      const inputRow = document.createElement('div')
+      inputRow.className = 'maps-toolbar'
+      const textarea = document.createElement('textarea')
+      textarea.maxLength = 500
+      textarea.rows = 2
+      textarea.placeholder = t('maps.repo.repoCommentPlaceholder')
+      const send = document.createElement('button')
+      send.className = 'ghost'
+      send.textContent = t('maps.repo.repoCommentSend')
+      send.addEventListener('click', () => {
+        void (async () => {
+          const text = textarea.value.trim()
+          if (!text) return
+          const r = await authApi('POST', `/api/maps/${encodeURIComponent(m.id)}/comments`, { body: text })
+          if (!r.ok) {
+            setMapRepoStatus(r.error ?? t('maps.repo.repoCommentFail'), true)
+            return
+          }
+          textarea.value = ''
+          await renderRepoMapComments(m, box)
+        })()
+      })
+      inputRow.appendChild(textarea)
+      inputRow.appendChild(send)
+      box.appendChild(inputRow)
+    }
+  } catch {
+    const fail = document.createElement('div')
+    fail.className = 'hint error'
+    fail.textContent = t('maps.repo.repoCommentsFail')
+    box.appendChild(fail)
+  }
+}
+
+const repoMapRow = (m: RepoMap): HTMLDivElement => {
+  const row = document.createElement('div')
+  row.className = 'backup-row mod-row'
+  const title = document.createElement('span')
+  title.className = 'mod-title'
+  title.textContent = `${m.name} (${m.players}P)`
+  title.title = t('maps.repo.repoRating', { avg: String(m.ratingAvg ?? '—'), c: String(m.ratingCount) })
+  const meta = document.createElement('span')
+  meta.className = 'mod-meta'
+  meta.textContent = m.description || t('maps.repo.repoBy', { author: m.ownerName || m.author || '?' })
+  const stats = document.createElement('span')
+  stats.className = 'mod-meta repo-stars'
+  stats.textContent = `${m.width}×${m.height} · ${m.ratingCount > 0 ? `${repoMapStars(m.ratingAvg)} ${m.ratingAvg}/5 · ` : `${repoMapStars(null)} ${t('maps.repo.repoNoRatings')} · `}${t('maps.repo.repoDownloads', { n: String(m.downloads) })}`
+  const actions = document.createElement('span')
+  actions.className = 'archive-actions'
+  const commentsBtn = document.createElement('button')
+  commentsBtn.className = 'ghost'
+  commentsBtn.textContent = t('maps.repo.repoComments')
+  let commentsBox: HTMLDivElement | null = null
+  commentsBtn.addEventListener('click', () => {
+    if (!commentsBox) {
+      commentsBox = document.createElement('div')
+      commentsBox.className = 'repo-comments'
+      row.appendChild(commentsBox)
+      void renderRepoMapComments(m, commentsBox)
+    } else {
+      commentsBox.remove()
+      commentsBox = null
+    }
+  })
+  actions.appendChild(commentsBtn)
+  const install = document.createElement('button')
+  install.className = 'ghost'
+  install.textContent = t('maps.repo.repoInstall')
+  install.addEventListener('click', () => void installRepoMap(m))
+  actions.appendChild(install)
+  if (authSession) {
+    const rate = document.createElement('button')
+    rate.className = 'ghost'
+    rate.textContent = t('maps.repo.repoRate')
+    rate.addEventListener('click', () => void rateRepoMap(m))
+    actions.appendChild(rate)
+  }
+  if (authSession && authSession.userId === m.ownerId) {
+    const del = document.createElement('button')
+    del.className = 'ghost danger'
+    del.textContent = t('maps.repo.repoDelete')
+    del.addEventListener('click', () => void deleteRepoMap(m))
+    actions.appendChild(del)
+  }
+  row.append(title, meta, stats, actions)
+  return row
+}
+
+const renderRepoMaps = (): void => {
+  mapsRepoListEl.innerHTML = ''
+  if (repoMaps.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'net-empty'
+    empty.textContent = t('maps.repo.repoEmpty')
+    mapsRepoListEl.appendChild(empty)
+  }
+  for (const m of repoMaps) mapsRepoListEl.appendChild(repoMapRow(m))
+  renderRepoMapPublishSelect()
+}
+
+const renderRepoMapPublishSelect = (): void => {
+  const prev = mapsRepoPublishSelectEl.value
+  mapsRepoPublishSelectEl.innerHTML = ''
+  const publishable = allMapEntries()
+    .filter((e) => e.kind === 'custom')
+    .filter((e) => {
+      const m = entryToMap(e)
+      return validateMap(m).ok
+    })
+  const locked = !authSession || publishable.length === 0
+  mapsRepoPublishSelectEl.disabled = locked
+  mapsRepoPublishDescEl.disabled = locked
+  mapsRepoPublishBtn.disabled = locked || mapsRepoPublishDescEl.value.trim() === ''
+  if (!authSession) return
+  for (const e of publishable) {
+    const opt = document.createElement('option')
+    opt.value = e.name
+    opt.textContent = `${e.name} (${e.players}P)`
+    mapsRepoPublishSelectEl.appendChild(opt)
+  }
+  if (publishable.some((e) => e.name === prev)) mapsRepoPublishSelectEl.value = prev
+}
+
+mapsRepoPublishDescEl.addEventListener('input', () => {
+  mapsRepoPublishBtn.disabled = mapsRepoPublishSelectEl.value === '' || mapsRepoPublishDescEl.value.trim() === '' || mapsRepoPublishSelectEl.disabled
+})
+
+const publishRepoMap = async (): Promise<void> => {
+  if (!authSession) {
+    setMapRepoStatus(t('maps.repo.repoNeedLogin'), true)
+    return
+  }
+  const name = mapsRepoPublishSelectEl.value
+  if (!name) {
+    setMapRepoStatus(t('maps.repo.repoPublishNoMaps'), true)
+    return
+  }
+  const description = mapsRepoPublishDescEl.value.trim()
+  if (description === '') {
+    setMapRepoStatus(t('maps.repo.repoPublishNeedDesc'), true)
+    return
+  }
+  setMapRepoStatus(t('online.working'))
+  try {
+    const entry = findMapEntry(`custom:${name}`)
+    if (!entry) throw new Error(String('missing map'))
+    const map = entryToMap(entry)
+    map.description = description.slice(0, 160)
+    const r = await authApi('POST', '/api/maps', map)
+    if (!r.ok) {
+      setMapRepoStatus(r.error ?? t('maps.repo.repoPublishFail'), true)
+      return
+    }
+    mapsRepoPublishDescEl.value = ''
+    await loadRepoMaps(true)
+    setMapRepoStatus(t('maps.repo.repoPublishOk', { name }))
+  } catch {
+    setMapRepoStatus(t('maps.repo.repoPublishFail'), true)
+  }
+}
+
+let mapRepoSearchTimer: number | undefined
+mapsRepoSearchEl.addEventListener('input', () => {
+  window.clearTimeout(mapRepoSearchTimer)
+  mapRepoSearchTimer = window.setTimeout(() => void loadRepoMaps(true), 350)
+})
+mapsRepoSortEl.addEventListener('change', () => {
+  mapRepoSort = mapsRepoSortEl.value
+  void loadRepoMaps(true)
+})
+mapsRepoPublishSelectEl.addEventListener('change', () => {
+  const locked = mapsRepoPublishSelectEl.disabled
+  mapsRepoPublishBtn.disabled = locked || mapsRepoPublishSelectEl.value === '' || mapsRepoPublishDescEl.value.trim() === ''
+})
+mapsRepoPublishBtn.addEventListener('click', () => void publishRepoMap())
 
 // ---------- map builder ----------
 

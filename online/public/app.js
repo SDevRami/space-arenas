@@ -8,6 +8,7 @@
 const SA_ONLINE_URL = 'https://space-arenas-online.onrender.com'
 
 const CACHE_KEY = 'sa-modlist-cache-v1'
+const MAPS_CACHE_KEY = 'sa-maplist-cache-v1'
 const AUTH_KEY = 'sa-auth'
 const LANG_KEY = 'sa-lang'
 const MODS_TTL_MS = 5 * 60 * 1000
@@ -41,16 +42,22 @@ const EN = {
   'howto.st2.text': 'Sign up in the online lobby to unlock the leaderboard, data backups and the mod repository.',
   'howto.st3.title': 'Play & share',
   'howto.st3.text': 'Create or join a room, pick a balance mod, and carry your progress anywhere with encrypted backups.',
-  'community.title': 'Community mods',
-  'community.subtitle': 'Browse, rate and download balance mods — or publish your own.',
-  'community.needLogin': 'Sign in to browse, rate, download and share community mods.',
+  'community.title': 'Community',
+  'community.subtitle': 'Browse, rate and download mods and maps — or publish your own.',
+  'community.needLogin': 'Sign in to browse, rate, download and share community mods and maps.',
   'community.by': 'by @{name}',
   'community.downloads': '{n} downloads',
+  'community.players': '{n} players',
   'community.noRating': 'not rated yet',
   'community.rating': '{avg} / 5 ({c})',
   'community.loading': 'Loading…',
+  'community.tab.mods': 'Mods',
+  'community.tab.maps': 'Maps',
+  'community.tab.mine': 'My published',
   'community.empty': 'No mods published yet — be the first!',
+  'community.maps.empty': 'No maps published yet — be the first!',
   'community.error': 'Could not load the mod repository.',
+  'community.maps.error': 'Could not load the map repository.',
   'community.download': 'Download',
   'community.downloading': 'Downloading…',
   'community.downloadLimit': 'Download limit reached — try again in a minute.',
@@ -66,6 +73,23 @@ const EN = {
   'community.upload.needDesc': 'Write a short description first.',
   'community.upload.needFile': 'Choose a mod file first.',
   'community.upload.fail': 'Could not publish the mod.',
+  'community.mapsUpload.title': 'Share a map',
+  'community.mapsUpload.hint': 'Pick a map file you exported from the Map Builder, write a short description and publish it for everyone. Only you can delete your own maps.',
+  'community.mapsUpload.descPlaceholder': 'Short description… (up to 160 characters)',
+  'community.mapsUpload.button': 'Publish',
+  'community.mapsUpload.working': 'Publishing…',
+  'community.mapsUpload.ok': 'Map published to the community.',
+  'community.mapsUpload.needDesc': 'Write a short description first.',
+  'community.mapsUpload.needFile': 'Choose a map file first.',
+  'community.mapsUpload.fail': 'Could not publish the map.',
+  'community.mine.modsTitle': 'My mods',
+  'community.mine.mapsTitle': 'My maps',
+  'community.mine.empty': 'You haven\u2019t published anything yet.',
+  'community.mine.error': 'Could not load your published items.',
+  'community.mine.delete': 'Delete',
+  'community.mine.deleting': 'Deleting\u2026',
+  'community.mine.deleted': 'Deleted from the repository.',
+  'community.mine.deleteFail': 'Could not delete it.',
   'auth.signin': 'Sign in',
   'auth.signout': 'Sign out',
   'auth.email': 'Email',
@@ -287,16 +311,22 @@ const AR = {
   'howto.st2.text': 'سجّل في قاعة اللعب لفتح لوحة المتصدرين والنسخ الاحتياطية ومستودع التعديلات.',
   'howto.st3.title': 'العب وشارك',
   'howto.st3.text': 'أنشئ قاعة أو انضم إليها، اختر تعديل توازن، وانقل تقدمك أينما كنت بنسخ احتياطية مشفرة.',
-  'community.title': 'تعديلات المجتمع',
-  'community.subtitle': 'تصفّح وقيّم وحمّل تعديلات التوازن — أو انشر تعديلاً من عندك.',
-  'community.needLogin': 'سجّل الدخول لتصفّح وقيّم وتنزّل وتشارك تعديلات المجتمع.',
+  'community.title': 'مجتمع اللاعبين',
+  'community.subtitle': 'تصفّح وقيّم وحمّل التعديلات والخرائط — أو انشر ما تصنعه.',
+  'community.needLogin': 'سجّل الدخول لتصفّح وقيّم وتنزّل وتشارك تعديلات وخرائط المجتمع.',
   'community.by': 'بواسطة @{name}',
   'community.downloads': '{n} تنزيل',
+  'community.players': '{n} لاعبي',
   'community.noRating': 'لم يُقيَّم بعد',
   'community.rating': '{avg} / 5 ({c})',
   'community.loading': 'جارٍ التحميل…',
+  'community.tab.mods': 'التعديلات',
+  'community.tab.maps': 'الخرائط',
+  'community.tab.mine': 'منشوراتي',
   'community.empty': 'لا توجد تعديلات بعد — كن أول من ينشر!',
+  'community.maps.empty': 'لا توجد خرائط بعد — كن أول من ينشر!',
   'community.error': 'تعذّر تحميل مستودع التعديلات.',
+  'community.maps.error': 'تعذّر تحميل مستودع الخرائط.',
   'community.download': 'تنزيل',
   'community.downloading': 'جارٍ التنزيل…',
   'community.downloadLimit': 'وصلت لحد التنزيل — حاول مرة أخرى بعد دقيقة.',
@@ -312,6 +342,23 @@ const AR = {
   'community.upload.needDesc': 'اكتب وصفاً قصيراً أولاً.',
   'community.upload.needFile': 'اختر ملف تعديل أولاً.',
   'community.upload.fail': 'تعذّر نشر التعديل.',
+  'community.mapsUpload.title': 'شارك خريطة',
+  'community.mapsUpload.hint': 'اختر ملف خريطة صدرته من محرر الخرائط داخل اللعبة، اكتب وصفاً قصيراً وانشره للجميع. لا يمكنك حذف خرائطك إلا أنت.',
+  'community.mapsUpload.descPlaceholder': 'وصف قصير… (حتى 160 حرفاً)',
+  'community.mapsUpload.button': 'نشر',
+  'community.mapsUpload.working': 'جارٍ النشر…',
+  'community.mapsUpload.ok': 'تم نشر الخريطة في المجتمع.',
+  'community.mapsUpload.needDesc': 'اكتب وصفاً قصيراً أولاً.',
+  'community.mapsUpload.needFile': 'اختر ملف خريطة أولاً.',
+  'community.mapsUpload.fail': 'تعذّر نشر الخريطة.',
+  'community.mine.modsTitle': 'تعديلاتي المنشورة',
+  'community.mine.mapsTitle': 'خرائطي المنشورة',
+  'community.mine.empty': 'لم تنشر شيئاً بعد.',
+  'community.mine.error': 'تعذّر تحميل منشوراتك.',
+  'community.mine.delete': 'حذف',
+  'community.mine.deleting': 'جارٍ الحذف…',
+  'community.mine.deleted': 'تمت إزالته من المستودع.',
+  'community.mine.deleteFail': 'تعذّر الحذف.',
   'auth.signin': 'تسجيل الدخول',
   'auth.signout': 'تسجيل الخروج',
   'auth.email': 'البريد الإلكتروني',
@@ -787,7 +834,7 @@ const setLang = (next) => {
   } catch {
     /* private mode */
   }
-  loadCommunity()
+  reloadRepoViews()
 }
 
 /* ---------------- account / session ---------------- */
@@ -862,7 +909,7 @@ const restoreSession = async () => {
     state.token = null
   }
   updateAuthUI()
-  if (state.token) void loadCommunity(true)
+  if (state.token) void reloadRepoViews(true)
 }
 
 const signOut = () => {
@@ -965,7 +1012,7 @@ const submitAuth = async (ev) => {
     document.getElementById('auth-password').value = ''
     document.getElementById('auth-username').value = ''
     updateAuthUI()
-    void loadCommunity(true)
+    void reloadRepoViews(true)
   } catch {
     authError(t(lang, 'auth.network'))
   } finally {
@@ -974,10 +1021,15 @@ const submitAuth = async (ev) => {
   }
 }
 
-/* ---------------- community mods ---------------- */
+/* ---------------- community hub: mods / maps / my published ---------------- */
 
 const modsEl = () => document.getElementById('community-grid')
+const mapsEl = () => document.getElementById('community-maps-grid')
+const mineModsEl = () => document.getElementById('community-mine-mods')
+const mineMapsEl = () => document.getElementById('community-mine-maps')
 const statusEl = () => document.getElementById('community-status')
+const mapsStatusEl = () => document.getElementById('community-maps-status')
+const mineStatusEl = () => document.getElementById('community-mine-status')
 
 const starsFor = (avg) => {
   if (avg === null || avg === undefined) return null
@@ -990,16 +1042,35 @@ const fmt = (n) => (Number.isFinite(n) ? n.toLocaleString(lang === 'ar' ? 'ar-EG
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
-const safeFileName = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || 'mod'
+const safeFileName = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || 'item'
 
-const setStatus = (text, isError = false) => {
-  const el = statusEl()
+const setStatus = (text, isError = false, el = statusEl()) => {
   if (!el) return
   el.textContent = text
   el.classList.toggle('error', isError)
 }
 
-const loadCommunity = async (force = false) => {
+const fetchRepo = async (kind, sort = 'rating', extra = '') => {
+  const res = await fetch(`${SA_ONLINE_URL}/api/${kind}/repo?sort=${sort}&limit=250${extra}`, {
+    headers: { Accept: 'application/json' },
+  })
+  const body = await res.json()
+  return res.ok && Array.isArray(body[kind]) ? body[kind] : null
+}
+
+const renderRepoGrid = (grid, data, kind, errText, emptyText) => {
+  if (data === null) {
+    grid.innerHTML = `<p class="mods-empty">${errText}</p>`
+    return
+  }
+  if (!Array.isArray(data) || data.length === 0) {
+    grid.innerHTML = `<p class="mods-empty">${emptyText}</p>`
+    return
+  }
+  grid.innerHTML = data.map((m) => fmtCard(m, kind)).join('')
+}
+
+const loadMods = async (force = false) => {
   updateAuthUI()
   if (!state.token) return
   const grid = modsEl()
@@ -1015,35 +1086,78 @@ const loadCommunity = async (force = false) => {
     }
   }
   if (data === null) {
-    try {
-      const res = await fetch(`${SA_ONLINE_URL}/api/mods/repo?sort=rating&limit=250`, {
-        headers: { Accept: 'application/json' },
-      })
-      const body = await res.json()
-      if (res.ok && Array.isArray(body.mods)) {
-        data = body.mods
-        try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), data }))
-        } catch {
-          /* storage full / private mode */
-        }
+    data = await fetchRepo('mods', 'rating')
+    if (data) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), data }))
+      } catch {
+        /* storage full / private mode */
       }
+    }
+  }
+  renderRepoGrid(grid, data, 'mod', t(lang, 'community.error'), t(lang, 'community.empty'))
+}
+
+const loadMaps = async (force = false) => {
+  updateAuthUI()
+  if (!state.token) return
+  const grid = mapsEl()
+  if (!grid) return
+  grid.innerHTML = `<p class="mods-empty">${t(lang, 'community.loading')}</p>`
+  let data = null
+  if (!force) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(MAPS_CACHE_KEY) ?? 'null')
+      if (cached && Date.now() - cached.at < MODS_TTL_MS) data = cached.data
     } catch {
-      /* handled below */
+      /* ignore bad cache */
     }
   }
   if (data === null) {
-    grid.innerHTML = `<p class="mods-empty">${t(lang, 'community.error')}</p>`
-    return
+    data = await fetchRepo('maps', 'rating')
+    if (data) {
+      try {
+        localStorage.setItem(MAPS_CACHE_KEY, JSON.stringify({ at: Date.now(), data }))
+      } catch {
+        /* storage full / private mode */
+      }
+    }
   }
-  if (!Array.isArray(data) || data.length === 0) {
-    grid.innerHTML = `<p class="mods-empty">${t(lang, 'community.empty')}</p>`
-    return
-  }
-  grid.innerHTML = data.map(fmtCard).join('')
+  renderRepoGrid(grid, data, 'map', t(lang, 'community.maps.error'), t(lang, 'community.maps.empty'))
 }
 
-const fmtCard = (m) => {
+const loadMine = async () => {
+  updateAuthUI()
+  if (!state.token) return
+  const status = mineStatusEl()
+  const modsGrid = mineModsEl()
+  const mapsGrid = mineMapsEl()
+  if (!status || !modsGrid || !mapsGrid) return
+  status.textContent = ''
+  status.classList.remove('error')
+  const owner = encodeURIComponent(state.userId || '')
+  const [mods, maps] = await Promise.all([
+    fetchRepo('mods', 'newest', `&owner=${owner}`),
+    fetchRepo('maps', 'newest', `&owner=${owner}`),
+  ])
+  if (mods === null && maps === null) {
+    status.textContent = t(lang, 'community.mine.error')
+    status.classList.add('error')
+    return
+  }
+  modsGrid.innerHTML =
+    mods && mods.length ? mods.map((m) => fmtCard(m, 'mod', true)).join('') : `<p class="mods-empty">${t(lang, 'community.mine.empty')}</p>`
+  mapsGrid.innerHTML =
+    maps && maps.length ? maps.map((m) => fmtCard(m, 'map', true)).join('') : `<p class="mods-empty">${t(lang, 'community.mine.empty')}</p>`
+}
+
+const reloadRepoViews = (force = false) => {
+  void loadMods(force)
+  void loadMaps(force)
+  void loadMine()
+}
+
+const fmtCard = (m, kind = 'mod', mine = false) => {
   const stars = starsFor(m.ratingAvg)
   const ratingLine =
     stars !== null
@@ -1056,23 +1170,31 @@ const fmtCard = (m) => {
       .join('') +
     `</span>`
   const byName = m.ownerName ? m.ownerName : m.author ? m.author : '?'
+  const metaLine =
+    kind === 'map'
+      ? `<div class="mod-meta">${m.width}\u00d7${m.height} \u00b7 ${t(lang, 'community.players', { n: m.players })} \u00b7 ${t(lang, 'community.by', { name: escapeHtml(byName) })}</div>`
+      : `<div class="mod-meta">${t(lang, 'community.by', { name: escapeHtml(byName) })}</div>`
+  const deleteBtn = mine
+    ? `<button class="mod-delete" type="button" data-kind="${kind}" data-id="${escapeHtml(m.id)}">\uD83D\uDDD1 ${t(lang, 'community.mine.delete')}</button>`
+    : ''
   return (
     `<article class="card mod-card">` +
     `<h3>${escapeHtml(m.name)}</h3>` +
-    `<div class="mod-meta">${t(lang, 'community.by', { name: escapeHtml(byName) })}</div>` +
+    metaLine +
     (m.description ? `<div class="mod-desc">${escapeHtml(m.description)}</div>` : '') +
     `<div class="mod-line">${ratingLine}<span class="mod-downloads">\u2B07 ${t(lang, 'community.downloads', { n: fmt(m.downloads) })}</span></div>` +
     `<div class="mod-actions">` +
     `<button class="mod-download" type="button" data-id="${escapeHtml(m.id)}" data-name="${escapeHtml(m.name)}">\u2B07 ${t(lang, 'community.download')}</button>` +
     rateRow +
+    deleteBtn +
     `</div>` +
     `</article>`
   )
 }
 
-/** Fetches a mod's JSON from the Render API and saves it as `<name>.json`.
+/** Fetches an item's JSON from the Render API and saves it as `<name>.json`.
  *  Downloads bump the server counter and are rate-limited server-side (429 → hint). */
-const downloadMod = async (btn) => {
+const downloadItem = async (btn, kind) => {
   const id = btn.dataset.id
   const name = btn.dataset.name
   if (!id) return
@@ -1080,7 +1202,7 @@ const downloadMod = async (btn) => {
   const prev = btn.textContent
   btn.textContent = t(lang, 'community.downloading')
   try {
-    const res = await fetch(`${SA_ONLINE_URL}/api/mods/${encodeURIComponent(id)}`)
+    const res = await fetch(`${SA_ONLINE_URL}/api/${kind}/${encodeURIComponent(id)}`)
     if (res.status === 429) {
       setStatus(t(lang, 'community.downloadLimit'), true)
       return
@@ -1103,9 +1225,9 @@ const downloadMod = async (btn) => {
   }
 }
 
-const rateMod = async (id, n) => {
+const rateItem = async (id, n, kind) => {
   if (!state.token) return
-  const res = await api(`/api/mods/${encodeURIComponent(id)}/rate`, {
+  const res = await api(`/api/${kind}/${encodeURIComponent(id)}/rate`, {
     method: 'POST',
     token: state.token,
     body: JSON.stringify({ rating: n }),
@@ -1116,11 +1238,36 @@ const rateMod = async (id, n) => {
   }
   setStatus(t(lang, 'community.rateOk', { n }))
   try {
-    localStorage.removeItem(CACHE_KEY)
+    localStorage.removeItem(kind === 'mod' ? CACHE_KEY : MAPS_CACHE_KEY)
   } catch {
     /* private mode */
   }
-  void loadCommunity(true)
+  reloadRepoViews(true)
+}
+
+const deleteItem = async (btn) => {
+  const id = btn.dataset.id
+  const kind = btn.dataset.kind
+  if (!id || !state.token) return
+  btn.disabled = true
+  const prev = btn.textContent
+  btn.textContent = t(lang, 'community.mine.deleting')
+  const res = await api(`/api/${kind}/${encodeURIComponent(id)}`, { method: 'DELETE', token: state.token })
+  if (!res.ok || !res.body?.ok) {
+    btn.disabled = false
+    btn.textContent = prev
+    setStatus(res.body?.error ?? t(lang, 'community.mine.deleteFail'), true, mineStatusEl())
+    return
+  }
+  try {
+    localStorage.removeItem(kind === 'mod' ? CACHE_KEY : MAPS_CACHE_KEY)
+  } catch {
+    /* private mode */
+  }
+  setStatus(t(lang, 'community.mine.deleted'), false, mineStatusEl())
+  void loadMine()
+  if (kind === 'mod') void loadMods(true)
+  else void loadMaps(true)
 }
 
 const uploadMod = async () => {
@@ -1169,13 +1316,82 @@ const uploadMod = async () => {
     } catch {
       /* private mode */
     }
-    void loadCommunity(true)
+    void loadMods(true)
+    void loadMine()
   } catch {
     setStatus(t(lang, 'community.upload.fail'), true)
   } finally {
     uploadBtn.textContent = prev
     uploadBtn.disabled = false
   }
+}
+
+const uploadMap = async () => {
+  const fileEl = document.getElementById('community-map-file')
+  const descEl = document.getElementById('community-map-desc')
+  const status = mapsStatusEl()
+  const file = fileEl.files?.[0]
+  const desc = descEl.value.trim()
+  if (!file) {
+    setStatus(t(lang, 'community.mapsUpload.needFile'), true, status)
+    return
+  }
+  if (!desc) {
+    setStatus(t(lang, 'community.mapsUpload.needDesc'), true, status)
+    return
+  }
+  const uploadBtn = document.getElementById('community-map-upload')
+  const prev = uploadBtn.textContent
+  uploadBtn.textContent = t(lang, 'community.mapsUpload.working')
+  uploadBtn.disabled = true
+  try {
+    const text = await file.text()
+    let payload
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      setStatus(t(lang, 'community.mapsUpload.fail'), true, status)
+      return
+    }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      setStatus(t(lang, 'community.mapsUpload.fail'), true, status)
+      return
+    }
+    payload.description = desc.slice(0, 160)
+    const res = await api('/api/maps', { method: 'POST', token: state.token, body: JSON.stringify(payload) })
+    if (!res.ok || !res.body?.ok) {
+      setStatus(res.body?.error ?? t(lang, 'community.mapsUpload.fail'), true, status)
+      return
+    }
+    fileEl.value = ''
+    descEl.value = ''
+    setStatus(t(lang, 'community.mapsUpload.ok'), false, status)
+    try {
+      localStorage.removeItem(MAPS_CACHE_KEY)
+    } catch {
+      /* private mode */
+    }
+    void loadMaps(true)
+    void loadMine()
+  } catch {
+    setStatus(t(lang, 'community.mapsUpload.fail'), true, status)
+  } finally {
+    uploadBtn.textContent = prev
+    uploadBtn.disabled = false
+  }
+}
+
+let communityTab = 'mods'
+
+const switchCommunityTab = (tab) => {
+  communityTab = tab
+  document.querySelectorAll('.community-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab))
+  document.querySelectorAll('.community-panel').forEach((p) => {
+    p.hidden = p.dataset.panel !== tab
+  })
+  if (tab === 'maps') void loadMaps(false)
+  else if (tab === 'mine') void loadMine()
+  else void loadMods(false)
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1202,18 +1418,31 @@ document.addEventListener('DOMContentLoaded', () => {
   })
   document.getElementById('auth-form')?.addEventListener('submit', (ev) => void submitAuth(ev))
 
-  renderDynamic()
-
-  const grid = document.getElementById('community-grid')
-  grid?.addEventListener('click', (ev) => {
-    const btn = ev.target?.closest?.(`button[data-n]`)
-    if (btn && grid.contains(btn)) {
-      void rateMod(btn.dataset.id, Number(btn.dataset.n))
-      return
-    }
-    const dl = ev.target?.closest?.('.mod-download')
-    if (dl && grid.contains(dl)) void downloadMod(dl)
+  document.querySelectorAll('.community-tab').forEach((b) => {
+    b.addEventListener('click', () => switchCommunityTab(b.dataset.tab))
   })
 
+  renderDynamic()
+
+  const wireGrid = (grid, kind) => {
+    if (!grid) return
+    grid.addEventListener('click', (ev) => {
+      const btn = ev.target?.closest?.(`button[data-n]`)
+      if (btn && grid.contains(btn)) {
+        void rateItem(btn.dataset.id, Number(btn.dataset.n), kind)
+        return
+      }
+      const dl = ev.target?.closest?.('.mod-download')
+      if (dl && grid.contains(dl)) void downloadItem(dl, kind)
+      const del = ev.target?.closest?.('.mod-delete')
+      if (del && grid.contains(del)) void deleteItem(del)
+    })
+  }
+  wireGrid(document.getElementById('community-grid'), 'mod')
+  wireGrid(document.getElementById('community-maps-grid'), 'map')
+  wireGrid(document.getElementById('community-mine-mods'), 'mod')
+  wireGrid(document.getElementById('community-mine-maps'), 'map')
+
   document.getElementById('community-upload')?.addEventListener('click', () => void uploadMod())
+  document.getElementById('community-map-upload')?.addEventListener('click', () => void uploadMap())
 })

@@ -28,26 +28,55 @@
     <main>
       <section class="section section-alt" id="community">
         <div class="wrap">
-          <h1 class="page-title" data-i18n="community.title">Community mods</h1>
-          <p class="section-sub" data-i18n="community.subtitle">Browse, rate and download balance mods — or publish your own.</p>
+          <h1 class="page-title" data-i18n="community.title">Community</h1>
+          <p class="section-sub" data-i18n="community.subtitle">Browse, rate and download mods and maps — or publish your own.</p>
 
           <div id="community-login-prompt" class="community-prompt" hidden>
             <div class="card prompt-card">
-              <p data-i18n="community.needLogin">Sign in to browse, rate, download and share community mods.</p>
+              <p data-i18n="community.needLogin">Sign in to browse, rate, download and share community mods and maps.</p>
               <button class="btn btn-primary" id="community-login-cta" type="button" data-i18n="auth.signin">Sign in</button>
             </div>
           </div>
 
           <div id="community-content" hidden>
-            <p id="community-status" class="community-status" role="status"></p>
-            <div id="community-grid" class="grid mods-grid"></div>
+            <nav class="community-tabs" role="tablist">
+              <button class="community-tab active" data-tab="mods" type="button" role="tab" data-i18n="community.tab.mods">Mods</button>
+              <button class="community-tab" data-tab="maps" type="button" role="tab" data-i18n="community.tab.maps">Maps</button>
+              <button class="community-tab" data-tab="mine" type="button" role="tab" data-i18n="community.tab.mine">My published</button>
+            </nav>
 
-            <h3 class="community-h3" data-i18n="community.upload.title">Share a mod</h3>
-            <p class="community-hint" data-i18n="community.upload.hint">Pick a balance mod file you exported, write a short description and publish it for everyone. Only you can delete your own mods.</p>
-            <div class="community-upload">
-              <input type="file" id="community-file" accept="application/json,.json" />
-              <input id="community-desc" maxlength="160" placeholder="Short description… (up to 160 characters)" data-i18n-placeholder="community.upload.descPlaceholder" />
-              <button class="btn btn-primary" id="community-upload" type="button" data-i18n="community.upload.button">Publish</button>
+            <div class="community-panel" data-panel="mods">
+              <p id="community-status" class="community-status" role="status"></p>
+              <div id="community-grid" class="grid mods-grid"></div>
+
+              <h3 class="community-h3" data-i18n="community.upload.title">Share a mod</h3>
+              <p class="community-hint" data-i18n="community.upload.hint">Pick a balance mod file you exported, write a short description and publish it for everyone. Only you can delete your own mods.</p>
+              <div class="community-upload">
+                <input type="file" id="community-file" accept="application/json,.json" />
+                <input id="community-desc" maxlength="160" placeholder="Short description… (up to 160 characters)" data-i18n-placeholder="community.upload.descPlaceholder" />
+                <button class="btn btn-primary" id="community-upload" type="button" data-i18n="community.upload.button">Publish</button>
+              </div>
+            </div>
+
+            <div class="community-panel" data-panel="maps" hidden>
+              <p id="community-maps-status" class="community-status" role="status"></p>
+              <div id="community-maps-grid" class="grid mods-grid"></div>
+
+              <h3 class="community-h3" data-i18n="community.mapsUpload.title">Share a map</h3>
+              <p class="community-hint" data-i18n="community.mapsUpload.hint">Pick a map file you exported from the Map Builder, write a short description and publish it for everyone. Only you can delete your own maps.</p>
+              <div class="community-upload">
+                <input type="file" id="community-map-file" accept="application/json,.json" />
+                <input id="community-map-desc" maxlength="160" placeholder="Short description… (up to 160 characters)" data-i18n-placeholder="community.mapsUpload.descPlaceholder" />
+                <button class="btn btn-primary" id="community-map-upload" type="button" data-i18n="community.mapsUpload.button">Publish</button>
+              </div>
+            </div>
+
+            <div class="community-panel" data-panel="mine" hidden>
+              <p id="community-mine-status" class="community-status" role="status"></p>
+              <h3 class="community-h3" data-i18n="community.mine.modsTitle">My mods</h3>
+              <div id="community-mine-mods" class="grid mods-grid"></div>
+              <h3 class="community-h3" data-i18n="community.mine.mapsTitle">My maps</h3>
+              <div id="community-mine-maps" class="grid mods-grid"></div>
             </div>
           </div>
         </div>

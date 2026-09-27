@@ -20,10 +20,14 @@ import {
   BACKUPS_MAX_PAYLOAD_BYTES,
   BACKUPS_PURGE_INTERVAL_MS,
   CORS_ALLOW_SOURCES,
+  MAP_COMMENT_MAX_CHARS,
   MOD_COMMENT_MAX_CHARS,
   RATE_AUTH_PER_MIN,
   RATE_BACKUP_POST_PER_MIN,
   RATE_LOGIN_PER_ACCOUNT_MIN,
+  RATE_MAP_DOWNLOAD_PER_MIN,
+  RATE_MAP_REPO_PER_MIN,
+  RATE_MAP_WRITE_PER_MIN,
   RATE_MOD_DOWNLOAD_PER_MIN,
   RATE_MOD_REPO_PER_MIN,
   RATE_MOD_WRITE_PER_MIN,
@@ -38,22 +42,30 @@ import {
   authMe,
   authRegister,
   dbAddComment,
+  dbAddMapComment,
   dbCreateBackup,
+  dbCreateMap,
   dbCreateMod,
   dbDeleteBackup,
+  dbDeleteMap,
   dbDeleteMod,
   dbGetBackup,
+  dbGetMap,
   dbGetMod,
   dbLeaderboard,
   dbListBackups,
   dbListComments,
+  dbListMapComments,
+  dbListMaps,
   dbListMods,
   dbProbe,
   dbPurgeExpiredBackups,
+  dbRateMap,
   dbRateMod,
   dbRecordMatch,
 } from './supabase.ts'
 import { MOD_MAX_BYTES, modLabel, sanitizeMod } from './mods.ts'
+import { MAP_MAX_BYTES, mapLabel, mapMetrics, sanitizeMap } from './maps.ts'
 
 /** How long a REST-created room may sit empty before it is reclaimed. */
 const IDLE_ROOM_TTL_MS = 30_000
@@ -921,6 +933,175 @@ const handleMods = async (req: IncomingMessage, res: ServerResponse, urlPath: st
   return true
 }
 
+/** Phase 5: community map repository (browse / download / publish / rate / comment).
+ *  Mirrors the Phase 4 mods pipeline so the client + landing reuse the same shaped payloads. */
+const handleMaps = async (req: IncomingMessage, res: ServerResponse, urlPath: string): Promise<boolean> => {
+  const idPath = urlPath.match(/^\/api\/maps\/([^/]+)\/(rate|comments)$/)
+  const downloadPath = urlPath.match(/^\/api\/maps\/([^/]+)$/)
+
+  if (req.method === 'GET' && urlPath === '/api/maps/repo') {
+    if (limited(res, 'mapRepo', RATE_MAP_REPO_PER_MIN, clientIp(req))) return true
+    const url = new URL(req.url ?? '/api/maps/repo', 'http://localhost')
+    const q = url.searchParams.get('q') ?? ''
+    const sort = url.searchParams.get('sort') ?? 'newest'
+    const owner = url.searchParams.get('owner') ?? ''
+    const limit = Math.max(1, Math.min(250, Number(url.searchParams.get('limit')) || 100))
+    const result = await dbListMaps({ q: q.slice(0, 80), sort, owner: owner.slice(0, 64) || undefined, limit })
+    writeJson(res, result.ok ? 200 : result.error === 'database not configured' ? 503 : 400, { ok: result.ok, error: result.error ?? undefined, maps: result.data ?? [] })
+    return true
+  }
+
+  if (req.method === 'GET' && downloadPath && downloadPath[1]) {
+    if (limited(res, 'mapDownload', RATE_MAP_DOWNLOAD_PER_MIN, clientIp(req))) return true
+    const result = await dbGetMap(downloadPath[1])
+    if (!result.ok || !result.data) {
+      writeJson(res, result.error === 'database not configured' ? 503 : result.error === 'map not found' ? 404 : 400, result)
+      return true
+    }
+    // Raw MapData, same shape the LAN map builder's import path accepts.
+    writeJson(res, 200, result.data.payload)
+    return true
+  }
+
+  if (req.method === 'POST' && urlPath === '/api/maps') {
+    if (limited(res, 'mapWrite', RATE_MAP_WRITE_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const body = await readJson(req, MAP_MAX_BYTES)
+    const clean = sanitizeMap(body)
+    if (!clean) {
+      writeJson(res, 400, { ok: false, error: 'invalid map file' })
+      return true
+    }
+    const description = clean.description.trim()
+    if (description === '') {
+      writeJson(res, 400, { ok: false, error: 'a short description is required (1-160 characters)' })
+      return true
+    }
+    const payloadBytes = Buffer.byteLength(JSON.stringify(clean), 'utf8')
+    if (payloadBytes > MAP_MAX_BYTES) {
+      writeJson(res, 413, { ok: false, error: 'map file too large' })
+      return true
+    }
+    const metrics = mapMetrics(clean)
+    const result = await dbCreateMap(me.data.userId, {
+      name: mapLabel(clean),
+      author: clean.author.slice(0, 60),
+      description: description.slice(0, 160),
+      version: clean.mapVersion.slice(0, 24),
+      width: metrics.width,
+      height: metrics.height,
+      players: metrics.players,
+      requireProtocol: PROTOCOL_VERSION,
+      sizeBytes: payloadBytes,
+      payload: clean,
+    })
+    if (!result.ok) {
+      const code = result.error === 'database not configured' ? 503 : result.error === 'map quota reached' || result.error === 'name already taken' ? 409 : 400
+      writeJson(res, code, result)
+      return true
+    }
+    writeJson(res, 201, { ok: true, id: result.data?.id })
+    return true
+  }
+
+  if (req.method === 'DELETE' && downloadPath && downloadPath[1]) {
+    if (limited(res, 'mapWrite', RATE_MAP_WRITE_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const result = await dbDeleteMap(me.data.userId, downloadPath[1])
+    if (!result.ok) {
+      const code = result.error === 'database not configured' ? 503 : result.error === 'not owner' ? 403 : result.error === 'map not found' ? 404 : 400
+      writeJson(res, code, result)
+      return true
+    }
+    writeJson(res, 200, { ok: true })
+    return true
+  }
+
+  if (req.method === 'POST' && idPath && idPath[1] && idPath[2] === 'rate') {
+    if (limited(res, 'mapWrite', RATE_MAP_WRITE_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const body = await readJson(req)
+    const rating = Math.round(Number(body.rating))
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      writeJson(res, 400, { ok: false, error: 'rating must be 1-5' })
+      return true
+    }
+    const result = await dbRateMap(idPath[1], me.data.userId, rating)
+    if (!result.ok) {
+      const code = result.error === 'database not configured' ? 503 : result.error === 'map not found' ? 404 : 400
+      writeJson(res, code, result)
+      return true
+    }
+    writeJson(res, 200, { ok: true, ...result.data })
+    return true
+  }
+
+  if (req.method === 'GET' && idPath && idPath[1] && idPath[2] === 'comments') {
+    if (limited(res, 'mapRepo', RATE_MAP_REPO_PER_MIN, clientIp(req))) return true
+    const result = await dbListMapComments(idPath[1])
+    if (!result.ok && !result.data) {
+      writeJson(res, result.error === 'database not configured' ? 503 : result.error === 'map not found' ? 404 : 400, result)
+      return true
+    }
+    writeJson(res, 200, { ok: true, comments: result.data ?? [] })
+    return true
+  }
+
+  if (req.method === 'POST' && idPath && idPath[1] && idPath[2] === 'comments') {
+    if (limited(res, 'mapWrite', RATE_MAP_WRITE_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const body = await readJson(req)
+    const text = typeof body.body === 'string' ? body.body.trim() : ''
+    if (text === '' || text.length > MAP_COMMENT_MAX_CHARS) {
+      writeJson(res, 400, { ok: false, error: `comment must be 1-${MAP_COMMENT_MAX_CHARS} characters` })
+      return true
+    }
+    const result = await dbAddMapComment(idPath[1], me.data.userId, text)
+    if (!result.ok) {
+      const code = result.error === 'database not configured' ? 503 : result.error === 'map not found' ? 404 : 400
+      writeJson(res, code, result)
+      return true
+    }
+    writeJson(res, 201, { ok: true })
+    return true
+  }
+
+  writeJson(res, 405, { ok: false, error: 'method not allowed' })
+  return true
+}
+
 const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: string): Promise<boolean> => {
   if (req.method === 'GET' && urlPath === '/api/status') {
     writeJson(res, 200, {
@@ -1037,6 +1218,9 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
   }
   if (urlPath === '/api/mods' || urlPath.startsWith('/api/mods/')) {
     return handleMods(req, res, urlPath)
+  }
+  if (urlPath === '/api/maps' || urlPath.startsWith('/api/maps/')) {
+    return handleMaps(req, res, urlPath)
   }
   return false
 }

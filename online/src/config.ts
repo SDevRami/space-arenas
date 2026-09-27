@@ -24,6 +24,12 @@ export const RATE_MOD_REPO_PER_MIN = 60 // browse/list/search + single mod fetch
 export const RATE_MOD_DOWNLOAD_PER_MIN = 60
 export const RATE_MOD_WRITE_PER_MIN = 10 // upload / delete / rate / comment
 
+// Phase 5: map repository (companion to the mod repository).
+export const MAP_COMMENT_MAX_CHARS = 500
+export const RATE_MAP_REPO_PER_MIN = 60 // browse/list/search + single map fetch
+export const RATE_MAP_DOWNLOAD_PER_MIN = 60
+export const RATE_MAP_WRITE_PER_MIN = 10 // publish / delete / rate / comment
+
 // Cross-origin allow-list (Phase 4). Render serves the game + landing on GitHub Pages;
 // when set (comma-separated origins) the API echoes the matching Origin instead of `*`.
 // When unset the server keeps `*` (local/LAN dev) so existing builds keep working.

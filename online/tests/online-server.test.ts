@@ -7,6 +7,7 @@ import { decodeControl, encodeControl } from '../shared/src/index.ts'
 import { hashPassphrase } from '../src/passphrase.ts'
 import { rateLimit } from '../src/ratelimit.ts'
 import { MOD_MAX_BYTES, modLabel, sanitizeMod } from '../src/mods.ts'
+import { MAP_MAX_BYTES, mapLabel, sanitizeMap } from '../src/maps.ts'
 import { fingerprintSettingsFor } from '../src/sanitize.ts'
 
 const freePort = (): Promise<number> =>
@@ -331,6 +332,112 @@ describe('online server mod repository', () => {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ meta: { name: 'Spam' }, settings: { sellRefundFraction: 0.1 } }),
+      })
+      last = r.status
+      retryAfter = r.headers.get('retry-after') ?? ''
+    }
+    assert.equal(last, 429)
+    assert.ok(retryAfter !== '', '429 must carry Retry-After')
+  })
+})
+
+describe('online server map repository', () => {
+  const sampleMap = (): Record<string, unknown> => ({
+    schemaVersion: 1,
+    format: 'space-arenas-map',
+    name: '  My Map  ',
+    description: ' x ',
+    author: 'Ram',
+    mapVersion: '1.0',
+    width: 32,
+    height: 32,
+    tiles: new Array(32 * 32).fill(0),
+    groundColors: new Array(32 * 32).fill(''),
+    brightness: 0,
+    obstructions: [],
+    supplyFields: [{ x: 5, y: 5, radius: 3, capacity: 100 }],
+    oilFields: [],
+    spawnPoints: [
+      { x: 1, y: 1, team: 0 },
+      { x: 30, y: 30, team: 1 },
+    ],
+    credits: 1000,
+  })
+
+  it('sanitizeMap validates + scrubs a map file (unit)', () => {
+    const clean = sanitizeMap(sampleMap())
+    assert.ok(clean, 'valid map must be accepted')
+    assert.equal(clean?.name, 'My Map')
+    assert.equal(clean?.description, 'x')
+    assert.equal(clean?.author, 'Ram')
+    assert.equal(clean?.tiles.length, 32 * 32)
+    const noSupply = sampleMap()
+    ;(noSupply.supplyFields as unknown[]) = []
+    assert.equal(sanitizeMap(noSupply), null, 'map without supply fields must be rejected')
+    const bad = sampleMap()
+    bad.width = 8
+    assert.equal(sanitizeMap(bad), null, 'out-of-range size must be rejected')
+    assert.equal(sanitizeMap('nope'), null)
+    assert.equal(sanitizeMap({}), null)
+    assert.equal(MAP_MAX_BYTES, 4 * 1024 * 1024)
+    assert.equal(mapLabel(undefined, 'fallback'), 'fallback')
+  })
+
+  it('repo list returns 503 without DB config', async () => {
+    const { status, body } = await json('/api/maps/repo')
+    assert.equal(status, 503)
+    assert.equal((body as { error: string }).error, 'database not configured')
+  })
+
+  it('map download returns 503 without DB config', async () => {
+    const { status, body } = await json('/api/maps/00000000-0000-0000-0000-000000000000')
+    assert.equal(status, 503)
+    assert.equal((body as { error: string }).error, 'database not configured')
+  })
+
+  it('map publish requires a session token', async () => {
+    const { status, body } = await json('/api/maps', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(sampleMap()),
+    })
+    assert.equal(status, 401)
+    assert.equal((body as { error: string }).error, 'login required')
+  })
+
+  it('map rate requires a session token', async () => {
+    const { status } = await json('/api/maps/00000000-0000-0000-0000-000000000000/rate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ rating: 5 }),
+    })
+    assert.equal(status, 401)
+  })
+
+  it('map comment POST requires a session token', async () => {
+    const { status } = await json('/api/maps/00000000-0000-0000-0000-000000000000/comments', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ body: 'hi' }),
+    })
+    assert.equal(status, 401)
+  })
+
+  it('map delete requires a session token', async () => {
+    const { status } = await json('/api/maps/00000000-0000-0000-0000-000000000000', {
+      method: 'DELETE',
+    })
+    assert.equal(status, 401)
+  })
+
+  it('a burst of map uploads is rate-limited with Retry-After', async () => {
+    let last = -1
+    let retryAfter = ''
+    for (let i = 0; i < 12; i++) {
+      const r = await fetch(`${base}/api/maps`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(sampleMap()),
       })
       last = r.status
       retryAfter = r.headers.get('retry-after') ?? ''

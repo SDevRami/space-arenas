@@ -498,6 +498,23 @@
                 <tbody></tbody>
               </table>
               <div class="status" id="mb-status"></div>
+
+              <h3 class="section-h3" data-i18n="maps.repo.repoPublishH3">Publish a map</h3>
+              <p class="hint" data-i18n="maps.repo.repoPublishHint">Pick one of your custom maps to share it with everyone. A short description is required and shows up on the landing page. Only the owner can delete a published map.</p>
+              <div class="maps-toolbar">
+                <select id="maps-repo-publish-select"></select>
+                <button class="ghost" id="maps-repo-publish" data-i18n="maps.repo.repoPublish">Publish</button>
+              </div>
+              <input id="maps-repo-publish-desc" maxlength="160" placeholder="Short description… (up to 160 characters)" data-i18n-placeholder="maps.repo.repoPublishDescPlaceholder" />
+
+              <h3 class="section-h3" data-i18n="maps.repo.repoH3">Community maps</h3>
+              <p class="hint" data-i18n="maps.repo.repoHint">Browse maps shared by other players. Install one into your map library with a click, or publish a map of your own.</p>
+              <div class="maps-toolbar">
+                <input id="maps-repo-search" placeholder="Search maps…" data-i18n-placeholder="maps.repo.repoSearch" />
+                <select id="maps-repo-sort"></select>
+              </div>
+              <div class="status" id="maps-repo-status"></div>
+              <div id="maps-repo-list"></div>
             </div>
           </div>
           <div id="mapbuilder-overlay" class="mb-overlay">
