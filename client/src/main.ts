@@ -809,8 +809,10 @@ const onlineTabMatchesBtn = document.getElementById('online-tab-matches') as HTM
 const onlineTabLeaderboardBtn = document.getElementById('online-tab-leaderboard') as HTMLButtonElement
 const onlineTabDataBtn = document.getElementById('online-tab-data') as HTMLButtonElement
 const onlineTabModsBtn = document.getElementById('online-tab-mods') as HTMLButtonElement
+const onlineTabMapsBtn = document.getElementById('online-tab-maps') as HTMLButtonElement
 const onlineDataSection = document.getElementById('online-data-section') as HTMLDivElement
 const onlineModsSection = document.getElementById('online-mods-section') as HTMLDivElement
+const onlineMapsSection = document.getElementById('online-maps-section') as HTMLDivElement
 const dataStatusEl = document.getElementById('data-status') as HTMLDivElement
 const dataPassEl = document.getElementById('data-pass') as HTMLInputElement
 const dataListEl = document.getElementById('data-list') as HTMLDivElement
@@ -1179,15 +1181,17 @@ try {
 
 // ---------- leaderboard (Phase 2) ----------
 
-const setOnlineTab = (tab: 'matches' | 'leaderboard' | 'data' | 'mods'): void => {
+const setOnlineTab = (tab: 'matches' | 'leaderboard' | 'data' | 'mods' | 'maps'): void => {
   onlineMatchesSection.classList.toggle('hidden-el', tab !== 'matches')
   onlineLeaderboardSection.classList.toggle('hidden-el', tab !== 'leaderboard')
   onlineDataSection.classList.toggle('hidden-el', tab !== 'data')
   onlineModsSection.classList.toggle('hidden-el', tab !== 'mods')
+  onlineMapsSection.classList.toggle('hidden-el', tab !== 'maps')
   onlineTabMatchesBtn.classList.toggle('selected', tab === 'matches')
   onlineTabLeaderboardBtn.classList.toggle('selected', tab === 'leaderboard')
   onlineTabDataBtn.classList.toggle('selected', tab === 'data')
   onlineTabModsBtn.classList.toggle('selected', tab === 'mods')
+  onlineTabMapsBtn.classList.toggle('selected', tab === 'maps')
 }
 
 const renderLeaderboard = (rows: Array<{ rank: number; username: string; score: number }>): void => {
@@ -1250,6 +1254,10 @@ onlineTabModsBtn.addEventListener('click', () => {
   setOnlineTab('mods')
   void loadRepoMods(false)
   void refreshMods()
+})
+onlineTabMapsBtn.addEventListener('click', () => {
+  setOnlineTab('maps')
+  void loadRepoMaps(false)
 })
 
 setInterval(() => {

@@ -171,6 +171,7 @@
     "loggedOut": "Logged out.",
     "tabData": "Data",
     "tabMods": "Mods",
+    "tabMaps": "Maps",
     "dataH3": "Cloud backups",
     "dataHint": "Back up this device's dev-settings or local profile to your account and restore it on another PC. Backups are encrypted with your passphrase and expire after 7 days. The passphrase is never stored on the server — keep it safe.",
     "dataPass": "Backup passphrase",
@@ -779,7 +780,7 @@
     },
     "repo": {
       "repoH3": "Community maps",
-    "repoHint": "Browse maps shared by other players. Install one into your map library with a click, or publish a map of your own.",
+    "repoHint": "Browse maps shared by other players. Install one into your map library with a click, or publish a map of your own. Your custom maps are the ones you save in Map Builder.",
     "repoSearch": "Search maps…",
     "repoSortNewest": "Newest",
     "repoSortRating": "Top rated",
