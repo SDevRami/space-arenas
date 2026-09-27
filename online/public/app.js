@@ -4,7 +4,7 @@
  */
 
 // The public Render API. Set this to your deployed service origin.
-const SA_ONLINE_URL = 'https://space-arenas.onrender.com'
+const SA_ONLINE_URL = 'https://space-arenas-online.onrender.com'
 
 const TOP_MODS_TTL_MS = 5 * 60 * 1000
 const CACHE_KEY = 'sa-topmods-cache-v1'
