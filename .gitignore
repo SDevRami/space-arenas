@@ -36,3 +36,4 @@ coverage/
 # --- Runtime temp data (not shipped) ---
 invites/
 archive/
+modes/
