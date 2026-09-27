@@ -1276,6 +1276,8 @@ const setDataStatus = (text: string, isError = false): void => {
 const authApi = async (method: string, path: string, body?: unknown): Promise<{ ok: boolean; status: number; error?: string; data?: Record<string, unknown> }> => {
   try {
     const headers: Record<string, string> = {}
+    const token = authToken()
+    if (token) headers.Authorization = `Bearer ${token}`
     if (body !== undefined) {
       headers['Content-Type'] = 'application/json'
       return await fetch(`${ONLINE_URL}${path}`, {
