@@ -15,8 +15,6 @@ const MODS_TTL_MS = 5 * 60 * 1000
 const EN = {
   brand: 'Space Arenas',
   'nav.home': 'Home',
-  'nav.features': 'Features',
-  'nav.howto': 'How to join',
   'nav.community': 'Community',
   'nav.repo': 'Source',
   'hero.badge': 'Real-time strategy in space',
@@ -25,11 +23,7 @@ const EN = {
   'hero.ctaRepo': 'Get the game',
   'hero.ctaCommunity': 'Browse community mods',
   'home.teaserTitle': 'Space Arenas in short',
-  'home.teaserFeatures': 'Classic RTS core with fog of war, stealth, day/night and a veteran system — all moddable.',
-  'home.teaserHowto': 'Clone the repo, make a free account and start playing straight in your browser.',
-  'home.teaserCommunity': 'Browse, rate and download balance mods — or publish your own for everyone.',
-  'home.moreFeatures': 'Explore the features',
-  'home.moreHowto': 'See how to join',
+  'home.intro': 'A deterministic, real-time strategy game. Build a base, harvest supplies, manage power and destroy every enemy Command Center — solo, against AI bots, or online with friends. Deep vision, stealth, day/night weather, Super Weapons and a balance-mod system keep battles readable and fair.',
   'features.title': 'Built for deep, readable battles',
   'features.subtitle': 'Everything that makes Space Arenas worth your time.',
   'features.rts.title': 'Classic RTS core',
@@ -267,8 +261,6 @@ const EN = {
 const AR = {
   brand: 'ساحات الفضاء',
   'nav.home': 'الرئيسية',
-  'nav.features': 'المميزات',
-  'nav.howto': 'كيف تلعب',
   'nav.community': 'المجتمع',
   'nav.repo': 'المصدر',
   'hero.badge': 'استراتيجية في الزمن الحقيقي في الفضاء',
@@ -277,11 +269,7 @@ const AR = {
   'hero.ctaRepo': 'حمّل اللعبة',
   'hero.ctaCommunity': 'تصفح تعديلات المجتمع',
   'home.teaserTitle': 'ساحات الفضاء باختصار',
-  'home.teaserFeatures': 'جوهر استراتيجية كلاسيكي مع ضباب الحرب والتخفي والليل والنهار ونظام خبرة — وكل شيء قابل للتعديل.',
-  'home.teaserHowto': 'انسخ المستودع، أنشئ حساباً مجانياً وابدأ اللعب مباشرة في متصفحك.',
-  'home.teaserCommunity': 'تصفح وقيّم وحمّل تعديلات التوازن — أو انشر تعديلك للجميع.',
-  'home.moreFeatures': 'اكتشف المميزات',
-  'home.moreHowto': 'شاهد كيفية الانضمام',
+  'home.intro': 'لعبة استراتيجية حتمية في الزمن الحقيقي. ابنِ قاعدتك، اجمع الإمداد، أدِر الطاقة، ودمّر كل مركز قيادة معادٍ — منفرداً، ضد بوتات ذكية، أو عبر الإنترنت مع أصدقائك. رؤية عميقة، وتخفي، وطقس ليل/نهار، وأسلحة خارقة، ونظام تعديلات يجعلون كل معركة واضحة وعادلة.',
   'features.title': 'مصممة لمعارك عميقة وواضحة',
   'features.subtitle': 'كل ما يجعل ساحات الفضاء تستحق وقتك.',
   'features.rts.title': 'جوهر استراتيجية كلاسيكي',
@@ -1192,6 +1180,7 @@ const uploadMod = async () => {
 
 document.addEventListener('DOMContentLoaded', () => {
   const currentPage = (window.location.pathname.split('/').pop() || 'index.html').split('?')[0]
+  if (!currentPage.endsWith('.html')) currentPage = 'index.html'
   for (const a of document.querySelectorAll('.nav a[data-page]')) {
     if (a.getAttribute('data-page') === currentPage) a.classList.add('active')
   }
