@@ -15,7 +15,7 @@ This project is a browser RTS in active documentation phase. The nine documents 
 5. **Performance budget is tracked per PR.** Any change that increases per-tick allocations in the hot path needs a justification. See `docs/04-ARCHITECTURE.md § GC & Memory`.
 6. **Do not add comments unless they explain a non-obvious WHY.** Code should be self-explanatory; comments must justify decisions, not restate the code.
 7. **Never commit secrets.** The LAN passphrase is player-provided at runtime and never stored. No API keys, tokens, or passwords in the repo — ever.
-8. **Track every completed task in `new_todo.md`.** When a day's task is implemented, mark it `✅ DONE` and record the **custom changes made on top** of the base task in that file before moving on. The tracker is the source of truth for what actually shipped, so it must reflect reality. Do not start a new task while the previous task's tracking is incomplete.
+8. **Track every completed task in `done_list.md`** (single consolidated record: all phases are done, nothing is pending). Originally a per-day tracker in `new_todo.md`; record the **custom changes made on top** of each base task. The tracker is the source of truth for what actually shipped, so it must reflect reality.
 9. **Never make unrelated changes.** Only touch code/files relevant to the task at hand. Do not refactor, rename, or "improve" existing behavior the user did not ask you to change. If you believe a change you are making also affects unrelated behavior, stop and flag it to the user before proceeding.
 
 ---
