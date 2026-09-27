@@ -539,7 +539,7 @@ const limited = (res: ServerResponse, scope: string, limit: number, key: string)
 /** Cross-origin headers: the game runs on localhost/LAN and calls this server's REST API. */
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 

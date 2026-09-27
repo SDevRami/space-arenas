@@ -238,25 +238,19 @@ export class AudioHooks {
     }
   }
 
-  /** Probe `folder/v1.wav`, `folder/v2.wav`, … and keep whatever exists. Variant
+  /** Probe `folder/v1.wav` … `folder/v12.wav` and keep whatever exists. Variant
    * numbering does not need to start at v1 or be contiguous (a folder holding only
-   * `v4.wav` still yields that file); the scan stops after a window of consecutive
-   * misses to avoid re-probing an empty folder forever. */
+   * `v4.wav` still yields that file) — the game only ever loads files actually
+   * present in the folder. */
   private async probeVariants(folder: string): Promise<string[]> {
     const urls: string[] = []
-    let misses = 0
-    for (let i = 1; i <= 100 && misses < 8; i++) {
+    for (let i = 1; i <= 12; i++) {
       const u = `${folder}v${i}.wav`
       try {
         const resp = await fetch(u, { method: 'HEAD' })
-        if (resp.ok) {
-          urls.push(u)
-          misses = 0
-        } else {
-          misses++
-        }
+        if (resp.ok) urls.push(u)
       } catch {
-        misses++
+        /* missing file — skip */
       }
     }
     return urls

@@ -143,6 +143,14 @@ const notify = (): void => {
 
 export const getAudio = (): AudioSettings => state
 
+/** Re-read `state` from localStorage after an external write (e.g. a cloud-backup
+ * restore) and notify listeners so the live audio graph (ambient, volumes) picks
+ * the restored values up. */
+export const reloadAudio = (): void => {
+  Object.assign(state, load())
+  notify()
+}
+
 /** Effective effects volume: master * effects (0 when muted). */
 export const effectsVolume = (): number => (state.muted ? 0 : state.master * state.effects)
 

@@ -341,6 +341,13 @@ const state = load()
 
 export const getGraphics = (): GraphicsSettings => state
 
+/** Re-read `state` from localStorage after an external write (e.g. a cloud-backup
+ * restore). The renderer and dev-settings form keep reading `state`, so mutating it
+ * in place applies the restored values immediately. */
+export const reloadGraphics = (): void => {
+  Object.assign(state, load())
+}
+
 export const setBuildingFill = (q: GraphicsQuality, value: number): void => {
   if (q !== 'medium' && q !== 'high') return
   const v = Math.max(0, Math.min(1, value))

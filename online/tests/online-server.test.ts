@@ -124,6 +124,19 @@ describe('online server API', () => {
     assert.equal(r.status, 204)
     assert.match(r.headers.get('access-control-allow-headers') ?? '', /authorization/i)
   })
+
+  it('CORS preflight permits DELETE (needed by /api/backups/:id)', async () => {
+    const r = await fetch(`${base}/api/backups/x`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://example.com',
+        'Access-Control-Request-Method': 'DELETE',
+        'Access-Control-Request-Headers': 'authorization',
+      },
+    })
+    assert.equal(r.status, 204)
+    assert.match(r.headers.get('access-control-allow-methods') ?? '', /delete/i)
+  })
 })
 
 describe('online server DB-unconfigured routes', () => {
