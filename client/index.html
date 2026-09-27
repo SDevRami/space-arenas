@@ -392,6 +392,7 @@
               <div class="online-tabs">
                 <button class="ghost selected" id="online-tab-matches" data-i18n="online.tabMatches">Matches</button>
                 <button class="ghost" id="online-tab-leaderboard" data-i18n="online.tabLeaderboard">Leaderboard</button>
+                <button class="ghost" id="online-tab-data" data-i18n="online.tabData">Data</button>
                 <button class="ghost" id="online-refresh" data-i18n="online.refresh">Refresh</button>
               </div>
               <div id="online-matches-section">
@@ -431,6 +432,19 @@
                   </thead>
                   <tbody></tbody>
                 </table>
+              </div>
+              <div id="online-data-section" class="hidden-el">
+                <div class="status" id="data-status"></div>
+                <h3 class="section-h3" data-i18n="online.dataH3">Cloud backups</h3>
+                <p class="hint" data-i18n="online.dataHint">Back up this device's dev-settings or local profile to your account and restore on another PC. Backups are encrypted with your passphrase and expire after 7 days. The passphrase is never stored on the server — keep it safe.</p>
+                <label data-i18n="online.dataPass">Backup passphrase</label>
+                <input id="data-pass" type="password" placeholder="••••••••" data-i18n-placeholder="online.dataPassPlaceholder" />
+                <div class="online-actions">
+                  <button class="ghost" id="data-upload-dev" data-i18n="online.dataUploadDev">Back up dev-settings</button>
+                  <button class="ghost" id="data-upload-profile" data-i18n="online.dataUploadProfile">Back up profile</button>
+                </div>
+                <h3 class="section-h3" data-i18n="online.dataMy">My backups</h3>
+                <div id="data-list"></div>
               </div>
             </div>
           </div>

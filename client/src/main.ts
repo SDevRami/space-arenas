@@ -19,6 +19,7 @@ import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type 
 import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, type MapEntry } from './mapbuilder/library.ts'
 import { initProfilePanel, renderProfilePanel, onProfileTabShown } from './profile/ui.ts'
 import { loadProfileConfig, saveProfileConfig } from './profile/profile.ts'
+import { decryptPayload, encryptPayload, sha256Hex } from './net/crypto.ts'
 
 const ERROR_HIDE_TIMEOUT_MS = 8000
 const COUNTDOWN_SECONDS = 5
@@ -805,6 +806,13 @@ const onlineMatchesSection = document.getElementById('online-matches-section') a
 const onlineLeaderboardSection = document.getElementById('online-leaderboard-section') as HTMLDivElement
 const onlineTabMatchesBtn = document.getElementById('online-tab-matches') as HTMLButtonElement
 const onlineTabLeaderboardBtn = document.getElementById('online-tab-leaderboard') as HTMLButtonElement
+const onlineTabDataBtn = document.getElementById('online-tab-data') as HTMLButtonElement
+const onlineDataSection = document.getElementById('online-data-section') as HTMLDivElement
+const dataStatusEl = document.getElementById('data-status') as HTMLDivElement
+const dataPassEl = document.getElementById('data-pass') as HTMLInputElement
+const dataListEl = document.getElementById('data-list') as HTMLDivElement
+const dataUploadDevBtn = document.getElementById('data-upload-dev') as HTMLButtonElement
+const dataUploadProfileBtn = document.getElementById('data-upload-profile') as HTMLButtonElement
 const joinpassOverlay = document.getElementById('joinpass-overlay') as HTMLDivElement
 const joinpassInputEl = document.getElementById('joinpass-input') as HTMLInputElement
 const joinpassOkBtn = document.getElementById('joinpass-ok') as HTMLButtonElement
@@ -1166,12 +1174,13 @@ try {
 
 // ---------- leaderboard (Phase 2) ----------
 
-const setOnlineTab = (tab: 'matches' | 'leaderboard'): void => {
-  const matchesActive = tab === 'matches'
-  onlineMatchesSection.classList.toggle('hidden-el', !matchesActive)
-  onlineLeaderboardSection.classList.toggle('hidden-el', matchesActive)
-  onlineTabMatchesBtn.classList.toggle('selected', matchesActive)
-  onlineTabLeaderboardBtn.classList.toggle('selected', !matchesActive)
+const setOnlineTab = (tab: 'matches' | 'leaderboard' | 'data'): void => {
+  onlineMatchesSection.classList.toggle('hidden-el', tab !== 'matches')
+  onlineLeaderboardSection.classList.toggle('hidden-el', tab !== 'leaderboard')
+  onlineDataSection.classList.toggle('hidden-el', tab !== 'data')
+  onlineTabMatchesBtn.classList.toggle('selected', tab === 'matches')
+  onlineTabLeaderboardBtn.classList.toggle('selected', tab === 'leaderboard')
+  onlineTabDataBtn.classList.toggle('selected', tab === 'data')
 }
 
 const renderLeaderboard = (rows: Array<{ rank: number; username: string; score: number }>): void => {
@@ -1226,6 +1235,10 @@ onlineTabLeaderboardBtn.addEventListener('click', () => {
   setOnlineTab('leaderboard')
   void loadLeaderboard(false)
 })
+onlineTabDataBtn.addEventListener('click', () => {
+  setOnlineTab('data')
+  void loadBackups(false)
+})
 
 setInterval(() => {
   if (!onlinePanel.classList.contains('hidden-panel')) void refreshOnlineList(true)
@@ -1240,6 +1253,204 @@ onlineNameEl.addEventListener('input', () => {
     /* storage unavailable */
   }
 })
+
+// ---------- cloud backups (Phase 3) ----------
+
+interface BackupInfo {
+  id: string
+  kind: 'devsettings' | 'profile'
+  createdAt: string
+  expiresAt: string
+}
+
+let backups: BackupInfo[] = []
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+const setDataStatus = (text: string, isError = false): void => {
+  dataStatusEl.textContent = text
+  dataStatusEl.classList.toggle('error', isError)
+}
+
+/** REST call against the online server that always attaches the account bearer token. */
+const authApi = async (method: string, path: string, body?: unknown): Promise<{ ok: boolean; status: number; error?: string; data?: Record<string, unknown> }> => {
+  try {
+    const headers: Record<string, string> = {}
+    if (body !== undefined) {
+      headers['Content-Type'] = 'application/json'
+      return await fetch(`${ONLINE_URL}${path}`, {
+        method,
+        headers,
+        body: JSON.stringify(body),
+      }).then(parseAuth)
+    }
+    return await fetch(`${ONLINE_URL}${path}`, { method, headers }).then(parseAuth)
+    async function parseAuth(res: Response): Promise<{ ok: boolean; status: number; error?: string; data?: Record<string, unknown> }> {
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; data?: unknown }
+      if (res.ok) {
+        const payload = j && typeof j === 'object' && j.ok === true ? j.data : j
+        return { ok: true, status: res.status, data: (payload ?? {}) as Record<string, unknown> }
+      }
+      return { ok: false, status: res.status, error: String(j.error ?? `HTTP ${res.status}`) }
+    }
+  } catch {
+    return { ok: false, status: 0, error: t('online.serverDown') }
+  }
+}
+
+const loadBackups = async (silent = false): Promise<void> => {
+  if (!authSession || !authToken()) {
+    backups = []
+    renderBackups()
+    if (!silent) setDataStatus(t('online.dataNeedLogin'))
+    return
+  }
+  const r = await authApi('GET', '/api/backups')
+  if (!r.ok) {
+    if (!silent) setDataStatus(t('online.dataUnavailable'), true)
+    return
+  }
+  backups = (r.data as unknown as BackupInfo[] | undefined) ?? []
+  renderBackups()
+  if (!silent) setDataStatus('')
+}
+
+const renderBackups = (): void => {
+  dataListEl.innerHTML = ''
+  if (backups.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'net-empty'
+    empty.textContent = t('online.dataEmpty')
+    dataListEl.appendChild(empty)
+    return
+  }
+  for (const b of backups) {
+    const row = document.createElement('div')
+    row.className = 'backup-row'
+    const badge = document.createElement('span')
+    badge.className = 'badge'
+    badge.textContent = t(b.kind === 'profile' ? 'online.dataKindProfile' : 'online.dataKindDev')
+    const meta = document.createElement('span')
+    meta.className = 'meta'
+    const daysLeft = Math.ceil((new Date(b.expiresAt).getTime() - Date.now()) / DAY_MS)
+    if (daysLeft <= 0) {
+      const expired = document.createElement('span')
+      expired.className = 'expired'
+      expired.textContent = t('online.dataExpired')
+      meta.appendChild(expired)
+    } else {
+      meta.textContent = t('online.dataExpiresIn', {
+        n: String(daysLeft),
+        date: new Date(b.expiresAt).toLocaleDateString(),
+      })
+    }
+    const restoreBtn = document.createElement('button')
+    restoreBtn.className = 'ghost'
+    restoreBtn.textContent = t('online.dataRestore')
+    restoreBtn.addEventListener('click', () => void restoreBackup(b))
+    const delBtn = document.createElement('button')
+    delBtn.className = 'ghost'
+    delBtn.textContent = t('online.dataDelete')
+    delBtn.addEventListener('click', () => void deleteBackup(b))
+    row.appendChild(badge)
+    row.appendChild(meta)
+    row.appendChild(restoreBtn)
+    row.appendChild(delBtn)
+    dataListEl.appendChild(row)
+  }
+}
+
+/** Serializes one device's local data into a JSON payload (keys → raw storage values). */
+const collectPayload = (kind: 'devsettings' | 'profile'): string | null => {
+  const keys =
+    kind === 'devsettings'
+      ? ['space-arenas:dev-settings']
+      : ['space-arenas:profile', 'space-arenas:profile:config', 'space-arenas:mode-records']
+  const entries: Record<string, string> = {}
+  for (const k of keys) {
+    const raw = localStorage.getItem(k)
+    if (raw !== null) entries[k] = raw
+  }
+  if (Object.keys(entries).length === 0) return null
+  return JSON.stringify({ v: 1, kind, keys: entries })
+}
+
+const uploadBackup = async (kind: 'devsettings' | 'profile'): Promise<void> => {
+  if (!authSession || !authToken()) {
+    setDataStatus(t('online.dataNeedLogin'), true)
+    return
+  }
+  const pass = dataPassEl.value
+  if (pass.length < 4) {
+    setDataStatus(t('online.dataNeedPass'), true)
+    return
+  }
+  const payload = collectPayload(kind)
+  if (payload === null) {
+    setDataStatus(kind === 'devsettings' ? t('online.dataNoDev') : t('online.dataNoProfile'), true)
+    return
+  }
+  setDataStatus(t('online.working'))
+  try {
+    const bundle = await encryptPayload(payload, pass)
+    const passphraseHash = await sha256Hex(pass)
+    const r = await authApi('POST', '/api/backups', { kind, payload: bundle, passphraseHash })
+    if (!r.ok) throw new Error(r.error ?? t('online.unknownError'))
+    await loadBackups(true)
+    setDataStatus(t('online.dataUploaded'))
+    dataPassEl.value = ''
+  } catch (err) {
+    setDataStatus(err instanceof Error && err.message ? err.message : t('online.unknownError'), true)
+  }
+}
+
+const restoreBackup = async (b: BackupInfo): Promise<void> => {
+  if (!authSession || !authToken()) {
+    setDataStatus(t('online.dataNeedLogin'), true)
+    return
+  }
+  const pass = dataPassEl.value
+  if (pass.length < 4) {
+    setDataStatus(t('online.dataNeedPass'), true)
+    return
+  }
+  setDataStatus(t('online.working'))
+  try {
+    const passphraseHash = await sha256Hex(pass)
+    const r = await authApi('POST', `/api/backups/${b.id}/restore`, { passphraseHash })
+    if (!r.ok) throw new Error(r.error ?? t('online.unknownError'))
+    const plain = await decryptPayload(String(r.data?.payload ?? ''), pass)
+    const parsed = JSON.parse(plain) as { kind?: string; keys?: Record<string, string> }
+    if (!parsed.keys || typeof parsed.keys !== 'object') throw new Error(t('online.dataBadBlob'))
+    for (const [k, vRaw] of Object.entries(parsed.keys)) {
+      try {
+        if (vRaw === '') localStorage.removeItem(k)
+        else localStorage.setItem(k, vRaw)
+      } catch {
+        /* this device's storage is full — skip that one key */
+      }
+    }
+    setDataStatus(t('online.dataRestored'))
+    dataPassEl.value = ''
+  } catch (err) {
+    setDataStatus(err instanceof Error && err.message ? err.message : t('online.unknownError'), true)
+  }
+}
+
+const deleteBackup = async (b: BackupInfo): Promise<void> => {
+  if (!authToken()) return
+  const r = await authApi('DELETE', `/api/backups/${b.id}`)
+  if (!r.ok) {
+    setDataStatus(r.error ?? t('online.unknownError'), true)
+    return
+  }
+  backups = backups.filter((x) => x.id !== b.id)
+  renderBackups()
+  setDataStatus(t('online.dataDeleted'))
+}
+
+dataUploadDevBtn.addEventListener('click', () => void uploadBackup('devsettings'))
+dataUploadProfileBtn.addEventListener('click', () => void uploadBackup('profile'))
 
 // ---------- map builder ----------
 

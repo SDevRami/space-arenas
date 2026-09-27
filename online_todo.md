@@ -128,16 +128,27 @@ password-protected rooms over the Internet using the existing client protocol un
 
 ---
 
-## Phase 3 — Data backup with expiry (Data tab)
+## Phase 3 — Data backup with expiry + abuse hardening (Data tab)
 
 **Goal:** move a player's game (dev-settings + local profile) to another PC via encrypted,
-expiring backup blobs. Nothing else is stored on the DB.
+expiring backup blobs, plus a rate-limit layer so public write endpoints (auth, room create,
+backups, and later P4 comments/ratings) stay abuse-resistant. Nothing else is stored on the DB.
 
-- [ ] `POST /api/backups` — body = `{ kind: 'devsettings' | 'profile', payload, passphraseHash }`; store in `backups` table with `expires_at = now + 30 days` (TTL constant).
-- [ ] `GET /api/backups/{id}` — restore; client validates via local passphrase, imports into the same storage keys Dev-settings/profile already use (see `main.ts` storage helpers around dev settings).
-- [ ] Server purges expired rows (cron or on-read); a `backups.ttlDays` config constant (open Q §8.4).
-- [ ] "Data" tab UI: list my backups (id, kind, expires), upload current, restore selected, delete.
-- [ ] i18n en+ar. Verification: backup→restore on a second profile, confirm expiry countdown.
+**Decided:** TTL **7 days** (player sees the expiry countdown + date in the UI); per-account
+**quota** (max 10 backups, ≤ 64 KB each); **Web Crypto AES-GCM** client-side encryption
+(PBKDF2 passphrase → key, random salt+IV; only ciphertext touches the server).
+
+- [ ] `003_backups.sql`: `backups (id uuid pk default gen_random_uuid(), user_id uuid not null ref profiles(user_id), kind text check (kind in ('devsettings','profile')), payload text not null, passphrase_hash text not null, created_at timestamptz not null default now(), expires_at timestamptz not null)` + index on `expires_at` (purge) and `user_id`.
+- [ ] `POST /api/backups` (auth) — body `{ kind, payload, passphraseHash }`; stores with `expires_at = now + 7 days` (TTL constant `backups.ttlDays`, `online/src/config.ts`); quota: row count ≥ 10 → 409, payload > 64 KB → 413; returns `{ ok, id, expiresAt }`.
+- [ ] `GET /api/backups` (auth) — my backups list (id, kind, created, expires, expired?).
+- [ ] `GET /api/backups/{id}` (auth, ownership-checked) — payload unless expired (410) or `passphraseHash` mismatch (403).
+- [ ] `DELETE /api/backups/{id}` (auth, ownership) — used from the UI.
+- [ ] Expired purge: sweep every 10 min (pattern of the room TTL sweep) + skip-on-read.
+- [ ] Client encryption: AsyncCrypto helper (AES-GCM + PBKDF2, salt/IV stored beside ciphertext in `payload`); `passphraseHash = sha256(passphrase)` lets the server reject wrong passphrases without shipping blobs.
+- [ ] "Data" tab UI (online panel, visible when logged in): list my backups with kind + expiry countdown ("expires in N days · DATE") — the TTL feedback the player asked for; upload Dev-settings / upload Profile buttons with a "stored for 7 days" note; restore (asks passphrase, decrypts client-side, writes to the same storage keys dev-settings/profile use); delete.
+- [ ] i18n en+ar (`backup.*` keys).
+- [ ] **Rate limiting (zero-dep, in-memory sliding window, keyed by client IP):** shared helper `online/src/ratelimit.ts` applied to REST + ws. Limits: register/login/change-password **5/min/IP** (login also **10/min/account**), room create + join pre-check **10/min/IP**, ws handshake **20/min/IP**, backups POST **10/min/IP**, `/api/auth/me` + `/api/leaderboard` GET **60/min/IP**. Respond 429 `{ error, retryAfter }` + `Retry-After`; client i18n error; trust Render's `X-Forwarded-For` for the client IP (fallback to socket remote-address in dev). Reused unchanged by P4 comment/rating endpoints.
+- [ ] Verification: online REST tests — auth-required, ownership, quota 409, size 413, TTL 7-day write then purge (unit), wrong passphrase 403, 429 after a burst. Client typecheck + build green. Manual: backup→restore round-trip on a second profile under the same account, expiry countdown visible.
 
 ---
 
@@ -175,6 +186,7 @@ expiring backup blobs. Nothing else is stored on the DB.
 - **i18n** always in `en.json` AND `ar.json`; new `online.*`/`leaderboard.*`/`backup.*`/`mods.*` keys.
 - **Protocol**: no existing message changed; new zero-byte-flag messages get a `PROTOCOL_VERSION` bump + `tests/protocol.test.ts` round-trip.
 - **Perf**: room directory uses REST+heartbeats (not tick-path allocations); never allocate in `TickRelay` hot loop.
+- **Abuse**: every public endpoint and the ws handshake sits behind the shared in-memory rate limiter (`online/src/ratelimit.ts`, P3); quota + size caps on stored blobs; secrets only in env (AI-INSTRUCTIONS §1.7).
 - **Tracker**: each shipped phase gets its Day section + summary row in `new_todo.md`.
 
 ---
@@ -185,7 +197,7 @@ expiring backup blobs. Nothing else is stored on the DB.
 |-------|-------|--------|-------------|--------|
 | P1 | Render deploy · multi-room server · real matchmaking | L | No | □ |
 | P2 | Accounts · profiles · leaderboard (Supabase) | M | No | ◐ code+verif done; live DB after deploy |
-| P3 | Expiring data backups (Data tab) | S | No | □ |
+| P3 | Expiring data backups (Data tab) + rate limiting/abuse hardening | M | No | □ |
 | P4 | Landing page · mod repository · ratings/comments | M | No | □ |
 | P5 | Local replay save · anti-cheat baseline | S | No | □ |
 
@@ -196,5 +208,5 @@ expiring backup blobs. Nothing else is stored on the DB.
 1. **Hoster position:** Option B/C (Render relays, host client supplies config) approved — or must the host *device* literally run the socket server over a tunnel?
 2. **Password model:** one shared room password (like today's passphrase) or per-player credentials?
 3. **Leaderboard source:** server-reported results at `H_GAME_OVER` (trusted) vs client self-report (MVP-simple)?
-4. **Backup TTL:** fixed 30 days OK?
+4. **Backup TTL:** fixed **7 days**, quota 10 rows / 64 KB per account, AES-GCM client-side encryption — **decided** (P3).
 5. **Landing/game split:** game under `/game/` on the same Render app (matches current `CLIENT_DIST` static serving) ?

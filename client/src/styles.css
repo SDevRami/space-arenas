@@ -622,6 +622,12 @@
       .hidden-el { display: none !important; }
       #lobby .online-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
       #lobby .online-actions button { width: auto; margin-top: 0; padding: 8px 14px; }
+      #lobby .backup-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--color-divider); font-size: 12px; }
+      #lobby .backup-row .badge { text-transform: uppercase; font-size: 10px; letter-spacing: 1px; color: var(--color-accent); border: 1px solid var(--color-accent); border-radius: 3px; padding: 2px 6px; }
+      #lobby .backup-row .meta { color: var(--color-text-muted); flex: 1 1 180px; }
+      #lobby .backup-row .meta .expired { color: #ff6b6b; }
+      #lobby .backup-row button { width: auto; padding: 4px 10px; font-size: 12px; margin: 0; }
+      #lobby #data-list .net-empty { padding: 10px 0; color: var(--color-text-muted); }
       #lobby .lobby-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
       #lobby .lobby-table th, #lobby .lobby-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--color-divider); }
       #lobby .lobby-table th { color: var(--color-text-muted); text-transform: uppercase; font-size: 10px; letter-spacing: 1px; background: var(--color-surface-dark); }
