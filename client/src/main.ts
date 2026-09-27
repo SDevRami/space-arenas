@@ -1366,7 +1366,7 @@ const renderBackups = (): void => {
 const collectPayload = (kind: 'devsettings' | 'profile'): string | null => {
   const keys =
     kind === 'devsettings'
-      ? ['space-arenas:dev-settings']
+      ? ['space-arenas:dev-settings', 'space-arenas:dev-defaults']
       : ['space-arenas:profile', 'space-arenas:profile:config', 'space-arenas:mode-records']
   const entries: Record<string, string> = {}
   for (const k of keys) {
@@ -1431,6 +1431,25 @@ const restoreBackup = async (b: BackupInfo): Promise<void> => {
       } catch {
         /* this device's storage is full — skip that one key */
       }
+    }
+    const decodedKeys = parsed.keys as Record<string, string> | undefined
+    if (parsed.kind === 'devsettings' || decodedKeys?.['space-arenas:dev-settings'] !== undefined) {
+      try {
+        const raw = localStorage.getItem(DEV_STORAGE_KEY)
+        devOverrides = raw ? (JSON.parse(raw) as Partial<MatchSettings>) : {}
+      } catch {
+        /* storage unavailable */
+      }
+      try {
+        const rawDefaults = localStorage.getItem(DEV_DEFAULTS_KEY)
+        savedDefaults = rawDefaults ? (JSON.parse(rawDefaults) as Partial<MatchSettings>) : {}
+      } catch {
+        /* storage unavailable */
+      }
+      buildDevForm()
+    }
+    if (parsed.kind === 'profile' || decodedKeys?.['space-arenas:profile'] !== undefined) {
+      renderProfilePanel()
     }
     setDataStatus(t('online.dataRestored'))
     dataPassEl.value = ''
