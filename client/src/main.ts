@@ -1501,6 +1501,7 @@ dataUploadProfileBtn.addEventListener('click', () => void uploadBackup('profile'
 interface RepoMod {
   id: string
   ownerId: string
+  ownerName?: string
   name: string
   author: string
   description: string
@@ -1693,7 +1694,7 @@ const repoModRow = (m: RepoMod): HTMLDivElement => {
   title.title = t('mods.repo.repoRating', { avg: String(m.ratingAvg ?? '—'), c: String(m.ratingCount) })
   const meta = document.createElement('span')
   meta.className = 'mod-meta'
-  meta.textContent = m.description || t('mods.repo.repoBy', { author: m.author || '?' })
+  meta.textContent = m.description || t('mods.repo.repoBy', { author: m.ownerName || m.author || '?' })
   const stats = document.createElement('span')
   stats.className = 'mod-meta repo-stars'
   stats.textContent = m.ratingCount > 0 ? `${repoStars(m.ratingAvg)} ${m.ratingAvg}/5 · ${t('mods.repo.repoDownloads', { n: String(m.downloads) })}` : `${repoStars(null)} ${t('mods.repo.repoNoRatings')} · ${t('mods.repo.repoDownloads', { n: String(m.downloads) })}`

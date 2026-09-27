@@ -359,6 +359,8 @@ const ilikeEscaped = (q: string): string => q.replace(/[\\*]/g, '\\$&')
 export interface ModRepoRow {
   id: string
   ownerId: string
+  /** The publisher's account username (from `profiles`), empty if unknown. */
+  ownerName: string
   name: string
   author: string
   description: string
@@ -411,11 +413,25 @@ export const dbListMods = async (
         count.set(r.mod_id, (count.get(r.mod_id) ?? 0) + 1)
       }
     }
+    // Merge the publisher account username (profiles) so the UI can show "by @name".
+    const ownerIds = Array.from(new Set(rows.map((r) => r.owner_id).filter((x) => x !== '')))
+    const nameById = new Map<string, string>()
+    if (ownerIds.length > 0) {
+      const prof = await timedFetch(
+        `/rest/v1/profiles?user_id=in.(${ownerIds.map(encodeURIComponent).join(',')})&select=user_id,username`,
+        { headers: restServiceHeaders() },
+      )
+      if (prof.ok) {
+        for (const p of (await prof.json()) as Array<{ user_id: string; username: string }>)
+          nameById.set(p.user_id, p.username)
+      }
+    }
     const data: ModRepoRow[] = rows.map((r) => {
       const c = count.get(r.id) ?? 0
       return {
         id: r.id,
         ownerId: r.owner_id,
+        ownerName: nameById.get(r.owner_id) ?? '',
         name: r.name,
         author: r.meta_author,
         description: r.meta_description,

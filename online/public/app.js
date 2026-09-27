@@ -1,20 +1,22 @@
 /* Space Arenas — landing page (GitHub Pages).
- * i18n EN/AR toggle (localStorage + ?lang=) and a read-only top-mods strip that
- * caches the Render API response locally (short TTL) to keep traffic to the API low.
+ * i18n EN/AR toggle (localStorage + ?lang=), account login/register, and a
+ * login-gated community section: browse / rate / download / publish balance mods
+ * against the Render API. Short TTL cache for the mod list keeps API traffic low.
  */
 
 // The public Render API. Set this to your deployed service origin.
 const SA_ONLINE_URL = 'https://space-arenas-online.onrender.com'
 
-const TOP_MODS_TTL_MS = 5 * 60 * 1000
-const CACHE_KEY = 'sa-topmods-cache-v1'
+const CACHE_KEY = 'sa-modlist-cache-v1'
+const AUTH_KEY = 'sa-auth'
 const LANG_KEY = 'sa-lang'
+const MODS_TTL_MS = 5 * 60 * 1000
 
 const EN = {
   brand: 'Space Arenas',
   'nav.features': 'Features',
   'nav.howto': 'How to join',
-  'nav.mods': 'Mods',
+  'nav.community': 'Community',
   'nav.repo': 'Source',
   'hero.badge': 'Real-time strategy in space',
   'hero.title': 'Command your fleet on maps that fight back.',
@@ -26,7 +28,7 @@ const EN = {
   'features.fog.title': 'Fog, day & night',
   'features.fog.text': 'Dynamic line-of-sight, stealth units and a full day/night cycle change how you scout and strike.',
   'features.mods.title': 'Balance mods',
-  'features.mods.text': 'Tune the economy, units and weapons with downloadable mod files — then share them in the online repository.',
+  'features.mods.text': 'Tune the economy, units and weapons with downloadable mod files — then share them in the community repository.',
   'features.online.title': 'Online lobbies',
   'features.online.text': 'Create password-protected rooms, search open matches and climb the global leaderboard with a free account.',
   'howto.title': 'Join in three steps',
@@ -36,18 +38,43 @@ const EN = {
   'howto.st2.text': 'Sign up in the online lobby to unlock the leaderboard, data backups and the mod repository.',
   'howto.st3.title': 'Play & share',
   'howto.st3.text': 'Create or join a room, pick a balance mod, and carry your progress anywhere with encrypted backups.',
-  'mods.title': 'Community balance mods',
-  'mods.subtitle': 'Top-rated from the shared repository.',
-  'mods.loading': 'Loading…',
-  'mods.empty': 'No mods published yet — be the first!',
-  'mods.error': 'Could not reach the mod repository right now.',
-  'mods.by': 'by {author}',
-  'mods.downloads': '{n} downloads',
-  'mods.noRating': 'not rated yet',
-  'mods.download': 'Download',
-  'mods.downloading': 'Downloading…',
-  'mods.downloadLimit': 'Download limit reached — try again in a minute.',
-  'mods.downloadError': 'Download failed. Please try again.',
+  'community.title': 'Community mods',
+  'community.subtitle': 'Browse, rate and download balance mods — or publish your own.',
+  'community.needLogin': 'Sign in to browse, rate, download and share community mods.',
+  'community.by': 'by @{name}',
+  'community.downloads': '{n} downloads',
+  'community.noRating': 'not rated yet',
+  'community.rating': '{avg} / 5 ({c})',
+  'community.loading': 'Loading…',
+  'community.empty': 'No mods published yet — be the first!',
+  'community.error': 'Could not load the mod repository.',
+  'community.download': 'Download',
+  'community.downloading': 'Downloading…',
+  'community.downloadLimit': 'Download limit reached — try again in a minute.',
+  'community.downloadError': 'Download failed. Please try again.',
+  'community.rateOk': 'Thanks — rated {n} / 5.',
+  'community.rateFail': 'Could not save the rating. Please try again.',
+  'community.upload.title': 'Share a mod',
+  'community.upload.hint': 'Pick a balance mod file you exported, write a short description and publish it for everyone. Only you can delete your own mods.',
+  'community.upload.descPlaceholder': 'Short description… (up to 160 characters)',
+  'community.upload.button': 'Publish',
+  'community.upload.working': 'Publishing…',
+  'community.upload.ok': 'Mod published to the repository.',
+  'community.upload.needDesc': 'Write a short description first.',
+  'community.upload.needFile': 'Choose a mod file first.',
+  'community.upload.fail': 'Could not publish the mod.',
+  'auth.signin': 'Sign in',
+  'auth.signout': 'Sign out',
+  'auth.email': 'Email',
+  'auth.password': 'Password',
+  'auth.username': 'Username',
+  'auth.toRegister': 'Create an account',
+  'auth.toLogin': 'Already have an account? Sign in',
+  'auth.working': 'Please wait…',
+  'auth.invalid': 'Fill in the email, password and username.',
+  'auth.loginFail': 'Wrong email or password.',
+  'auth.registerFail': 'Could not create the account — maybe that username or email is taken.',
+  'auth.network': 'Could not reach the server.',
   'media.title': 'Seen in action',
   'media.battle': 'Skirmish view',
   'media.mod': 'Mod tuning',
@@ -61,7 +88,7 @@ const AR = {
   brand: 'ساحات الفضاء',
   'nav.features': 'المميزات',
   'nav.howto': 'كيف تلعب',
-  'nav.mods': 'التعديلات',
+  'nav.community': 'المجتمع',
   'nav.repo': 'المصدر',
   'hero.badge': 'استراتيجية في الزمن الحقيقي في الفضاء',
   'hero.title': 'قُد أسطولك في خرائط تقاومك.',
@@ -73,7 +100,7 @@ const AR = {
   'features.fog.title': 'ضباب، ليل ونهار',
   'features.fog.text': 'خط رؤية ديناميكي، وحدات متخفية ودورة كاملة ليل/نهار تغيّر طريقة استطلاعك وهجومك.',
   'features.mods.title': 'تعديلات التوازن',
-  'features.mods.text': 'اضبط الاقتصاد والوحدات والأسلحة بملفات تعديل قابلة للتنزيل — ثم شاركها في مستودع التعديلات.',
+  'features.mods.text': 'اضبط الاقتصاد والوحدات والأسلحة بملفات تعديل قابلة للتنزيل — ثم شاركها في مستودع المجتمع.',
   'features.online.title': 'قاعات على الإنترنت',
   'features.online.text': 'أنشئ قاعات محمية بكلمة مرور، ابحث عن المباريات المفتوحة وارتقِ في لوحة المتصدرين العالمية بحساب مجاني.',
   'howto.title': 'انضم في ثلاث خطوات',
@@ -83,18 +110,43 @@ const AR = {
   'howto.st2.text': 'سجّل في قاعة اللعب لفتح لوحة المتصدرين والنسخ الاحتياطية ومستودع التعديلات.',
   'howto.st3.title': 'العب وشارك',
   'howto.st3.text': 'أنشئ قاعة أو انضم إليها، اختر تعديل توازن، وانقل تقدمك أينما كنت بنسخ احتياطية مشفرة.',
-  'mods.title': 'تعديلات توازن المجتمع',
-  'mods.subtitle': 'الأعلى تقييماً من المستودع المشترك.',
-  'mods.loading': 'جارٍ التحميل…',
-  'mods.empty': 'لا توجد تعديلات بعد — كن أول من ينشر!',
-  'mods.error': 'تعذّر الوصول إلى مستودع التعديلات حالياً.',
-  'mods.by': 'بواسطة {author}',
-  'mods.downloads': '{n} تنزيل',
-  'mods.noRating': 'لم يُقيَّم بعد',
-  'mods.download': 'تنزيل',
-  'mods.downloading': 'جارٍ التنزيل…',
-  'mods.downloadLimit': 'وصلت لحد التنزيل — حاول مرة أخرى بعد دقيقة.',
-  'mods.downloadError': 'فشل التنزيل. حاول مرة أخرى.',
+  'community.title': 'تعديلات المجتمع',
+  'community.subtitle': 'تصفّح وقيّم وحمّل تعديلات التوازن — أو انشر تعديلاً من عندك.',
+  'community.needLogin': 'سجّل الدخول لتصفّح وقيّم وتنزّل وتشارك تعديلات المجتمع.',
+  'community.by': 'بواسطة @{name}',
+  'community.downloads': '{n} تنزيل',
+  'community.noRating': 'لم يُقيَّم بعد',
+  'community.rating': '{avg} / 5 ({c})',
+  'community.loading': 'جارٍ التحميل…',
+  'community.empty': 'لا توجد تعديلات بعد — كن أول من ينشر!',
+  'community.error': 'تعذّر تحميل مستودع التعديلات.',
+  'community.download': 'تنزيل',
+  'community.downloading': 'جارٍ التنزيل…',
+  'community.downloadLimit': 'وصلت لحد التنزيل — حاول مرة أخرى بعد دقيقة.',
+  'community.downloadError': 'فشل التنزيل. حاول مرة أخرى.',
+  'community.rateOk': 'شكراً — تم التقييم {n} / 5.',
+  'community.rateFail': 'تعذّر حفظ التقييم. حاول مرة أخرى.',
+  'community.upload.title': 'شارك تعديلاً',
+  'community.upload.hint': 'اختر ملف تعديل صدرته من اللعبة، اكتب وصفاً قصيراً وانشره للجميع. لا يمكنك حذف تعديلاتك إلا أنت.',
+  'community.upload.descPlaceholder': 'وصف قصير… (حتى 160 حرفاً)',
+  'community.upload.button': 'نشر',
+  'community.upload.working': 'جارٍ النشر…',
+  'community.upload.ok': 'تم نشر التعديل في المستودع.',
+  'community.upload.needDesc': 'اكتب وصفاً قصيراً أولاً.',
+  'community.upload.needFile': 'اختر ملف تعديل أولاً.',
+  'community.upload.fail': 'تعذّر نشر التعديل.',
+  'auth.signin': 'تسجيل الدخول',
+  'auth.signout': 'تسجيل الخروج',
+  'auth.email': 'البريد الإلكتروني',
+  'auth.password': 'كلمة المرور',
+  'auth.username': 'اسم المستخدم',
+  'auth.toRegister': 'إنشاء حساب',
+  'auth.toLogin': 'لديك حساب بالفعل؟ سجّل الدخول',
+  'auth.working': 'الرجاء الانتظار…',
+  'auth.invalid': 'املأ البريد الإلكتروني وكلمة المرور واسم المستخدم.',
+  'auth.loginFail': 'بريد إلكتروني أو كلمة مرور خاطئة.',
+  'auth.registerFail': 'تعذّر إنشاء الحساب — ربما اسم المستخدم أو البريد موجود بالفعل.',
+  'auth.network': 'تعذّر الوصول إلى الخادم.',
   'media.title': 'شاهدها أثناء اللعب',
   'media.battle': 'منظر المعركة',
   'media.mod': 'ضبط التعديلات',
@@ -130,6 +182,9 @@ const setLang = (next) => {
     const key = el.getAttribute('data-i18n')
     if (key) el.textContent = t(lang, key)
   }
+  for (const el of document.querySelectorAll('[data-i18n-placeholder]')) {
+    el.placeholder = t(lang, el.getAttribute('data-i18n-placeholder'))
+  }
   const toggle = document.getElementById('lang-toggle')
   if (toggle) toggle.textContent = t(lang, 'lang.other')
   try {
@@ -137,8 +192,212 @@ const setLang = (next) => {
   } catch {
     /* private mode */
   }
-  loadTopMods()
+  loadCommunity()
 }
+
+/* ---------------- account / session ---------------- */
+
+const state = { token: null, username: '', email: '', userId: '' }
+
+let authMode = 'login' // 'login' | 'register'
+
+const saveAuth = () => {
+  try {
+    localStorage.setItem(
+      AUTH_KEY,
+      JSON.stringify({ token: state.token, username: state.username, email: state.email, userId: state.userId }),
+    )
+  } catch {
+    /* private mode */
+  }
+}
+
+const clearAuth = () => {
+  try {
+    localStorage.removeItem(AUTH_KEY)
+  } catch {
+    /* private mode */
+  }
+}
+
+const api = async (path, { method = 'GET', body, token } = {}) => {
+  const headers = { Accept: 'application/json' }
+  const options = { method, headers }
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+    options.body = body
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`${SA_ONLINE_URL}${path}`, options)
+  let j = null
+  try {
+    j = await res.json()
+  } catch {
+    /* empty body */
+  }
+  return { ok: res.ok, status: res.status, body: j }
+}
+
+const restoreSession = async () => {
+  try {
+    const raw = localStorage.getItem(AUTH_KEY)
+    if (!raw) return
+    const s = JSON.parse(raw)
+    if (!s.token) return
+    state.token = s.token
+    state.username = s.username ?? ''
+    state.email = s.email ?? ''
+    state.userId = s.userId ?? ''
+    try {
+      const me = await api('/api/auth/me', { token: s.token })
+      if (me.ok && me.body?.ok && me.body?.data) {
+        state.username = me.body.data.username ?? state.username
+        state.userId = me.body.data.userId ?? state.userId
+        state.email = me.body.data.email ?? state.email
+        saveAuth()
+      } else {
+        clearAuth()
+        state.token = null
+      }
+    } catch {
+      /* offline — keep the stored session for now */
+    }
+  } catch {
+    clearAuth()
+    state.token = null
+  }
+  updateAuthUI()
+  if (state.token) void loadCommunity(true)
+}
+
+const signOut = () => {
+  clearAuth()
+  state.token = null
+  state.username = ''
+  state.email = ''
+  state.userId = ''
+  updateAuthUI()
+}
+
+/* ---------------- UI wiring ---------------- */
+
+const updateAuthUI = () => {
+  const loggedIn = Boolean(state.token)
+  const navCommunity = document.getElementById('nav-community')
+  const userEl = document.getElementById('auth-user')
+  const signoutBtn = document.getElementById('btn-signout')
+  const signinBtn = document.getElementById('btn-signin')
+  const heroLogin = document.getElementById('hero-login')
+  const prompt = document.getElementById('community-login-prompt')
+  const content = document.getElementById('community-content')
+  if (loggedIn) {
+    navCommunity.hidden = false
+    userEl.hidden = false
+    userEl.textContent = state.username ? t(lang, 'community.by', { name: state.username }).replace(/^by\s+|^بواسطة\s+/, '') : ''
+    signoutBtn.hidden = false
+    signinBtn.hidden = true
+    heroLogin.hidden = true
+    prompt.hidden = true
+    content.hidden = false
+  } else {
+    navCommunity.hidden = true
+    userEl.hidden = true
+    userEl.textContent = ''
+    signoutBtn.hidden = true
+    signinBtn.hidden = false
+    heroLogin.hidden = false
+    prompt.hidden = false
+    content.hidden = true
+  }
+}
+
+const openAuth = (mode, focus) => {
+  authMode = mode
+  const overlay = document.getElementById('auth-overlay')
+  const title = document.getElementById('auth-title')
+  const usernameEl = document.getElementById('auth-username')
+  const submit = document.getElementById('auth-submit')
+  const toggle = document.getElementById('auth-toggle-mode')
+  const error = document.getElementById('auth-error')
+  overlay.hidden = false
+  title.textContent = t(lang, mode === 'login' ? 'auth.signin' : 'auth.toRegister')
+  usernameEl.hidden = mode !== 'register'
+  submit.textContent = t(lang, mode === 'login' ? 'auth.signin' : 'auth.toRegister')
+  toggle.textContent = t(lang, mode === 'login' ? 'auth.toRegister' : 'auth.toLogin')
+  error.hidden = true
+  if (focus) focus.focus()
+}
+
+const closeAuth = () => {
+  document.getElementById('auth-overlay').hidden = true
+}
+
+const authError = (text) => {
+  const el = document.getElementById('auth-error')
+  el.textContent = text
+  el.hidden = false
+}
+
+const submitAuth = async (ev) => {
+  ev.preventDefault()
+  const email = document.getElementById('auth-email').value.trim()
+  const password = document.getElementById('auth-password').value
+  const username = document.getElementById('auth-username').value.trim()
+  const submit = document.getElementById('auth-submit')
+  if (authMode === 'login' && (!email || !password)) {
+    authError(t(lang, 'auth.loginFail'))
+    return
+  }
+  if (authMode === 'register' && (!email || !password || !username)) {
+    authError(t(lang, 'auth.invalid'))
+    return
+  }
+  const prev = submit.textContent
+  submit.textContent = t(lang, 'auth.working')
+  submit.disabled = true
+  try {
+    if (authMode === 'register') {
+      const reg = await api('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, username }),
+      })
+      if (!reg.ok) {
+        authError(t(lang, 'auth.registerFail'))
+        return
+      }
+    }
+    const login = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+    if (!login.ok || !login.body?.data?.token) {
+      authError(t(lang, authMode === 'login' ? 'auth.loginFail' : 'auth.registerFail'))
+      return
+    }
+    const d = login.body.data
+    state.token = d.token
+    state.username = d.username ?? username
+    state.email = d.email ?? email
+    state.userId = d.userId ?? ''
+    saveAuth()
+    closeAuth()
+    document.getElementById('auth-password').value = ''
+    document.getElementById('auth-username').value = ''
+    updateAuthUI()
+    void loadCommunity(true)
+    if (window.location.hash === '#community') {
+      const tgt = document.getElementById('community')
+      if (tgt) tgt.scrollIntoView({ behavior: 'smooth' })
+    }
+  } catch {
+    authError(t(lang, 'auth.network'))
+  } finally {
+    submit.textContent = prev
+    submit.disabled = false
+  }
+}
+
+/* ---------------- community mods ---------------- */
+
+const modsEl = () => document.getElementById('community-grid')
+const statusEl = () => document.getElementById('community-status')
 
 const starsFor = (avg) => {
   if (avg === null || avg === undefined) return null
@@ -148,23 +407,38 @@ const starsFor = (avg) => {
 
 const fmt = (n) => (Number.isFinite(n) ? n.toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US') : String(n))
 
-const loadTopMods = async () => {
-  const row = document.getElementById('top-mods')
-  if (!row) return
-  setModsNote('')
-  row.innerHTML = `<p class="mods-empty">${t(lang, 'mods.loading')}</p>`
+const escapeHtml = (s) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+
+const safeFileName = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || 'mod'
+
+const setStatus = (text, isError = false) => {
+  const el = statusEl()
+  if (!el) return
+  el.textContent = text
+  el.classList.toggle('error', isError)
+}
+
+const loadCommunity = async (force = false) => {
+  updateAuthUI()
+  if (!state.token) return
+  const grid = modsEl()
+  if (!grid) return
+  grid.innerHTML = `<p class="mods-empty">${t(lang, 'community.loading')}</p>`
   let data = null
-  try {
-    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null')
-    if (cached && Date.now() - cached.at < TOP_MODS_TTL_MS) {
-      data = cached.data
+  if (!force) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null')
+      if (cached && Date.now() - cached.at < MODS_TTL_MS) data = cached.data
+    } catch {
+      /* ignore bad cache */
     }
-  } catch {
-    /* ignore bad cache */
   }
   if (data === null) {
     try {
-      const res = await fetch(`${SA_ONLINE_URL}/api/mods/repo?sort=rating&limit=5`, { headers: { Accept: 'application/json' } })
+      const res = await fetch(`${SA_ONLINE_URL}/api/mods/repo?sort=rating&limit=250`, {
+        headers: { Accept: 'application/json' },
+      })
       const body = await res.json()
       if (res.ok && Array.isArray(body.mods)) {
         data = body.mods
@@ -175,48 +449,45 @@ const loadTopMods = async () => {
         }
       }
     } catch {
-      /* network error handled below */
+      /* handled below */
     }
   }
   if (data === null) {
-    row.innerHTML = `<p class="mods-empty">${t(lang, 'mods.error')}</p>`
+    grid.innerHTML = `<p class="mods-empty">${t(lang, 'community.error')}</p>`
     return
   }
   if (!Array.isArray(data) || data.length === 0) {
-    row.innerHTML = `<p class="mods-empty">${t(lang, 'mods.empty')}</p>`
+    grid.innerHTML = `<p class="mods-empty">${t(lang, 'community.empty')}</p>`
     return
   }
-  row.innerHTML = data
-    .map((m) => {
-      const stars = starsFor(m.ratingAvg)
-      const ratingLine =
-        stars !== null
-          ? `<span class="stars" title="${m.ratingAvg} / 5">${stars}</span> <span>${m.ratingAvg} / 5</span>`
-          : `<span class="mod-meta">${t(lang, 'mods.noRating')}</span>`
-      return (
-        `<article class="mod-card">` +
-        `<h3>${escapeHtml(m.name)}</h3>` +
-        `<div class="mod-meta">${t(lang, 'mods.by', { author: escapeHtml(m.author || '—') })}</div>` +
-        (m.description ? `<div class="mod-desc">${escapeHtml(m.description)}</div>` : '') +
-        `<div class="mod-line">${ratingLine}<span class="mod-downloads">\u2B07 ${t(lang, 'mods.downloads', { n: fmt(m.downloads) })}</span></div>` +
-        `<button class="mod-download" type="button" data-id="${escapeHtml(m.id)}" data-name="${escapeHtml(m.name)}">\u2B07 ${t(lang, 'mods.download')}</button>` +
-        `</article>`
-      )
-    })
-    .join('')
+  grid.innerHTML = data.map(fmtCard).join('')
 }
 
-const safeFileName = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || 'mod'
-
-const setModsNote = (text) => {
-  const note = document.getElementById('mods-note')
-  if (!note) return
-  if (text) {
-    note.textContent = text
-    note.hidden = false
-  } else {
-    note.hidden = true
-  }
+const fmtCard = (m) => {
+  const stars = starsFor(m.ratingAvg)
+  const ratingLine =
+    stars !== null
+      ? `<span class="stars" title="${m.ratingAvg} / 5">${stars}</span> <span>${t(lang, 'community.rating', { avg: m.ratingAvg, c: m.ratingCount })}</span>`
+      : `<span class="mod-meta">${t(lang, 'community.noRating')}</span>`
+  const rateRow =
+    `<span class="rate-row">` +
+    [1, 2, 3, 4, 5]
+      .map((n) => `<button type="button" class="rate-star" data-id="${escapeHtml(m.id)}" data-n="${n}" aria-label="${n}">\u2605</button>`)
+      .join('') +
+    `</span>`
+  const byName = m.ownerName ? m.ownerName : m.author ? m.author : '?'
+  return (
+    `<article class="card mod-card">` +
+    `<h3>${escapeHtml(m.name)}</h3>` +
+    `<div class="mod-meta">${t(lang, 'community.by', { name: escapeHtml(byName) })}</div>` +
+    (m.description ? `<div class="mod-desc">${escapeHtml(m.description)}</div>` : '') +
+    `<div class="mod-line">${ratingLine}<span class="mod-downloads">\u2B07 ${t(lang, 'community.downloads', { n: fmt(m.downloads) })}</span></div>` +
+    `<div class="mod-actions">` +
+    `<button class="mod-download" type="button" data-id="${escapeHtml(m.id)}" data-name="${escapeHtml(m.name)}">\u2B07 ${t(lang, 'community.download')}</button>` +
+    rateRow +
+    `</div>` +
+    `</article>`
+  )
 }
 
 /** Fetches a mod's JSON from the Render API and saves it as `<name>.json`.
@@ -227,12 +498,11 @@ const downloadMod = async (btn) => {
   if (!id) return
   btn.disabled = true
   const prev = btn.textContent
-  btn.textContent = t(lang, 'mods.downloading')
-  setModsNote('')
+  btn.textContent = t(lang, 'community.downloading')
   try {
     const res = await fetch(`${SA_ONLINE_URL}/api/mods/${encodeURIComponent(id)}`)
     if (res.status === 429) {
-      setModsNote(t(lang, 'mods.downloadLimit'))
+      setStatus(t(lang, 'community.downloadLimit'), true)
       return
     }
     if (!res.ok) throw new Error(String(res.status))
@@ -246,22 +516,116 @@ const downloadMod = async (btn) => {
     a.remove()
     URL.revokeObjectURL(url)
   } catch {
-    setModsNote(t(lang, 'mods.downloadError'))
+    setStatus(t(lang, 'community.downloadError'), true)
   } finally {
     btn.disabled = false
     btn.textContent = prev
   }
 }
 
-const escapeHtml = (s) =>
-  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+const rateMod = async (id, n) => {
+  if (!state.token) return
+  const res = await api(`/api/mods/${encodeURIComponent(id)}/rate`, {
+    method: 'POST',
+    token: state.token,
+    body: JSON.stringify({ rating: n }),
+  })
+  if (!res.ok || !res.body?.ok) {
+    setStatus(t(lang, 'community.rateFail'), true)
+    return
+  }
+  setStatus(t(lang, 'community.rateOk', { n }))
+  try {
+    localStorage.removeItem(CACHE_KEY)
+  } catch {
+    /* private mode */
+  }
+  void loadCommunity(true)
+}
+
+const uploadMod = async () => {
+  const fileEl = document.getElementById('community-file')
+  const descEl = document.getElementById('community-desc')
+  const file = fileEl.files?.[0]
+  const desc = descEl.value.trim()
+  if (!file) {
+    setStatus(t(lang, 'community.upload.needFile'), true)
+    return
+  }
+  if (!desc) {
+    setStatus(t(lang, 'community.upload.needDesc'), true)
+    return
+  }
+  const uploadBtn = document.getElementById('community-upload')
+  const prev = uploadBtn.textContent
+  uploadBtn.textContent = t(lang, 'community.upload.working')
+  uploadBtn.disabled = true
+  try {
+    const text = await file.text()
+    let payload
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      setStatus(t(lang, 'community.upload.fail'), true)
+      return
+    }
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      payload.meta = { ...(payload.meta ?? {}), description: desc }
+    }
+    const res = await api('/api/mods', {
+      method: 'POST',
+      token: state.token,
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok || !res.body?.ok) {
+      setStatus(res.body?.error ?? t(lang, 'community.upload.fail'), true)
+      return
+    }
+    fileEl.value = ''
+    descEl.value = ''
+    setStatus(t(lang, 'community.upload.ok'))
+    try {
+      localStorage.removeItem(CACHE_KEY)
+    } catch {
+      /* private mode */
+    }
+    void loadCommunity(true)
+  } catch {
+    setStatus(t(lang, 'community.upload.fail'), true)
+  } finally {
+    uploadBtn.textContent = prev
+    uploadBtn.disabled = false
+  }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   setLang(lang)
+  void restoreSession()
+
   document.getElementById('lang-toggle')?.addEventListener('click', () => setLang(lang === 'en' ? 'ar' : 'en'))
-  const row = document.getElementById('top-mods')
-  row?.addEventListener('click', (ev) => {
-    const btn = ev.target?.closest?.('.mod-download')
-    if (btn && row.contains(btn)) void downloadMod(btn)
+  document.getElementById('btn-signin')?.addEventListener('click', () => openAuth('login'))
+  document.getElementById('btn-signout')?.addEventListener('click', signOut)
+  document.getElementById('hero-login')?.addEventListener('click', () => openAuth('login'))
+  document.getElementById('community-login-cta')?.addEventListener('click', () => openAuth('login'))
+  document.getElementById('auth-close')?.addEventListener('click', closeAuth)
+  document.getElementById('auth-overlay')?.addEventListener('click', (ev) => {
+    if (ev.target === ev.currentTarget) closeAuth()
   })
+  document.getElementById('auth-toggle-mode')?.addEventListener('click', () => {
+    openAuth(authMode === 'login' ? 'register' : 'login')
+  })
+  document.getElementById('auth-form')?.addEventListener('submit', (ev) => void submitAuth(ev))
+
+  const grid = document.getElementById('community-grid')
+  grid?.addEventListener('click', (ev) => {
+    const btn = ev.target?.closest?.(`button[data-n]`)
+    if (btn && grid.contains(btn)) {
+      void rateMod(btn.dataset.id, Number(btn.dataset.n))
+      return
+    }
+    const dl = ev.target?.closest?.('.mod-download')
+    if (dl && grid.contains(dl)) void downloadMod(dl)
+  })
+
+  document.getElementById('community-upload')?.addEventListener('click', () => void uploadMod())
 })

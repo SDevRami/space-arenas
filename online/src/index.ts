@@ -704,7 +704,8 @@ const handleMods = async (req: IncomingMessage, res: ServerResponse, urlPath: st
     const q = url.searchParams.get('q') ?? ''
     const sort = url.searchParams.get('sort') ?? 'newest'
     const owner = url.searchParams.get('owner') ?? ''
-    const result = await dbListMods({ q: q.slice(0, 80), sort, owner: owner.slice(0, 64) || undefined })
+    const limit = Math.max(1, Math.min(250, Number(url.searchParams.get('limit')) || 100))
+    const result = await dbListMods({ q: q.slice(0, 80), sort, owner: owner.slice(0, 64) || undefined, limit })
     writeJson(res, result.ok ? 200 : result.error === 'database not configured' ? 503 : 400, { ok: result.ok, error: result.error ?? undefined, mods: result.data ?? [] })
     return true
   }
