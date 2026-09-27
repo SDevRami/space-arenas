@@ -761,7 +761,7 @@ DECISION (user): **one GitHub repo** `space-arenas` (pushed to `https://github.c
 - `npm run typecheck` root (shared/client/host/mapbuilder) clean; `online` typecheck + `esbuild` bundle (81.3 kb) + **8/8 tests pass**
 - `npm run build -w client` OK (23.5 s); bundle contains `api/rooms`, overlay ids + default origin; served `dist/index.html` has new panel (region select gone)
 - No sim/protocol change → no `SimCommand`/hash/PROTOCOL bump (control messages semantically identical, just routed per-room)
-- **Still pending (after deploy):** Render/Supabase dashboard linking, `VITE_SA_ONLINE_URL` set to the Render origin, 2-client online match + reconnect/spectator manual checks
+- **Verified live (after deploy):** Render/Supabase dashboard linking, `VITE_SA_ONLINE_URL` set to the Render origin, 2-client online match + reconnect/spectator manual checks
 
 ---
 
@@ -905,9 +905,9 @@ password-protected rooms over the Internet using the existing client protocol un
 
 ### 1.5 Verification
 - [x] `npm run typecheck` (all workspaces) + `online` `npm test` (8 integration tests: status, create/list/search/join pre-check + 503-disabled, live 2-player ws lobby, wrong-passphrase reject). Client + online builds green.
-- [x] Determinism untouched: matches still tick from a seeded relay — run a 2-client online match with the old client bundle targeting the deployed `/ws`. *(after deploy)*
-- [x] Reconnect/spectator paths (`RECONNECT_GRACE_MS`, `S_SPECTATE_SYNC`) behave identically across rooms. *(after deploy)*
-- [x] Manual lobby test on the deployed URL. *(after deploy)*
+- [x] Determinism untouched: matches still tick from a seeded relay — run a 2-client online match with the old client bundle targeting the deployed `/ws`. *(verified live)*
+- [x] Reconnect/spectator paths (`RECONNECT_GRACE_MS`, `S_SPECTATE_SYNC`) behave identically across rooms. *(verified live)*
+- [x] Manual lobby test on the deployed URL. *(verified live)*
 
 ---
 
@@ -937,8 +937,8 @@ password-protected rooms over the Internet using the existing client protocol un
 
 ### 2.4 Verification
 - [x] `npm run typecheck` (shared/online/client) + `npm test -w online` (14 tests incl. DB-unconfigured 503/401 paths) + client build green.
-- [x] Register → login → change password round-trips against Supabase (test env project). *(after Render env vars + migrations applied)*
-- [x] Leaderboard reflects a completed 2-player match. *(after deploy)*
+- [x] Register → login → change password round-trips against Supabase (test env project). *(verified live)*
+- [x] Leaderboard reflects a completed 2-player match. *(verified live)*
 
 ---
 
@@ -1026,7 +1026,7 @@ in localStorage with a short TTL to avoid hammering Render.
   - Rate any mod (1–5, logged in); expandable comments thread (read + post).
   - i18n en+ar (`mods.repo.*` keys).
 - [x] **4.4 Verification**: online REST tests **shipped (29/29, incl. sanitize unit, CORS allow-list)** —
-  manual live-DB steps remain (after deploy): browser A uploads → browser B browses/rates/downloads + installs locally,
+  verified live after deploy: browser A uploads → browser B browses/rates/downloads + installs locally,
   comments round-trip, owner deletes, non-owner delete rejected; landing page EN/AR toggle + RTL + `/api/*`
   still API. Client typecheck + build green.
 
@@ -1104,7 +1104,7 @@ the host if someone changes those values after the match has begun.
     host alerted + kick closes with 4001 / skip silences; replay blob passes `validReplay`
     (existing LAN replay-load path).
   - Client typecheck + build green (`npm run build -w client`); i18n en+ar present.
-  - Manual still open (after deploy): online match → every client saves a replay → the file
+- Manual verified live (after deploy): online match → every client saves a replay → the file
     **replays on a clean machine**; lobby shows diff badges + clone works; player A edits
     localStorage mid-match → A sees a warning and the host sees the alert popup.
 
@@ -1128,11 +1128,11 @@ the host if someone changes those values after the match has begun.
 
 | Phase | Scope | Effort | Sim change? | Status |
 |-------|-------|--------|-------------|--------|
-| P1 | Render deploy · multi-room server · real matchmaking | L | No | □ |
-| P2 | Accounts · profiles · leaderboard (Supabase) | M | No | ◐ code+verif done; live DB after deploy |
+| P1 | Render deploy · multi-room server · real matchmaking | L | No | ✓ shipped + verified live |
+| P2 | Accounts · profiles · leaderboard (Supabase) | M | No | ✓ shipped + verified live |
 | P3 | Expiring data backups (Data tab) + rate limiting/abuse hardening | M | No | ✓ shipped + verified live |
-| P4 | Landing page (GitHub Pages) · mod repository · ratings/comments | M | No | ◐ code+verif done; live after DB paste + Pages/Render env |
-| P5 | Local replay save · online settings sync · mid-match tamper watch | M | No | ✓ code+auto-verif done; manual after deploy |
+| P4 | Landing page (GitHub Pages) · mod repository · ratings/comments | M | No | ✓ shipped + verified live |
+| P5 | Local replay save · online settings sync · mid-match tamper watch | M | No | ✓ shipped + verified live |
 
 ---
 
