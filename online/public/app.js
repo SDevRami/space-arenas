@@ -44,6 +44,10 @@ const EN = {
   'mods.by': 'by {author}',
   'mods.downloads': '{n} downloads',
   'mods.noRating': 'not rated yet',
+  'mods.download': 'Download',
+  'mods.downloading': 'Downloading…',
+  'mods.downloadLimit': 'Download limit reached — try again in a minute.',
+  'mods.downloadError': 'Download failed. Please try again.',
   'media.title': 'Seen in action',
   'media.battle': 'Skirmish view',
   'media.mod': 'Mod tuning',
@@ -87,6 +91,10 @@ const AR = {
   'mods.by': 'بواسطة {author}',
   'mods.downloads': '{n} تنزيل',
   'mods.noRating': 'لم يُقيَّم بعد',
+  'mods.download': 'تنزيل',
+  'mods.downloading': 'جارٍ التنزيل…',
+  'mods.downloadLimit': 'وصلت لحد التنزيل — حاول مرة أخرى بعد دقيقة.',
+  'mods.downloadError': 'فشل التنزيل. حاول مرة أخرى.',
   'media.title': 'شاهدها أثناء اللعب',
   'media.battle': 'منظر المعركة',
   'media.mod': 'ضبط التعديلات',
@@ -143,6 +151,7 @@ const fmt = (n) => (Number.isFinite(n) ? n.toLocaleString(lang === 'ar' ? 'ar-EG
 const loadTopMods = async () => {
   const row = document.getElementById('top-mods')
   if (!row) return
+  setModsNote('')
   row.innerHTML = `<p class="mods-empty">${t(lang, 'mods.loading')}</p>`
   let data = null
   try {
@@ -188,12 +197,60 @@ const loadTopMods = async () => {
         `<article class="mod-card">` +
         `<h3>${escapeHtml(m.name)}</h3>` +
         `<div class="mod-meta">${t(lang, 'mods.by', { author: escapeHtml(m.author || '—') })}</div>` +
-        (m.description ? `<div class="mod-meta">${escapeHtml(m.description)}</div>` : '') +
+        (m.description ? `<div class="mod-desc">${escapeHtml(m.description)}</div>` : '') +
         `<div class="mod-line">${ratingLine}<span class="mod-downloads">\u2B07 ${t(lang, 'mods.downloads', { n: fmt(m.downloads) })}</span></div>` +
+        `<button class="mod-download" type="button" data-id="${escapeHtml(m.id)}" data-name="${escapeHtml(m.name)}">\u2B07 ${t(lang, 'mods.download')}</button>` +
         `</article>`
       )
     })
     .join('')
+}
+
+const safeFileName = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || 'mod'
+
+const setModsNote = (text) => {
+  const note = document.getElementById('mods-note')
+  if (!note) return
+  if (text) {
+    note.textContent = text
+    note.hidden = false
+  } else {
+    note.hidden = true
+  }
+}
+
+/** Fetches a mod's JSON from the Render API and saves it as `<name>.json`.
+ *  Downloads bump the server counter and are rate-limited server-side (429 → hint). */
+const downloadMod = async (btn) => {
+  const id = btn.dataset.id
+  const name = btn.dataset.name
+  if (!id) return
+  btn.disabled = true
+  const prev = btn.textContent
+  btn.textContent = t(lang, 'mods.downloading')
+  setModsNote('')
+  try {
+    const res = await fetch(`${SA_ONLINE_URL}/api/mods/${encodeURIComponent(id)}`)
+    if (res.status === 429) {
+      setModsNote(t(lang, 'mods.downloadLimit'))
+      return
+    }
+    if (!res.ok) throw new Error(String(res.status))
+    const blob = new Blob([await res.text()], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${safeFileName(name)}.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch {
+    setModsNote(t(lang, 'mods.downloadError'))
+  } finally {
+    btn.disabled = false
+    btn.textContent = prev
+  }
 }
 
 const escapeHtml = (s) =>
@@ -202,4 +259,9 @@ const escapeHtml = (s) =>
 document.addEventListener('DOMContentLoaded', () => {
   setLang(lang)
   document.getElementById('lang-toggle')?.addEventListener('click', () => setLang(lang === 'en' ? 'ar' : 'en'))
+  const row = document.getElementById('top-mods')
+  row?.addEventListener('click', (ev) => {
+    const btn = ev.target?.closest?.('.mod-download')
+    if (btn && row.contains(btn)) void downloadMod(btn)
+  })
 })

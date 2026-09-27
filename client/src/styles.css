@@ -670,6 +670,12 @@
       #lobby .mods-picker button { width: auto; padding: 7px 12px; }
       #lobby .maps-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
       #lobby .maps-toolbar button { width: auto; margin-top: 0; padding: 8px 14px; }
+      #lobby #mods-repo-publish-desc {
+        width: 100%; box-sizing: border-box; margin: 8px 0 0; background: var(--color-surface);
+        color: var(--color-text); border: 1px solid var(--color-border); border-radius: 3px;
+        font-family: inherit; font-size: 12px; padding: 7px 10px;
+      }
+      #lobby #mods-repo-publish-desc:disabled { opacity: 0.45; }
       #lobby .maps-toolbar input, #lobby .maps-toolbar select, #lobby .maps-toolbar textarea {
         flex: 1 1 200px; padding: 7px 10px; background: var(--color-surface);
         color: var(--color-text); border: 1px solid var(--color-border); border-radius: 3px; font-family: inherit; font-size: 12px;

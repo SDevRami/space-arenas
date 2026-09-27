@@ -1526,6 +1526,7 @@ const modsRepoSortEl = document.getElementById('mods-repo-sort') as HTMLSelectEl
 const modsRepoListEl = document.getElementById('mods-repo-list') as HTMLDivElement
 const modsRepoPublishSelectEl = document.getElementById('mods-repo-publish-select') as HTMLSelectElement
 const modsRepoPublishBtn = document.getElementById('mods-repo-publish') as HTMLButtonElement
+const modsRepoPublishDescEl = document.getElementById('mods-repo-publish-desc') as HTMLInputElement
 
 let repoMods: RepoMod[] = []
 let repoSort = 'newest'
@@ -1741,9 +1742,10 @@ const renderRepoPublishSelect = (): void => {
   const prev = modsRepoPublishSelectEl.value
   modsRepoPublishSelectEl.innerHTML = ''
   const publishable = modsCache.filter((m) => m.valid && m.protocolOk !== false)
-  const disabled = !authSession || publishable.length === 0
-  modsRepoPublishBtn.disabled = disabled
-  modsRepoPublishSelectEl.disabled = disabled
+  const locked = !authSession || publishable.length === 0
+  modsRepoPublishSelectEl.disabled = locked
+  modsRepoPublishDescEl.disabled = locked
+  modsRepoPublishBtn.disabled = locked || modsRepoPublishDescEl.value.trim() === ''
   if (!authSession) return
   for (const m of publishable) {
     const opt = document.createElement('option')
@@ -1753,6 +1755,10 @@ const renderRepoPublishSelect = (): void => {
   }
   if (publishable.some((m) => m.name === prev)) modsRepoPublishSelectEl.value = prev
 }
+
+modsRepoPublishDescEl.addEventListener('input', () => {
+  modsRepoPublishBtn.disabled = modsRepoPublishSelectEl.value === '' || modsRepoPublishDescEl.value.trim() === '' || modsRepoPublishSelectEl.disabled
+})
 
 const renderRepoMods = (): void => {
   modsRepoListEl.innerHTML = ''
@@ -1776,16 +1782,24 @@ const publishRepoMod = async (): Promise<void> => {
     setRepoStatus(t('mods.repo.repoPublishNoMods'), true)
     return
   }
+  const description = modsRepoPublishDescEl.value.trim()
+  if (description === '') {
+    setRepoStatus(t('mods.repo.repoPublishNeedDesc'), true)
+    return
+  }
   setRepoStatus(t('online.working'))
   try {
     const read = await fetch(`/api/mods?name=${encodeURIComponent(name)}`)
     if (!read.ok) throw new Error(String(read.status))
-    const payload = (await read.json()) as unknown
+    const payload = (await read.json()) as { meta?: Record<string, unknown> }
+    const meta = typeof payload.meta === 'object' && payload.meta ? payload.meta : {}
+    payload.meta = { ...meta, description: description.slice(0, 160) }
     const r = await authApi('POST', '/api/mods', payload)
     if (!r.ok) {
       setRepoStatus(r.error ?? t('mods.repo.repoPublishFail'), true)
       return
     }
+    modsRepoPublishDescEl.value = ''
     await loadRepoMods(true)
     setRepoStatus(t('mods.repo.repoPublishOk', { name }))
   } catch {
@@ -1801,6 +1815,10 @@ modsRepoSearchEl.addEventListener('input', () => {
 modsRepoSortEl.addEventListener('change', () => {
   repoSort = modsRepoSortEl.value
   void loadRepoMods(true)
+})
+modsRepoPublishSelectEl.addEventListener('change', () => {
+  const locked = modsRepoPublishSelectEl.disabled
+  modsRepoPublishBtn.disabled = locked || modsRepoPublishSelectEl.value === '' || modsRepoPublishDescEl.value.trim() === ''
 })
 modsRepoPublishBtn.addEventListener('click', () => void publishRepoMod())
 

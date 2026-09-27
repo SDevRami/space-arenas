@@ -1416,8 +1416,10 @@
       "repoDeleteFail": "Could not delete the mod.",
       "repoDeleted": "Mod removed from the repository.",
       "repoPublishH3": "Publish a mod",
-      "repoPublishHint": "Pick one of your local balance mods to share it with everyone. Only the owner can delete a published mod.",
+      "repoPublishHint": "Pick one of your local balance mods to share it with everyone. A short description is required and shows up on the landing page. Only the owner can delete a published mod.",
       "repoPublish": "Publish",
+      "repoPublishDescPlaceholder": "Short description… (up to 160 characters)",
+      "repoPublishNeedDesc": "Write a short description before publishing.",
       "repoPublishNoMods": "No publishable mods on this device.",
       "repoPublishOk": "Mod \"{name}\" published to the repository.",
       "repoPublishFail": "Could not publish the mod."

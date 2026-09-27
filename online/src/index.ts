@@ -740,6 +740,11 @@ const handleMods = async (req: IncomingMessage, res: ServerResponse, urlPath: st
       return true
     }
     const name = modLabel(clean.meta)
+    const description = clean.meta?.description?.trim() ?? ''
+    if (description === '') {
+      writeJson(res, 400, { ok: false, error: 'a short description is required (1-160 characters)' })
+      return true
+    }
     const payloadBytes = Buffer.byteLength(JSON.stringify(clean), 'utf8')
     if (payloadBytes > MOD_MAX_BYTES) {
       writeJson(res, 413, { ok: false, error: 'mod file too large' })
@@ -748,7 +753,7 @@ const handleMods = async (req: IncomingMessage, res: ServerResponse, urlPath: st
     const result = await dbCreateMod(me.data.userId, {
       name,
       author: clean.meta?.author?.slice(0, 60) ?? '',
-      description: clean.meta?.description?.slice(0, 160) ?? '',
+      description: description.slice(0, 160),
       version: clean.meta?.version?.slice(0, 24) ?? '',
       requireProtocol: clean.meta?.requireProtocol ?? PROTOCOL_VERSION,
       sizeBytes: payloadBytes,
