@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Space Arenas</title>
-    <meta name="description" content="Space Arenas — real-time strategy battles in space. Play with friends online, tweak your own balance mods, and climb the leaderboard." />
+    <title>How to join · Space Arenas</title>
+    <meta name="description" content="How to join Space Arenas — get the game, make an account, play and share balance mods." />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -28,57 +28,29 @@
     </header>
 
     <main>
-      <section class="hero">
+      <section class="section">
         <div class="wrap">
-          <p class="hero-badge" data-i18n="hero.badge">Real-time strategy in space</p>
-          <h1 class="hero-title" data-i18n="hero.title">Command your fleet on maps that fight back.</h1>
-          <p class="hero-subtitle" data-i18n="hero.subtitle">
-            Build your base, harvest resources, and out-think your rivals with tactical airstrikes,
-            stealth, mines and more — solo or online with friends.
-          </p>
+          <h1 class="page-title" data-i18n="howto.title">Join in three steps</h1>
+          <ol class="steps">
+            <li class="step">
+              <span class="step-num">1</span>
+              <h3 data-i18n="howto.st1.title">Get the game</h3>
+              <p data-i18n="howto.st1.text">Clone the repository and run <code>run-game.bat</code> — no install required, it runs straight in your browser.</p>
+            </li>
+            <li class="step">
+              <span class="step-num">2</span>
+              <h3 data-i18n="howto.st2.title">Make an account</h3>
+              <p data-i18n="howto.st2.text">Sign up in the online lobby to unlock the leaderboard, data backups and the mod repository.</p>
+            </li>
+            <li class="step">
+              <span class="step-num">3</span>
+              <h3 data-i18n="howto.st3.title">Play & share</h3>
+              <p data-i18n="howto.st3.text">Create or join a room, pick a balance mod, and carry your progress anywhere with encrypted backups.</p>
+            </li>
+          </ol>
           <div class="hero-actions">
-            <a class="btn btn-primary" href="https://github.com/SDevRami/space-arenas" target="_blank" rel="noopener" data-i18n="hero.ctaRepo">
-              Get the game
-            </a>
-            <button class="btn btn-ghost" id="hero-login" type="button" data-i18n="auth.signin">Sign in</button>
+            <a class="btn btn-primary" href="https://github.com/SDevRami/space-arenas" target="_blank" rel="noopener" data-i18n="hero.ctaRepo">Get the game</a>
             <a class="btn btn-ghost" href="community.html" data-i18n="hero.ctaCommunity">Browse community mods</a>
-          </div>
-        </div>
-      </section>
-
-      <section class="section section-alt">
-        <div class="wrap">
-          <h2 class="section-title" data-i18n="home.teaserTitle">Space Arenas in short</h2>
-          <div class="grid">
-            <article class="card">
-              <div class="card-icon">🛰️</div>
-              <h3 data-i18n="features.title">Built for deep, readable battles</h3>
-              <p data-i18n="home.teaserFeatures">Classic RTS core with fog of war, stealth, day/night and a veteran system — all moddable.</p>
-              <a class="card-link" href="features.html" data-i18n="home.moreFeatures">Explore the features</a>
-            </article>
-            <article class="card">
-              <div class="card-icon">📜</div>
-              <h3 data-i18n="howto.title">Join in three steps</h3>
-              <p data-i18n="home.teaserHowto">Clone the repo, make a free account and start playing straight in your browser.</p>
-              <a class="card-link" href="howto.html" data-i18n="home.moreHowto">See how to join</a>
-            </article>
-            <article class="card">
-              <div class="card-icon">🌐</div>
-              <h3 data-i18n="community.title">Community mods</h3>
-              <p data-i18n="home.teaserCommunity">Browse, rate and download balance mods — or publish your own for everyone.</p>
-              <a class="card-link" href="community.html" data-i18n="hero.ctaCommunity">Browse community mods</a>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" aria-hidden="true">
-        <div class="wrap">
-          <h2 class="section-title" data-i18n="media.title">Seen in action</h2>
-          <div class="grid">
-            <article class="card media-card"><div class="media art-1"></div><p data-i18n="media.battle">Skirmish view</p></article>
-            <article class="card media-card"><div class="media art-2"></div><p data-i18n="media.mod">Mod tuning</p></article>
-            <article class="card media-card"><div class="media art-3"></div><p data-i18n="media.online">Online lobby</p></article>
           </div>
         </div>
       </section>

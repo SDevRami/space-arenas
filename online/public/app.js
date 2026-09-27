@@ -14,6 +14,7 @@ const MODS_TTL_MS = 5 * 60 * 1000
 
 const EN = {
   brand: 'Space Arenas',
+  'nav.home': 'Home',
   'nav.features': 'Features',
   'nav.howto': 'How to join',
   'nav.community': 'Community',
@@ -22,7 +23,15 @@ const EN = {
   'hero.title': 'Command your fleet on maps that fight back.',
   'hero.subtitle': 'Build your base, harvest resources, and out-think your rivals with tactical airstrikes, stealth, mines and more — solo or online with friends.',
   'hero.ctaRepo': 'Get the game',
+  'hero.ctaCommunity': 'Browse community mods',
+  'home.teaserTitle': 'Space Arenas in short',
+  'home.teaserFeatures': 'Classic RTS core with fog of war, stealth, day/night and a veteran system — all moddable.',
+  'home.teaserHowto': 'Clone the repo, make a free account and start playing straight in your browser.',
+  'home.teaserCommunity': 'Browse, rate and download balance mods — or publish your own for everyone.',
+  'home.moreFeatures': 'Explore the features',
+  'home.moreHowto': 'See how to join',
   'features.title': 'Built for deep, readable battles',
+  'features.subtitle': 'Everything that makes Space Arenas worth your time.',
   'features.rts.title': 'Classic RTS core',
   'features.rts.text': 'Harvesters, supply fields, tech trees and a veteran system — all rendered on an infinite hexes canvas.',
   'features.fog.title': 'Fog, day & night',
@@ -86,6 +95,7 @@ const EN = {
 
 const AR = {
   brand: 'ساحات الفضاء',
+  'nav.home': 'الرئيسية',
   'nav.features': 'المميزات',
   'nav.howto': 'كيف تلعب',
   'nav.community': 'المجتمع',
@@ -94,7 +104,15 @@ const AR = {
   'hero.title': 'قُد أسطولك في خرائط تقاومك.',
   'hero.subtitle': 'ابنِ قاعدتك، اجمع الموارد، وتفوق على خصومك بالغارات التكتيكية، والتخفي، والألغام والمزيد — منفرداً أو عبر الإنترنت مع أصدقائك.',
   'hero.ctaRepo': 'حمّل اللعبة',
+  'hero.ctaCommunity': 'تصفح تعديلات المجتمع',
+  'home.teaserTitle': 'ساحات الفضاء باختصار',
+  'home.teaserFeatures': 'جوهر استراتيجية كلاسيكي مع ضباب الحرب والتخفي والليل والنهار ونظام خبرة — وكل شيء قابل للتعديل.',
+  'home.teaserHowto': 'انسخ المستودع، أنشئ حساباً مجانياً وابدأ اللعب مباشرة في متصفحك.',
+  'home.teaserCommunity': 'تصفح وقيّم وحمّل تعديلات التوازن — أو انشر تعديلك للجميع.',
+  'home.moreFeatures': 'اكتشف المميزات',
+  'home.moreHowto': 'شاهد كيفية الانضمام',
   'features.title': 'مصممة لمعارك عميقة وواضحة',
+  'features.subtitle': 'كل ما يجعل ساحات الفضاء تستحق وقتك.',
   'features.rts.title': 'جوهر استراتيجية كلاسيكي',
   'features.rts.text': 'حصادات، حقول إمداد، شجرات تقنية ونظام خبرة قدامى — كل ذلك على لوحة سداسية لا نهائية.',
   'features.fog.title': 'ضباب، ليل ونهار',
@@ -283,31 +301,20 @@ const signOut = () => {
 
 const updateAuthUI = () => {
   const loggedIn = Boolean(state.token)
-  const navCommunity = document.getElementById('nav-community')
+  const flash = (id, show) => {
+    const el = document.getElementById(id)
+    if (el) el.hidden = !show
+  }
+  flash('nav-community', loggedIn)
+  flash('auth-user', loggedIn)
+  flash('btn-signout', loggedIn)
+  flash('btn-signin', !loggedIn)
+  flash('hero-login', !loggedIn)
+  flash('community-login-prompt', !loggedIn)
+  flash('community-content', loggedIn)
   const userEl = document.getElementById('auth-user')
-  const signoutBtn = document.getElementById('btn-signout')
-  const signinBtn = document.getElementById('btn-signin')
-  const heroLogin = document.getElementById('hero-login')
-  const prompt = document.getElementById('community-login-prompt')
-  const content = document.getElementById('community-content')
-  if (loggedIn) {
-    navCommunity.hidden = false
-    userEl.hidden = false
+  if (userEl && loggedIn) {
     userEl.textContent = state.username ? t(lang, 'community.by', { name: state.username }).replace(/^by\s+|^بواسطة\s+/, '') : ''
-    signoutBtn.hidden = false
-    signinBtn.hidden = true
-    heroLogin.hidden = true
-    prompt.hidden = true
-    content.hidden = false
-  } else {
-    navCommunity.hidden = true
-    userEl.hidden = true
-    userEl.textContent = ''
-    signoutBtn.hidden = true
-    signinBtn.hidden = false
-    heroLogin.hidden = false
-    prompt.hidden = false
-    content.hidden = true
   }
 }
 
@@ -382,10 +389,6 @@ const submitAuth = async (ev) => {
     document.getElementById('auth-username').value = ''
     updateAuthUI()
     void loadCommunity(true)
-    if (window.location.hash === '#community') {
-      const tgt = document.getElementById('community')
-      if (tgt) tgt.scrollIntoView({ behavior: 'smooth' })
-    }
   } catch {
     authError(t(lang, 'auth.network'))
   } finally {
@@ -599,6 +602,11 @@ const uploadMod = async () => {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  const currentPage = (window.location.pathname.split('/').pop() || 'index.html').split('?')[0]
+  for (const a of document.querySelectorAll('.nav a[data-page]')) {
+    if (a.getAttribute('data-page') === currentPage) a.classList.add('active')
+  }
+
   setLang(lang)
   void restoreSession()
 

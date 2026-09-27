@@ -90,6 +90,10 @@ body {
   color: var(--text);
 }
 
+.nav a.active {
+  color: var(--accent);
+}
+
 .topbar-actions {
   display: flex;
   align-items: center;
@@ -213,6 +217,27 @@ body {
   font-size: 1.8rem;
   margin: 0 0 8px;
   font-weight: 800;
+}
+
+.page-title {
+  text-align: center;
+  font-size: 2.1rem;
+  margin: 20px 0 8px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.card-link {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.card-link:hover {
+  text-decoration: underline;
 }
 
 .section-sub {
