@@ -590,6 +590,21 @@ export interface DevSettingsMessage {
   settings: Partial<MatchSettings>
 }
 
+/** Server → clients: a non-spectator changed their match values after the match started.
+ *  Sent to the offender (warning) and to the host (actionable alert). */
+export interface SettingsAlertMessage {
+  kind: 'H_SETTINGS_ALERT'
+  offender: string
+  offenderId: number
+}
+
+/** Host-only verdict in response to an H_SETTINGS_ALERT. */
+export interface SettingsVerdictMessage {
+  kind: 'C_SETTINGS_VERDICT'
+  playerId: number
+  action: 'kick' | 'skip'
+}
+
 export interface PingMessage {
   kind: 'C_PING'
 }
@@ -620,6 +635,8 @@ export type ControlMessage =
   | ChatRelayMessage
   | SpectateSyncMessage
   | DevSettingsMessage
+  | SettingsAlertMessage
+  | SettingsVerdictMessage
   | PingMessage
   | PongMessage
   | ForfeitMessage

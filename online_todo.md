@@ -218,14 +218,81 @@ in localStorage with a short TTL to avoid hammering Render.
 
 ---
 
-## Phase 5 — Local replay save + anti-cheat baseline
+## Phase 5 — Local replay save + online settings sync & tamper watch
 
-**Goal:** per-client local replay saves; enforce the existing sync as the online anti-cheat floor.
+**Goal:** every online player can save a **local** replay file (the server/DB never stores
+replays); bring the **LAN match-options settings sync** into the **online lobby** (per-player
+same/diff badges + "Clone once / Clone & save"); and add a **mid-match tamper watch** — the
+server fingerprints each player's match values at match start, warns the offender and notifies
+the host if someone changes those values after the match has begun.
 
-- [ ] **Save replay (local):** button downloads the `ReplayData` blob (same shape `archiveStore` writes, `host/src/index.ts:157-182`) to a local file for each client; optional auto-save toggle. Existing server-side archive stays.
-- [ ] **Anti-cheat baseline:** online matches mandate the already-built glue: dev-settings sync `C_DEV_SETTINGS` + `mergeMatchSettings`/`cloneDevSettingsFrom` (`main.ts:2858-2917`) and `BIN.CHECKSUM`/`RELAY_CHECKSUM` cross-check; host rejects settings deltas beyond a sanity window.
-- [ ] Document that this is deterrence, not real anti-cheat (`docs/`).
-- [ ] Verification: replay file replays on a clean machine; a tampered settings delta is rejected by the relay.
+**Decided (user):**
+- Replay: a **Save replay** button for **every client** — **local file download only**, Render
+  stays replay-less. Optional **auto-save** toggle, **off by default**.
+- **No fixed "standard" settings** to enforce: joining with different settings is allowed. The
+  lobby **shows the sync state** of every joined player and lets each player clone values
+  (**once** or **& save**) — the same interaction the LAN `#sync-panel` already has.
+- Anti-cheat = **detect a mid-match change**: settings live in the player's localStorage, so a
+  player can edit after start; the server must catch it → **warn the offender** and **prompt the
+  host** "player X changed game values mid-match". This is deterrence + transparency, not a hard
+  ban (host stays authoritative: it merges settings once at start, so late changes never affect
+  the running match).
+
+### 5.1 Local replay save (client only, no server/DB)
+- [x] Build a full `ReplayData` (`shared/src/replay.ts`, `validReplay`) on the match-end results
+      screen from the net-match client's recorded history; **online has no bots to stamp**, so the
+      relayed command stream is identical for every client → all players can save a complete
+      replay. Joiners/spectators get the **full** tick range via `stepToTickSync` seeding history
+      from the relay `S_SPECTATE_SYNC` `log` (`client/src/game/Game.ts`).
+- [x] **Save replay** button on the results screen → Blob download `<defaultReplayName()>.json`
+      (reuses the `persistReplay` fallback path; `saveReplay` renamed from `saveOfflineReplay`,
+      net + offline branches, `client/src/game/Game.ts`).
+- [x] In online mode always use the local file path — `persistReplay` kept as-is: the online
+      server has no `/api/replays/upload` route, so the POST fails and the Blob-download fallback
+      runs; nothing touches Render.
+- [x] Optional **auto-save** toggle (localStorage `space-arenas:auto-replay`, default OFF) that
+      auto-downloads the same file at match end (`showResults`); `#replay-auto-save` checkbox in
+      the match panel wired in `main.ts`.
+- [x] i18n en+ar (`replay.autoSave` / `replay.autoSaveHint`; existing `replay.*` save keys reused).
+
+### 5.2 Online lobby dev-settings sync (port of the LAN `#sync-panel`)
+- [x] Add the sync section to the **online** match panel: one row per joined player with
+      **same/diff vs your values** + a chip whether *they* match the host's match settings, select
+      a player → **Clone once** / **Clone & save** (reuse `renderSyncList`/`cloneDevSettingsFrom`,
+      `client/src/main.ts:3866-3958`).
+- [x] Data already flows online: each slot carries `devSettings` in `H_LOBBY`
+      (`online/src/rooms.ts:313`) and the server broadcasts the lobby on every `C_DEV_SETTINGS`
+      (`online/src/index.ts:393-397`). The shared `renderMatchPanel` renders the sync list and
+      refreshes it on every lobby broadcast (`client/src/main.ts:3711`, refresh at `:4774`).
+- [x] Reuse `sync.*` i18n keys; no online-only variants needed.
+
+### 5.3 Mid-match tamper watch (server)
+- [x] At match start snapshot each non-spectator player's fingerprint:
+      `settingsFingerprint(mergeMatchSettings(p.devSettings))` (ported `settingsFingerprint` +
+      `stableStringify` into `online/src/sanitize.ts`; `C_START` snapshots into `Room.devSnap`).
+- [x] While the room is started, a `C_DEV_SETTINGS` with a **new fingerprint ≠ snapshot** →
+      1. **warn the offender** (new kind `H_SETTINGS_ALERT` `{ kind, offender, offenderId }`),
+      2. **notify the host** "player X changed game values mid-match"; host verdict via
+         `C_SETTINGS_VERDICT { playerId, action: 'kick' | 'skip' }` — kick forfeits the slot and
+         closes its socket with `4001`, skip silences until a *different* value is pushed.
+- [x] Rate-limit `C_DEV_SETTINGS` through the existing P3 limiter
+      (`RATE_DEV_SETTINGS_PER_MIN`, `online/src/ratelimit.ts`).
+- [x] **Protocol:** new message kinds ⇒ `PROTOCOL_VERSION` bumped 20 → 21 +
+      `tests/protocol.test.ts` round-trip; vendored `online/shared/` bumped together
+      (`scripts/sync-online-shared.mjs`).
+
+### 5.4 Docs + verification
+- [x] `docs/12-ONLINE-ANTI-CHEAT.md`: this is **deterrence, not true anti-cheat** — the sim is
+      client-side and replay files are self-reported; the tamper watch + frozen host settings are
+      the baseline.
+- [x] Verification:
+  - Online tests: fingerprint stable across a re-send; tamper after start → offender warned +
+    host alerted + kick closes with 4001 / skip silences; replay blob passes `validReplay`
+    (existing LAN replay-load path).
+  - Client typecheck + build green (`npm run build -w client`); i18n en+ar present.
+  - Manual still open (after deploy): online match → every client saves a replay → the file
+    **replays on a clean machine**; lobby shows diff badges + clone works; player A edits
+    localStorage mid-match → A sees a warning and the host sees the alert popup.
 
 ---
 
@@ -251,7 +318,7 @@ in localStorage with a short TTL to avoid hammering Render.
 | P2 | Accounts · profiles · leaderboard (Supabase) | M | No | ◐ code+verif done; live DB after deploy |
 | P3 | Expiring data backups (Data tab) + rate limiting/abuse hardening | M | No | ✓ shipped + verified live |
 | P4 | Landing page (GitHub Pages) · mod repository · ratings/comments | M | No | ◐ code+verif done; live after DB paste + Pages/Render env |
-| P5 | Local replay save · anti-cheat baseline | S | No | □ |
+| P5 | Local replay save · online settings sync · mid-match tamper watch | M | No | ✓ code+auto-verif done; manual after deploy |
 
 ---
 

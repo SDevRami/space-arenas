@@ -567,6 +567,16 @@
       #roomfull-overlay .row button:hover { background: var(--color-surface-hover); }
       #roomfull-overlay .row button.primary { background: var(--color-primary); border: none; color: white; }
       #roomfull-overlay .row button.primary:hover { background: var(--color-primary-hover); }
+      #tamper-overlay { position: absolute; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.7); }
+      #tamper-overlay.visible { display: flex; }
+      #tamper-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 22px; width: 420px; max-width: 92vw; border-radius: 6px; }
+      #tamper-overlay h2 { color: var(--color-accent); font-size: 16px; margin-bottom: 8px; }
+      #tamper-overlay .hint { font-size: 13px; line-height: 1.5; color: var(--color-text-muted); margin: 0 0 8px; }
+      #tamper-overlay .row { display: flex; gap: 10px; margin-top: 14px; }
+      #tamper-overlay .row button { flex: 1 1 0; padding: 10px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); cursor: pointer; font-family: inherit; font-size: 13px; }
+      #tamper-overlay .row button:hover { background: var(--color-surface-hover); }
+      #tamper-overlay .row button.danger { background: #a4322f; border: none; color: white; }
+      #tamper-overlay .row button.danger:hover { background: #c2413d; }
       #sync-panel { margin-top: 14px; border: 1px solid var(--color-border-light); padding: 12px; background: #0d1119; }
       #sync-panel h3 { color: var(--color-accent); font-size: 13px; margin: 0 0 4px; }
       #sync-panel .sync-hint { font-size: 11px; color: var(--color-text-muted); margin-bottom: 10px; }

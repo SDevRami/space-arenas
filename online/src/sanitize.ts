@@ -1,4 +1,4 @@
-import { COOP_CONTROL_OPTIONS, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, FOG_MODES, type MatchSettings } from '@space-arenas/shared'
+import { COOP_CONTROL_OPTIONS, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, FOG_MODES, crc32, mergeMatchSettings, type MatchSettings } from '@space-arenas/shared'
 
 /** Whitelist + clamp table for every numeric `MatchSettings` scalar the server accepts
  *  from clients (dev panels and room updates both go through it). */
@@ -162,3 +162,23 @@ export const sanitizeSettings = (patch: Partial<MatchSettings>): Partial<MatchSe
   if ((COOP_CONTROL_OPTIONS as readonly string[]).includes(patch.coopControl as string)) out.coopControl = patch.coopControl
   return { ...out, ...sanitizeOverrideMaps(patch) }
 }
+
+/** Deterministic string form of a value (mirrors the client LAN/offline sync section). */
+export const stableStringify = (v: unknown): string => {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null'
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`
+  const entries = Object.entries(v as Record<string, unknown>)
+    .filter(([, val]) => val !== undefined)
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+  return `{${entries.map(([k, val]) => `${JSON.stringify(k)}:${stableStringify(val)}`).join(',')}}`
+}
+
+/** crc32 fingerprint of the fully-merged settings for a player — the anti-cheat watch
+ *  compares the fingerprint snapshotted at match start against later pushes. */
+export const settingsFingerprint = (s: Partial<MatchSettings>): string =>
+  crc32(new TextEncoder().encode(stableStringify(s)))
+    .toString(16)
+    .padStart(8, '0')
+
+export const fingerprintSettingsFor = (dev: Partial<MatchSettings> | undefined): string =>
+  settingsFingerprint(mergeMatchSettings(dev ?? {}))

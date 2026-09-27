@@ -394,6 +394,12 @@
     "roomFullBody": "All player seats are taken. Watch this match as a spectator instead?",
     "roomFullBack": "Back",
     "roomFullSpectate": "Play as Spectator",
+    "tamperTitle": "Settings changed mid-match",
+    "tamperHostBody": "{player} changed their match values after the match started.",
+    "tamperOffenderBody": "You changed match values after the match started. The host was notified — restore your settings to avoid being removed.",
+    "tamperKick": "Kick player",
+    "tamperSkip": "Skip for now",
+    "tamperOk": "OK",
     "resumeTitle": "Resume match?",
     "resumeHint": "You left a running match. Reconnect and continue it?",
     "resumeYes": "Reconnect",
@@ -1761,7 +1767,9 @@
     "seeking": "Seeking…",
     "hudToggle": "Show / hide the minimap & selection bar",
     "hudShown": "Minimap & selection info shown",
-    "hudHidden": "Minimap & selection info hidden"
+    "hudHidden": "Minimap & selection info hidden",
+    "autoSave": "Auto-save replay after the match",
+    "autoSaveHint": "When on, a local replay file is saved automatically at the end of every match (offline, LAN or online)."
   }
 }
 

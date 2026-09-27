@@ -17,6 +17,7 @@ import {
   type PlayerSlot,
   type BotDifficulty,
   type SpectateSyncMessage,
+  type SettingsAlertMessage,
   type WinRule,
 } from '@space-arenas/shared'
 import { pbkdf2Sha256Hex } from './pbkdf2.ts'
@@ -31,6 +32,7 @@ export interface NetCallbacks {
   onPlayerState: (players: PlayerSlot[]) => void
   onChat: (msg: ChatRelayMessage) => void
   onSpectateSync: (msg: SpectateSyncMessage) => void
+  onSettingsAlert?: (msg: SettingsAlertMessage) => void
   onError: (message: string) => void
   onOpen: () => void
   onClose: () => void
@@ -114,6 +116,9 @@ export class NetClient {
       case 'S_SPECTATE_SYNC':
         this.cb.onSpectateSync?.(msg)
         break
+      case 'H_SETTINGS_ALERT':
+        this.cb.onSettingsAlert?.(msg)
+        break
       case 'H_PONG':
         this.cb.onPong?.()
         break
@@ -152,6 +157,11 @@ export class NetClient {
 
   publishDevSettings(settings: Partial<MatchSettings>): void {
     this.send({ kind: 'C_DEV_SETTINGS', settings })
+  }
+
+  /** Host verdict after an H_SETTINGS_ALERT: kick the offender or skip for now. */
+  settingsVerdict(playerId: number, action: 'kick' | 'skip'): void {
+    this.send({ kind: 'C_SETTINGS_VERDICT', playerId, action })
   }
 
   updateRoom(patch: { mapId?: string; map?: MapData; password?: string; settings?: Partial<MatchSettings>; winRule?: WinRule; modId?: string }): void {

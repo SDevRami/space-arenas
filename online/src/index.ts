@@ -10,10 +10,12 @@ import {
   makeMatchStart,
   type ChatRelayMessage,
   type ControlMessage,
+  type SettingsAlertMessage,
 } from '@space-arenas/shared'
 import { RoomRegistry, type HostPlayer, type Room } from './rooms.ts'
 import { TickRelay } from './relay.ts'
 import { newSeed } from './passphrase.ts'
+import { fingerprintSettingsFor } from './sanitize.ts'
 import {
   BACKUPS_MAX_PAYLOAD_BYTES,
   BACKUPS_PURGE_INTERVAL_MS,
@@ -88,6 +90,8 @@ const playerById = (room: Room, id: number): { ws: WebSocket; p: HostPlayer } | 
   }
   return null
 }
+
+const hostSocket = (room: Room): WebSocket | null => playerById(room, registry.hostId(room))?.ws ?? null
 
 /** The last remaining alliance, if any (online has no server-side bots). */
 const winnerFromRemaining = (room: Room): number | null => {
@@ -392,8 +396,61 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
     }
     case 'C_DEV_SETTINGS': {
       if (!ctx) return
-      registry.setDevSettings(ctx.room, ws, msg.settings ?? {})
-      broadcastLobby(ctx.room)
+      const { room } = ctx
+      registry.setDevSettings(room, ws, msg.settings ?? {})
+      // Tamper watch: once the match is running, a changed fingerprint means the
+      // player edited their match values after start. Alert the offender (warning)
+      // and the host (actionable) once per changed fingerprint, honoring "skip".
+      const p = registry.playerFor(room, ws)
+      if (room.started && room.devSnap && p && !p.spectator) {
+        const fp = fingerprintSettingsFor(p.devSettings)
+        const snap = room.devSnap.get(p.id)
+        if (snap !== undefined && snap !== fp) {
+          const last = room.devAlerted?.get(p.id)
+          if (last === fp) {
+            // same value that was already alerted — do not nag again
+          } else if (room.devSkipped?.has(p.id)) {
+            room.devSkipped.delete(p.id)
+            room.devAlerted?.delete(p.id)
+          } else {
+            room.devAlerted?.set(p.id, fp)
+            const alert: SettingsAlertMessage = { kind: 'H_SETTINGS_ALERT', offender: p.name, offenderId: p.id }
+            const hostWs = hostSocket(room)
+            if (hostWs && hostWs !== ws) send(hostWs, alert)
+            send(ws, alert)
+          }
+        }
+      }
+      broadcastLobby(room)
+      break
+    }
+    case 'C_SETTINGS_VERDICT': {
+      if (!ctx) return
+      const { room } = ctx
+      if (!registry.hostReady(room, ws)) {
+        send(ws, { kind: 'H_ERROR', message: 'Only the host can decide' })
+        return
+      }
+      const target = playerById(room, msg.playerId)
+      if (!target || target.p.host) return
+      if (msg.action === 'kick') {
+        const relay = relayFor(room)
+        if (relay && room.started && !target.p.spectator) relay.submitForfeit(target.p.id)
+        target.p.forfeited = true
+        socketRooms.delete(target.ws)
+        registry.removePlayer(room, target.ws)
+        target.ws.close(4001, 'You were removed by the host')
+        if (room.started) {
+          room.players.forEach((pp, ws2) => {
+            if (pp.connected) send(ws2, { kind: 'H_PLAYER_STATE', players: registry.slots(room) })
+          })
+        } else {
+          broadcastLobby(room)
+        }
+      } else {
+        room.devSkipped?.add(target.p.id)
+        room.devAlerted?.delete(target.p.id)
+      }
       break
     }
     case 'C_UPDATE_ROOM': {
@@ -437,6 +494,11 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
       loadedCount.set(room.code, loaded)
       registry.assignSpawns(room)
       room.startSlots = registry.matchSlots(room)
+      const devSnap = new Map<number, string>()
+      for (const pp of registry.nonSpectators(room)) devSnap.set(pp.id, fingerprintSettingsFor(pp.devSettings))
+      room.devSnap = devSnap
+      room.devAlerted = new Map()
+      room.devSkipped = new Set()
       room.players.forEach((p, ws2) => {
         if (!p.connected) return
         send(ws2, makeMatchStart(room.map, registry.matchSlots(room), registry.hostId(room), p.id, room.seed, 25, room.settings, room.winRule))

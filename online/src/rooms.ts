@@ -52,6 +52,12 @@ export interface Room {
   /** Participants exactly as sent in S_MATCH_START, snapshotted at start so a replay
    *  still includes players who quit mid-match. */
   startSlots: PlayerSlot[]
+  /** Anti-cheat: per-player settings fingerprint taken at match start. */
+  devSnap?: Map<number, string>
+  /** Anti-cheat: last fingerprint already alerted for each player (anti-spam). */
+  devAlerted?: Map<number, string>
+  /** Anti-cheat: players the host chose to "skip for now" — cleared on their next change. */
+  devSkipped?: Set<number>
   createdAt: number
   lastActivityAt: number
 }

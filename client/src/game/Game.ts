@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, PROTOCOL_VERSION, replayDateLabel, defaultReplayName, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type ReplayData, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, PROTOCOL_VERSION, replayDateLabel, defaultReplayName, mergeMatchSettings, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type ReplayData, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
 import { World, placementExplored, type WorldGrid } from '../core/world.ts'
 import { Simulator } from '../core/Simulator.ts'
 import { GameLoop } from '../core/loop.ts'
@@ -27,6 +27,9 @@ import { getGraphics } from '../ui/graphics.ts'
 import { WeatherOverlay } from '../render/weather.ts'
 
 const PRODUCERS = new Set(['command-center', 'supply-dock', 'barracks', 'war-factory', 'air-force', 'dock'])
+
+/** localStorage key for the replay auto-save toggle (default: off). */
+const AUTO_REPLAY_KEY = 'space-arenas:auto-replay'
 
 const isTypingTarget = (target: EventTarget | null): boolean => {
   const el = target as HTMLElement | null
@@ -91,6 +94,8 @@ export class Game {
   private recordHistory: EnvelopeCommand[] = []
   private recordTicks = 0
   private replayRecorded = false
+  /** S_MATCH_START captured when a net match begins — basis for a local replay save. */
+  private netStart: MatchStartMessage | null = null
   private dailyMissionDefs: DailyMissionDef[] | null = null
   private lastModeNote: string | null = null
   private currentStartMsg: MatchStartMessage | null = null
@@ -479,7 +484,7 @@ export class Game {
   }
 
   private canSaveReplay(): boolean {
-    return this.mode === 'offline' && !this.replayRecorded && this.recordTicks > 0
+    return (this.mode === 'offline' || this.mode === 'net') && !this.replayRecorded && this.recordTicks > 0
   }
 
   private currentStatsRows(): StatsRow[] | null {
@@ -508,12 +513,12 @@ export class Game {
 
   private onMenuSaveReplayClick = (): void => {
     if (!this.canSaveReplay()) return
-    this.saveOfflineReplay(null)
+    this.saveReplay(null)
   }
 
   private onResultsSaveReplayClick = (): void => {
     if (!this.canSaveReplay()) return
-    this.saveOfflineReplay(this.resultsWinner)
+    this.saveReplay(this.resultsWinner)
     this.resultsSaveReplayBtn.style.display = 'none'
   }
 
@@ -690,6 +695,7 @@ export class Game {
     this.resultsWinner = winner
     this.recordProfileMatch(winner)
     this.recordModeResults(winner)
+    if (this.autoSaveReplayEnabled() && this.canSaveReplay()) this.saveReplay(winner)
     const rows = this.currentStatsRows()
     if (rows) {
       this.resultsBoard.show(this.modeTitle(winner), rows)
@@ -698,6 +704,14 @@ export class Game {
     }
     this.resultsOverlay.classList.add('visible')
     this.resultsSaveReplayBtn.style.display = this.canSaveReplay() ? '' : 'none'
+  }
+
+  private autoSaveReplayEnabled(): boolean {
+    try {
+      return localStorage.getItem(AUTO_REPLAY_KEY) === '1'
+    } catch {
+      return false
+    }
   }
 
   /** Persist the daily mission results on match finish. When the daily list is
@@ -873,6 +887,10 @@ export class Game {
     this.resumed = msg.resumed === true
     this.netPlayers = msg.players
     this.team = msg.players.find((p) => p.id === msg.yourId)?.team ?? msg.yourId
+    this.netStart = msg
+    this.recordHistory = []
+    this.recordTicks = 0
+    this.replayRecorded = false
     this.modeCfg = null
     this.dailyMissionDefs = null
     this.trackDaily = false
@@ -1242,35 +1260,64 @@ export class Game {
     this.beginCinematic(this.replayWinner)
   }
 
-  /** Offline matches run entirely on this machine, so we record the command history
-   *  ourselves and persist it the same way the host persists net replays. */
-  private saveOfflineReplay(winner: number | null): void {
-    const cfg = this.modeCfg
+  /** Persists the current match as a local replay file. Offline matches run entirely
+   *  on this machine (history recorded per tick); net matches record the aggregated
+   *  relay frames, so the replay is rebuilt deterministically from the same seed. */
+  private saveReplay(winner: number | null): void {
     const world = this.world
-    if (!cfg || !world || this.replayRecorded) return
+    if (!world || this.replayRecorded) return
     this.replayRecorded = true
-    const replay: ReplayData = {
-      version: PROTOCOL_VERSION,
-      createdAt: new Date().toISOString(),
-      seed: cfg.seed,
-      tickRate: SIM_TICK_HZ,
-      map: structuredClone(cfg.map),
-      settings: world.settings,
-      winRule: world.winRule,
-      players: cfg.slots.map((s) => ({
-        id: s.team,
-        name: s.name,
-        ready: true,
-        host: s.team === cfg.localTeam,
-        team: s.alliance,
-        spawn: s.team,
-        color: s.color,
-        bot: !!s.difficulty,
-        difficulty: s.difficulty,
-      })),
-      winner,
-      ticks: this.recordTicks,
-      history: this.recordHistory,
+    let replay: ReplayData
+    if (this.mode === 'net' && this.netStart) {
+      const start = this.netStart
+      replay = {
+        version: PROTOCOL_VERSION,
+        createdAt: new Date().toISOString(),
+        seed: start.seed,
+        tickRate: start.tickRate,
+        map: start.map,
+        settings: mergeMatchSettings(start.settings),
+        winRule: start.winRule ?? world.winRule,
+        players: start.players.map((p) => ({
+          id: p.id,
+          name: p.name,
+          ready: p.ready,
+          host: p.id === start.hostId,
+          team: p.team ?? p.id,
+          spawn: p.spawn ?? p.id,
+          color: p.color ?? 0,
+          ...(p.bot ? { bot: true, difficulty: p.difficulty } : {}),
+        })),
+        winner,
+        ticks: this.recordTicks,
+        history: this.recordHistory,
+      }
+    } else {
+      const cfg = this.modeCfg
+      if (!cfg) return
+      replay = {
+        version: PROTOCOL_VERSION,
+        createdAt: new Date().toISOString(),
+        seed: cfg.seed,
+        tickRate: SIM_TICK_HZ,
+        map: structuredClone(cfg.map),
+        settings: world.settings,
+        winRule: world.winRule,
+        players: cfg.slots.map((s) => ({
+          id: s.team,
+          name: s.name,
+          ready: true,
+          host: s.team === cfg.localTeam,
+          team: s.alliance,
+          spawn: s.team,
+          color: s.color,
+          bot: !!s.difficulty,
+          difficulty: s.difficulty,
+        })),
+        winner,
+        ticks: this.recordTicks,
+        history: this.recordHistory,
+      }
     }
     void this.persistReplay(replay)
   }
@@ -3596,6 +3643,12 @@ export class Game {
   }
 
   applyFrame(tick: number, commands: EnvelopeCommand[]): void {
+    if (this.mode === 'net' && !this.finished) {
+      // Net matches aggregate per-tick commands on the host/relay — record them so
+      // the player can save a local replay after the match (deterministic sim).
+      for (const env of commands) this.recordHistory.push({ ...env })
+      if (tick > this.recordTicks) this.recordTicks = tick
+    }
     const world = this.world
     if (!world && this.mode === 'net') {
       if (this.frameQueue.length < 5000) this.frameQueue.push({ tick, commands })
@@ -3680,6 +3733,12 @@ export class Game {
     const world = this.world
     if (!world) return
     const target = Math.max(0, msg.currentTick)
+    // Seed the local replay log with the full relay history when joining late
+    // (spectator re-join / resumed slot), so a saved replay is complete.
+    if (msg.log.length > 0 && this.recordHistory.length === 0) {
+      this.recordHistory = msg.log.map((e) => ({ ...e }))
+      this.recordTicks = target
+    }
     while (world.tick < target) {
       const cmds = msg.log.filter((c) => c.tick === world.tick)
       stepWorld(world, cmds)

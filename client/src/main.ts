@@ -4,7 +4,7 @@ import { MAP_PRESETS, mapForPreset, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { AudioHooks, AMBIENT_SYNTH } from './audio/hooks.ts'
 import { NetClient } from './net/net.ts'
-import type { LobbyMessage, MatchStartMessage } from '@space-arenas/shared'
+import type { LobbyMessage, MatchStartMessage, SettingsAlertMessage } from '@space-arenas/shared'
 import type { MatchConfig, OfflineMode } from './game/match.ts'
 import { resolveDailyChallenge } from './modes/daily.ts'
 import { loadModeRecords, dailyLevel, dailyLevelXp, DAILY_XP_PER_LEVEL } from './profile/modeRecords.ts'
@@ -3955,6 +3955,23 @@ const renderSyncList = (): void => {
   void selectable
 }
 
+// ---------- replay auto-save toggle (LAN + online match panel; default off) ----------
+
+const AUTO_REPLAY_KEY = 'space-arenas:auto-replay'
+const replayAutoSaveEl = document.getElementById('replay-auto-save') as HTMLInputElement
+try {
+  replayAutoSaveEl.checked = localStorage.getItem(AUTO_REPLAY_KEY) === '1'
+} catch {
+  replayAutoSaveEl.checked = false
+}
+replayAutoSaveEl.addEventListener('change', () => {
+  try {
+    localStorage.setItem(AUTO_REPLAY_KEY, replayAutoSaveEl.checked ? '1' : '0')
+  } catch {
+    /* storage unavailable */
+  }
+})
+
 const connectJoin = async (addr: string, code: string, pass: string, name: string, fromInviteLink = false, opts?: { spectator?: boolean }): Promise<void> => {
   if (!code) {
     setNetStatus(t('network.status.needCode'), true)
@@ -3987,6 +4004,7 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
       if (netJoinedResumed) game?.catchUpSync(msg)
       else game?.applySpectateSync(msg)
     },
+    onSettingsAlert: (msg) => handleSettingsAlert(msg),
     onPong: () => {
       const start = netPingStart
       if (start > 0) {
@@ -4106,6 +4124,44 @@ roomfullSpectateBtn.addEventListener('click', () => {
   roomFullJoin = null
   if (join) void connectJoin(join.addr, join.code, join.pass, join.name, false, { spectator: true })
 })
+
+// ---------- mid-match settings-tamper alerts (online anti-cheat) ----------
+
+const tamperOverlayEl = document.getElementById('tamper-overlay') as HTMLDivElement
+const tamperTitleEl = document.getElementById('tamper-title') as HTMLHeadingElement
+const tamperBodyEl = document.getElementById('tamper-body') as HTMLParagraphElement
+const tamperActionsEl = document.getElementById('tamper-actions') as HTMLDivElement
+
+const handleSettingsAlert = (msg: SettingsAlertMessage): void => {
+  const isHost = lobbyState !== null && lobbyState.yourId === lobbyState.hostId
+  tamperTitleEl.textContent = t('network.tamperTitle')
+  tamperBodyEl.textContent = isHost
+    ? t('network.tamperHostBody', { player: msg.offender })
+    : t('network.tamperOffenderBody')
+  tamperActionsEl.replaceChildren()
+  if (isHost && msg.offenderId !== localTeam) {
+    for (const [action, key] of [
+      ['kick', 'network.tamperKick'],
+      ['skip', 'network.tamperSkip'],
+    ] as const) {
+      const btn = document.createElement('button')
+      btn.textContent = t(key)
+      if (action === 'kick') btn.className = 'danger'
+      btn.addEventListener('click', () => {
+        net?.settingsVerdict(msg.offenderId, action)
+        tamperOverlayEl.classList.remove('visible')
+      })
+      tamperActionsEl.appendChild(btn)
+    }
+  } else {
+    const ok = document.createElement('button')
+    ok.textContent = t('network.tamperOk')
+    ok.classList.add('primary')
+    ok.addEventListener('click', () => tamperOverlayEl.classList.remove('visible'))
+    tamperActionsEl.appendChild(ok)
+  }
+  tamperOverlayEl.classList.add('visible')
+}
 
 // ---------- resume prompt (offer to rejoin a running match after a tab reload) ----------
 
@@ -4241,6 +4297,7 @@ const attemptReconnect = async (): Promise<void> => {
           game.applySpectateSync(msg)
         }
       },
+      onSettingsAlert: (msg) => handleSettingsAlert(msg),
       onFrame: (tick, commands) => game?.applyFrame(tick, commands),
       onRelayChecksum: (player, tick, crc) => game?.onNetChecksum(player, tick, crc),
       onChecksum: () => undefined,

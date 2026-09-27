@@ -253,4 +253,18 @@ describe('protocol: control message round-trip', () => {
     }
     expect(decodeControl(encodeControl(msg))).toEqual(msg)
   })
+
+  it('round-trips the settings alert and verdict', () => {
+    const alert = { kind: 'H_SETTINGS_ALERT', offender: 'CheaterX', offenderId: 3 }
+    const verdict = { kind: 'C_SETTINGS_VERDICT', playerId: 3, action: 'kick' as const }
+    const skip = { kind: 'C_SETTINGS_VERDICT', playerId: 3, action: 'skip' as const }
+    expect(decodeControl(encodeControl(alert))).toEqual(alert)
+    expect(decodeControl(encodeControl(verdict))).toEqual(verdict)
+    expect(decodeControl(encodeControl(skip))).toEqual(skip)
+  })
+
+  it('round-trips dev settings', () => {
+    const msg = { kind: 'C_DEV_SETTINGS', settings: { startingCredits: 5000, sellRefundFraction: 0.5 } }
+    expect(decodeControl(encodeControl(msg))).toEqual(msg)
+  })
 })

@@ -374,6 +374,11 @@
                   <button id="sync-copy" data-i18n="sync.copySync">Copy &amp; save</button>
                 </div>
               </div>
+              <label for="replay-auto-save" class="check-label">
+                <input type="checkbox" id="replay-auto-save" />
+                <span data-i18n="replay.autoSave">Auto-save replay after the match</span>
+              </label>
+              <div class="hint" data-i18n="replay.autoSaveHint">When on, a local replay file is saved automatically at the end of every match (offline, LAN or online).</div>
               <div class="status" id="match-status"></div>
               <div class="match-note" data-i18n="match.note">Share the room code above, or the address on your network panel, so friends can join.</div>
               <div class="match-note" id="match-notes"></div>
@@ -852,6 +857,15 @@
           <div class="row">
             <button id="roomfull-back" data-i18n="network.roomFullBack">Back</button>
             <button class="primary" id="roomfull-spectate" data-i18n="network.roomFullSpectate">Play as Spectator</button>
+          </div>
+        </div>
+      </div>
+      <div id="tamper-overlay">
+        <div class="panel">
+          <h2 id="tamper-title" data-i18n="network.tamperTitle">Settings changed mid-match</h2>
+          <p class="hint" id="tamper-body"></p>
+          <div class="row" id="tamper-actions">
+            <button class="danger" id="tamper-ok" data-i18n="network.tamperOk">OK</button>
           </div>
         </div>
       </div>
