@@ -1364,10 +1364,18 @@ const renderBackups = (): void => {
 
 /** Serializes one device's local data into a JSON payload (keys → raw storage values). */
 const collectPayload = (kind: 'devsettings' | 'profile'): string | null => {
-  const keys =
-    kind === 'devsettings'
-      ? ['space-arenas:dev-settings', 'space-arenas:dev-defaults']
-      : ['space-arenas:profile', 'space-arenas:profile:config', 'space-arenas:mode-records']
+  if (kind === 'devsettings') {
+    if (Object.keys(devOverrides).length === 0 && Object.keys(savedDefaults).length === 0) return null
+    return JSON.stringify({
+      v: 1,
+      kind,
+      keys: {
+        'space-arenas:dev-settings': JSON.stringify(devOverrides),
+        'space-arenas:dev-defaults': JSON.stringify(savedDefaults),
+      },
+    })
+  }
+  const keys = ['space-arenas:profile', 'space-arenas:profile:config', 'space-arenas:mode-records']
   const entries: Record<string, string> = {}
   for (const k of keys) {
     const raw = localStorage.getItem(k)
