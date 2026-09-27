@@ -15,12 +15,28 @@ import { RoomRegistry, type HostPlayer, type Room } from './rooms.ts'
 import { TickRelay } from './relay.ts'
 import { newSeed } from './passphrase.ts'
 import {
+  BACKUPS_MAX_PAYLOAD_BYTES,
+  BACKUPS_PURGE_INTERVAL_MS,
+  RATE_AUTH_PER_MIN,
+  RATE_BACKUP_POST_PER_MIN,
+  RATE_LOGIN_PER_ACCOUNT_MIN,
+  RATE_READ_PER_MIN,
+  RATE_ROOM_WRITE_PER_MIN,
+  RATE_WS_HANDSHAKE_PER_MIN,
+} from './config.ts'
+import { clientIp, rateLimit, sweepRateLimits } from './ratelimit.ts'
+import {
   authChangePassword,
   authLogin,
   authMe,
   authRegister,
+  dbCreateBackup,
+  dbDeleteBackup,
+  dbGetBackup,
   dbLeaderboard,
+  dbListBackups,
   dbProbe,
+  dbPurgeExpiredBackups,
   dbRecordMatch,
 } from './supabase.ts'
 
@@ -505,6 +521,21 @@ const writeJson = (res: ServerResponse, code: number, body: unknown): void => {
   res.end(JSON.stringify(body))
 }
 
+const bearerToken = (req: IncomingMessage): string => {
+  const auth = req.headers.authorization ?? ''
+  return auth.startsWith('Bearer ') ? auth.slice(7) : ''
+}
+
+/** Applies the sliding-window limiter; writes the 429 (with Retry-After) and returns true when over. */
+const limited = (res: ServerResponse, scope: string, limit: number, key: string): boolean => {
+  const r = rateLimit(`${scope}:${key}`, limit)
+  if (r.ok) return false
+  const secs = r.retryAfterSeconds
+  res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': String(secs), ...CORS })
+  res.end(JSON.stringify({ ok: false, error: 'too many requests', retryAfter: secs }))
+  return true
+}
+
 /** Cross-origin headers: the game runs on localhost/LAN and calls this server's REST API. */
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -531,6 +562,110 @@ const roomSummary = (room: Room): Record<string, unknown> => ({
   created: room.createdAt,
 })
 
+/** Phase 3: expiring, encrypted data backups. All routes require a signed-in account. */
+const handleBackups = async (req: IncomingMessage, res: ServerResponse, urlPath: string): Promise<boolean> => {
+  if (req.method === 'POST' && urlPath === '/api/backups') {
+    if (limited(res, 'backupPost', RATE_BACKUP_POST_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const body = await readJson(req)
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const payload = typeof body.payload === 'string' ? body.payload : ''
+    if (payload === '') {
+      writeJson(res, 400, { ok: false, error: 'payload required' })
+      return true
+    }
+    if (Buffer.byteLength(payload, 'utf8') > BACKUPS_MAX_PAYLOAD_BYTES) {
+      writeJson(res, 413, { ok: false, error: 'payload too large' })
+      return true
+    }
+    const kind = body.kind === 'profile' ? 'profile' : 'devsettings'
+    const passphraseHash = typeof body.passphraseHash === 'string' ? body.passphraseHash.slice(0, 64) : ''
+    if (passphraseHash === '') {
+      writeJson(res, 400, { ok: false, error: 'passphraseHash required' })
+      return true
+    }
+    const result = await dbCreateBackup(me.data.userId, kind, payload, passphraseHash)
+    if (!result.ok) {
+      const code = result.error === 'database not configured' ? 503 : result.error === 'backup quota reached' ? 409 : result.error === 'payload too large' ? 413 : 400
+      writeJson(res, code, result)
+      return true
+    }
+    writeJson(res, 201, result)
+    return true
+  }
+  if (req.method === 'GET' && urlPath === '/api/backups') {
+    if (limited(res, 'read', RATE_READ_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const result = await dbListBackups(me.data.userId)
+    writeJson(res, result.ok ? 200 : result.error === 'database not configured' ? 503 : 400, result)
+    return true
+  }
+  const restore = urlPath.match(/^\/api\/backups\/([^/]+)\/restore$/)
+  const idPath = urlPath.match(/^\/api\/backups\/([^/]+)$/)
+  if (req.method === 'POST' && restore && restore[1]) {
+    if (limited(res, 'read', RATE_READ_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const body = await readJson(req)
+    const passphraseHash = typeof body.passphraseHash === 'string' ? body.passphraseHash : ''
+    const result = await dbGetBackup(me.data.userId, restore[1])
+    const row = result.data
+    if (!result.ok || !row) {
+      writeJson(res, result.error === 'database not configured' ? 503 : result.error === 'backup not found' ? 404 : 400, result)
+      return true
+    }
+    if (new Date(row.expiresAt).getTime() <= Date.now()) {
+      writeJson(res, 410, { ok: false, error: 'backup expired' })
+      return true
+    }
+    if (passphraseHash === '' || passphraseHash !== row.passphraseHash) {
+      writeJson(res, 403, { ok: false, error: 'wrong passphrase' })
+      return true
+    }
+    writeJson(res, 200, { ok: true, data: { id: row.id, kind: row.kind, payload: row.payload, createdAt: row.createdAt, expiresAt: row.expiresAt } })
+    return true
+  }
+  if (req.method === 'DELETE' && idPath && idPath[1]) {
+    if (limited(res, 'read', RATE_READ_PER_MIN, clientIp(req))) return true
+    if (!bearerToken(req)) {
+      writeJson(res, 401, { ok: false, error: 'login required' })
+      return true
+    }
+    const me = await authMe(bearerToken(req))
+    if (!me.ok || !me.data) {
+      writeJson(res, 401, { ok: false, error: 'invalid session' })
+      return true
+    }
+    const result = await dbDeleteBackup(me.data.userId, idPath[1])
+    writeJson(res, result.ok ? 200 : result.error === 'database not configured' ? 503 : 400, result)
+    return true
+  }
+  writeJson(res, 405, { ok: false, error: 'method not allowed' })
+  return true
+}
+
 const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: string): Promise<boolean> => {
   if (req.method === 'GET' && urlPath === '/api/status') {
     writeJson(res, 200, {
@@ -549,6 +684,7 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       writeJson(res, 503, { ok: false, error: 'online lobby disabled (SA_MODE=online required)' })
       return true
     }
+    if (limited(res, 'roomWrite', RATE_ROOM_WRITE_PER_MIN, clientIp(req))) return true
     const body = await readJson(req)
     const hostName = cleanName(body.hostName) || 'Host'
     if (cleanName(hostName).length < 1) {
@@ -584,6 +720,7 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       writeJson(res, 503, { ok: false, error: 'online lobby disabled (SA_MODE=online required)' })
       return true
     }
+    if (limited(res, 'roomWrite', RATE_ROOM_WRITE_PER_MIN, clientIp(req))) return true
     const code = urlPath.slice('/api/rooms/'.length, -'/join'.length)
     const room = registry.get(code)
     if (!room) {
@@ -602,6 +739,7 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
     return true
   }
   if (req.method === 'POST' && urlPath === '/api/auth/register') {
+    if (limited(res, 'auth', RATE_AUTH_PER_MIN, clientIp(req))) return true
     const body = await readJson(req)
     const result = await authRegister(
       String(body.email ?? '').trim(),
@@ -613,11 +751,14 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
   }
   if (req.method === 'POST' && urlPath === '/api/auth/login') {
     const body = await readJson(req)
+    if (limited(res, 'auth', RATE_AUTH_PER_MIN, clientIp(req))) return true
+    if (limited(res, 'loginAccount', RATE_LOGIN_PER_ACCOUNT_MIN, String(body.email ?? '').trim().toLowerCase())) return true
     const result = await authLogin(String(body.email ?? '').trim(), String(body.password ?? ''))
     writeJson(res, result.ok ? 200 : result.error === 'database not configured' ? 503 : 401, result)
     return true
   }
   if (req.method === 'POST' && urlPath === '/api/auth/change-password') {
+    if (limited(res, 'auth', RATE_AUTH_PER_MIN, clientIp(req))) return true
     const body = await readJson(req)
     const token = typeof body.token === 'string' ? body.token : ''
     const result = await authChangePassword(token, String(body.newPassword ?? ''))
@@ -625,16 +766,19 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
     return true
   }
   if (req.method === 'GET' && urlPath === '/api/auth/me') {
-    const auth = req.headers.authorization ?? ''
-    const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
-    const result = await authMe(token)
+    if (limited(res, 'read', RATE_READ_PER_MIN, clientIp(req))) return true
+    const result = await authMe(bearerToken(req))
     writeJson(res, result.ok ? 200 : 401, result)
     return true
   }
   if (req.method === 'GET' && urlPath === '/api/leaderboard') {
+    if (limited(res, 'read', RATE_READ_PER_MIN, clientIp(req))) return true
     const result = await dbLeaderboard(100)
     writeJson(res, result.ok ? 200 : 503, result)
     return true
+  }
+  if (urlPath === '/api/backups' || urlPath.startsWith('/api/backups/')) {
+    return handleBackups(req, res, urlPath)
   }
   return false
 }
@@ -664,7 +808,11 @@ const server = createServer(async (req, res) => {
 
 const wss = new WebSocketServer({ server, path: '/ws' })
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, request) => {
+  if (!rateLimit(`wsHandshake:${clientIp(request)}`, RATE_WS_HANDSHAKE_PER_MIN).ok) {
+    ws.close(4403, 'too many requests')
+    return
+  }
   ws.on('message', (data) => {
     const buf = data as Buffer
     if (buf[0] === BIN.CMD) {
@@ -747,6 +895,7 @@ wss.on('connection', (ws) => {
 
 /** Reclaims REST-created rooms nobody joined and closes long-empty rooms. */
 setInterval(() => {
+  sweepRateLimits()
   for (const room of registry.list()) {
     const connected = [...room.players.values()].some((p) => p.connected)
     const idle = Date.now() - room.lastActivityAt
@@ -770,6 +919,11 @@ setInterval(() => {
     }
   }
 }, SWEEP_INTERVAL_MS)
+
+/** Phase 3: periodically drop backups past their 7-day TTL. */
+setInterval(() => {
+  void dbPurgeExpiredBackups()
+}, BACKUPS_PURGE_INTERVAL_MS)
 
 server.listen(PORT, () => {
   console.log(`[space-arenas-online] listening on http://0.0.0.0:${PORT} (mode=${MODE}, protocol=${PROTOCOL_VERSION})`)

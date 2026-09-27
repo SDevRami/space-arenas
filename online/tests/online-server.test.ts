@@ -5,6 +5,7 @@ import { createServer } from 'node:net'
 import WebSocket from 'ws'
 import { decodeControl, encodeControl } from '../shared/src/index.ts'
 import { hashPassphrase } from '../src/passphrase.ts'
+import { rateLimit } from '../src/ratelimit.ts'
 
 const freePort = (): Promise<number> =>
   new Promise((resolve, reject) => {
@@ -193,6 +194,52 @@ describe('online server disabled mode', () => {
     } finally {
       disabled.kill()
     }
+  })
+})
+
+describe('online server backups + rate limiting', () => {
+  it('rateLimit enforces the per-window limit and slides with time', () => {
+    const key = `unit:${Date.now()}`
+    for (let i = 0; i < 3; i++) assert.equal(rateLimit(key, 3, 1000).ok, true)
+    const over = rateLimit(key, 3, 1000)
+    assert.equal(over.ok, false)
+    assert.ok(over.retryAfterSeconds >= 1)
+    assert.equal(rateLimit(key, 3, 61_000).ok, true, 'window should slide after 60 s')
+  })
+
+  it('backups require a session token', async () => {
+    const { status, body } = await json('/api/backups', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'profile', payload: 'x', passphraseHash: 'y' }),
+    })
+    assert.equal(status, 401)
+    assert.equal((body as { error: string }).error, 'login required')
+  })
+
+  it('backups reject a bogus token (no session)', async () => {
+    const { status } = await json('/api/backups', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer bogus' },
+      body: JSON.stringify({ kind: 'profile', payload: 'x', passphraseHash: 'y' }),
+    })
+    assert.equal(status, 401)
+  })
+
+  it('a burst of backup uploads is rate-limited with Retry-After', async () => {
+    let last = -1
+    let retryAfter = ''
+    for (let i = 0; i < 12; i++) {
+      const r = await fetch(`${base}/api/backups`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'profile', payload: 'x', passphraseHash: 'y' }),
+      })
+      last = r.status
+      retryAfter = r.headers.get('retry-after') ?? ''
+    }
+    assert.equal(last, 429)
+    assert.ok(retryAfter !== '', '429 must carry Retry-After')
   })
 })
 

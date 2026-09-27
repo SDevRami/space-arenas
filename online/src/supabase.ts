@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import { BACKUPS_MAX_PER_USER, BACKUPS_MAX_PAYLOAD_BYTES, BACKUPS_TTL_MS } from './config.ts'
+
 // Thin Supabase client for the online server. Talks plain REST (Auth + PostgREST) so the
 // server keeps zero extra dependencies and stays compatible with both the legacy `anon`/
 // `service_role` keys and the newer `sb_publishable_`/`sb_secret_` formats.
@@ -232,5 +235,118 @@ export const dbProbe = async (): Promise<boolean> => {
     return res.ok
   } catch {
     return false
+  }
+}
+
+// ---- Phase 3: expiring backups -----------------------------------------------------------
+
+export interface BackupListRow {
+  id: string
+  kind: string
+  createdAt: string
+  expiresAt: string
+}
+
+/** Inserts a backup blob owned by `userId` with a fixed 7-day TTL. Quota-checked. */
+export const dbCreateBackup = async (
+  userId: string,
+  kind: 'devsettings' | 'profile',
+  payload: string,
+  passphraseHash: string,
+): Promise<SupabaseResult<{ id: string; expiresAt: string }>> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  try {
+    const list = await dbListBackups(userId)
+    if (!list.ok) return { ok: false, error: list.error ?? 'backup list failed' }
+    if ((list.data?.length ?? 0) >= BACKUPS_MAX_PER_USER) return { ok: false, error: 'backup quota reached' }
+    if (Buffer.byteLength(payload, 'utf8') > BACKUPS_MAX_PAYLOAD_BYTES) return { ok: false, error: 'payload too large' }
+    const id = randomUUID()
+    const expiresAt = new Date(Date.now() + BACKUPS_TTL_MS).toISOString()
+    const res = await timedFetch('/rest/v1/backups', {
+      method: 'POST',
+      headers: restServiceHeaders(),
+      body: JSON.stringify([{ id, user_id: userId, kind, payload, passphrase_hash: passphraseHash, expires_at: expiresAt }]),
+    })
+    if (!res.ok) return { ok: false, error: `backup create failed (${res.status})` }
+    return { ok: true, data: { id, expiresAt } }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+/** Lists the caller's backups, newest first (no payloads). */
+export const dbListBackups = async (userId: string): Promise<SupabaseResult<BackupListRow[]>> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  try {
+    const res = await timedFetch(
+      `/rest/v1/backups?user_id=eq.${userId}&select=id,kind,created_at,expires_at&order=created_at.desc`,
+      { headers: restServiceHeaders() },
+    )
+    if (!res.ok) return { ok: false, error: `backup list failed (${res.status})` }
+    const rows = (await res.json()) as Array<{ id: string; kind: string; created_at: string; expires_at: string }>
+    return {
+      ok: true,
+      data: rows.map((r) => ({ id: r.id, kind: r.kind, createdAt: r.created_at, expiresAt: r.expires_at })),
+    }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+export interface BackupPayloadRow {
+  id: string
+  kind: string
+  payload: string
+  passphraseHash: string
+  createdAt: string
+  expiresAt: string
+}
+
+/** Fetches one of the caller's backups (ownership enforced by the user_id filter). */
+export const dbGetBackup = async (userId: string, id: string): Promise<SupabaseResult<BackupPayloadRow>> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  try {
+    const res = await timedFetch(
+      `/rest/v1/backups?user_id=eq.${userId}&id=eq.${id}&select=id,kind,payload,passphrase_hash,created_at,expires_at&limit=1`,
+      { headers: restServiceHeaders() },
+    )
+    if (!res.ok) return { ok: false, error: `backup read failed (${res.status})` }
+    const rows = (await res.json()) as Array<{ id: string; kind: string; payload: string; passphrase_hash: string; created_at: string; expires_at: string }>
+    if (!rows[0]) return { ok: false, error: 'backup not found' }
+    const r = rows[0]
+    return { ok: true, data: { id: r.id, kind: r.kind, payload: r.payload, passphraseHash: r.passphrase_hash, createdAt: r.created_at, expiresAt: r.expires_at } }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+/** Deletes one of the caller's backups (user_id filter keeps this scoped to the owner). */
+export const dbDeleteBackup = async (userId: string, id: string): Promise<SupabaseResult> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  try {
+    const res = await timedFetch(`/rest/v1/backups?user_id=eq.${userId}&id=eq.${id}`, {
+      method: 'DELETE',
+      headers: restServiceHeaders(),
+    })
+    // PostgREST answers 204 for bulk deletes even when no row matched; the filter already
+    // guarantees we can only ever delete our own rows, so this is the idempotent OK.
+    if (res.status === 204 || res.ok) return { ok: true }
+    return { ok: false, error: `backup delete failed (${res.status})` }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+/** Removes rows past their TTL (best effort, called on an interval + lazily on read). */
+export const dbPurgeExpiredBackups = async (): Promise<void> => {
+  if (!dbConfigured()) return
+  try {
+    await timedFetch(
+      `/rest/v1/backups?expires_at=lt.${new Date().toISOString()}`,
+      { method: 'DELETE', headers: restServiceHeaders() },
+      8000,
+    ).catch(() => undefined)
+  } catch {
+    /* best effort */
   }
 }
