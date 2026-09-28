@@ -849,8 +849,8 @@ describe('host: lobby flow', () => {
   }, 30000)
 
   it('mods API: upload, list, read, rename, delete, and apply to a room', async () => {
-    const modesDir = await mkdtemp(join(tmpdir(), 'sa-modes-'))
-    const { host: h2, port: p2 } = await startHost(ROOM_CODE, PASS, { SA_MODES_DIR: modesDir })
+    const modsDir = await mkdtemp(join(tmpdir(), 'sa-mods-'))
+    const { host: h2, port: p2 } = await startHost(ROOM_CODE, PASS, { SA_MODS_DIR: modsDir })
     const base = `http://127.0.0.1:${p2}`
     const mod: ModFile = {
       meta: { name: 'Turbo Mod', author: 'Rami', description: 'Faster everything', version: '1.0.0', requireProtocol: PROTOCOL_VERSION },
@@ -928,7 +928,7 @@ describe('host: lobby flow', () => {
     const cleared = await hostC.waitForLobby((m) => m.modId === undefined)
     expect(cleared.modId).toBeUndefined()
 
-    await rm(modesDir, { recursive: true, force: true })
+    await rm(modsDir, { recursive: true, force: true })
     hostC.ws.close()
     h2.kill()
   }, 30000)

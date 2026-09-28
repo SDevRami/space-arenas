@@ -14,9 +14,9 @@ import { sanitizeOverrideMaps, sanitizeSettings } from './sanitize.ts'
 const HOST_BASE =
   typeof __dirname !== 'undefined' ? __dirname : fileURLToPath(new URL('.', import.meta.url))
 
-/** The on-disk balance-mod folder. `../../modes` from host/src or host/dist is the project
- *  root's `modes/` in both builds; tests pin it via SA_MODES_DIR. */
-export const MODES_DIR = resolve(process.env.SA_MODES_DIR ?? resolve(HOST_BASE, '../../modes'))
+/** The on-disk balance-mod folder. `../../mods` from host/src or host/dist is the project
+ *  root's `mods/` in both builds; tests pin it via SA_MODS_DIR. */
+export const MODS_DIR = resolve(process.env.SA_MODS_DIR ?? resolve(HOST_BASE, '../../mods'))
 
 /** Uploaded mod files are refused above this size. */
 export const MOD_MAX_BYTES = 4 * 1024 * 1024
@@ -197,4 +197,4 @@ export const createModStore = (dir: string): ModStore => {
   }
 }
 
-export const modStore = createModStore(MODES_DIR)
+export const modStore = createModStore(MODS_DIR)

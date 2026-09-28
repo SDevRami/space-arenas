@@ -72,8 +72,8 @@ export const deleteCustomMap = (name: string): void => {
   saveCustomMaps(loadCustomMaps().filter((m) => m.name !== name))
 }
 
-/** Any `.json` maps committed under `client/maps/` are bundled at build time. */
-const bundledMapModules = import.meta.glob<{ default: unknown }>('../../maps/*.json', { eager: true })
+/** Any `.json` maps committed under the repo root `maps/` are bundled at build time. */
+const bundledMapModules = import.meta.glob<{ default: unknown }>('../../../maps/*.json', { eager: true })
 
 /** Import bundled `maps/*.json` files into the custom library on first run.
  *  Files are skipped when a custom map with the same name already exists, so the
