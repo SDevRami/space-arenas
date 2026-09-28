@@ -818,3 +818,45 @@ server.listen(PORT, () => {
 })
 
 discovery.start(BEACON_PORT)
+
+// --- keyboard shutdown -------------------------------------------------
+// When the host is run in the launcher window (run-game.bat), pressing 'c'
+// stops the game cleanly. The batch script then frees the port and closes.
+if (process.stdin?.isTTY) {
+  try {
+    process.stdin.setRawMode(true)
+    process.stdin.resume()
+    process.stdin.on('data', (chunk: Buffer) => {
+      const input = chunk.toString()
+      if (input.includes('c') || input.includes('C') || input.includes('\u0003')) {
+        console.log('\n[space-arenas host] "c" pressed - stopping the game...')
+        stopHost()
+      }
+    })
+  } catch {
+    // stdin unusable here (e.g. spawned with pipes); Ctrl+C in the console still works.
+  }
+}
+
+process.on('SIGINT', stopHost)
+
+function stopHost(): void {
+  if (process.stdin?.isTTY) {
+    try {
+      process.stdin.setRawMode(false)
+    } catch {
+      /* raw mode was never enabled */
+    }
+  }
+  try {
+    server.close()
+  } catch {
+    /* already closed */
+  }
+  try {
+    discovery.stop()
+  } catch {
+    /* not started */
+  }
+  process.exit(0)
+}

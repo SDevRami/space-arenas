@@ -25,12 +25,22 @@ echo   join a match, and chat. "Offline Game" works the same way.
 echo.
 echo   Any leftover instance from a previous run is stopped
 echo   automatically, so you never have to fix port conflicts.
+echo.
+echo   Press 'c' in this window to stop the game. The host and this
+echo   window close, and the port is freed for the next run.
 echo  ==========================================================
 echo.
 
 REM --- stop leftover Space Arenas node processes from previous runs ---
 call :stop_stale_instances
 if errorlevel 1 exit /b 1
+
+REM --- stop loading server from a previous run if it is still up ---
+if exist "%~dp0tools\.loading-pid" (
+  set /p STALE_LOADING_PID=<"%~dp0tools\.loading-pid"
+  if defined STALE_LOADING_PID taskkill /PID %STALE_LOADING_PID% /F >nul 2>&1
+  del "%~dp0tools\.loading-pid" >nul 2>&1
+)
 
 REM --- ensure the game port is free (auto-picks the next free port) ---
 call :ensure_free_port
@@ -86,12 +96,19 @@ goto :no_qr
 
 echo.
 echo  The room code and passphrase are printed below when the host starts.
-echo  Press Ctrl+C in this window to stop the server.
+echo  Press 'c' in this window to stop the game and close this window.
+echo  (Ctrl+C works too.)
 echo.
 
 node host/dist/host.js
 
-pause
+REM --- host stopped (via 'c' or crash); free the port for the next run ---
+call :stop_stale_instances
+if errorlevel 1 exit /b 1
+
+echo.
+echo  Game stopped. Closing this window...
+timeout /t 3 /nobreak >nul
 endlocal
 exit /b 0
 
@@ -105,10 +122,11 @@ REM from a previous run, so a second launch can never hit a stuck port.
 REM Only processes whose command line references this game are touched.
 REM 1) any node.exe that looks like this game's host or loading server
 powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -match 'host[\\/]dist[\\/]host(\.js)?|loading-server\.mjs' }; $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Output ('Stopped leftover Space Arenas process (PID ' + $_.ProcessId + ')') }"
-REM 2) backstop: if something still listens on our own port, stop it only when it
-REM    is node.exe running one of this game's servers (catches older host builds
-REM    whose command-line shape prong 1 cannot see)
-powershell -NoProfile -Command "$o = Get-NetTCPConnection -LocalPort $env:SA_PORT -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess; if ($o) { $pr = Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $o) -ErrorAction SilentlyContinue; if ($pr -and $pr.Name -eq 'node.exe' -and $pr.CommandLine -match 'space-arenas|host[\\/]dist[\\/]host') { Stop-Process -Id $o -Force -ErrorAction SilentlyContinue; Write-Output ('Stopped stale Space Arenas process holding port ' + $env:SA_PORT + ' (PID ' + $o + ')') } else { Write-Output ('NOTE: port ' + $env:SA_PORT + ' is held by a non-Space Arenas process (PID ' + $o + '); the game will switch ports instead.') } }"
+REM 2) backstop: if something still listens on our own port and it is node.exe,
+REM    it is almost certainly a leftover Space Arenas server (host or page) from a
+REM    previous run -- stop it so the port is free for this run. This covers old
+REM    builds and dev servers (tsx watch) whose command line prong 1 cannot see.
+powershell -NoProfile -Command "$o = Get-NetTCPConnection -LocalPort $env:SA_PORT -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess; if ($o) { $pr = Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $o) -ErrorAction SilentlyContinue; if ($pr -and $pr.Name -eq 'node.exe') { Stop-Process -Id $o -Force -ErrorAction SilentlyContinue; Write-Output ('Freed port ' + $env:SA_PORT + ' (stopped leftover node process PID ' + $o + ')') } else { Write-Output ('NOTE: port ' + $env:SA_PORT + ' is held by a non-node process (PID ' + $o + '); the game will switch ports instead.') } }"
 if errorlevel 1 (
   echo.
   echo  Could not scan for leftover processes. Continuing anyway...
