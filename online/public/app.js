@@ -106,8 +106,36 @@ const EN = {
   'media.battle': 'Skirmish view',
   'media.mod': 'Mod tuning',
   'media.online': 'Online lobby',
-  'features.units.title': 'The unit roster',
-  'features.units.subtitle': 'Every unit from the game, with its role, stats and weapons.',
+  'mapbuild.title': 'Paint your own arenas',
+  'mapbuild.subtitle': 'The built-in Map Builder turns any idea into a playable battlefield — resize, paint and place objects, then publish your map for everyone in the community Maps repository.',
+  'mapbuild.group.features': 'Map Builder features',
+  'mapbuild.group.objects': 'Objects you can add',
+  'mapbuild.f.resize.title': 'Free-size arenas',
+  'mapbuild.f.resize.text': 'Resize a map any time — the editor keeps your painted tiles, fields and obstacles and just re-frames the battlefield.',
+  'mapbuild.f.terrain.title': 'Terrain painting',
+  'mapbuild.f.terrain.text': 'Paint ground, water, cliffs and roads, flood-fill large areas in one click, or give the ground your own custom colors.',
+  'mapbuild.f.spawns.title': 'Spawn points',
+  'mapbuild.f.spawns.text': 'Place a per-player spawn for up to 8 players and set up Free-for-All or team layouts.',
+  'mapbuild.f.economy.title': 'Supply & oil fields',
+  'mapbuild.f.economy.text': 'Drop fixed-size supply patches and oil fields that become the resource nodes bases fight over.',
+  'mapbuild.f.world.title': 'Real-world import',
+  'mapbuild.f.world.text': 'Import a satellite or local image and the editor automatically turns its pixels into playable terrain.',
+  'mapbuild.f.share.title': 'Save & share',
+  'mapbuild.f.share.text': 'Keep an unlimited map library, export and import .json files, and publish maps to the community Maps repo — or download everyone else\u2019s.',
+  'mapbuild.o.spawns.title': 'Player spawns',
+  'mapbuild.o.spawns.text': 'One team-colored starting spot per player, up to 8 players.',
+  'mapbuild.o.supply.title': 'Supply fields',
+  'mapbuild.o.supply.text': 'Fixed square patches that Harvesters mine into credits.',
+  'mapbuild.o.oil.title': 'Oil fields',
+  'mapbuild.o.oil.text': 'Circular oil pools — a second income source worth fighting over.',
+  'mapbuild.o.rock.title': 'Rocks',
+  'mapbuild.o.rock.text': 'Impassable cover that blocks movement and line of sight.',
+  'mapbuild.o.tree.title': 'Trees',
+  'mapbuild.o.tree.text': 'Soft cover and a natural look around spawns and bases.',
+  'mapbuild.o.wreck.title': 'Wrecks',
+  'mapbuild.o.wreck.text': 'Burned-out vehicle husks — battlefield scenery and cover.',
+  'mapbuild.o.terrain.title': 'Terrain & colors',
+  'mapbuild.o.terrain.text': 'Water, cliffs, roads and a full custom color palette for the ground.',
   'u.none': 'Sprite in development',
   'feat.group.core': 'Core gameplay',
   'feat.group.vision': 'Vision & combat',
@@ -375,8 +403,36 @@ const AR = {
   'media.battle': 'منظر المعركة',
   'media.mod': 'ضبط التعديلات',
   'media.online': 'قاعة اللعب',
-  'features.units.title': 'وحدات الجيش',
-  'features.units.subtitle': 'كل وحدة في اللعبة مع دورها وإحصائياتها وأسلحتها.',
+  'mapbuild.title': 'ارسم ساحاتك الخاصة',
+  'mapbuild.subtitle': 'محرر الخرائط المدمج يحوّل أي فكرة إلى ساحة معركة قابلة للعب — كبّر وارسم وضع العناصر، ثم انشر خريطتك للجميع في مستودع خرائط المجتمع.',
+  'mapbuild.group.features': 'مزايا محرر الخرائط',
+  'mapbuild.group.objects': 'عناصر يمكنك إضافتها',
+  'mapbuild.f.resize.title': 'ساحات بأي حجم',
+  'mapbuild.f.resize.text': 'غيّر حجم الخريطة في أي وقت — يحتفظ المحرر ببلاطاتك وحقولك وعوائقك ويعيد فقط تأطير ساحة المعركة.',
+  'mapbuild.f.terrain.title': 'طلاء التضاريس',
+  'mapbuild.f.terrain.text': 'ارسم الأرض والماء والمنحدرات والطرق، واملأ المساحات الكبيرة بنقرة واحدة، أو أضف ألوانك المخصصة إلى الأرض.',
+  'mapbuild.f.spawns.title': 'نقاط الظهور',
+  'mapbuild.f.spawns.text': 'ضع نقطة ظهور لكل لاعب حتى 8 لاعبين وجهّز تخطيطات كل ضد الجميع أو الفرق.',
+  'mapbuild.f.economy.title': 'حقول الإمداد والنفط',
+  'mapbuild.f.economy.text': 'أضف رقع الإمداد ذات الحجم الثابت وحقول النفط لتصبح عقد الموارد التي يتنازع عليها الأساس.',
+  'mapbuild.f.world.title': 'استيراد من العالم الحقيقي',
+  'mapbuild.f.world.text': 'استورد صورة قمر صناعي أو صورة محلية فيحوّلها المحرر تلقائيًا إلى تضاريس قابلة للعب.',
+  'mapbuild.f.share.title': 'احفظ وشارك',
+  'mapbuild.f.share.text': 'مكتبة خرائط غير محدودة، واستيراد وتصدير ملفات JSON، وانشر خرائطك في مستودع خرائط المجتمع — أو حمّل خرائط الآخرين.',
+  'mapbuild.o.spawns.title': 'نقاط ظهور اللاعبين',
+  'mapbuild.o.spawns.text': 'نقطة بداية واحدة ملوّنة بحسب الفريق لكل لاعب حتى 8 لاعبين.',
+  'mapbuild.o.supply.title': 'حقول الإمداد',
+  'mapbuild.o.supply.text': 'رقع مربعة ثابتة يستخرجها الحصادون لتصبح اعتمادات.',
+  'mapbuild.o.oil.title': 'حقول النفط',
+  'mapbuild.o.oil.text': 'برك نفط دائرية — مصدر دخل ثانٍ يستحق القتال عليه.',
+  'mapbuild.o.rock.title': 'الصخور',
+  'mapbuild.o.rock.text': 'غطاء لا يمكن عبوره يمنع الحركة ويقطع خط الرؤية.',
+  'mapbuild.o.tree.title': 'الأشجار',
+  'mapbuild.o.tree.text': 'غطاء طبيعي ومظهر حي حول نقاط الظهور والقواعد.',
+  'mapbuild.o.wreck.title': 'الحطام',
+  'mapbuild.o.wreck.text': 'بقايا مركبات محترقة — مشاهد ميدانية وغطاء في المعركة.',
+  'mapbuild.o.terrain.title': 'التضاريس والألوان',
+  'mapbuild.o.terrain.text': 'الماء والمنحدرات والطرق ولوحة ألوان مخصصة كاملة للأرض.',
   'u.none': 'صورة الوحدة قيد التطوير',
   'feat.group.core': 'أساسيات اللعب',
   'feat.group.vision': 'الرؤية والقتال',
@@ -631,6 +687,25 @@ const SYSTEMS = [
   { group: 'online', icon: '🛡️', k: 'fairplay' },
 ]
 
+const MAPBUILD_FEATURES = [
+  { icon: '📐', k: 'resize' },
+  { icon: '🖌️', k: 'terrain' },
+  { icon: '🎯', k: 'spawns' },
+  { icon: '⛽', k: 'economy' },
+  { icon: '🌍', k: 'world' },
+  { icon: '📦', k: 'share' },
+]
+
+const MAPBUILD_OBJECTS = [
+  { icon: '🎯', k: 'spawns' },
+  { icon: '⛽', k: 'supply' },
+  { icon: '🛢️', k: 'oil' },
+  { icon: '🪨', k: 'rock' },
+  { icon: '🌲', k: 'tree' },
+  { icon: '💥', k: 'wreck' },
+  { icon: '🟩', k: 'terrain' },
+]
+
 const t = (lang, key, vars) => {
   let s = LANGS[lang][key] ?? EN[key] ?? key
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v))
@@ -708,10 +783,25 @@ const renderBuildingCard = (b) => {
   )
 }
 
-const renderUnits = (containerId) => {
-  const el = document.getElementById(containerId)
+const renderMapBuilder = () => {
+  const el = document.getElementById('mapbuilder-gallery')
   if (!el) return
-  el.innerHTML = CATALOG.units.map(renderUnitCard).join('')
+  const cards = (items) =>
+    items
+      .map(
+        (o) =>
+          `<article class="card">` +
+          `<span class="card-icon">${o.icon}</span>` +
+          `<h3>${t(lang, `mapbuild.${o.k}.title`)}</h3>` +
+          `<p>${t(lang, `mapbuild.${o.k}.text`)}</p>` +
+          `</article>`,
+      )
+      .join('')
+  el.innerHTML =
+    `<div class="catalog-group"><h2 class="group-title">${t(lang, 'mapbuild.group.features')}</h2>` +
+    `<div class="grid">${cards(MAPBUILD_FEATURES.map((o) => ({ ...o, k: `f.${o.k}` })))}</div></div>` +
+    `<div class="catalog-group"><h2 class="group-title">${t(lang, 'mapbuild.group.objects')}</h2>` +
+    `<div class="grid">${cards(MAPBUILD_OBJECTS.map((o) => ({ ...o, k: `o.${o.k}` })))}</div></div>`
 }
 
 const renderSystems = () => {
@@ -801,7 +891,7 @@ const renderCatalog = () => {
 
 const renderDynamic = () => {
   renderSystems()
-  renderUnits('units-gallery')
+  renderMapBuilder()
   renderCatalog()
 }
 
