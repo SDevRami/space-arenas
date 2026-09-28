@@ -72,6 +72,25 @@ export const deleteCustomMap = (name: string): void => {
   saveCustomMaps(loadCustomMaps().filter((m) => m.name !== name))
 }
 
+/** Any `.json` maps committed under `client/maps/` are bundled at build time. */
+const bundledMapModules = import.meta.glob<{ default: unknown }>('../../maps/*.json', { eager: true })
+
+/** Import bundled `maps/*.json` files into the custom library on first run.
+ *  Files are skipped when a custom map with the same name already exists, so the
+ *  player's own maps are never overwritten. Returns how many new maps were added. */
+export const seedLibraryFromBundledMaps = (): number => {
+  let added = 0
+  for (const mod of Object.values(bundledMapModules)) {
+    const raw = mod?.default
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+    const map = raw as MapData
+    if (typeof map.name !== 'string' || map.name === '') continue
+    if (findCustomMap(map.name)) continue
+    if (saveCustomMap(map).ok) added += 1
+  }
+  return added
+}
+
 export const renameCustomMap = (from: string, to: string): void => {
   saveCustomMaps(loadCustomMaps().map((m) => (m.name === from ? { ...m, name: to } : m)))
 }
