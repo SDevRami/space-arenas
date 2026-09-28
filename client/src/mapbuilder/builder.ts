@@ -21,6 +21,14 @@ const mbInfoWidthEl = document.getElementById('mb-info-width') as HTMLInputEleme
 const mbInfoHeightEl = document.getElementById('mb-info-height') as HTMLInputElement
 const mbInfoVariantEl = document.getElementById('mb-info-variant') as HTMLInputElement
 const mbInfoDescEl = document.getElementById('mb-info-desc') as HTMLInputElement
+const mbInfoLinkEl = document.getElementById('mb-info-link') as HTMLButtonElement
+
+let mbSizeLinked = false
+
+const renderSizeLinkBtn = (): void => {
+  mbInfoLinkEl.textContent = mbSizeLinked ? '🔗' : '⛓'
+  mbInfoLinkEl.title = mbSizeLinked ? t('mapbuilder.sizeLinked') : t('mapbuilder.sizeUnlinked')
+}
 
 let mbEditor: MapBuilderEditor | null = null
 let mbWorld: WorldMapPanel | null = null
@@ -251,7 +259,19 @@ export function initMapBuilder(callbacks: {
     mbInfoHeightEl.value = String(m.height)
     mbInfoVariantEl.value = m.mapVersion
     mbInfoDescEl.value = m.description
+    renderSizeLinkBtn()
     mbInfoOverlay.classList.remove('hidden')
+  })
+  document.getElementById('mb-info-link')!.addEventListener('click', () => {
+    mbSizeLinked = !mbSizeLinked
+    if (mbSizeLinked) mbInfoHeightEl.value = mbInfoWidthEl.value
+    renderSizeLinkBtn()
+  })
+  mbInfoWidthEl.addEventListener('input', () => {
+    if (mbSizeLinked) mbInfoHeightEl.value = mbInfoWidthEl.value
+  })
+  mbInfoHeightEl.addEventListener('input', () => {
+    if (mbSizeLinked) mbInfoWidthEl.value = mbInfoHeightEl.value
   })
   document.getElementById('mb-info-save')!.addEventListener('click', () => {
     mbEditor?.applyInfo({ name: mbInfoNameEl.value, description: mbInfoDescEl.value, variant: mbInfoVariantEl.value })

@@ -62,6 +62,10 @@ export interface MapData {
 export const isPassableTerrain = (t: number): boolean => t !== Terrain.Water && t !== Terrain.Cliff
 export const isBuildableTerrain = (t: number): boolean => t === Terrain.Ground || t === Terrain.BuildableGround
 
+export const MIN_MAP_SIZE = 16
+export const MAX_MAP_SIZE = 512
+export const clampMapSize = (n: number): number => Math.max(MIN_MAP_SIZE, Math.min(MAX_MAP_SIZE, Math.round(n)))
+
 export const createEmptyMap = (width: number, height: number): MapData => ({
   schemaVersion: 1,
   format: 'space-arenas-map',
@@ -112,8 +116,8 @@ export interface MapValidation {
 export const validateMap = (map: MapData): MapValidation => {
   const errors: string[] = []
   if (map.format !== 'space-arenas-map') errors.push('invalid format')
-  if (map.width < 16 || map.width > 256) errors.push(`width out of range: ${map.width}`)
-  if (map.height < 16 || map.height > 256) errors.push(`height out of range: ${map.height}`)
+  if (map.width < MIN_MAP_SIZE || map.width > MAX_MAP_SIZE) errors.push(`width out of range: ${map.width}`)
+  if (map.height < MIN_MAP_SIZE || map.height > MAX_MAP_SIZE) errors.push(`height out of range: ${map.height}`)
   if (map.tiles.length !== map.width * map.height) errors.push('tile array size mismatch')
   if (map.spawnPoints.length < 2 || map.spawnPoints.length > DEFAULT_MAX_PLAYERS) {
     errors.push(`spawn count out of range: ${map.spawnPoints.length}`)

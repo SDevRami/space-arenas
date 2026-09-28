@@ -759,6 +759,8 @@
       .mb-info-size .mb-size-box { display: flex; flex-direction: column; }
       .mb-info-size input { width: 70px; text-align: center; }
       .mb-info-size .mb-size-x { color: var(--color-text-muted); padding-bottom: 8px; }
+      .mb-info-size .mb-link { width: 34px; height: 34px; align-self: flex-end; padding: 0; margin: 0; font-size: 16px; line-height: 1; background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); border-radius: 3px; cursor: pointer; }
+      .mb-info-size .mb-link:hover { border-color: var(--color-primary-hover); color: var(--color-accent); }
       #lobby .settings-section { margin-top: 16px; border-top: 1px solid var(--color-divider); padding-top: 12px; }
       #lobby .settings-controls-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
       #lobby .settings-controls-row button { width: auto; margin-top: 0; padding: 8px 16px; }

@@ -1,4 +1,4 @@
-import { DEFAULT_MAX_PLAYERS, Terrain, applyBrightness, createEmptyMap, tileIndex, type MapData, type Obstruction } from '@space-arenas/shared'
+import { DEFAULT_MAX_PLAYERS, Terrain, applyBrightness, clampMapSize, createEmptyMap, tileIndex, type MapData, type Obstruction } from '@space-arenas/shared'
 
 export const TERRAIN_COLORS: Record<number, string> = {
   [Terrain.Ground]: '#39422f',
@@ -61,6 +61,7 @@ export class MapBuilderEditor {
   private pointer = { x: -1, y: -1 }
   dirty = false
   private readonly cb: EditorCallbacks
+  private ro: ResizeObserver | null = null
   private readonly onWinMove = (e: MouseEvent): void => this.onMove(e)
   private readonly onWinUp = (e: MouseEvent): void => this.onUp(e)
   private readonly onWinResize = (): void => {
@@ -84,6 +85,10 @@ export class MapBuilderEditor {
 
     this.onWinResize()
     window.addEventListener('resize', this.onWinResize)
+    if (typeof ResizeObserver !== 'undefined') {
+      this.ro = new ResizeObserver(() => this.onWinResize())
+      this.ro.observe(this.el)
+    }
 
     this.map = createEmptyMap(128, 128)
     this.map.name = 'New Map'
@@ -148,6 +153,14 @@ export class MapBuilderEditor {
   private screenToTile(px: number, py: number): { x: number; y: number } {
     const cell = TILE * this.zoom
     return { x: Math.floor((px - this.cam.x) / cell), y: Math.floor((py - this.cam.y) / cell) }
+  }
+
+  /** Maps a client-space point into canvas buffer pixels, cancelling any CSS scaling of the canvas. */
+  private toCanvas(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = this.canvas.getBoundingClientRect()
+    const sx = rect.width > 0 ? this.canvas.width / rect.width : 1
+    const sy = rect.height > 0 ? this.canvas.height / rect.height : 1
+    return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy }
   }
 
   private viewBounds(): { x0: number; y0: number; x1: number; y1: number } {
@@ -220,8 +233,8 @@ export class MapBuilderEditor {
 
   /** Resizes the map: copies the overlapping tile region, drops out-of-bounds objects. */
   resize(w: number, h: number): void {
-    w = Math.max(16, Math.min(256, Math.round(w)))
-    h = Math.max(16, Math.min(256, Math.round(h)))
+    w = clampMapSize(w)
+    h = clampMapSize(h)
     const m = this.map
     if (w === m.width && h === m.height) {
       this.setDirty()
@@ -274,8 +287,8 @@ export class MapBuilderEditor {
   /** Replaces the whole grid with an auto-drawn world import; clears all placed objects. */
   importWorld(tiles: number[], groundColors: string[], w: number, h: number): void {
     const m = this.map
-    m.width = Math.max(16, Math.min(256, Math.round(w)))
-    m.height = Math.max(16, Math.min(256, Math.round(h)))
+    m.width = clampMapSize(w)
+    m.height = clampMapSize(h)
     m.tiles = tiles
     m.groundColors = groundColors.slice()
     m.spawnPoints = []
@@ -410,9 +423,7 @@ export class MapBuilderEditor {
   // ----- input -----
 
   private onDown(e: MouseEvent): void {
-    const rect = this.canvas.getBoundingClientRect()
-    const px = e.clientX - rect.left
-    const py = e.clientY - rect.top
+    const { x: px, y: py } = this.toCanvas(e.clientX, e.clientY)
     if (e.button === 1) {
       this.panning = true
       this.lastPan = { x: e.clientX, y: e.clientY }
@@ -439,8 +450,8 @@ export class MapBuilderEditor {
   }
 
   private onMove(e: MouseEvent): void {
-    const rect = this.canvas.getBoundingClientRect()
-    this.pointer = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+    const { x: px, y: py } = this.toCanvas(e.clientX, e.clientY)
+    this.pointer = { x: px, y: py }
     if (this.panning) {
       this.cam.x += e.clientX - this.lastPan.x
       this.cam.y += e.clientY - this.lastPan.y
@@ -448,7 +459,7 @@ export class MapBuilderEditor {
       return
     }
     if (this.painting) {
-      const t = this.screenToTile(e.clientX - rect.left, e.clientY - rect.top)
+      const t = this.screenToTile(px, py)
       this.paintTerrainAt(t.x, t.y)
     }
   }
@@ -464,9 +475,7 @@ export class MapBuilderEditor {
   }
 
   private onWheel(e: WheelEvent): void {
-    const rect = this.canvas.getBoundingClientRect()
-    const px = e.clientX - rect.left
-    const py = e.clientY - rect.top
+    const { x: px, y: py } = this.toCanvas(e.clientX, e.clientY)
     const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
     const worldBefore = { x: (px - this.cam.x) / this.zoom, y: (py - this.cam.y) / this.zoom }
     this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom * factor))
@@ -684,6 +693,8 @@ export class MapBuilderEditor {
 
   dispose(): void {
     cancelAnimationFrame(this.raf)
+    this.ro?.disconnect()
+    this.ro = null
     window.removeEventListener('mousemove', this.onWinMove)
     window.removeEventListener('mouseup', this.onWinUp)
     window.removeEventListener('resize', this.onWinResize)

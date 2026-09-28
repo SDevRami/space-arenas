@@ -2,6 +2,7 @@ import {
   DEFAULT_MAX_PLAYERS,
   Terrain,
   applyBrightness,
+  clampMapSize,
   createEmptyMap,
   tileIndex,
   validateMap,
@@ -198,8 +199,8 @@ function viewTileBounds(): { x0: number; y0: number; x1: number; y1: number } {
 }
 
 function newMap(): void {
-  const w = Math.max(16, Math.min(256, Number(wEl.value) || 128))
-  const h = Math.max(16, Math.min(256, Number(hEl.value) || 128))
+  const w = clampMapSize(Number(wEl.value) || 128)
+  const h = clampMapSize(Number(hEl.value) || 128)
   map = createEmptyMap(w, h)
   map.name = nameEl.value.trim() || 'Custom Map'
   spawnTeamCounter = 0

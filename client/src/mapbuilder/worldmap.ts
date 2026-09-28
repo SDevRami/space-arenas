@@ -1,4 +1,4 @@
-import { Terrain } from '@space-arenas/shared'
+import { Terrain, clampMapSize } from '@space-arenas/shared'
 
 export interface WorldImportResult {
   width: number
@@ -8,7 +8,7 @@ export interface WorldImportResult {
 }
 
 const TILE_PX = 256
-const MIN_ZOOM = 3
+const MIN_ZOOM = 0
 const MAX_ZOOM = 19
 
 /** Esri World Imagery — free to use, sends CORS headers so tile pixels can be sampled. */
@@ -107,7 +107,7 @@ export class WorldMapPanel {
   }
 
   private clampDim(v: string): number {
-    return Math.max(16, Math.min(256, Math.round(Number(v)) || 32))
+    return clampMapSize(Number(v) || 32)
   }
 
   private readonly onMove = (e: MouseEvent): void => {

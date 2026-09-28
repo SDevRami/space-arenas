@@ -66,6 +66,32 @@ describe('maps: validation', () => {
     const v = validateMap(map)
     expect(v.errors.some((e) => e.includes('out of bounds'))).toBe(true)
   })
+
+  it('accepts large maps up to 512x512', () => {
+    const map = createEmptyMap(512, 512)
+    map.spawnPoints.push({ x: 2, y: 2, team: 0 }, { x: 400, y: 400, team: 1 })
+    map.supplyFields.push({ x: 100, y: 100, radius: 4, capacity: 24 }, { x: 300, y: 300, radius: 4, capacity: 24 })
+    const v = validateMap(map)
+    expect(v.ok).toBe(true)
+    expect(v.errors).toEqual([])
+  })
+
+  it('accepts non-square rectangles (e.g. 400x500)', () => {
+    const map = createEmptyMap(400, 500)
+    map.spawnPoints.push({ x: 2, y: 2, team: 0 }, { x: 380, y: 480, team: 1 })
+    map.supplyFields.push({ x: 100, y: 100, radius: 4, capacity: 24 })
+    const v = validateMap(map)
+    expect(v.ok).toBe(true)
+  })
+
+  it('rejects maps larger than 512 in a dimension', () => {
+    const map = createEmptyMap(512, 513)
+    map.spawnPoints.push({ x: 2, y: 2, team: 0 }, { x: 400, y: 400, team: 1 })
+    map.supplyFields.push({ x: 100, y: 100, radius: 4, capacity: 24 })
+    const v = validateMap(map)
+    expect(v.ok).toBe(false)
+    expect(v.errors.some((e) => e.includes('height out of range'))).toBe(true)
+  })
 })
 
 describe('maps: canonical serialization', () => {

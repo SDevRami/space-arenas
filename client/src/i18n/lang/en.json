@@ -265,6 +265,9 @@
     "infoDesc": "Description",
     "infoSave": "Save",
     "infoCancel": "Cancel",
+    "sizeLink": "Link/unlink map dimensions",
+    "sizeLinked": "Linked",
+    "sizeUnlinked": "Unlinked",
     "world": {
       "open": "Real world",
       "title": "Real world map",

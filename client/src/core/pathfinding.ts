@@ -77,7 +77,7 @@ export const findPath = (
   sy: number,
   tx: number,
   ty: number,
-  maxNodes = 8000,
+  maxNodes?: number,
   costs: PathCosts = DEFAULT_COSTS,
   mask = grid.passable,
   comp = grid.component,
@@ -92,6 +92,8 @@ export const findPath = (
   if (comp && comp[start] !== comp[goal]) return null
 
   const area = width * height
+  // Scale the search budget with the map so cross-map paths on large maps never get cut off.
+  const budget = maxNodes ?? Math.max(8000, area)
   const { g, closed, parent, heapIdx, heapScore } = ensureScratch(area)
   g.fill(-1)
   closed.fill(0)
@@ -155,7 +157,7 @@ export const findPath = (
 
   let nodes = 0
   while (heapSize > 0) {
-    if (++nodes > maxNodes) return undefined
+    if (++nodes > budget) return undefined
     const cur = pop()
     if (closed[cur]) continue
     closed[cur] = 1
@@ -219,7 +221,7 @@ export const findPathNear = (
   tx: number,
   ty: number,
   maxRadius = 5,
-  maxNodes = 8000,
+  maxNodes?: number,
   costs: PathCosts = DEFAULT_COSTS,
   mask = grid.passable,
   comp = grid.component,

@@ -265,6 +265,9 @@
     "infoDesc": "الوصف",
     "infoSave": "حفظ",
     "infoCancel": "إلغاء",
+    "sizeLink": "ربط / فك ارتباط أبعاد الخريطة",
+    "sizeLinked": "مرتبط",
+    "sizeUnlinked": "غير مرتبط",
     "world": {
       "open": "العالم الحقيقي",
       "title": "خريطة العالم الحقيقي",
