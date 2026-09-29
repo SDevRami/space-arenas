@@ -59,6 +59,7 @@ import {
   dbListMaps,
   dbListMods,
   dbProbe,
+  dbProfileCount,
   dbPurgeExpiredBackups,
   dbRateMap,
   dbRateMod,
@@ -1111,6 +1112,7 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       protocol: PROTOCOL_VERSION,
       rooms: registry.list().length,
       players: registry.list().reduce((n, r) => n + registry.matchSlots(r).length, 0),
+      registered: await dbProfileCount(),
       db: await dbProbe(),
     })
     return true

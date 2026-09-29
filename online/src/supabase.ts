@@ -240,6 +240,27 @@ export const dbProbe = async (): Promise<boolean> => {
   }
 }
 
+/** Total registered accounts (profile rows). Returns null when the DB is unavailable. */
+export const dbProfileCount = async (): Promise<number | null> => {
+  if (!dbConfigured()) return null
+  try {
+    const res = await timedFetch(
+      '/rest/v1/profiles?select=user_id&limit=1000',
+      { headers: headers(SERVICE, { Prefer: 'count=exact' }) },
+      2500,
+    )
+    if (!res.ok) return null
+    // Prefer PostgREST's exact count header; fall back to the returned rows (GET always
+    // returns the body) in case the header is stripped on some proxy/gateway.
+    const total = Number(res.headers.get('content-range')?.split('/')[1] ?? NaN)
+    if (Number.isFinite(total)) return total
+    const rows = (await res.json().catch(() => [])) as unknown[]
+    return rows.length
+  } catch {
+    return null
+  }
+}
+
 // ---- Phase 3: expiring backups -----------------------------------------------------------
 
 export interface BackupListRow {

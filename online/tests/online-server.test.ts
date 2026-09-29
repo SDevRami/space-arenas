@@ -147,6 +147,7 @@ describe('online server DB-unconfigured routes', () => {
     const { status, body } = await json('/api/status')
     assert.equal(status, 200)
     assert.equal((body as { db: boolean }).db, false)
+    assert.equal((body as { registered: number | null }).registered, null)
   })
 
   it('auth register returns 503 without DB config', async () => {

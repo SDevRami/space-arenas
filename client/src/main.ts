@@ -781,6 +781,9 @@ const ONLINE_WS_BASE = ONLINE_URL.replace(/^http/, 'ws')
 const isOnlineAddr = (addr: string | null | undefined): boolean => /^wss?:\/\//i.test(addr ?? '')
 
 const onlineStatusEl = document.getElementById('online-status') as HTMLDivElement
+const onlineStatRegisteredEl = document.getElementById('online-stat-registered') as HTMLElement
+const onlineStatOnlineEl = document.getElementById('online-stat-online') as HTMLElement
+const onlineStatMatchesEl = document.getElementById('online-stat-matches') as HTMLElement
 const onlineMatchesBody = document.getElementById('online-matches-table')!.querySelector('tbody')!
 const onlineNameEl = document.getElementById('online-name') as HTMLInputElement
 const onlineSearchEl = document.getElementById('online-search') as HTMLInputElement
@@ -900,16 +903,28 @@ const renderOnlineMatches = (): void => {
   }
 }
 
+const applyOnlineStats = (s: { rooms?: number; players?: number; registered?: number | null }): void => {
+  const fmt = (v: number | null | undefined): string => (v === null || v === undefined ? '–' : String(v))
+  onlineStatMatchesEl.textContent = fmt(s.rooms)
+  onlineStatOnlineEl.textContent = fmt(s.players)
+  onlineStatRegisteredEl.textContent = fmt(s.registered)
+}
+
 const refreshOnlineList = async (silent = false): Promise<void> => {
   try {
-    const res = await fetch(`${ONLINE_URL}/api/rooms`)
-    if (!res.ok) throw new Error(String(res.status))
-    const data = (await res.json()) as { rooms?: OnlineRoom[] }
+    const [roomsRes, statusRes] = await Promise.all([fetch(`${ONLINE_URL}/api/rooms`), fetch(`${ONLINE_URL}/api/status`)])
+    if (!roomsRes.ok) throw new Error(String(roomsRes.status))
+    const data = (await roomsRes.json()) as { rooms?: OnlineRoom[] }
     onlineRooms = data.rooms ?? []
     selectedOnlineRoom = onlineRooms.some((r) => selectedOnlineRoom && r.id === selectedOnlineRoom.id) ? selectedOnlineRoom : null
     renderOnlineMatches()
+    if (statusRes.ok) {
+      const st = (await statusRes.json()) as { rooms?: number; players?: number; registered?: number | null }
+      applyOnlineStats(st)
+    }
     if (!silent) setOnlineStatus(t('online.refreshed'))
   } catch {
+    applyOnlineStats({})
     if (!silent) setOnlineStatus(t('online.serverDown'), true)
   }
 }
