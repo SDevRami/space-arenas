@@ -2286,9 +2286,6 @@ export class Game {
       case 'P':
         this.toggleDevOption('paths')
         break
-      case 'F':
-        this.toggleDevOption('reveal')
-        break
       case 'N':
         this.toggleDevOption('bases')
         break
@@ -2336,7 +2333,6 @@ export class Game {
       if (tool === 'X') active = input?.boxSelect ?? false
       else if (tool === 'B') active = renderer?.showBorders ?? false
       else if (tool === 'P') active = renderer?.showPaths ?? false
-      else if (tool === 'F') active = renderer?.showAll ?? false
       else if (tool === 'N') active = renderer?.showBases ?? false
       else if (tool === 'L') active = this.logVisible
       btn.classList.toggle('active', active)
@@ -2657,7 +2653,7 @@ export class Game {
     this.audio.uiClick()
   }
 
-  private toggleDevOption(opt: 'borders' | 'paths' | 'reveal' | 'bases'): void {
+  private toggleDevOption(opt: 'borders' | 'paths' | 'bases'): void {
     const renderer = this.renderer
     if (!renderer) return
     if (opt === 'borders') {
@@ -2666,9 +2662,6 @@ export class Game {
     } else if (opt === 'paths') {
       renderer.showPaths = !renderer.showPaths
       this.hud.toast(renderer.showPaths ? t('game.pathsOn') : t('game.pathsOff'))
-    } else if (opt === 'reveal') {
-      renderer.showAll = !renderer.showAll
-      this.hud.toast(renderer.showAll ? t('game.revealOn') : t('game.revealOff'))
     } else {
       renderer.showBases = !renderer.showBases
       this.hud.toast(renderer.showBases ? t('game.basesOn') : t('game.basesOff'))
@@ -2677,18 +2670,17 @@ export class Game {
     this.syncDevButtons()
   }
 
-  private devOptionActive(opt: 'borders' | 'paths' | 'reveal' | 'bases'): boolean {
+  private devOptionActive(opt: 'borders' | 'paths' | 'bases'): boolean {
     const renderer = this.renderer
     if (!renderer) return false
     if (opt === 'borders') return renderer.showBorders
     if (opt === 'paths') return renderer.showPaths
-    if (opt === 'reveal') return renderer.showAll
     return renderer.showBases
   }
 
   private syncDevButtons(): void {
     for (const btn of this.devBtns) {
-      const opt = (btn.dataset.dev ?? '') as 'borders' | 'paths' | 'reveal' | 'bases' | ''
+      const opt = (btn.dataset.dev ?? '') as 'borders' | 'paths' | 'bases' | ''
       if (opt) btn.classList.toggle('active', this.devOptionActive(opt))
     }
   }
@@ -2740,10 +2732,9 @@ export class Game {
     if (!container) return
     container.textContent = ''
     this.devBtns = []
-    const devSpecs: Array<{ opt: 'borders' | 'paths' | 'reveal' | 'bases'; glyph: string }> = [
+    const devSpecs: Array<{ opt: 'borders' | 'paths' | 'bases'; glyph: string }> = [
       { opt: 'borders', glyph: 'B' },
       { opt: 'paths', glyph: 'P' },
-      { opt: 'reveal', glyph: 'F' },
       { opt: 'bases', glyph: 'N' },
     ]
     for (const spec of devSpecs) {
@@ -2752,8 +2743,7 @@ export class Game {
       btn.className = 'dev-render-btn dev-' + spec.opt
       btn.dataset.dev = spec.opt
       btn.textContent = spec.glyph
-      btn.title =
-        spec.opt === 'borders' ? t('mobile.btns.B') : spec.opt === 'paths' ? t('mobile.btns.P') : spec.opt === 'reveal' ? t('mobile.btns.F') : t('mobile.btns.N')
+      btn.title = spec.opt === 'borders' ? t('mobile.btns.B') : spec.opt === 'paths' ? t('mobile.btns.P') : t('mobile.btns.N')
       btn.addEventListener('click', () => this.toggleDevOption(spec.opt))
       container.appendChild(btn)
       this.devBtns.push(btn)
@@ -2870,7 +2860,6 @@ export class Game {
       const items: Array<[string, string]> = [
         [t('mobile.btns.B'), keyFor('borders')],
         [t('mobile.btns.P'), keyFor('paths')],
-        [t('mobile.btns.F'), keyFor('reveal')],
         [t('mobile.btns.N'), keyFor('bases')],
       ]
       for (const [label, key] of items) {
@@ -3531,10 +3520,6 @@ export class Game {
     }
     if (this.keyMatch(e, 'paths')) {
       this.toggleDevOption('paths')
-      return
-    }
-    if (this.keyMatch(e, 'reveal')) {
-      this.toggleDevOption('reveal')
       return
     }
     if (this.keyMatch(e, 'bases')) {

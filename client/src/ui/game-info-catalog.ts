@@ -93,7 +93,6 @@ export const initGameInfoCatalog = (resolvedDevSettings: () => MatchSettings) =>
       <tr><td>${t('info.controls.idleDozer')}</td><td>${t('info.controls.inputIdleDozer')}</td></tr>
       <tr><td>${t('info.controls.borders')}</td><td>${t('info.controls.inputBorders')}</td></tr>
       <tr><td>${t('info.controls.paths')}</td><td>${t('info.controls.inputPaths')}</td></tr>
-      <tr><td>${t('info.controls.reveal')}</td><td>${t('info.controls.inputReveal')}</td></tr>
       <tr><td>${t('info.controls.minimap')}</td><td>${t('info.controls.inputMinimap')}</td></tr>
       <tr><td>${t('info.controls.sell')}</td><td>${t('info.controls.inputSell')}</td></tr>
       <tr><td>${t('info.controls.spawnPoint')}</td><td>${t('info.controls.inputSpawnPoint')}</td></tr>

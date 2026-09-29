@@ -93,7 +93,7 @@ export class Renderer {
   showBorders = false
   showAll = false
   showPaths = false
-  showBases = true
+  showBases = false
   private localTeam = -1
   private lastFogTick = -1
   private lastSpriteLayerOrder = ''
