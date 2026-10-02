@@ -874,13 +874,15 @@ export class Renderer {
       })
       const apex = p.kind === 'shell' ? gfx.projectileShellHeight : 0
       if (p.kind === 'shell') {
-        const distFrac = len > 0 ? seg / len : 0
         const lift = (u: number): number => apex * 4 * u * (1 - u)
         const fxAt = (u: number): number => p.x0 + (p.x1 - p.x0) * u
         const fyAt = (u: number): number => p.y0 + (p.y1 - p.y0) * u
-        const uh = Math.min(1, t + distFrac * 0.3)
+        const uh = Math.min(1, t + (len > 0 ? (seg / len) * 0.15 : 0.05))
         const hp = proj(fxAt(uh), fyAt(uh), lift(uh))
+        const glow = head * 3
+        this.fxGraphics.circle(hp.x, hp.y, glow).fill({ color: color, alpha: alpha * 0.18 })
         this.fxGraphics.circle(hp.x, hp.y, head).fill({ color: core, alpha: alpha })
+        this.fxGraphics.circle(hp.x, hp.y, head * 0.55).fill({ color: 0xffffff, alpha: alpha * 0.9 })
       } else {
         const a = proj(cx - dx * seg, cy - dy * seg)
         const b = proj(cx + dx * seg, cy + dy * seg)
