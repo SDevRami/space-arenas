@@ -95,12 +95,16 @@ const UNIT_ASSET_FOLDERS: Record<string, string> = {
   'missile-boat': 'v_mb',
 }
 
+/** Entities with a dedicated HUD selection-bar icon in client/dist/hud (hud_<folder>.png). */
+export const HUD_ASSET_IDS = [...Object.keys(BUILDING_ASSET_FOLDERS), ...Object.keys(UNIT_ASSET_FOLDERS)]
+
 /** Client-only high-quality asset path templates; {frame} is replaced with the 4-digit image number, {color} with the player's 1-based color folder. Units are rendered in 8 heading frames (0001-0008); {dir} is kept for legacy user overrides. */
 export const DEFAULT_ASSET_PATHS: Record<string, string> = {
   ...Object.fromEntries(Object.entries(BUILDING_ASSET_FOLDERS).map(([id, f]) => [`building:${id}`, `${f}/{color}/${f}_{frame}.png`])),
   'field:supply': 'sf/sf_{frame}.png',
   'field:oil': 'of/of_{frame}.png',
   ...Object.fromEntries(Object.entries(UNIT_ASSET_FOLDERS).map(([id, f]) => [`unit:${id}`, `${f}/{color}/${f}_{frame}.png`])),
+  ...Object.fromEntries([...Object.entries(BUILDING_ASSET_FOLDERS), ...Object.entries(UNIT_ASSET_FOLDERS)].map(([id, f]) => [`hud:${id}`, `hud/hud_${f}.png`])),
   obstacle: 'ao/{type}.png',
   ...Object.fromEntries(OBSTACLE_ASSET_TYPES.map((k) => [`obstacle:${k}`, `ao/${k}.png`])),
   // empty = procedural flame fallback; a user override like `fx/burn/burn_{frame}.png` loads 2 animated frames

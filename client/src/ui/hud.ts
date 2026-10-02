@@ -62,8 +62,17 @@ for (const u of Object.values(UPGRADES)) {
   ;(UPGRADES_BY_BUILDING[u.availableAt] ??= []).push(u)
 }
 
-/** Resolve an asset URL for a selection-bar icon, or '' when no image asset exists. */
+/** Resolve an asset URL for a selection-bar icon, or '' when no image asset exists.
+ * A dedicated `hud:<type>` icon (plain image, e.g. hud/hud_cc.png) wins over the
+ * sprite-frame template; empty/absent falls back to the classic sprite frame. */
 function assetIconUrl(kind: 'unit' | 'building', type: string): string {
+  const hud = getGraphics().assetPaths[`hud:${type}`]
+  if (hud) {
+    const raw = hud.replaceAll('{color}', '1').replaceAll('{frame}', '0001')
+    if (raw.includes('{')) return ''
+    if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) return raw
+    return `${import.meta.env.BASE_URL}${raw}`
+  }
   const tpl = getGraphics().assetPaths[`${kind}:${type}`]
   if (!tpl) return ''
   const raw =
