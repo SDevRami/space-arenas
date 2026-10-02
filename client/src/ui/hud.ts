@@ -1319,12 +1319,12 @@ export class Hud {
 
   /** Achievement unlocked banner: pops near the top of the screen, then fades away.
    *  Also used for rank-ups (pass a different `header`, e.g. "Rank up!"). When `combined`
-   *  is set, the body renders header + title + desc as one text (rank-up toast). */
+   *  is set, the body renders title + desc as one text line (empty header is skipped). */
   achievementToast(title: string, desc: string, header = t('profile.toastTitle'), combined = false): void {
     const el = document.createElement('div')
     el.className = 'toast ach'
     el.innerHTML = combined
-      ? `<span class="toast-icon">★</span><span class="toast-body"><span class="toast-text">${this.esc(`${header} ${title} ${desc}`)}</span></span>`
+      ? `<span class="toast-icon">★</span><span class="toast-body"><span class="toast-text">${this.esc([header, title, desc].filter(Boolean).join(' '))}</span></span>`
       : `<span class="toast-icon">★</span><span class="toast-body"><span class="toast-header">${this.esc(header)}</span><span class="toast-title">${this.esc(title)}</span><span class="toast-desc">${this.esc(desc)}</span></span>`
     document.getElementById('app')!.appendChild(el)
     requestAnimationFrame(() => el.classList.add('visible'))

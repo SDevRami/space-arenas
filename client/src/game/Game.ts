@@ -1461,7 +1461,7 @@ export class Game {
         if (gfx.effects.effects) renderer.addImpact(e.x, e.y, 0xc070ff)
       }
       if (e.type === 'rank-up' && e.team === this.localTeam) {
-        this.hud.achievementToast(t('menu.rankUpTitle', { rank: e.rank }), t('menu.rankUpDesc'), t('menu.rankUpHeader'), true)
+        this.hud.achievementToast(t('menu.rankUpTitle', { rank: e.rank }), t('menu.rankUpDesc'), '', true)
         this.audio.playSfx('achievement', { gain: 0.1 })
       }
       if (e.type === 'combat-hit' && world.teamOf(e.target) === this.localTeam) {
@@ -1567,7 +1567,35 @@ export class Game {
     return 1 - (cyc - half - T - half) / T
   }
 
+  /** Whether a sim event's log line should be shown to the local player: only
+   *  events affecting the local team (and its alliance members) are legible, so
+   *  enemy team activity (construction, research, captures, income, tech) never
+   *  leaks into the match log. Combat feedback stays visible to everyone:
+   *  destroy messages (kill confirmations), super-weapon strike warnings, and
+   *  neutral world events (oil-field destruction, match result, players leaving).
+   *  Spectators (localTeam < 0) see everything. */
+  private logEventVisible(e: SimEvent): boolean {
+    if (this.localTeam < 0) return true
+    if (e.type === 'game-over' || e.type === 'player-left') return true
+    if (e.type === 'entity-destroyed' || e.type === 'laser-strike' || e.type === 'airstrike-bomb' || e.type === 'emp-strike') return true
+    if (e.type === 'command-rejected') {
+      const t = e.player
+      return this.world ? this.world.sameTeam(this.localTeam, t) : t === this.localTeam
+    }
+    const team = (e as { team?: number }).team
+    if (typeof team !== 'number') {
+      if (e.type === 'unit-ranked-up') {
+        const t = this.world ? this.world.teamOf(e.unit) : -1
+        return t >= 0 && (this.world ? this.world.sameTeam(this.localTeam, t) : t === this.localTeam)
+      }
+      return true
+    }
+    if (team < 0) return true
+    return this.world ? this.world.sameTeam(this.localTeam, team) : team === this.localTeam
+  }
+
   private describeEvent(e: SimEvent): string | null {
+    if (!this.logEventVisible(e)) return null
     switch (e.type) {
       case 'building-placed': {
         const d = BUILDINGS[e.buildingType]
