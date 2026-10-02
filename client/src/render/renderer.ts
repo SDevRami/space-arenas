@@ -1,5 +1,5 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js'
-import { BUILDINGS, PLAYER_COLOR_COUNT, PLAYER_COLORS, UNITS, getBuilding, getWeapon, type MapData, type PingType, SHIELD_MAX_HP } from '@space-arenas/shared'
+import { BUILDINGS, PLAYER_COLOR_COUNT, PLAYER_COLORS, UNITS, getBuilding, getWeapon, type MapData, type PingType, type ProjectileKind, SHIELD_MAX_HP } from '@space-arenas/shared'
 import type { World, PingComp } from '../core/world.ts'
 import { PING_TICKS } from '../core/world.ts'
 import { Camera, ISO_HALF_H, ISO_HALF_W } from './camera.ts'
@@ -138,7 +138,10 @@ export class Renderer {
   private ghostOutline = new Graphics()
   private rangeRingG = new Graphics()
   private impacts: Array<{ x: number; y: number; age: number; color?: number }> = []
-  private projectiles: Array<{ x0: number; y0: number; x1: number; y1: number; age: number; team: number }> = []
+  private projectiles: Array<{ x0: number; y0: number; x1: number; y1: number; age: number; team: number; kind: ProjectileKind; carve: { pts: Array<{ x: number; y: number }>; age: number; life: number } | null }> = []
+  private smokePuffs: Array<{ x: number; y: number; age: number; life: number; size: number }> = []
+  private firePuffs: Array<{ x: number; y: number; age: number; life: number; size: number }> = []
+  private carves: Array<{ pts: Array<{ x: number; y: number }>; age: number; life: number }> = []
   laserTarget: { x: number; y: number; valid: boolean; radius?: number; color?: number } | null = null
   /** Pending multi-position move waypoints (fx coords) drawn as green circles. */
   routePoints: Array<{ x: number; y: number }> | null = null
@@ -650,8 +653,14 @@ export class Renderer {
     this.impacts.push({ x, y, age: 0, color })
   }
 
-  addProjectile(x0: number, y0: number, x1: number, y1: number, team: number): void {
-    this.projectiles.push({ x0, y0, x1, y1, age: 0, team })
+  /** Render-frame flight length of a cosmetic tracer: bullets snap, rockets glide, shells trundle. */
+  private static projectileDuration(kind: ProjectileKind): number {
+    return kind === 'bullet' ? 8 : kind === 'rocket' ? 14 : 16
+  }
+
+  addProjectile(x0: number, y0: number, x1: number, y1: number, team: number, kind: ProjectileKind = 'bullet'): void {
+    const carve = kind === 'shell' ? { pts: [{ x: x0, y: y0 }], age: 0, life: 0 } : null
+    this.projectiles.push({ x0, y0, x1, y1, age: 0, team, kind, carve })
   }
 
   setHoverWorld(pt: { x: number; y: number } | null): void {
@@ -826,8 +835,10 @@ export class Renderer {
 
   private drawFx(world: World, moveMarker: { x: number; y: number; until: number; color: number } | null, selection: Set<number>): void {
     this.fxGraphics.clear()
+    const gfx = getGraphics()
     for (const p of this.projectiles) {
-      const t = p.age / 10
+      const duration = Renderer.projectileDuration(p.kind)
+      const t = p.age / duration
       if (t >= 1) continue
       const alpha = 1 - t
       const cx = p.x0 + (p.x1 - p.x0) * t
@@ -839,21 +850,85 @@ export class Renderer {
         dx /= len
         dy /= len
       }
+      let seg = 110
+      let width = 2.5
+      let head = 2.2
+      if (p.kind === 'rocket') {
+        seg = 150
+        width = 4.5
+        head = 3.8
+      } else if (p.kind === 'shell') {
+        seg = 190
+        width = 6
+        head = 5
+      }
+      const size = p.kind === 'bullet' ? gfx.projectileBulletSize : p.kind === 'rocket' ? gfx.projectileRocketSize : gfx.projectileShellSize
+      width *= size
+      head *= size
       const enemy = p.team >= 0 && !world.sameTeam(this.localTeam, p.team)
-      const seg = 110
       const ax = ((cx - dx * seg) / 1000 - (cy - dy * seg) / 1000) * ISO_HALF_W
       const ay = ((cx - dx * seg) / 1000 + (cy - dy * seg) / 1000) * ISO_HALF_H
       const bx = ((cx + dx * seg) / 1000 - (cy + dy * seg) / 1000) * ISO_HALF_W
       const by = ((cx + dx * seg) / 1000 + (cy + dy * seg) / 1000) * ISO_HALF_H
       const color = enemy ? 0xff5a5a : 0xffe08a
       const core = enemy ? 0xffd0d0 : 0xfff2c8
-      this.fxGraphics.moveTo(ax, ay).lineTo(bx, by).stroke({ color, width: 2.5, alpha: alpha * 0.9 })
+      this.fxGraphics.moveTo(ax, ay).lineTo(bx, by).stroke({ color, width, alpha: alpha * 0.9 })
       const hx = ((cx + dx * (seg * 0.35)) / 1000 - (cy + dy * (seg * 0.35)) / 1000) * ISO_HALF_W
       const hy = ((cx + dx * (seg * 0.35)) / 1000 + (cy + dy * (seg * 0.35)) / 1000) * ISO_HALF_H
-      this.fxGraphics.circle(hx, hy, 2.2).fill({ color: core, alpha: alpha })
+      this.fxGraphics.circle(hx, hy, head).fill({ color: core, alpha: alpha })
+      if (p.kind === 'rocket' && this.smokePuffs.length < 160) {
+        const jitter = (): number => (Math.random() - 0.5) * 90
+        this.smokePuffs.push({ x: cx + jitter(), y: cy + jitter(), age: 0, life: 26, size: 5 * size })
+        this.smokePuffs.push({ x: cx + (Math.random() - 0.5) * 70, y: cy + (Math.random() - 0.5) * 70, age: 0, life: 30, size: 6 * size })
+      }
+      if (p.kind === 'shell') {
+        if (this.firePuffs.length < 100) {
+          this.firePuffs.push({ x: cx + (Math.random() - 0.5) * 60, y: cy + (Math.random() - 0.5) * 60, age: 0, life: 14, size: 6 * size })
+        }
+        if (p.carve && p.carve.pts.length < 40) {
+          p.carve.pts.push({ x: cx, y: cy })
+        }
+      }
       p.age++
     }
-    this.projectiles = this.projectiles.filter((p) => p.age < 10)
+    for (const p of this.projectiles) {
+      if (p.age >= Renderer.projectileDuration(p.kind) && p.kind === 'shell' && p.carve && p.carve.pts.length > 1 && this.carves.length < 200) {
+        this.carves.push({ pts: p.carve.pts, age: 0, life: gfx.carveTicks })
+      }
+    }
+    this.projectiles = this.projectiles.filter((p) => p.age < Renderer.projectileDuration(p.kind))
+    for (const c of this.carves) {
+      const t = c.age / c.life
+      if (t >= 1) continue
+      const alpha = 1 - t
+      for (let i = 1; i < c.pts.length; i++) {
+        const ax = ((c.pts[i - 1].x - c.pts[i - 1].y) / 1000) * ISO_HALF_W
+        const ay = ((c.pts[i - 1].x + c.pts[i - 1].y) / 1000) * ISO_HALF_H
+        const bx = ((c.pts[i].x - c.pts[i].y) / 1000) * ISO_HALF_W
+        const by = ((c.pts[i].x + c.pts[i].y) / 1000) * ISO_HALF_H
+        this.fxGraphics.moveTo(ax, ay).lineTo(bx, by).stroke({ color: 0x5a3a20, width: 3.5, alpha: alpha * 0.8 })
+      }
+      c.age++
+    }
+    this.carves = this.carves.filter((c) => c.age < c.life)
+    for (const s of this.smokePuffs) {
+      const t = s.age / s.life
+      if (t >= 1) continue
+      const sx = (s.x / 1000 - s.y / 1000) * ISO_HALF_W
+      const sy = (s.x / 1000 + s.y / 1000) * ISO_HALF_H
+      this.fxGraphics.circle(sx, sy, s.size * (0.5 + t * 1.4)).fill({ color: 0x9a9aa2, alpha: (1 - t) * 0.4 })
+      s.age++
+    }
+    this.smokePuffs = this.smokePuffs.filter((s) => s.age < s.life)
+    for (const f of this.firePuffs) {
+      const t = f.age / f.life
+      if (t >= 1) continue
+      const fx = (f.x / 1000 - f.y / 1000) * ISO_HALF_W
+      const fy = (f.x / 1000 + f.y / 1000) * ISO_HALF_H
+      this.fxGraphics.circle(fx, fy, f.size * (0.6 + t * 1.2)).fill({ color: 0xff9040, alpha: (1 - t) * 0.7 })
+      f.age++
+    }
+    this.firePuffs = this.firePuffs.filter((f) => f.age < f.life)
     for (const imp of this.impacts) {
       const t = imp.age / 14
       if (t >= 1) continue

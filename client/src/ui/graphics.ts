@@ -20,6 +20,14 @@ export const DEFAULT_OBSTACLE_OFFSET = 0
 export const DEFAULT_FX_SCALE = 0.5
 /** Hit-flash / burning-fire vertical shift as a fraction of the object's ground footprint size. */
 export const DEFAULT_FX_OFFSET = 0
+/** Size multiplier for the simple bullet tracer (rifle / AA / turret guns). */
+export const DEFAULT_PROJECTILE_BULLET_SIZE = 1
+/** Size multiplier for rocket-class tracers and their smoke tail. */
+export const DEFAULT_PROJECTILE_ROCKET_SIZE = 1
+/** Size multiplier for artillery shell tracers, fire tail and ground carve. */
+export const DEFAULT_PROJECTILE_SHELL_SIZE = 1
+/** How many render frames the artillery ground carve lingers after the shell hits. */
+export const DEFAULT_CARVE_TICKS = 45
 /** Zoom factor the minimap jumps to when the Map button toggles it (1 = normal size). */
 export const DEFAULT_MINIMAP_SCALE = 1.6
 /** Seconds the victory cinematic stays on screen before the results popup. */
@@ -139,6 +147,14 @@ export interface GraphicsSettings {
   fxScale: number
   /** Hit-flash / burning-fire vertical shift as a fraction of the object's ground footprint size. */
   fxOffset: number
+  /** Size multiplier for the simple bullet tracer (rifle / AA / turret guns). */
+  projectileBulletSize: number
+  /** Size multiplier for rocket-class tracers and their smoke tail. */
+  projectileRocketSize: number
+  /** Size multiplier for artillery shell tracers, fire tail and ground carve. */
+  projectileShellSize: number
+  /** How many render frames the artillery ground carve lingers after the shell hits. */
+  carveTicks: number
   /** Zoom factor for the enlargable minimap (Map button); 1 = normal size. */
   minimapScale: number
   /** Seconds the victory cinematic stays before the results popup (0 = skip). */
@@ -190,6 +206,10 @@ const load = (): GraphicsSettings => {
     hudIconSize: 20,
     fxScale: DEFAULT_FX_SCALE,
     fxOffset: DEFAULT_FX_OFFSET,
+    projectileBulletSize: DEFAULT_PROJECTILE_BULLET_SIZE,
+    projectileRocketSize: DEFAULT_PROJECTILE_ROCKET_SIZE,
+    projectileShellSize: DEFAULT_PROJECTILE_SHELL_SIZE,
+    carveTicks: DEFAULT_CARVE_TICKS,
     minimapScale: DEFAULT_MINIMAP_SCALE,
     victoryCinematicSec: DEFAULT_VICTORY_CINEMATIC,
     zoomMin: DEFAULT_ZOOM_MIN,
@@ -268,6 +288,18 @@ const load = (): GraphicsSettings => {
       }
       if (parsed && typeof parsed.fxOffset === 'number' && Number.isFinite(parsed.fxOffset)) {
         base.fxOffset = Math.max(-2, Math.min(2, parsed.fxOffset))
+      }
+      if (parsed && typeof parsed.projectileBulletSize === 'number' && Number.isFinite(parsed.projectileBulletSize)) {
+        base.projectileBulletSize = Math.max(0.2, Math.min(4, parsed.projectileBulletSize))
+      }
+      if (parsed && typeof parsed.projectileRocketSize === 'number' && Number.isFinite(parsed.projectileRocketSize)) {
+        base.projectileRocketSize = Math.max(0.2, Math.min(4, parsed.projectileRocketSize))
+      }
+      if (parsed && typeof parsed.projectileShellSize === 'number' && Number.isFinite(parsed.projectileShellSize)) {
+        base.projectileShellSize = Math.max(0.2, Math.min(4, parsed.projectileShellSize))
+      }
+      if (parsed && typeof parsed.carveTicks === 'number' && Number.isFinite(parsed.carveTicks)) {
+        base.carveTicks = Math.max(0, Math.min(240, Math.round(parsed.carveTicks)))
       }
       if (parsed && typeof parsed.minimapScale === 'number' && Number.isFinite(parsed.minimapScale)) {
         base.minimapScale = Math.max(1.2, Math.min(4, parsed.minimapScale))
@@ -425,6 +457,26 @@ export const setFxScale = (v: number): void => {
 
 export const setFxOffset = (v: number): void => {
   state.fxOffset = Math.max(-2, Math.min(2, v))
+  save(state)
+}
+
+export const setProjectileBulletSize = (v: number): void => {
+  state.projectileBulletSize = Math.max(0.2, Math.min(4, v))
+  save(state)
+}
+
+export const setProjectileRocketSize = (v: number): void => {
+  state.projectileRocketSize = Math.max(0.2, Math.min(4, v))
+  save(state)
+}
+
+export const setProjectileShellSize = (v: number): void => {
+  state.projectileShellSize = Math.max(0.2, Math.min(4, v))
+  save(state)
+}
+
+export const setCarveTicks = (v: number): void => {
+  state.carveTicks = Math.max(0, Math.min(240, Math.round(v)))
   save(state)
 }
 

@@ -13,7 +13,7 @@ import { createPlayerRow } from './ui/player-row.ts'
 import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
 import { initControlsSettings } from './ui/controls-settings.ts'
 import { preloadFxFrames } from './render/building-sprites.ts'
-import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setFieldScale, setObstacleScale, setObstacleOffset, setUnitScale, setUnitOffset, setAssetPath, setFxScale, setFxOffset, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, setSpriteLayerOrder, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_FIELD_SCALE, DEFAULT_OBSTACLE_SCALE, DEFAULT_OBSTACLE_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_UNIT_OFFSET, DEFAULT_FX_SCALE, DEFAULT_FX_OFFSET, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, DEFAULT_SPRITE_LAYER_ORDER, SPRITE_LAYER_KINDS, UNIT_ASSET_IDS, HUD_ASSET_IDS, OBSTACLE_ASSET_TYPES, reloadGraphics } from './ui/graphics.ts'
+import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setFieldScale, setObstacleScale, setObstacleOffset, setUnitScale, setUnitOffset, setAssetPath, setFxScale, setFxOffset, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, setSpriteLayerOrder, setProjectileBulletSize, setProjectileRocketSize, setProjectileShellSize, setCarveTicks, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_FIELD_SCALE, DEFAULT_OBSTACLE_SCALE, DEFAULT_OBSTACLE_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_UNIT_OFFSET, DEFAULT_FX_SCALE, DEFAULT_FX_OFFSET, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, DEFAULT_SPRITE_LAYER_ORDER, DEFAULT_PROJECTILE_BULLET_SIZE, DEFAULT_PROJECTILE_ROCKET_SIZE, DEFAULT_PROJECTILE_SHELL_SIZE, DEFAULT_CARVE_TICKS, SPRITE_LAYER_KINDS, UNIT_ASSET_IDS, HUD_ASSET_IDS, OBSTACLE_ASSET_TYPES, reloadGraphics } from './ui/graphics.ts'
 import { getAudio, setOverride, setTuning, reloadAudio, TUNING_VOL_MAX, TUNING_PITCH_MIN, TUNING_PITCH_MAX, type SoundId } from './audio/settings.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
 import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, saveCustomMap, seedLibraryFromBundledMaps, type MapEntry } from './mapbuilder/library.ts'
@@ -3234,6 +3234,67 @@ const buildDevForm = (): void => {
     Math.abs(g.replayZoomMax - DEFAULT_REPLAY_ZOOM_MAX) >= 1e-9,
     (v) => {
       setReplayZoomMax(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  appendDevSection(t('dev.sections.projectileFx'))
+  makeNumberInput(
+    t('dev.fields.projectileBulletSize.label'),
+    t('dev.fields.projectileBulletSize.desc'),
+    devUnit('x'),
+    g.projectileBulletSize,
+    DEFAULT_PROJECTILE_BULLET_SIZE,
+    0.2,
+    4,
+    0.1,
+    Math.abs(g.projectileBulletSize - DEFAULT_PROJECTILE_BULLET_SIZE) >= 1e-9,
+    (v) => {
+      setProjectileBulletSize(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  makeNumberInput(
+    t('dev.fields.projectileRocketSize.label'),
+    t('dev.fields.projectileRocketSize.desc'),
+    devUnit('x'),
+    g.projectileRocketSize,
+    DEFAULT_PROJECTILE_ROCKET_SIZE,
+    0.2,
+    4,
+    0.1,
+    Math.abs(g.projectileRocketSize - DEFAULT_PROJECTILE_ROCKET_SIZE) >= 1e-9,
+    (v) => {
+      setProjectileRocketSize(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  makeNumberInput(
+    t('dev.fields.projectileShellSize.label'),
+    t('dev.fields.projectileShellSize.desc'),
+    devUnit('x'),
+    g.projectileShellSize,
+    DEFAULT_PROJECTILE_SHELL_SIZE,
+    0.2,
+    4,
+    0.1,
+    Math.abs(g.projectileShellSize - DEFAULT_PROJECTILE_SHELL_SIZE) >= 1e-9,
+    (v) => {
+      setProjectileShellSize(v)
+      setDevStatus(t('dev.status.saved'))
+    },
+  )
+  makeNumberInput(
+    t('dev.fields.carveTicks.label'),
+    t('dev.fields.carveTicks.desc'),
+    devUnit('sec'),
+    g.carveTicks / 60,
+    DEFAULT_CARVE_TICKS / 60,
+    0,
+    12,
+    0.5,
+    Math.abs(g.carveTicks - DEFAULT_CARVE_TICKS) >= 1e-9,
+    (v) => {
+      setCarveTicks(Math.round(v * 60))
       setDevStatus(t('dev.status.saved'))
     },
   )

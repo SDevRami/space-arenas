@@ -1,4 +1,4 @@
-import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, PROTOCOL_VERSION, replayDateLabel, defaultReplayName, mergeMatchSettings, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type ReplayData, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, getWeapon, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, PROTOCOL_VERSION, replayDateLabel, defaultReplayName, mergeMatchSettings, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type ReplayData, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
 import { World, placementExplored, type WorldGrid } from '../core/world.ts'
 import { Simulator } from '../core/Simulator.ts'
 import { GameLoop } from '../core/loop.ts'
@@ -1446,12 +1446,12 @@ export class Game {
       const msg = this.describeEvent(e)
       if (msg) this.hud.log(msg)
       if (e.type === 'shot-fired') {
+        const atkW = world.attacks.get(e.attacker)
         if (gfx.effects.effects) {
           renderer.addImpact(e.x, e.y)
           const at = world.transforms.get(e.attacker)
-          if (at) renderer.addProjectile(at.x, at.y, e.x, e.y, e.team)
+          if (at) renderer.addProjectile(at.x, at.y, e.x, e.y, e.team, atkW ? getWeapon(atkW.weaponId, world.settings).projectile ?? 'bullet' : 'bullet')
         }
-        const atkW = world.attacks.get(e.attacker)
         if (atkW) this.audio.playWeaponSfx(atkW.weaponId, e.x, e.y)
       }
       if (e.type === 'airstrike-bomb') {
