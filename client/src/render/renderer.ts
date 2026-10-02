@@ -872,7 +872,7 @@ export class Renderer {
         x: ((fx - fy) / 1000) * ISO_HALF_W,
         y: ((fx + fy) / 1000) * ISO_HALF_H - liftPx,
       })
-      const apex = p.kind === 'shell' ? Math.max(5, Math.min(20, (len / 1000) * 3.5)) : 0
+      const apex = p.kind === 'shell' ? gfx.projectileShellHeight : 0
       if (p.kind === 'shell') {
         const distFrac = len > 0 ? seg / len : 0
         const u0 = Math.max(0, t - distFrac * 0.5)
@@ -880,19 +880,9 @@ export class Renderer {
         const lift = (u: number): number => apex * 4 * u * (1 - u)
         const fxAt = (u: number): number => p.x0 + (p.x1 - p.x0) * u
         const fyAt = (u: number): number => p.y0 + (p.y1 - p.y0) * u
-        const samples = 8
-        let first = true
-        for (let i = 0; i <= samples; i++) {
-          const u = u0 + ((u1 - u0) * i) / samples
-          const pt = proj(fxAt(u), fyAt(u), lift(u))
-          if (first) {
-            this.fxGraphics.moveTo(pt.x, pt.y)
-            first = false
-          } else {
-            this.fxGraphics.lineTo(pt.x, pt.y)
-          }
-        }
-        this.fxGraphics.stroke({ color, width, alpha: alpha * 0.9 })
+        const a = proj(fxAt(u0), fyAt(u0))
+        const b = proj(fxAt(u1), fyAt(u1))
+        this.fxGraphics.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color, width, alpha: alpha * 0.9 })
         const uh = Math.min(1, t + distFrac * 0.3)
         const hp = proj(fxAt(uh), fyAt(uh), lift(uh))
         this.fxGraphics.circle(hp.x, hp.y, head).fill({ color: core, alpha: alpha })

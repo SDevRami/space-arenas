@@ -1031,6 +1031,7 @@
       "projectileRocketSize": { "label": "Rocket tracer size", "desc": "Size of rocket/missile tracers and their smoke tail (rockets, air cannons, sea missiles)" },
       "projectileShellSize": { "label": "Shell tracer size", "desc": "Size of artillery shell tracers, their fire tail, and ground carve" },
       "carveTicks": { "label": "Ground carve duration", "desc": "Seconds the charred ground trail left by artillery shells lingers after impact (synced to the shell hit)" },
+      "projectileShellHeight": { "label": "Shell arch height", "desc": "How many pixels above the ground line artillery shells arch (peak of the flight arc)" },
       "replayZoomMax": { "label": "Replay zoom-in ceiling", "desc": "Largest camera zoom (closest in) allowed in replays and spectating" },
       "unitScale": {
         "desc": "Size multiplier applied to that unit class's sprite — both high-quality directional images and vector shapes (applies live)",
@@ -1099,6 +1100,7 @@
       "nodes": "nodes",
       "score": "score",
       "kills": "kills",
+      "px": "px",
       "default": "Default: {v}"
     },
     "status": {

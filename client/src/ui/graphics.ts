@@ -28,6 +28,8 @@ export const DEFAULT_PROJECTILE_ROCKET_SIZE = 1
 export const DEFAULT_PROJECTILE_SHELL_SIZE = 1
 /** How many render frames the artillery ground carve lingers after the shell hits. */
 export const DEFAULT_CARVE_TICKS = 45
+/** Peak height in px that artillery shells arch to above the ground line (0 = flat). */
+export const DEFAULT_PROJECTILE_SHELL_HEIGHT = 14
 /** Zoom factor the minimap jumps to when the Map button toggles it (1 = normal size). */
 export const DEFAULT_MINIMAP_SCALE = 1.6
 /** Seconds the victory cinematic stays on screen before the results popup. */
@@ -155,6 +157,8 @@ export interface GraphicsSettings {
   projectileShellSize: number
   /** How many render frames the artillery ground carve lingers after the shell hits. */
   carveTicks: number
+  /** Peak height in px that artillery shells arch to above the ground line (0 = flat). */
+  projectileShellHeight: number
   /** Zoom factor for the enlargable minimap (Map button); 1 = normal size. */
   minimapScale: number
   /** Seconds the victory cinematic stays before the results popup (0 = skip). */
@@ -210,6 +214,7 @@ const load = (): GraphicsSettings => {
     projectileRocketSize: DEFAULT_PROJECTILE_ROCKET_SIZE,
     projectileShellSize: DEFAULT_PROJECTILE_SHELL_SIZE,
     carveTicks: DEFAULT_CARVE_TICKS,
+    projectileShellHeight: DEFAULT_PROJECTILE_SHELL_HEIGHT,
     minimapScale: DEFAULT_MINIMAP_SCALE,
     victoryCinematicSec: DEFAULT_VICTORY_CINEMATIC,
     zoomMin: DEFAULT_ZOOM_MIN,
@@ -300,6 +305,9 @@ const load = (): GraphicsSettings => {
       }
       if (parsed && typeof parsed.carveTicks === 'number' && Number.isFinite(parsed.carveTicks)) {
         base.carveTicks = Math.max(0, Math.min(240, Math.round(parsed.carveTicks)))
+      }
+      if (parsed && typeof parsed.projectileShellHeight === 'number' && Number.isFinite(parsed.projectileShellHeight)) {
+        base.projectileShellHeight = Math.max(0, Math.min(60, Math.round(parsed.projectileShellHeight)))
       }
       if (parsed && typeof parsed.minimapScale === 'number' && Number.isFinite(parsed.minimapScale)) {
         base.minimapScale = Math.max(1.2, Math.min(4, parsed.minimapScale))
@@ -477,6 +485,11 @@ export const setProjectileShellSize = (v: number): void => {
 
 export const setCarveTicks = (v: number): void => {
   state.carveTicks = Math.max(0, Math.min(240, Math.round(v)))
+  save(state)
+}
+
+export const setProjectileShellHeight = (v: number): void => {
+  state.projectileShellHeight = Math.max(0, Math.min(60, Math.round(v)))
   save(state)
 }
 
