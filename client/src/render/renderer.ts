@@ -866,24 +866,50 @@ export class Renderer {
       width *= size
       head *= size
       const enemy = p.team >= 0 && !world.sameTeam(this.localTeam, p.team)
-      const ax = ((cx - dx * seg) / 1000 - (cy - dy * seg) / 1000) * ISO_HALF_W
-      const ay = ((cx - dx * seg) / 1000 + (cy - dy * seg) / 1000) * ISO_HALF_H
-      const bx = ((cx + dx * seg) / 1000 - (cy + dy * seg) / 1000) * ISO_HALF_W
-      const by = ((cx + dx * seg) / 1000 + (cy + dy * seg) / 1000) * ISO_HALF_H
       const color = enemy ? 0xff5a5a : 0xffe08a
       const core = enemy ? 0xffd0d0 : 0xfff2c8
-      this.fxGraphics.moveTo(ax, ay).lineTo(bx, by).stroke({ color, width, alpha: alpha * 0.9 })
-      const hx = ((cx + dx * (seg * 0.35)) / 1000 - (cy + dy * (seg * 0.35)) / 1000) * ISO_HALF_W
-      const hy = ((cx + dx * (seg * 0.35)) / 1000 + (cy + dy * (seg * 0.35)) / 1000) * ISO_HALF_H
-      this.fxGraphics.circle(hx, hy, head).fill({ color: core, alpha: alpha })
+      const proj = (fx: number, fy: number, liftPx = 0): { x: number; y: number } => ({
+        x: ((fx - fy) / 1000) * ISO_HALF_W,
+        y: ((fx + fy) / 1000) * ISO_HALF_H - liftPx,
+      })
+      if (p.kind === 'shell') {
+        const distFrac = len > 0 ? seg / len : 0
+        const u0 = Math.max(0, t - distFrac * 0.5)
+        const u1 = Math.min(1, t + distFrac * 0.5)
+        const apex = Math.max(10, Math.min(120, (len / 1000) * 26))
+        const lift = (u: number): number => apex * 4 * u * (1 - u)
+        const fxAt = (u: number): number => p.x0 + (p.x1 - p.x0) * u
+        const fyAt = (u: number): number => p.y0 + (p.y1 - p.y0) * u
+        const samples = 8
+        let first = true
+        for (let i = 0; i <= samples; i++) {
+          const u = u0 + ((u1 - u0) * i) / samples
+          const pt = proj(fxAt(u), fyAt(u), lift(u))
+          if (first) {
+            this.fxGraphics.moveTo(pt.x, pt.y)
+            first = false
+          } else {
+            this.fxGraphics.lineTo(pt.x, pt.y)
+          }
+        }
+        this.fxGraphics.stroke({ color, width, alpha: alpha * 0.9 })
+        const uh = Math.min(1, t + distFrac * 0.3)
+        const hp = proj(fxAt(uh), fyAt(uh), lift(uh))
+        this.fxGraphics.circle(hp.x, hp.y, head).fill({ color: core, alpha: alpha })
+      } else {
+        const a = proj(cx - dx * seg, cy - dy * seg)
+        const b = proj(cx + dx * seg, cy + dy * seg)
+        this.fxGraphics.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color, width, alpha: alpha * 0.9 })
+        const h = proj(cx + dx * (seg * 0.35), cy + dy * (seg * 0.35))
+        this.fxGraphics.circle(h.x, h.y, head).fill({ color: core, alpha: alpha })
+      }
       if (p.kind === 'rocket' && this.smokePuffs.length < 160) {
-        const jitter = (): number => (Math.random() - 0.5) * 90
-        this.smokePuffs.push({ x: cx + jitter(), y: cy + jitter(), age: 0, life: 26, size: 5 * size })
-        this.smokePuffs.push({ x: cx + (Math.random() - 0.5) * 70, y: cy + (Math.random() - 0.5) * 70, age: 0, life: 30, size: 6 * size })
+        const jitter = (): number => (Math.random() - 0.5) * 70
+        this.smokePuffs.push({ x: cx + jitter(), y: cy + jitter(), age: 0, life: 14, size: 3.2 * size })
       }
       if (p.kind === 'shell') {
         if (this.firePuffs.length < 100) {
-          this.firePuffs.push({ x: cx + (Math.random() - 0.5) * 60, y: cy + (Math.random() - 0.5) * 60, age: 0, life: 14, size: 6 * size })
+          this.firePuffs.push({ x: cx + (Math.random() - 0.5) * 50, y: cy + (Math.random() - 0.5) * 50, age: 0, life: 8, size: 5 * size })
         }
         if (p.carve && p.carve.pts.length < 40) {
           p.carve.pts.push({ x: cx, y: cy })
