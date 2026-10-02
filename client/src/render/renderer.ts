@@ -139,8 +139,8 @@ export class Renderer {
   private rangeRingG = new Graphics()
   private impacts: Array<{ x: number; y: number; age: number; color?: number }> = []
   private projectiles: Array<{ x0: number; y0: number; x1: number; y1: number; age: number; team: number; kind: ProjectileKind; carve: { pts: Array<{ x: number; y: number }>; age: number; life: number } | null }> = []
-  private smokePuffs: Array<{ x: number; y: number; age: number; life: number; size: number }> = []
-  private firePuffs: Array<{ x: number; y: number; age: number; life: number; size: number }> = []
+  private smokePuffs: Array<{ x: number; y: number; age: number; life: number; size: number; lift: number }> = []
+  private firePuffs: Array<{ x: number; y: number; age: number; life: number; size: number; lift: number }> = []
   private carves: Array<{ pts: Array<{ x: number; y: number }>; age: number; life: number }> = []
   laserTarget: { x: number; y: number; valid: boolean; radius?: number; color?: number } | null = null
   /** Pending multi-position move waypoints (fx coords) drawn as green circles. */
@@ -872,11 +872,11 @@ export class Renderer {
         x: ((fx - fy) / 1000) * ISO_HALF_W,
         y: ((fx + fy) / 1000) * ISO_HALF_H - liftPx,
       })
+      const apex = p.kind === 'shell' ? Math.max(5, Math.min(20, (len / 1000) * 3.5)) : 0
       if (p.kind === 'shell') {
         const distFrac = len > 0 ? seg / len : 0
         const u0 = Math.max(0, t - distFrac * 0.5)
         const u1 = Math.min(1, t + distFrac * 0.5)
-        const apex = Math.max(10, Math.min(120, (len / 1000) * 26))
         const lift = (u: number): number => apex * 4 * u * (1 - u)
         const fxAt = (u: number): number => p.x0 + (p.x1 - p.x0) * u
         const fyAt = (u: number): number => p.y0 + (p.y1 - p.y0) * u
@@ -905,11 +905,12 @@ export class Renderer {
       }
       if (p.kind === 'rocket' && this.smokePuffs.length < 160) {
         const jitter = (): number => (Math.random() - 0.5) * 70
-        this.smokePuffs.push({ x: cx + jitter(), y: cy + jitter(), age: 0, life: 14, size: 3.2 * size })
+        this.smokePuffs.push({ x: cx + jitter(), y: cy + jitter(), age: 0, life: 14, size: 3.2 * size, lift: 0 })
       }
       if (p.kind === 'shell') {
         if (this.firePuffs.length < 100) {
-          this.firePuffs.push({ x: cx + (Math.random() - 0.5) * 50, y: cy + (Math.random() - 0.5) * 50, age: 0, life: 8, size: 5 * size })
+          const shellLift = apex * 4 * t * (1 - t)
+          this.firePuffs.push({ x: cx + (Math.random() - 0.5) * 50, y: cy + (Math.random() - 0.5) * 50, age: 0, life: 8, size: 5 * size, lift: shellLift })
         }
         if (p.carve && p.carve.pts.length < 40) {
           p.carve.pts.push({ x: cx, y: cy })
@@ -941,7 +942,7 @@ export class Renderer {
       const t = s.age / s.life
       if (t >= 1) continue
       const sx = (s.x / 1000 - s.y / 1000) * ISO_HALF_W
-      const sy = (s.x / 1000 + s.y / 1000) * ISO_HALF_H
+      const sy = (s.x / 1000 + s.y / 1000) * ISO_HALF_H - s.lift
       this.fxGraphics.circle(sx, sy, s.size * (0.5 + t * 1.4)).fill({ color: 0x9a9aa2, alpha: (1 - t) * 0.4 })
       s.age++
     }
@@ -950,7 +951,7 @@ export class Renderer {
       const t = f.age / f.life
       if (t >= 1) continue
       const fx = (f.x / 1000 - f.y / 1000) * ISO_HALF_W
-      const fy = (f.x / 1000 + f.y / 1000) * ISO_HALF_H
+      const fy = (f.x / 1000 + f.y / 1000) * ISO_HALF_H - f.lift
       this.fxGraphics.circle(fx, fy, f.size * (0.6 + t * 1.2)).fill({ color: 0xff9040, alpha: (1 - t) * 0.7 })
       f.age++
     }
