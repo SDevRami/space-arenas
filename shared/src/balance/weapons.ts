@@ -10,7 +10,7 @@ export interface WeaponDef {
   range: number
   splash?: number
   targetsAir?: boolean
-  /** Visual projectile kind: simple tracer (bullet), fire-and-smoke rocket, or heavy shell with a ground carve. */
+  /** Visual projectile kind: simple tracer (bullet), fire-and-smoke rocket, or arched heavy shell. */
   projectile?: ProjectileKind
 }
 

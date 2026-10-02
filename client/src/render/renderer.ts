@@ -138,10 +138,9 @@ export class Renderer {
   private ghostOutline = new Graphics()
   private rangeRingG = new Graphics()
   private impacts: Array<{ x: number; y: number; age: number; color?: number }> = []
-  private projectiles: Array<{ x0: number; y0: number; x1: number; y1: number; age: number; team: number; kind: ProjectileKind; carve: { pts: Array<{ x: number; y: number }>; age: number; life: number } | null }> = []
+  private projectiles: Array<{ x0: number; y0: number; x1: number; y1: number; age: number; team: number; kind: ProjectileKind }> = []
   private smokePuffs: Array<{ x: number; y: number; age: number; life: number; size: number; lift: number }> = []
   private firePuffs: Array<{ x: number; y: number; age: number; life: number; size: number; lift: number }> = []
-  private carves: Array<{ pts: Array<{ x: number; y: number }>; age: number; life: number }> = []
   laserTarget: { x: number; y: number; valid: boolean; radius?: number; color?: number } | null = null
   /** Pending multi-position move waypoints (fx coords) drawn as green circles. */
   routePoints: Array<{ x: number; y: number }> | null = null
@@ -659,8 +658,7 @@ export class Renderer {
   }
 
   addProjectile(x0: number, y0: number, x1: number, y1: number, team: number, kind: ProjectileKind = 'bullet'): void {
-    const carve = kind === 'shell' ? { pts: [{ x: x0, y: y0 }], age: 0, life: 0 } : null
-    this.projectiles.push({ x0, y0, x1, y1, age: 0, team, kind, carve })
+    this.projectiles.push({ x0, y0, x1, y1, age: 0, team, kind })
   }
 
   setHoverWorld(pt: { x: number; y: number } | null): void {
@@ -899,32 +897,10 @@ export class Renderer {
           const shellLift = apex * 4 * t * (1 - t)
           this.firePuffs.push({ x: cx + (Math.random() - 0.5) * 50, y: cy + (Math.random() - 0.5) * 50, age: 0, life: 8, size: 5 * size, lift: shellLift })
         }
-        if (p.carve && p.carve.pts.length < 40) {
-          p.carve.pts.push({ x: cx, y: cy })
-        }
       }
       p.age++
     }
-    for (const p of this.projectiles) {
-      if (p.age >= Renderer.projectileDuration(p.kind) && p.kind === 'shell' && p.carve && p.carve.pts.length > 1 && this.carves.length < 200) {
-        this.carves.push({ pts: p.carve.pts, age: 0, life: gfx.carveTicks })
-      }
-    }
     this.projectiles = this.projectiles.filter((p) => p.age < Renderer.projectileDuration(p.kind))
-    for (const c of this.carves) {
-      const t = c.age / c.life
-      if (t >= 1) continue
-      const alpha = 1 - t
-      for (let i = 1; i < c.pts.length; i++) {
-        const ax = ((c.pts[i - 1].x - c.pts[i - 1].y) / 1000) * ISO_HALF_W
-        const ay = ((c.pts[i - 1].x + c.pts[i - 1].y) / 1000) * ISO_HALF_H
-        const bx = ((c.pts[i].x - c.pts[i].y) / 1000) * ISO_HALF_W
-        const by = ((c.pts[i].x + c.pts[i].y) / 1000) * ISO_HALF_H
-        this.fxGraphics.moveTo(ax, ay).lineTo(bx, by).stroke({ color: 0x5a3a20, width: 3.5, alpha: alpha * 0.8 })
-      }
-      c.age++
-    }
-    this.carves = this.carves.filter((c) => c.age < c.life)
     for (const s of this.smokePuffs) {
       const t = s.age / s.life
       if (t >= 1) continue
