@@ -177,9 +177,10 @@ const EN = {
   'feat.fairplay.title': 'Fair play',
   'feat.fairplay.text': 'Settings are verified on ranked matches, tampered clients get flagged, and replay files keep every match accountable.',
   'howto.catalog.title': 'The game catalog',
-  'howto.catalog.subtitle': 'Buildings, units, weapons and upgrades — the full roster exactly as shipped.',
+  'howto.catalog.subtitle': 'Buildings, units, scenery, weapons and upgrades — the full roster exactly as shipped.',
   'cat.buildings': 'Buildings',
   'cat.units': 'Units',
+  'cat.scenery': 'Scenery & Objects',
   'cat.weapons': 'Weapons',
   'cat.upgrades': 'Upgrades',
   'cls.infantry': 'Infantry',
@@ -215,6 +216,14 @@ const EN = {
   'u.th.time': 'Research time',
   'u.th.at': 'Building',
   'u.th.rank': 'Rank',
+  'cat.scenery.rock.name': 'Rock',
+  'cat.scenery.rock.desc': 'Impassable terrain that blocks movement and line of fire.',
+  'cat.scenery.tree.name': 'Tree',
+  'cat.scenery.tree.desc': 'Scenery that slows units moving through it.',
+  'cat.scenery.wreck.name': 'Wreck',
+  'cat.scenery.wreck.desc': 'Destroyed vehicle remains — cover for infantry, blocking for vehicles.',
+  'cat.scenery.mine.name': 'Mine',
+  'cat.scenery.mine.desc': 'Explodes on contact, damaging anything that steps on it.',
   'cat.units.bulldozer.name': 'Bulldozer',
   'cat.units.bulldozer.role': 'Builds and repairs your base and buildings.',
   'cat.units.harvester.name': 'Harvester',
@@ -477,6 +486,7 @@ const AR = {
   'howto.catalog.subtitle': 'المباني والوحدات والأسلحة والترقيات — الكتالوج الكامل كما صدرت اللعبة.',
   'cat.buildings': 'المباني',
   'cat.units': 'الوحدات',
+  'cat.scenery': 'التضاريس والأشياء',
   'cat.weapons': 'الأسلحة',
   'cat.upgrades': 'الترقيات',
   'cls.infantry': 'مشاة',
@@ -512,6 +522,14 @@ const AR = {
   'u.th.time': 'مدة البحث',
   'u.th.at': 'المبنى',
   'u.th.rank': 'الرتبة',
+  'cat.scenery.rock.name': 'صخرة',
+  'cat.scenery.rock.desc': 'تضاريس غير قابلة للعبور تمنع الحركة وخط النار.',
+  'cat.scenery.tree.name': 'شجرة',
+  'cat.scenery.tree.desc': 'تضاريس تُبطئ الوحدات التي تتحرك خلالها.',
+  'cat.scenery.wreck.name': 'حطام',
+  'cat.scenery.wreck.desc': 'بقايا مركبة مدمّرة — غطاء للمشاة وحاجز للمركبات.',
+  'cat.scenery.mine.name': 'لغم',
+  'cat.scenery.mine.desc': 'ينفجر عند التلامس ويضر بأي شيء يخطو عليه.',
   'cat.units.bulldozer.name': 'الجرّافة',
   'cat.units.bulldozer.role': 'يبني ويصلح قاعدتك ومبانيك.',
   'cat.units.harvester.name': 'الحاصدة',
@@ -613,32 +631,38 @@ const LANGS = { en: EN, ar: AR }
 
 const CATALOG = {
   units: [
-    { id: 'bulldozer', cls: 'vehicle', cost: 100, s: 5, hp: 300, vis: 4, spd: 55, prod: 'command-center', img: './img/units/bulldozer.png' },
-    { id: 'harvester', cls: 'vehicle', cost: 0, s: 8, hp: 600, vis: 4, spd: 60, prod: 'supply-dock', img: './img/units/harvester.png' },
-    { id: 'scout', cls: 'infantry', cost: 50, s: 5, hp: 100, vis: 10, spd: 120, prod: 'barracks', img: null },
-    { id: 'rifleman', cls: 'infantry', cost: 100, s: 10, hp: 200, vis: 6, spd: 90, prod: 'barracks', w: 'rifle', img: null },
-    { id: 'rocket-trooper', cls: 'infantry', cost: 150, s: 12, hp: 150, vis: 6, spd: 80, prod: 'barracks', w: 'rocket', img: null },
-    { id: 'assault-walker', cls: 'vehicle', cost: 250, s: 15, hp: 400, vis: 8, spd: 72, prod: 'war-factory', w: 'cannon', img: './img/units/assault-walker.png' },
-    { id: 'aa-platform', cls: 'vehicle', cost: 300, s: 18, hp: 350, vis: 8, spd: 68, prod: 'war-factory', w: 'aa', img: './img/units/aa-platform.png' },
-    { id: 'artillery', cls: 'vehicle', cost: 350, s: 22, hp: 250, vis: 9, spd: 48, prod: 'war-factory', w: 'artillery', img: './img/units/artillery.png' },
-    { id: 'engineer', cls: 'vehicle', cost: 150, s: 12, hp: 150, vis: 6, spd: 90, prod: 'war-factory', img: './img/units/engineer.png' },
-    { id: 'apc', cls: 'vehicle', cost: 200, s: 10, hp: 250, vis: 7, spd: 78, prod: 'war-factory', cap: 10, img: './img/units/apc.png' },
-    { id: 'fighter', cls: 'air', cost: 200, s: 15, hp: 150, vis: 8, spd: 130, prod: 'air-force', w: 'air-cannon', cap: 3, ammo: 2, img: './img/units/fighter.png' },
-    { id: 'carrier', cls: 'naval', cost: 600, s: 35, hp: 900, vis: 8, spd: 55, prod: 'dock', cap: 12, img: './img/units/carrier.png' },
-    { id: 'missile-boat', cls: 'naval', cost: 350, s: 20, hp: 320, vis: 8, spd: 80, prod: 'dock', w: 'sea-missile', img: './img/units/missile-boat.png' },
+    { id: 'bulldozer', cls: 'vehicle', cost: 100, s: 5, hp: 300, vis: 4, spd: 55, prod: 'command-center', img: './img/hud/hud_v_b.png' },
+    { id: 'harvester', cls: 'vehicle', cost: 0, s: 8, hp: 600, vis: 4, spd: 60, prod: 'supply-dock', img: './img/hud/hud_v_h.png' },
+    { id: 'scout', cls: 'infantry', cost: 50, s: 5, hp: 100, vis: 10, spd: 120, prod: 'barracks', img: './img/hud/hud_t_s.png' },
+    { id: 'rifleman', cls: 'infantry', cost: 100, s: 10, hp: 200, vis: 6, spd: 90, prod: 'barracks', w: 'rifle', img: './img/hud/hud_t_r.png' },
+    { id: 'rocket-trooper', cls: 'infantry', cost: 150, s: 12, hp: 150, vis: 6, spd: 80, prod: 'barracks', w: 'rocket', img: './img/hud/hud_t_l.png' },
+    { id: 'assault-walker', cls: 'vehicle', cost: 250, s: 15, hp: 400, vis: 8, spd: 72, prod: 'war-factory', w: 'cannon', img: './img/hud/hud_v_aw.png' },
+    { id: 'aa-platform', cls: 'vehicle', cost: 300, s: 18, hp: 350, vis: 8, spd: 68, prod: 'war-factory', w: 'aa', img: './img/hud/hud_v_aa.png' },
+    { id: 'artillery', cls: 'vehicle', cost: 350, s: 22, hp: 250, vis: 9, spd: 48, prod: 'war-factory', w: 'artillery', img: './img/hud/hud_v_a.png' },
+    { id: 'engineer', cls: 'vehicle', cost: 150, s: 12, hp: 150, vis: 6, spd: 90, prod: 'war-factory', img: './img/hud/hud_v_e.png' },
+    { id: 'apc', cls: 'vehicle', cost: 200, s: 10, hp: 250, vis: 7, spd: 78, prod: 'war-factory', cap: 10, img: './img/hud/hud_v_at.png' },
+    { id: 'fighter', cls: 'air', cost: 200, s: 15, hp: 150, vis: 8, spd: 130, prod: 'air-force', w: 'air-cannon', cap: 3, ammo: 2, img: './img/hud/hud_v_f.png' },
+    { id: 'carrier', cls: 'naval', cost: 600, s: 35, hp: 900, vis: 8, spd: 55, prod: 'dock', cap: 12, img: './img/hud/hud_v_c.png' },
+    { id: 'missile-boat', cls: 'naval', cost: 350, s: 20, hp: 320, vis: 8, spd: 80, prod: 'dock', w: 'sea-missile', img: './img/hud/hud_v_mb.png' },
   ],
   buildings: [
-    { id: 'command-center', cost: 500, s: 30, hp: 2000, pGen: 10, pUse: 0, produces: 'bulldozer', img: './img/buildings/command-center.png' },
-    { id: 'power-plant', cost: 200, s: 20, hp: 800, pGen: 50, pUse: 0, img: './img/buildings/power-plant.png' },
-    { id: 'supply-dock', cost: 300, s: 20, hp: 800, pGen: 0, pUse: 5, produces: 'harvester', img: './img/buildings/supply-dock.png' },
-    { id: 'barracks', cost: 200, s: 20, hp: 600, pGen: 0, pUse: 5, produces: 'rifleman', img: './img/buildings/barracks.png' },
-    { id: 'war-factory', cost: 400, s: 30, hp: 900, pGen: 0, pUse: 10, produces: 'assault-walker', img: './img/buildings/war-factory.png' },
-    { id: 'turret', cost: 150, s: 15, hp: 500, pGen: 0, pUse: 5, w: 'turret-gun', img: './img/buildings/turret.png' },
-    { id: 'tech-center', cost: 500, s: 40, hp: 700, pGen: 0, pUse: 10, img: './img/buildings/tech-center.png' },
-    { id: 'air-force', cost: 500, s: 25, hp: 900, pGen: 0, pUse: 15, produces: 'fighter', img: './img/buildings/air-force.png' },
-    { id: 'super-weapon', cost: 1500, s: 45, hp: 1500, pGen: 0, pUse: 100, img: './img/buildings/super-weapon.png' },
-    { id: 'bunker', cost: 250, s: 20, hp: 700, pGen: 0, pUse: 5, w: 'bunker-gun', garrison: 5, img: './img/buildings/bunker.png' },
-    { id: 'dock', cost: 400, s: 30, hp: 900, pGen: 0, pUse: 10, produces: 'carrier', img: './img/buildings/dock.png' },
+    { id: 'command-center', cost: 500, s: 30, hp: 2000, pGen: 10, pUse: 0, produces: 'bulldozer', img: './img/hud/hud_cc.png' },
+    { id: 'power-plant', cost: 200, s: 20, hp: 800, pGen: 50, pUse: 0, img: './img/hud/hud_pp.png' },
+    { id: 'supply-dock', cost: 300, s: 20, hp: 800, pGen: 0, pUse: 5, produces: 'harvester', img: './img/hud/hud_sd.png' },
+    { id: 'barracks', cost: 200, s: 20, hp: 600, pGen: 0, pUse: 5, produces: 'rifleman', img: './img/hud/hud_b.png' },
+    { id: 'war-factory', cost: 400, s: 30, hp: 900, pGen: 0, pUse: 10, produces: 'assault-walker', img: './img/hud/hud_wf.png' },
+    { id: 'turret', cost: 150, s: 15, hp: 500, pGen: 0, pUse: 5, w: 'turret-gun', img: './img/hud/hud_t.png' },
+    { id: 'tech-center', cost: 500, s: 40, hp: 700, pGen: 0, pUse: 10, img: './img/hud/hud_tc.png' },
+    { id: 'air-force', cost: 500, s: 25, hp: 900, pGen: 0, pUse: 15, produces: 'fighter', img: './img/hud/hud_af.png' },
+    { id: 'super-weapon', cost: 1500, s: 45, hp: 1500, pGen: 0, pUse: 100, img: './img/hud/hud_sp.png' },
+    { id: 'bunker', cost: 250, s: 20, hp: 700, pGen: 0, pUse: 5, w: 'bunker-gun', garrison: 5, img: './img/hud/hud_bn.png' },
+    { id: 'dock', cost: 400, s: 30, hp: 900, pGen: 0, pUse: 10, produces: 'carrier', img: './img/hud/hud_d.png' },
+  ],
+  scenery: [
+    { id: 'rock', img: './img/scenery/rock.png' },
+    { id: 'tree', img: './img/scenery/tree.png' },
+    { id: 'wreck', img: './img/scenery/wreck.png' },
+    { id: 'mine', img: './img/scenery/mine.png' },
   ],
   weapons: [
     { id: 'rifle', dmg: 12, cd: 0.4, rng: 6 },
@@ -875,6 +899,18 @@ const renderUpgradesTable = () => {
   return `<div class="table-wrap"><table class="cat-table">${thead}<tbody>${rows.join('')}</tbody></table></div>`
 }
 
+const renderSceneryCard = (s) => {
+  const nm = t(lang, 'cat.scenery.' + s.id + '.name')
+  const desc = t(lang, 'cat.scenery.' + s.id + '.desc')
+  return (
+    `<article class="card cat-card">` +
+    `<img class="cat-sprite" src="${s.img}" alt="${nm}" loading="lazy" />` +
+    `<h3>${nm}</h3>` +
+    `<p class="cat-role">${desc}</p>` +
+    `</article>`
+  )
+}
+
 const renderCatalog = () => {
   const el = document.getElementById('game-catalog')
   if (!el) return
@@ -883,6 +919,8 @@ const renderCatalog = () => {
     `<div class="grid cat-grid">${CATALOG.buildings.map(renderBuildingCard).join('')}</div>` +
     `<h2 class="group-title">${t(lang, 'cat.units')}</h2>` +
     `<div class="grid cat-grid">${CATALOG.units.map(renderUnitCard).join('')}</div>` +
+    `<h2 class="group-title">${t(lang, 'cat.scenery')}</h2>` +
+    `<div class="grid cat-grid">${CATALOG.scenery.map(renderSceneryCard).join('')}</div>` +
     `<h2 class="group-title">${t(lang, 'cat.weapons')}</h2>` +
     renderWeaponsTable() +
     `<h2 class="group-title">${t(lang, 'cat.upgrades')}</h2>` +

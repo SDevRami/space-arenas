@@ -1461,7 +1461,7 @@ export class Game {
         if (gfx.effects.effects) renderer.addImpact(e.x, e.y, 0xc070ff)
       }
       if (e.type === 'rank-up' && e.team === this.localTeam) {
-        this.hud.achievementToast(t('game.rankUpTitle', { rank: e.rank }), t('game.rankUpDesc'), t('game.rankUpHeader'), true)
+        this.hud.achievementToast(t('menu.rankUpTitle', { rank: e.rank }), t('menu.rankUpDesc'), t('menu.rankUpHeader'), true)
         this.audio.playSfx('achievement', { gain: 0.1 })
       }
       if (e.type === 'combat-hit' && world.teamOf(e.target) === this.localTeam) {
