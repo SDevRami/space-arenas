@@ -172,6 +172,10 @@ export const initGameInfoCatalog = (resolvedDevSettings: () => MatchSettings) =>
           <p>${t('info.start.netP')}</p>
           <h3>${t('info.start.duringH3')}</h3>
           <p>${t('info.start.duringP')}</p>
+          <h3>${t('info.start.modH3')}</h3>
+          <p>${t('info.start.modP')}</p>
+          <h3>${t('info.start.onlineModH3')}</h3>
+          <p>${t('info.start.onlineModP')}</p>
         `
         break
       case 'units':
@@ -251,11 +255,103 @@ export const initGameInfoCatalog = (resolvedDevSettings: () => MatchSettings) =>
           ${Object.values(UPGRADES)
             .map((base: UpgradeDef) => {
               const u = getUpgrade(base.id, resolvedDevSettings())
-              return `<tr><td><b>${esc(tn(u.id, u.name))}</b></td><td>$${u.cost}</td><td>${sec(u.researchTimeTicks)}</td><td>${esc(tn(u.availableAt, BUILDINGS[u.availableAt]?.name ?? u.availableAt))}</td></tr>`
+              return `<tr><td><b>${esc(tn(u.id, u.name))}</b></td><td>${u.cost}</td><td>${sec(u.researchTimeTicks)}</td><td>${esc(tn(u.availableAt, BUILDINGS[u.availableAt]?.name ?? u.availableAt))}</td></tr>`
             })
             .join('')}
           </table>
           <p>${t('info.tech.p')}</p>
+        `
+        break
+      case 'super':
+        html = `
+          <h3>${t('info.super.h3')}</h3>
+          <p>${t('info.super.p')}</p>
+          <h3>${t('info.super.laser')}</h3>
+          <p>${t('info.super.laserP')}</p>
+          <h3>${t('info.super.airstrike')}</h3>
+          <p>${t('info.super.airstrikeP')}</p>
+          <h3>${t('info.super.emp')}</h3>
+          <p>${t('info.super.empP')}</p>
+        `
+        break
+      case 'combat':
+        html = `
+          <h3>${t('info.combat.h3')}</h3>
+          <p>${t('info.combat.p')}</p>
+          <ul>
+            <li>${t('info.combat.l1')}</li>
+            <li>${t('info.combat.l2')}</li>
+            <li>${t('info.combat.l3')}</li>
+            <li>${t('info.combat.l4')}</li>
+            <li>${t('info.combat.l5')}</li>
+          </ul>
+          <h3>${t('info.combat.vetH3')}</h3>
+          <p>${t('info.combat.vetP')}</p>
+          <h3>${t('info.combat.minesH3')}</h3>
+          <p>${t('info.combat.minesP')}</p>
+        `
+        break
+      case 'vision':
+        html = `
+          <h3>${t('info.vision.h3')}</h3>
+          <p>${t('info.vision.p')}</p>
+          <ul>
+            <li>${t('info.vision.l1')}</li>
+            <li>${t('info.vision.l2')}</li>
+            <li>${t('info.vision.l3')}</li>
+          </ul>
+          <p>${t('info.vision.p2')}</p>
+          <h3>${t('info.vision.weatherH3')}</h3>
+          <p>${t('info.vision.weatherP')}</p>
+          <h3>${t('info.vision.daynightH3')}</h3>
+          <p>${t('info.vision.daynightP')}</p>
+        `
+        break
+      case 'sea':
+        html = `
+          <h3>${t('info.sea.h3')}</h3>
+          <p>${t('info.sea.p')}</p>
+          <ul>
+            <li>${t('info.sea.l1')}</li>
+            <li>${t('info.sea.l2')}</li>
+            <li>${t('info.sea.l3')}</li>
+          </ul>
+          <p>${t('info.sea.p2')}</p>
+        `
+        break
+      case 'maps':
+        html = `
+          <h3>${t('info.maps.h3')}</h3>
+          <p>${t('info.maps.p')}</p>
+          <ul>
+            <li>${t('info.maps.l1')}</li>
+            <li>${t('info.maps.l2')}</li>
+            <li>${t('info.maps.l3')}</li>
+          </ul>
+        `
+        break
+      case 'mods':
+        html = `
+          <h3>${t('info.mods.h3')}</h3>
+          <p>${t('info.mods.p1')}</p>
+          <p>${t('info.mods.p2')}</p>
+          <p>${t('info.mods.p3')}</p>
+          <p>${t('info.mods.p4')}</p>
+        `
+        break
+      case 'online':
+        html = `
+          <h3>${t('info.online.h3')}</h3>
+          <p>${t('info.online.p1')}</p>
+          <ul>
+            <li>${t('info.online.l1')}</li>
+            <li>${t('info.online.l2')}</li>
+            <li>${t('info.online.l3')}</li>
+            <li>${t('info.online.l4')}</li>
+            <li>${t('info.online.l5')}</li>
+          </ul>
+          <h3>${t('info.online.acH3')}</h3>
+          <p>${t('info.online.acP')}</p>
         `
         break
       default:
