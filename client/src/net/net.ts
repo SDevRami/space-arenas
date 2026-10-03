@@ -14,6 +14,7 @@ import {
   type LobbyMessage,
   type MatchSettings,
   type MapData,
+  type ModFile,
   type MatchStartMessage,
   type PlayerSlot,
   type BotDifficulty,
@@ -165,8 +166,13 @@ export class NetClient {
     this.send({ kind: 'C_SETTINGS_VERDICT', playerId, action })
   }
 
-  updateRoom(patch: { mapId?: string; map?: MapData; password?: string; settings?: Partial<MatchSettings>; winRule?: WinRule; modId?: string }): void {
+  updateRoom(patch: { mapId?: string; map?: MapData; password?: string; settings?: Partial<MatchSettings>; winRule?: WinRule; modId?: string; mod?: ModFile }): void {
     this.send({ kind: 'C_UPDATE_ROOM', ...patch })
+  }
+
+  /** Online only: tell the server this client has the room's balance mod (matching hash). */
+  ackMod(hash: string): void {
+    this.send({ kind: 'C_MOD_ACK', hash })
   }
 
   addBot(difficulty: BotDifficulty, patch?: { name?: string; team?: number; spawn?: number; color?: number }): void {

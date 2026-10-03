@@ -278,6 +278,7 @@ const broadcastLobby = (room: Room): void => {
       winRule: room.winRule,
       settings: room.settings,
       ...(room.modId ? { modId: room.modId } : {}),
+      ...(room.mod ? { mod: registry.roomMod(room) } : {}),
     })
   })
 }
@@ -401,6 +402,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
               winRule: room.winRule,
               settings: room.settings,
               ...(room.modId ? { modId: room.modId } : {}),
+              ...(room.mod ? { mod: registry.roomMod(room) } : {}),
             })
             send(ws, { ...makeMatchStart(room.map, registry.matchSlots(room), registry.hostId(room), p.id, room.seed, 25, room.settings, room.winRule), spectator: true })
             const relay = relayFor(room)
@@ -510,12 +512,19 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
         send(ws, { kind: 'H_ERROR', message: 'Only the host can change match options' })
         return
       }
-      const res = registry.updateRoomOptions(ctx.room, { mapId: msg.mapId, map: msg.map, password: msg.password, settings: msg.settings, winRule: msg.winRule, modId: msg.modId })
+      const res = registry.updateRoomOptions(ctx.room, { mapId: msg.mapId, map: msg.map, password: msg.password, settings: msg.settings, winRule: msg.winRule, modId: msg.modId, mod: msg.mod })
       if (!res.ok) {
         send(ws, { kind: 'H_ERROR', message: res.error ?? 'update failed' })
         return
       }
       broadcastLobby(ctx.room)
+      break
+    }
+    case 'C_MOD_ACK': {
+      if (!ctx) return
+      const { room } = ctx
+      const ok = registry.setModAck(room, ws, msg.hash)
+      if (ok) broadcastLobby(room)
       break
     }
     case 'C_ADD_BOT':
@@ -536,6 +545,14 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
       const allReady = [...room.players.values()].every((p) => p.ready && !p.spectator)
       if (!allReady) {
         send(ws, { kind: 'H_ERROR', message: 'Not all players are ready' })
+        return
+      }
+      if (!registry.allNonSpectatorsHaveMod(room)) {
+        const missing = registry.missingModPlayers(room)
+        send(
+          ws,
+          { kind: 'H_ERROR', message: missing.length > 0 ? `Waiting for ${missing.join(', ')} to install the balance mod` : 'All players must install the balance mod to start' },
+        )
         return
       }
       room.started = true
@@ -712,6 +729,7 @@ const roomSummary = (room: Room): Record<string, unknown> => ({
   maxPlayers: room.maxPlayers,
   status: room.started ? 'started' : room.players.size >= room.maxPlayers ? 'full' : 'lobby',
   passwordRequired: room.passwordRequired,
+  ...(room.modId ? { modId: room.modId } : {}),
   created: room.createdAt,
 })
 
@@ -1240,6 +1258,21 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       return true
     }
     writeJson(res, 200, { ok: true, ws: `${publicWsBase(req)}/ws`, roomCode: room.code })
+    return true
+  }
+  if (req.method === 'GET' && urlPath.startsWith('/api/rooms/') && urlPath.endsWith('/mod')) {
+    if (!ONLINE) {
+      writeJson(res, 503, { ok: false, error: 'online lobby disabled (SA_MODE=online required)' })
+      return true
+    }
+    const code = urlPath.slice('/api/rooms/'.length, -'/mod'.length)
+    const room = registry.get(code)
+    if (!room || !room.mod || !registry.roomMod(room)) {
+      writeJson(res, 404, { ok: false, error: 'Room has no balance mod' })
+      return true
+    }
+    const info = registry.roomMod(room)!
+    writeJson(res, 200, { ok: true, name: info.name, hash: info.hash, size: info.size, mod: room.mod })
     return true
   }
   if (req.method === 'POST' && urlPath === '/api/auth/register') {

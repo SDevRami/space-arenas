@@ -1,5 +1,5 @@
 import './styles.css'
-import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, PROTOCOL_VERSION, type ModFile, type ModMeta, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, modHash, PROTOCOL_VERSION, type ModFile, type ModMeta, type RoomMod, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, validateMap, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { AudioHooks, AMBIENT_SYNTH } from './audio/hooks.ts'
@@ -634,6 +634,26 @@ offlineModSelectEl.addEventListener('change', () => {
   renderModPickers()
 })
 
+const applyMatchMod = async (name: string): Promise<void> => {
+  const m = activeMods().find((x) => x.name === name)
+  if (name !== '' && !m) {
+    matchModToggleEl.checked = false
+    return
+  }
+  let mod: ModFile | undefined
+  if (isOnlineAddr(lastJoin?.addr) && name !== '') {
+    // Online rooms ride the host's file: upload the content so the server can compute
+    // effective settings and hand other players a download to join.
+    mod = (await fetchModByName(name)) ?? undefined
+    if (!mod) {
+      setMatchStatus(t('mods.uploadFailed'), true)
+      return
+    }
+  }
+  net?.updateRoom({ modId: name, mod })
+  setMatchStatus(name === '' ? t('mods.cleared') : m ? t('mods.applied', { n: m.label }) : t('mods.cleared'))
+}
+
 matchModToggleEl.addEventListener('change', () => {
   if (!lobbyState || lobbyState.yourId !== lobbyState.hostId) return
   if (matchModToggleEl.checked) {
@@ -643,20 +663,15 @@ matchModToggleEl.addEventListener('change', () => {
       matchModToggleEl.checked = false
       return
     }
-    net?.updateRoom({ modId: name })
-    setMatchStatus(t('mods.applied', { n: m.label }))
+    void applyMatchMod(name)
   } else {
-    net?.updateRoom({ modId: '' })
-    setMatchStatus(t('mods.cleared'))
+    void applyMatchMod('')
   }
 })
 
 matchModSelectEl.addEventListener('change', () => {
   if (!matchModToggleEl.checked || !lobbyState || lobbyState.yourId !== lobbyState.hostId) return
-  const name = matchModSelectEl.value
-  net?.updateRoom({ modId: name })
-  const m = activeMods().find((x) => x.name === name)
-  setMatchStatus(m ? t('mods.applied', { n: m.label }) : t('mods.cleared'))
+  void applyMatchMod(matchModSelectEl.value)
 })
 
 const loadOfflineModSelection = (): void => {
@@ -675,23 +690,38 @@ const syncMatchModUi = (msg: LobbyMessage, isHost: boolean): void => {
   matchModSyncEl.textContent = ''
   if (!isHost) {
     picker.style.display = 'none'
+    const online = isOnlineAddr(lastJoin?.addr)
     if (msg.modId) {
-      const known = modsCache.find((m) => m.name === msg.modId) ?? activeMods().find((m) => m.name === msg.modId)
       const line = document.createElement('div')
       line.className = 'match-note'
-      line.textContent = known ? t('mods.hostMod', { n: known.label }) : t('mods.hostModUnknown', { n: msg.modId })
-      matchModNoteEl.appendChild(line)
-      const dl = document.createElement('button')
-      dl.className = 'ghost'
-      dl.textContent = t('mods.getCopy')
-      dl.addEventListener('click', () => {
-        const a = document.createElement('a')
-        a.href = `/api/mods?name=${encodeURIComponent(msg.modId ?? '')}`
-        a.download = msg.modId ?? 'mod.json'
-        a.click()
-      })
-      matchModNoteEl.appendChild(dl)
+      if (online && msg.mod) {
+        const info = msg.mod
+        const me = msg.players.find((p) => p.id === msg.yourId)
+        line.textContent = t('mods.hostMod', { n: onlineModLabel(info) }) + (me?.modOk === true ? ' ✓' : '')
+        matchModNoteEl.appendChild(line)
+        const dl = document.createElement('button')
+        dl.className = 'ghost'
+        dl.textContent = t('mods.getCopy')
+        dl.addEventListener('click', () => showModRequirement(info))
+        matchModNoteEl.appendChild(dl)
+        void checkOnlineRoomMod(msg)
+      } else {
+        const known = modsCache.find((m) => m.name === msg.modId) ?? activeMods().find((m) => m.name === msg.modId)
+        line.textContent = known ? t('mods.hostMod', { n: known.label }) : t('mods.hostModUnknown', { n: msg.modId })
+        matchModNoteEl.appendChild(line)
+        const dl = document.createElement('button')
+        dl.className = 'ghost'
+        dl.textContent = t('mods.getCopy')
+        dl.addEventListener('click', () => {
+          const a = document.createElement('a')
+          a.href = `/api/mods?name=${encodeURIComponent(msg.modId ?? '')}`
+          a.download = msg.modId ?? 'mod.json'
+          a.click()
+        })
+        matchModNoteEl.appendChild(dl)
+      }
     } else {
+      if (online) modReqOverlayEl.classList.remove('visible')
       const line = document.createElement('div')
       line.className = 'match-note'
       line.textContent = t('mods.noneForMatch')
@@ -719,6 +749,105 @@ const syncMatchModUi = (msg: LobbyMessage, isHost: boolean): void => {
 
 loadOfflineModSelection()
 void refreshMods()
+
+// ---------- online room: balance-mod download-to-join popup ----------
+
+const modReqOverlayEl = document.getElementById('modreq-overlay') as HTMLDivElement
+const modReqHintEl = document.getElementById('modreq-hint') as HTMLDivElement
+const modReqMetaEl = document.getElementById('modreq-meta') as HTMLDivElement
+const modReqStatusEl = document.getElementById('modreq-status') as HTMLDivElement
+const modReqDownloadBtn = document.getElementById('modreq-download') as HTMLButtonElement
+const modReqCancelBtn = document.getElementById('modreq-cancel') as HTMLButtonElement
+
+/** Popup's room mod — what the Download button installs (set only when required). */
+let onlineRequiredMod: RoomMod | null = null
+
+/** Re-runs the online mod presence check once per (room, mod hash). */
+let onlineModCheckedKey = ''
+
+const onlineModLabel = (info: RoomMod): string => (info.label && info.label !== info.name ? info.label : info.name)
+
+const modMetaLine = (info: RoomMod): string => {
+  const parts: string[] = []
+  if (info.label && info.label !== info.name) parts.push(info.label)
+  if (info.author) parts.push(info.author)
+  if (info.version) parts.push(`v${info.version}`)
+  if (info.description) parts.push(info.description)
+  parts.push(modSizeLabel(info.size))
+  return parts.join(' · ')
+}
+
+const showModRequirement = (info: RoomMod): void => {
+  onlineRequiredMod = info
+  modReqHintEl.textContent = t('mods.requiredBody', { n: onlineModLabel(info) })
+  modReqMetaEl.textContent = modMetaLine(info)
+  modReqStatusEl.textContent = t('mods.requiredMissing')
+  modReqStatusEl.classList.remove('good')
+  modReqDownloadBtn.disabled = false
+  modReqOverlayEl.classList.add('visible')
+}
+
+/** Fetches the room's mod from the online server, installs it into the local LAN host
+ *  (so the sim picks it up), activates it, then acks the room. True on success. */
+const installOnlineRoomMod = async (info: RoomMod): Promise<boolean> => {
+  modReqStatusEl.textContent = t('mods.requiredInstalling')
+  modReqDownloadBtn.disabled = true
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/rooms/${encodeURIComponent(lastJoin?.code ?? '')}/mod`)
+    if (!res.ok) return false
+    const data = (await res.json()) as { ok?: boolean; hash?: string; mod?: ModFile }
+    if (!data.ok || !data.mod || !data.hash) return false
+    const up = await fetch('/api/mods/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data.mod),
+    })
+    if (!up.ok) return false
+    await refreshMods()
+    setModActive(info.name, true)
+    net?.ackMod(data.hash)
+    return true
+  } catch {
+    return false
+  } finally {
+    modReqDownloadBtn.disabled = false
+  }
+}
+
+const checkOnlineRoomMod = async (msg: LobbyMessage): Promise<void> => {
+  if (!msg.mod) return
+  const key = `${msg.roomCode}:${msg.mod.hash}`
+  if (onlineModCheckedKey === key) return
+  onlineModCheckedKey = key
+  const local = await fetchModByName(msg.mod.name)
+  const match = local !== null && modHash(local) === msg.mod.hash
+  if (match) {
+    setModActive(msg.mod.name, true)
+    net?.ackMod(msg.mod.hash)
+    modReqOverlayEl.classList.remove('visible')
+  } else {
+    showModRequirement(msg.mod)
+  }
+}
+
+modReqDownloadBtn.addEventListener('click', () => {
+  const info = onlineRequiredMod
+  if (!info) return
+  void (async () => {
+    const ok = await installOnlineRoomMod(info)
+    if (ok) {
+      modReqStatusEl.textContent = t('mods.requiredDone')
+      modReqStatusEl.classList.add('good')
+    } else {
+      modReqStatusEl.textContent = t('mods.requiredFail')
+      modReqStatusEl.classList.remove('good')
+    }
+  })()
+})
+
+modReqCancelBtn.addEventListener('click', () => {
+  modReqOverlayEl.classList.remove('visible')
+})
 
 // ---------- language ----------
 

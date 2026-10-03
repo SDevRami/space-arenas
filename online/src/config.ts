@@ -11,10 +11,11 @@ export const BACKUPS_MAX_PAYLOAD_BYTES = 64 * 1024
 export const BACKUPS_PURGE_INTERVAL_MS = 10 * 60 * 1000
 
 // Rate limits (per minute, sliding window). Keyed by client IP (and account for login).
+// Overridable via SA_RATE_* so the test harness can raise them without touching prod defaults.
 export const RATE_AUTH_PER_MIN = 5 // register / login / change-password
 export const RATE_LOGIN_PER_ACCOUNT_MIN = 10 // brute-force / password-spray guard
-export const RATE_ROOM_WRITE_PER_MIN = 10 // create room + join pre-check
-export const RATE_WS_HANDSHAKE_PER_MIN = 20
+export const RATE_ROOM_WRITE_PER_MIN = Number(process.env.SA_RATE_ROOM_WRITE_PER_MIN ?? 10) // create room + join pre-check
+export const RATE_WS_HANDSHAKE_PER_MIN = Number(process.env.SA_RATE_WS_HANDSHAKE_PER_MIN ?? 20)
 export const RATE_BACKUP_POST_PER_MIN = 10
 export const RATE_READ_PER_MIN = 60 // /api/auth/me + /api/leaderboard
 

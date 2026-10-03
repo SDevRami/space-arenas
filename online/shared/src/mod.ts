@@ -1,3 +1,4 @@
+import { crc32 } from './protocol.ts'
 import type { BuildingOverrides, UnitOverrides, WeaponOverrides, UpgradeOverrides, MatchSettings } from './constants.ts'
 
 /**
@@ -161,4 +162,24 @@ export const modFromSettings = (patch: Partial<MatchSettings>, meta: ModMetaData
     ...(weaponOverrides && Object.keys(weaponOverrides).length > 0 ? { weaponOverrides } : {}),
     ...(upgradeOverrides && Object.keys(upgradeOverrides).length > 0 ? { upgradeOverrides } : {}),
   }
+}
+
+/** Deterministic JSON serialization: keys sorted, `undefined` dropped, no whitespace.
+ *  Two independently-parsed copies of the same mod file serialize byte-identically. */
+export const canonicalJson = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`
+  }
+  return JSON.stringify(value)
+}
+
+/** crc32 (hex) of a mod's canonical JSON — the content identity used to tell a
+ *  guest whether their local copy matches the room's. */
+export const modHash = (mod: ModFile): string => {
+  const bytes = new TextEncoder().encode(canonicalJson(mod))
+  return crc32(bytes).toString(16).padStart(8, '0')
 }

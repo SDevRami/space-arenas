@@ -483,19 +483,20 @@
       #invite-overlay .row button:hover { background: var(--color-surface-hover); }
       #invite-overlay .row button.primary { background: var(--color-primary); border: none; color: white; }
       #invite-overlay .row button.primary:hover { background: var(--color-primary-hover); }
-      #account-overlay, #server-overlay, #joinpass-overlay { position: absolute; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.7); }
-      #account-overlay.visible, #server-overlay.visible, #joinpass-overlay.visible { display: flex; }
-      #account-overlay .panel, #server-overlay .panel, #joinpass-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 22px; width: 380px; max-width: 92vw; border-radius: 6px; }
-      #account-overlay h2, #server-overlay h2, #joinpass-overlay h2 { color: var(--color-accent); font-size: 16px; margin-bottom: 8px; }
-      #account-overlay p, #server-overlay p, #joinpass-overlay p { font-size: 12px; color: var(--color-text-muted); margin-bottom: 10px; }
+      #account-overlay, #server-overlay, #joinpass-overlay, #modreq-overlay { position: absolute; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.7); }
+      #account-overlay.visible, #server-overlay.visible, #joinpass-overlay.visible, #modreq-overlay.visible { display: flex; }
+      #account-overlay .panel, #server-overlay .panel, #joinpass-overlay .panel, #modreq-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 22px; width: 380px; max-width: 92vw; border-radius: 6px; }
+      #account-overlay h2, #server-overlay h2, #joinpass-overlay h2, #modreq-overlay h2 { color: var(--color-accent); font-size: 16px; margin-bottom: 8px; }
+      #account-overlay p, #server-overlay p, #joinpass-overlay p, #modreq-overlay p { font-size: 12px; color: var(--color-text-muted); margin-bottom: 10px; }
       #account-overlay label, #server-overlay label, #joinpass-overlay label { display: block; margin: 10px 0 4px; font-size: 12px; color: var(--color-text-muted); }
       #account-overlay input, #server-overlay input, #joinpass-overlay input { background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); padding: 8px; font-family: inherit; width: 100%; }
       #account-overlay input:focus, #server-overlay input:focus, #joinpass-overlay input:focus { outline: none; border-color: var(--color-primary-hover); }
-      #account-overlay .row, #server-overlay .row, #joinpass-overlay .row { display: flex; gap: 10px; margin-top: 14px; }
-      #account-overlay .row button, #server-overlay .row button, #joinpass-overlay .row button { flex: 1 1 0; padding: 10px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); cursor: pointer; font-family: inherit; font-size: 13px; }
-      #account-overlay .row button:hover, #server-overlay .row button:hover, #joinpass-overlay .row button:hover { background: var(--color-surface-hover); }
-      #account-overlay .row button.primary, #server-overlay .row button.primary, #joinpass-overlay .row button.primary { background: var(--color-primary); border: none; color: white; }
-      #account-overlay .row button.primary:hover, #server-overlay .row button.primary:hover, #joinpass-overlay .row button.primary:hover { background: var(--color-primary-hover); }
+      #account-overlay .row, #server-overlay .row, #joinpass-overlay .row, #modreq-overlay .row { display: flex; gap: 10px; margin-top: 14px; }
+      #account-overlay .row button, #server-overlay .row button, #joinpass-overlay .row button, #modreq-overlay .row button { flex: 1 1 0; padding: 10px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); cursor: pointer; font-family: inherit; font-size: 13px; }
+      #account-overlay .row button:hover, #server-overlay .row button:hover, #joinpass-overlay .row button:hover, #modreq-overlay .row button:hover { background: var(--color-surface-hover); }
+      #account-overlay .row button.primary, #server-overlay .row button.primary, #joinpass-overlay .row button.primary, #modreq-overlay .row button.primary { background: var(--color-primary); border: none; color: white; }
+      #account-overlay .row button.primary:hover, #server-overlay .row button.primary:hover, #joinpass-overlay .row button.primary:hover, #modreq-overlay .row button.primary:hover { background: var(--color-primary-hover); }
+      #modreq-overlay .modreq-meta { font-size: 12px; color: var(--color-text-body); line-height: 1.5; padding: 8px; background: var(--color-surface-dark); border: 1px solid var(--color-border); border-radius: 4px; }
       .online-ind { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-body); padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface-dark); }
       .online-ind .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
       .online-ind.ok .dot { background: #2e8b57; box-shadow: 0 0 6px rgba(46,139,87,0.8); }

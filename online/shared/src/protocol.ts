@@ -1,6 +1,7 @@
 import type { MapData } from './maps.ts'
 import { PROTOCOL_VERSION } from './constants.ts'
 import type { MatchSettings, WinRule } from './constants.ts'
+import type { ModFile } from './mod.ts'
 
 export type CommandType =
   | 'move'
@@ -94,6 +95,8 @@ export interface PlayerSlot {
   spectator?: boolean
   /** Online only: false while the slot is waiting out the reconnect grace window. */
   connected?: boolean
+  /** Online lobby only: true when this slot has the room's balance mod (its hash matches). */
+  modOk?: boolean
   bot?: boolean
   difficulty?: BotDifficulty
   devSettings?: Partial<MatchSettings>
@@ -585,6 +588,19 @@ export interface JoinMessage {
    *  *claimed* number outside the grace band; a missing number is admitted. */
   protocol?: number
 }
+/** Balance-mod info broadcast in a lobby — the guest uses `hash` to tell their
+ *  local copy matches, and `name` is the file name to download under. */
+export interface RoomMod {
+  /** On-disk `<name>.json` file name the host applied / guests should install it as. */
+  name: string
+  label?: string
+  author?: string
+  description?: string
+  version?: string
+  /** Canonical-JSON crc32 (hex) of the mod file content. */
+  hash: string
+  size: number
+}
 export interface LobbyMessage {
   kind: 'H_LOBBY'
   roomCode: string
@@ -600,6 +616,9 @@ export interface LobbyMessage {
   map?: MapData
   /** Filename of the balance mod the host applied to this room (''/undefined = none). */
   modId?: string
+  /** Balance-mod details when the room has one; guests must have a matching copy
+   *  (same `hash`) installed before the host can start the match. */
+  mod?: RoomMod
 }
 export interface ReadyMessage {
   kind: 'C_READY'
@@ -642,6 +661,14 @@ export interface UpdateRoomMessage {
   winRule?: WinRule
   /** Filename of the balance mod for this room ('' clears it). Host-only control. */
   modId?: string
+  /** Mod file content. Online rooms: the host uploads the file so the server can
+   *  compute the effective settings and share a download with the other players. */
+  mod?: ModFile
+}
+export interface ModAckMessage {
+  kind: 'C_MOD_ACK'
+  /** Canonical-JSON crc32 (hex) of the mod file the client has installed locally. */
+  hash: string
 }
 export interface StartMessage {
   kind: 'C_START'
@@ -743,6 +770,7 @@ export type ControlMessage =
   | UpdateBotMessage
   | RemoveBotMessage
   | StartMessage
+  | ModAckMessage
   | ErrorMessage
   | MatchStartMessage
   | LoadedMessage

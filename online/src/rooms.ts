@@ -4,20 +4,27 @@ import {
   mapForPreset,
   mapPreset,
   mergeMatchSettings,
+  modHash,
+  modSettingsDelta,
   validateMap,
   WIN_RULE_DEFAULT,
   type MapData,
   type MatchSettings,
+  type ModFile,
   type PlayerSlot,
+  type RoomMod,
   type WinRule,
 } from '@space-arenas/shared'
 import { hashPassphrase, newRoomCode } from './passphrase.ts'
 import { sanitizeSettings } from './sanitize.ts'
+import { modLabel, sanitizeMod } from './mods.ts'
 
 export interface HostPlayer extends PlayerSlot {
   connected: boolean
   spectator: boolean
   devSettings?: Partial<MatchSettings>
+  /** Balance-mod hash this slot acked (C_MOD_ACK) once it has the room's mod locally. */
+  modAck?: string
   /** Persistent per-browser id used to reclaim this slot on reconnect. */
   clientId?: string
   /** True once the player sent C_FORFEIT: the slot must not reclaim or wait out grace. */
@@ -40,10 +47,12 @@ export interface Room {
   map: MapData
   seed: number
   settings: MatchSettings
-  /** Match-options settings before any (future) balance mod is applied. */
+  /** Match-options settings before any applied balance mod. */
   baseSettings: MatchSettings
-  /** Applied balance-mod filename, '' = none. Unsupported online in Phase 1. */
+  /** Applied balance-mod filename, '' = none. */
   modId: string
+  /** Sanitized balance-mod content the host uploaded for this room ('' = none). */
+  mod?: ModFile
   winRule: WinRule
   started: boolean
   ended: boolean
@@ -250,10 +259,23 @@ export class RoomRegistry {
 
   updateRoomOptions(
     room: Room,
-    patch: { mapId?: string; map?: MapData; password?: string; settings?: Partial<MatchSettings>; winRule?: WinRule; modId?: string },
+    patch: { mapId?: string; map?: MapData; password?: string; settings?: Partial<MatchSettings>; winRule?: WinRule; modId?: string; mod?: ModFile },
   ): { ok: boolean; error?: string } {
-    if (patch.modId !== undefined && String(patch.modId ?? '').trim() !== '') {
-      return { ok: false, error: 'Balance mods are not supported in online matches yet' }
+    if (patch.modId !== undefined || patch.mod !== undefined) {
+      const nextName = String(patch.modId ?? room.modId).trim().slice(0, 80)
+      if (nextName === '') {
+        room.modId = ''
+        room.mod = undefined
+      } else if (patch.mod !== undefined) {
+        const mod = sanitizeMod(patch.mod)
+        if (!mod) return { ok: false, error: 'Invalid mod file' }
+        const name = mod.meta?.name?.trim()
+        room.modId = (name && name !== '' ? name : nextName).slice(0, 80)
+        room.mod = mod
+      } else if (nextName !== room.modId) {
+        // Name-only toggle needs the mod's content to be usable online.
+        return { ok: false, error: 'Mod file content is required' }
+      }
     }
     if (patch.map !== undefined) {
       const validation = validateMap(patch.map)
@@ -280,7 +302,6 @@ export class RoomRegistry {
     }
     if (patch.settings !== undefined) {
       room.baseSettings = mergeMatchSettings({ ...room.baseSettings, ...sanitizeSettings(patch.settings) })
-      room.settings = room.baseSettings
     }
     if (patch.winRule !== undefined) {
       if (patch.winRule === 'standard' || patch.winRule === 'annihilation' || patch.winRule === 'command-center') {
@@ -293,7 +314,64 @@ export class RoomRegistry {
       room.passwordRequired = pass !== ''
       room.invitePass = pass
     }
+    if (patch.settings !== undefined || patch.mod !== undefined || patch.modId !== undefined) {
+      this.recomputeSettings(room)
+    }
     return { ok: true }
+  }
+
+  /** Sim settings = base match options + the applied balance mod's delta. */
+  recomputeSettings(room: Room): void {
+    room.settings = room.mod
+      ? mergeMatchSettings({ ...room.baseSettings, ...modSettingsDelta(room.baseSettings, room.mod) })
+      : room.baseSettings
+  }
+
+  /** Lobby details for the room's balance mod, if any. */
+  roomMod(room: Room): RoomMod | undefined {
+    if (!room.mod) return undefined
+    const size = JSON.stringify(room.mod).length
+    return {
+      name: room.modId,
+      label: modLabel(room.mod.meta, room.modId),
+      author: room.mod.meta?.author,
+      description: room.mod.meta?.description,
+      version: room.mod.meta?.version,
+      size,
+      hash: modHash(room.mod),
+    }
+  }
+
+  modRequired(room: Room): boolean {
+    return this.roomMod(room) !== undefined
+  }
+
+  /** True when every non-host participant has acked the room's mod (or none is set). */
+  allNonSpectatorsHaveMod(room: Room): boolean {
+    const hash = room.mod ? modHash(room.mod) : null
+    if (hash === null) return true
+    for (const p of this.nonSpectators(room)) {
+      if (!p.host && p.modAck !== hash) return false
+    }
+    return true
+  }
+
+  /** Names of non-host participants still missing the room's balance mod. */
+  missingModPlayers(room: Room): string[] {
+    const hash = room.mod ? modHash(room.mod) : null
+    if (hash === null) return []
+    return this.nonSpectators(room)
+      .filter((p) => !p.host && p.modAck !== hash)
+      .map((p) => p.name)
+  }
+
+  /** Records a player's C_MOD_ACK — only accepted when the hash matches the room mod. */
+  setModAck(room: Room, ws: WebSocket, hash: string): boolean {
+    const p = room.players.get(ws)
+    if (!p || !room.mod) return false
+    if (modHash(room.mod) !== hash) return false
+    p.modAck = hash
+    return true
   }
 
   removePlayer(room: Room, ws: WebSocket): void {
@@ -315,8 +393,9 @@ export class RoomRegistry {
 
   slots(room: Room): PlayerSlot[] {
     const slots: PlayerSlot[] = []
+    const hash = room.mod ? modHash(room.mod) : null
     room.players.forEach((p) => {
-      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, connected: p.connected, difficulty: p.difficulty, ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}) })
+      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, connected: p.connected, difficulty: p.difficulty, modOk: hash === null ? undefined : !p.spectator && (p.host || p.modAck === hash), ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}) })
     })
     return slots.sort((a, b) => a.id - b.id)
   }

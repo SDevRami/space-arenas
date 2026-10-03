@@ -5,6 +5,7 @@ import { createServer } from 'node:net'
 import WebSocket from 'ws'
 import { decodeControl, decodeFrame, encodeControl, encodeCmd, BIN, MIN_PROTOCOL_VERSION, type EnvelopeCommand } from '../shared/src/index.ts'
 import { hashPassphrase } from '../src/passphrase.ts'
+import { modHash } from '../shared/src/mod.ts'
 import { rateLimit } from '../src/ratelimit.ts'
 import { MOD_MAX_BYTES, modLabel, sanitizeMod } from '../src/mods.ts'
 import { MAP_MAX_BYTES, mapLabel, sanitizeMap } from '../src/maps.ts'
@@ -39,7 +40,7 @@ const waitFor = async (fn: () => Promise<boolean>, tries = 50): Promise<boolean>
 before(async () => {
   const port = await freePort()
   child = spawn(process.execPath, ['dist/online.js'], {
-    env: { ...process.env, SA_MODE: 'online', SA_PORT: String(port) },
+    env: { ...process.env, SA_MODE: 'online', SA_PORT: String(port), SA_RATE_ROOM_WRITE_PER_MIN: '200', SA_RATE_WS_HANDSHAKE_PER_MIN: '200' },
     stdio: 'ignore',
   })
   base = `http://127.0.0.1:${port}`
@@ -844,6 +845,177 @@ describe('online server wire-frame validation', () => {
     const closeCode = await guest.waitClose()
     assert.equal(closeCode, 4002, 'repeat protocol offenders must be disconnected with code 4002')
     assert.equal(host.ws.readyState, WebSocket.OPEN, 'the innocent player must stay connected')
+
+    guest.ws.close()
+    host.ws.close()
+  })
+})
+
+describe('online server balance-mod gate', () => {
+  type Tracked = {
+    ws: WebSocket
+    msgs: Array<Record<string, unknown>>
+    waitForMsg: (pred: string | ((m: Record<string, unknown>) => boolean), tries?: number) => Promise<Record<string, unknown> | undefined>
+  }
+
+  const roomCode = async (hostName: string, passphrase: string): Promise<string> => {
+    const { status, body } = await json('/api/rooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ hostName, passphrase }),
+    })
+    assert.equal(status, 201)
+    return (body as { ok: boolean; roomCode: string }).roomCode
+  }
+
+  const openTracked = (code: string, hash: string, name: string): Promise<Tracked> =>
+    new Promise((resolve, reject) => {
+      const ws = new WebSocket(wsBase)
+      const msgs: Array<Record<string, unknown>> = []
+      const waitForMsg = async (pred: string | ((m: Record<string, unknown>) => boolean), tries = 40): Promise<Record<string, unknown> | undefined> => {
+        const match = typeof pred === 'string' ? (m: Record<string, unknown>) => m.kind === pred : pred
+        for (let i = 0; i < tries; i++) {
+          const found = msgs.find(match)
+          if (found) return found
+          await new Promise((r) => setTimeout(r, 50))
+        }
+        return undefined
+      }
+      ws.on('open', () => {
+        ws.send(encodeControl({ kind: 'C_JOIN', roomCode: code, passphraseHash: hash, name, clientId: `mod-${name}-${Date.now()}` }))
+      })
+      ws.on('message', (data) => {
+        const msg = decodeControl(data.toString()) as unknown as Record<string, unknown>
+        msgs.push(msg)
+        if (msg.kind === 'H_LOBBY') resolve({ ws, msgs, waitForMsg })
+      })
+      ws.on('error', reject)
+      setTimeout(() => reject(new Error(`no H_LOBBY for ${name}`)), 3000)
+    })
+
+  const push = (t: Tracked, m: unknown): void => t.ws.send(encodeControl(m as Parameters<typeof encodeControl>[0]))
+
+  const modFile = {
+    meta: { name: 'marathon.json', author: 'Tester', version: '1.2', description: 'Longer games' },
+    settings: { sellRefundFraction: 0.4, maxBuildOrders: 4 },
+    unitOverrides: { rifleman: { cost: 120 } },
+  }
+
+  const lastLobby = (t: Tracked): Record<string, unknown> | undefined => {
+    for (let i = t.msgs.length - 1; i >= 0; i--) {
+      if (t.msgs[i].kind === 'H_LOBBY') return t.msgs[i]
+    }
+    return undefined
+  }
+
+  const lobbyWithGuestModOk = (guest: Tracked, want: boolean): boolean => {
+    const lobby = lastLobby(guest)
+    if (!lobby) return false
+    const guestRow = (lobby.players as Array<{ host: boolean; modOk?: boolean }>).find((p) => !p.host)
+    return !!guestRow && guestRow.modOk === want
+  }
+
+  it('host uploads a mod: lobby announces it, settings merge, guests must ack to start', async () => {
+    const code = await roomCode('ModHost', 'mod1')
+    const hash = hashPassphrase('mod1', code)
+
+    const host = await openTracked(code, hash, 'ModHost')
+    const guest = await openTracked(code, hash, 'ModGuest')
+
+    push(host, { kind: 'C_UPDATE_ROOM', modId: 'marathon.json', mod: modFile })
+
+    const announced = await host.waitForMsg((m) => {
+      if (m.kind !== 'H_LOBBY') return false
+      const info = m.mod as { name?: string; hash?: string; size?: number } | undefined
+      return !!info && info.name === 'marathon.json' && typeof info.hash === 'string' && info.hash.length === 8 && (info.size ?? 0) > 0
+    })
+    assert.ok(announced, 'host should see the mod announced in H_LOBBY')
+    const announcedMod = (announced as { mod: { hash: string } }).mod
+    const roomHash = announcedMod.hash
+
+    // The host's pick + mod content merge into the room's effective settings.
+    const merged = (lastLobby(host) as { settings?: { sellRefundFraction?: number; maxBuildOrders?: number; unitOverrides?: Record<string, Record<string, number>> } }).settings
+    assert.equal(merged?.sellRefundFraction, 0.4)
+    assert.equal(merged?.maxBuildOrders, 4)
+    assert.deepEqual(merged?.unitOverrides, { rifleman: { cost: 120 } })
+
+    // Guests see the requirement and are marked as not-yet-acked; the host is exempt.
+    const guestLobby = lastLobby(guest)
+    assert.ok((guestLobby as { mod?: unknown }).mod, 'guest lobby should announce the mod')
+    assert.ok((guestLobby as { players: Array<{ modOk: boolean }> }).players.some((p) => p.modOk === false), 'guest should start modOk false')
+    assert.ok((guestLobby as { players: Array<{ host: boolean; modOk: boolean }> }).players.some((p) => p.host && p.modOk === true), 'host should be exempt (modOk true)')
+
+    // The room mod is downloadable over REST and its content hashes to the announced hash.
+    const dl = await json(`/api/rooms/${code}/mod`)
+    assert.equal(dl.status, 200)
+    const dlBody = dl.body as { ok: boolean; name: string; hash: string; mod: typeof modFile }
+    assert.equal(dlBody.ok, true)
+    assert.equal(dlBody.name, 'marathon.json')
+    assert.equal(dlBody.hash, roomHash)
+    // LAN-host semantics: the client installs the downloaded (sanitized) file; it must hash
+    // to the same value the server is gating on.
+    const sanitized = sanitizeMod(dlBody.mod)
+    assert.ok(sanitized, 'downloaded mod should re-sanitize')
+    assert.equal(modHash(sanitized), roomHash)
+
+    // Lobby list advertises the mod before anyone joins.
+    const list = await json('/api/rooms')
+    const listed = (list.body as { rooms: Array<{ id: string; modId?: string }> }).rooms.find((r) => r.id === code)
+    assert.equal(listed?.modId, 'marathon.json')
+
+    // A wrong ack doesn't satisfy the gate; the host cannot start.
+    push(guest, { kind: 'C_MOD_ACK', hash: '00000000' })
+    push(host, { kind: 'C_READY', ready: true })
+    push(guest, { kind: 'C_READY', ready: true })
+    await new Promise((r) => setTimeout(r, 150))
+    push(host, { kind: 'C_START' })
+    const blocked = await host.waitForMsg((m) => m.kind === 'H_ERROR' && /mod|install/i.test(String(m.message ?? '')), 20)
+    assert.ok(blocked, 'start should be refused while the guest lacks the mod')
+    assert.ok(!lobbyWithGuestModOk(guest, true), 'guest should still be modOk false')
+
+    // Correct ack → the gate opens and the match starts for everyone.
+    push(guest, { kind: 'C_MOD_ACK', hash: roomHash })
+    assert.ok(await guest.waitForMsg(() => lobbyWithGuestModOk(guest, true)), 'guest should become modOk true after the right ack')
+    push(host, { kind: 'C_START' })
+    assert.ok(await host.waitForMsg('S_MATCH_START'), 'host should get S_MATCH_START')
+    assert.ok(await guest.waitForMsg('S_MATCH_START'), 'guest should get S_MATCH_START')
+
+    guest.ws.close()
+    host.ws.close()
+  })
+
+  it('host can clear the mod and then start without any ack', async () => {
+    const code = await roomCode('ClearHost', 'mod2')
+    const hash = hashPassphrase('mod2', code)
+    const host = await openTracked(code, hash, 'ClearHost')
+    const guest = await openTracked(code, hash, 'ClearGuest')
+
+    push(host, { kind: 'C_UPDATE_ROOM', modId: 'short.json', mod: { meta: { name: 'short.json' }, settings: { maxBuildOrders: 3 } } })
+    assert.ok(await host.waitForMsg((m) => m.kind === 'H_LOBBY' && !!m.mod), 'mod should be advertised')
+
+    push(host, { kind: 'C_UPDATE_ROOM', modId: '' })
+    let sawAnnounced = false
+    const cleared = await host.waitForMsg((m) => {
+      if (m.kind !== 'H_LOBBY') return false
+      if (m.mod && (m as { modId?: string }).modId === 'short.json') {
+        sawAnnounced = true
+        return false
+      }
+      return sawAnnounced && (m.modId === undefined || m.modId === '') && m.mod === undefined
+    })
+    assert.ok(cleared, 'mod should be cleared from the lobby')
+    assert.equal(lastLobby(host)?.modId, undefined)
+
+    const guestCleared = await guest.waitForMsg((m) => m.kind === 'H_LOBBY' && (m.modId === undefined || m.modId === '') && m.mod === undefined)
+    assert.ok(guestCleared, 'guest should see the mod cleared')
+    const afterClear = lastLobby(guest)
+    assert.equal((afterClear as { settings: { maxBuildOrders?: number } }).settings.maxBuildOrders, 3, 'sim settings keep the merged value until re-pushed')
+
+    push(guest, { kind: 'C_READY', ready: true })
+    await new Promise((r) => setTimeout(r, 150))
+    push(host, { kind: 'C_START' })
+    assert.ok(await guest.waitForMsg('S_MATCH_START'), 'guest should get S_MATCH_START without a mod ack')
+    assert.ok(await host.waitForMsg('S_MATCH_START'), 'host should get S_MATCH_START')
 
     guest.ws.close()
     host.ws.close()
