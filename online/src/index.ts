@@ -3,11 +3,13 @@ import type WebSocket from 'ws'
 import { WebSocketServer } from 'ws'
 import {
   BIN,
+  MIN_PROTOCOL_VERSION,
   PROTOCOL_VERSION,
   decodeChecksum,
   decodeControl,
   encodeControl,
   makeMatchStart,
+  validateCommandBytes,
   type ChatRelayMessage,
   type ControlMessage,
   type SettingsAlertMessage,
@@ -90,6 +92,22 @@ const pendingForfeits = new Map<string, number[]>()
 const reconnectTimers = new Map<string, Map<number, NodeJS.Timeout>>()
 /** Socket → room code binding (set on join, cleared on close). */
 const socketRooms = new Map<WebSocket, string>()
+
+/** How many malformed frames a socket may send before it is closed (4002). */
+const PROTOCOL_VIOLATIONS_MAX = 10
+
+/** Counts per-socket wire-protocol violations (unknown commands, byte mismatches,
+ *  out-of-range values, bad checksums). Violations drop the frame; hitting the cap
+ *  kicks the socket so a patched/malicious client cannot feed garbage forever. */
+const protocolViolations = new Map<WebSocket, number>()
+const noteProtocolViolation = (ws: WebSocket): void => {
+  const n = (protocolViolations.get(ws) ?? 0) + 1
+  protocolViolations.set(ws, n)
+  if (n >= PROTOCOL_VIOLATIONS_MAX) {
+    protocolViolations.delete(ws)
+    ws.close(4002, 'protocol violation')
+  }
+}
 
 /** TTL cache for DB-backed lobby stats so idle clients polling every few seconds never hit Supabase. */
 const LOBBY_STATS_TTL_MS = 30_000
@@ -317,6 +335,13 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
       break
     case 'C_JOIN': {
       if (msg.token) void bindAccountToken(ws, msg.token)
+      // Protocol number is UX/policy, not the real gate (frame validation is).
+      // Reject only a *claimed* protocol outside the grace band; old clients that
+      // omit the field are admitted and judged by the bytes they actually send.
+      if (typeof msg.protocol === 'number' && Number.isFinite(msg.protocol) && (msg.protocol > PROTOCOL_VERSION || msg.protocol < MIN_PROTOCOL_VERSION)) {
+        send(ws, { kind: 'H_ERROR', message: `server runs protocol ${PROTOCOL_VERSION}, you have ${msg.protocol} — update the game and try again` })
+        return
+      }
       if (!msg.roomCode) {
         send(ws, { kind: 'H_ERROR', message: 'No room specified' })
         return
@@ -1137,6 +1162,7 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       service: 'space-arenas-online',
       mode: MODE,
       protocol: PROTOCOL_VERSION,
+      minProtocol: MIN_PROTOCOL_VERSION,
       rooms: registry.list().length,
       players: registry.list().reduce((n, r) => n + registry.matchSlots(r).length, 0),
       registered: stats.registered,
@@ -1277,7 +1303,7 @@ const server = createServer(async (req, res) => {
   }
   const urlPath = (req.url ?? '/').split('?')[0]
   if (urlPath === '/') {
-    writeJson(res, 200, { service: 'space-arenas-online', mode: MODE, protocol: PROTOCOL_VERSION, health: '/api/status' })
+    writeJson(res, 200, { service: 'space-arenas-online', mode: MODE, protocol: PROTOCOL_VERSION, minProtocol: MIN_PROTOCOL_VERSION, health: '/api/status' })
     return
   }
   if (urlPath.startsWith('/api/')) {
@@ -1303,15 +1329,39 @@ wss.on('connection', (ws, request) => {
     const buf = data as Buffer
     if (buf[0] === BIN.CMD) {
       const ctx = roomForSocket(ws)
-      if (ctx?.relay) ctx.relay.submit(ws, new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength))
+      if (ctx?.relay) {
+        const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+        const expectedPlayer = ctx.room.players.get(ws)?.id
+        if (expectedPlayer === undefined) return
+        const validation = validateCommandBytes(bytes.subarray(1), expectedPlayer)
+        if (!validation.ok) {
+          noteProtocolViolation(ws)
+          return
+        }
+        ctx.relay.submit(ws, bytes)
+      }
       return
     }
     if (buf[0] === BIN.CHECKSUM) {
       const ctx = roomForSocket(ws)
       if (ctx?.relay) {
+        if (buf.length !== 9) {
+          noteProtocolViolation(ws)
+          return
+        }
         const c = decodeChecksum(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength))
+        if (c.tick < 0 || c.tick > 1_000_000_000) {
+          noteProtocolViolation(ws)
+          return
+        }
         ctx.relay.relayChecksum(ws, c.tick, c.crc)
       }
+      return
+    }
+    if (buf[0] === BIN.FRAME || buf[0] === BIN.RELAY_CHECKSUM) {
+      // Clients never legitimately send FRAME or RELAY_CHECKSUM to the server —
+      // those are relay broadcasts. A binary message with these tags is noise.
+      noteProtocolViolation(ws)
       return
     }
     try {
@@ -1322,6 +1372,7 @@ wss.on('connection', (ws, request) => {
   })
 
   ws.on('close', () => {
+    protocolViolations.delete(ws)
     const code = socketRooms.get(ws)
     if (!code) return
     socketRooms.delete(ws)

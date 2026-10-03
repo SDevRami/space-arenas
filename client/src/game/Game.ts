@@ -888,6 +888,9 @@ export class Game {
     this.netPlayers = msg.players
     this.team = msg.players.find((p) => p.id === msg.yourId)?.team ?? msg.yourId
     this.netStart = msg
+    if (msg.protocolVersion !== PROTOCOL_VERSION) {
+      console.warn(`[net] match protocol v${msg.protocolVersion} differs from client v${PROTOCOL_VERSION} — replay/feature compatibility is not guaranteed`)
+    }
     this.recordHistory = []
     this.recordTicks = 0
     this.replayRecorded = false

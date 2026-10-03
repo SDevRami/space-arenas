@@ -19,6 +19,7 @@ import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type 
 import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, saveCustomMap, seedLibraryFromBundledMaps, type MapEntry } from './mapbuilder/library.ts'
 import { initProfilePanel, renderProfilePanel, onProfileTabShown } from './profile/ui.ts'
 import { loadProfileConfig, saveProfileConfig } from './profile/profile.ts'
+import { restoreLocalProfile, saveLocalProfile } from './profile/folder-backup.ts'
 import { decryptPayload, encryptPayload, sha256Hex } from './net/crypto.ts'
 
 const ERROR_HIDE_TIMEOUT_MS = 8000
@@ -5300,3 +5301,39 @@ if (stashedMatch) {
     if (stashedMatch === pendingResume && !inviteCode) resumeOverlayEl.classList.add('visible')
   })
 }
+
+// ---------- local folder backup (profile/backup.json on the LAN host) ----------
+// localStorage is scoped to origin (scheme://host:port), so a port/URL change
+// would otherwise wipe the player's data. The host keeps one JSON snapshot in
+// the game folder's `profile/`. On load we restore any missing keys (only when
+// storage looks broken; existing data is never overwritten), then save. A save
+// also runs before close (pagehide) and on a quiet 30s heartbeat, but the module
+// fingerprints the storage and skips the upload entirely when nothing changed.
+
+const CORE_STORAGE_KEYS = ['space-arenas:graphics', 'space-arenas:audio', 'space-arenas:profile', 'space-arenas:name', 'space-arenas:clientId']
+
+const storageCoreIntact = (): boolean =>
+  CORE_STORAGE_KEYS.every((k) => {
+    try {
+      return localStorage.getItem(k) !== null
+    } catch {
+      return false
+    }
+  })
+
+void (async () => {
+  let restored = 0
+  if (!storageCoreIntact()) restored = await restoreLocalProfile()
+  if (restored > 0) {
+    reloadGraphics()
+    reloadAudio()
+    renderProfilePanel()
+    console.info(`[local-backup] restored ${restored} missing localStorage keys from folder snapshot`)
+  }
+  void saveLocalProfile()
+})()
+
+window.setInterval(() => {
+  void saveLocalProfile()
+}, 30_000)
+window.addEventListener('pagehide', () => void saveLocalProfile(true))

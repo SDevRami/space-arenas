@@ -1,5 +1,6 @@
 import {
   BIN,
+  PROTOCOL_VERSION,
   decodeChecksum,
   decodeControl,
   decodeFrame,
@@ -144,7 +145,7 @@ export class NetClient {
 
   async join(roomCode: string, passphrase: string, name: string, spectator = false, token?: string): Promise<void> {
     const hash = await hashPassphrase(passphrase, roomCode)
-    this.send({ kind: 'C_JOIN', roomCode, passphraseHash: hash, name, clientId: this.clientId, ...(spectator ? { spectator: true } : {}), ...(token ? { token } : {}) })
+    this.send({ kind: 'C_JOIN', roomCode, passphraseHash: hash, name, clientId: this.clientId, protocol: PROTOCOL_VERSION, ...(spectator ? { spectator: true } : {}), ...(token ? { token } : {}) })
   }
 
   ready(ready: boolean): void {

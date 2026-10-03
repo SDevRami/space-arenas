@@ -37,7 +37,15 @@ export const EMP_MAX_LEVEL = 2
 
 export const DEFAULT_PORT = 17321
 export const DEFAULT_MAX_PLAYERS = 8
-export const PROTOCOL_VERSION = 21
+/** Wire protocol revision (21). Kept XOR-obfuscated so the plain number isn't
+ *  trivially greppable in a minified bundle — a cheap stop for casual patchers,
+ *  explicitly NOT a security boundary (a determined client can always read it). */
+export const PROTOCOL_VERSION = 0x5c ^ 0x49
+/** Oldest client protocol a room still admits. The number is UX/policy only: the
+ *  real compatibility gate is server-side frame validation, so clients 1-2
+ *  versions behind keep playing while a patched client that speaks a changed
+ *  wire format gets rejected regardless of the integer it claims. */
+export const MIN_PROTOCOL_VERSION = PROTOCOL_VERSION - 2
 
 /** Number of selectable per-player colors. */
 export const PLAYER_COLOR_COUNT = 10

@@ -443,6 +443,121 @@ const envelopeLength = (data: Uint8Array): number => {
   return off
 }
 
+// ---------------------------------------------------------------------------
+// Strict server-side frame validation. The online server is a relay: it sees
+// every command envelope, so this is the REAL compatibility + anti-tamper gate.
+// A patched old client can bump the protocol integer freely, but if the wire
+// format changed it cannot produce byte-valid envelopes — every rule below is
+// enforced on the raw bytes before the frame is relayed to the other players.
+// ---------------------------------------------------------------------------
+
+/** Max entity references a single envelope may carry (a full-drag box select). */
+export const MAX_COMMAND_ENTITIES = 256
+/** Max bytes a building/unit/upgrade/choice name string may be on the wire. */
+export const MAX_COMMAND_STRING_BYTES = 64
+/** Absolute coordinate bounds — guards absurd (or negative-mapped) positions. */
+export const COORD_MIN = -100_000
+export const COORD_MAX = 100_000
+/** Any single incoming envelope larger than this is dropped on arrival. */
+export const COMMAND_MAX_BYTES = 8192
+
+export interface EnvelopeValidation {
+  ok: boolean
+  error?: string
+}
+
+/** Byte-exact validation of a BIN.CMD envelope body (after the BIN.CMD tag byte):
+ *  known type id, exact field layout, sane entity count, bounded coords/strings,
+ *  no trailing bytes, and the declared player id must match the socket's slot. */
+export const validateCommandBytes = (data: Uint8Array, expectedPlayer: number): EnvelopeValidation => {
+  if (data.length < 16 || data.length > COMMAND_MAX_BYTES) {
+    return { ok: false, error: `bad envelope length ${data.length}` }
+  }
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+  const typeId = data[0]
+  const typeName = CMD_TYPES[typeId]
+  if (typeName === undefined) return { ok: false, error: `unknown command type ${typeId}` }
+
+  let off = 1
+  const at = (n: number): boolean => off + n <= data.length
+  const i32 = (): number => {
+    const v = view.getInt32(off, true)
+    off += 4
+    return v
+  }
+  const u16 = (): number => {
+    const v = view.getUint16(off, true)
+    off += 2
+    return v
+  }
+  const str = (): string | null => {
+    if (!at(2)) return null
+    const len = u16()
+    if (len > MAX_COMMAND_STRING_BYTES) return null
+    if (!at(len)) return null
+    const s = decoder.decode(data.subarray(off, off + len))
+    off += len
+    return s
+  }
+
+  const tick = i32()
+  const player = data[off++]
+  off += 4 // seq
+  const entityCount = u16()
+  if (tick < 0 || tick > 1_000_000_000) return { ok: false, error: 'tick out of range' }
+  if (player !== expectedPlayer) return { ok: false, error: 'player id mismatch' }
+  if (entityCount > MAX_COMMAND_ENTITIES) return { ok: false, error: `entity count ${entityCount} too large` }
+  if (!at(entityCount * 4 + 8)) return { ok: false, error: 'envelope truncated' }
+  for (let i = 0; i < entityCount; i++) i32()
+  const x = i32()
+  const y = i32()
+  if (x < COORD_MIN || x > COORD_MAX || y < COORD_MIN || y > COORD_MAX) {
+    return { ok: false, error: 'coordinates out of range' }
+  }
+
+  if (typeName === 'ping') {
+    if (!at(1)) return { ok: false, error: 'truncated ping' }
+    off += 1
+  } else if (typeName === 'place' || typeName === 'queue' || typeName === 'research') {
+    if (str() === null) return { ok: false, error: 'bad name string' }
+  } else if (typeName === 'sw-choose') {
+    const s = str()
+    if (s === null || !SW_CHOICES.includes(s as SwChoice)) return { ok: false, error: 'bad super-weapon choice' }
+  } else if (typeName === 'dequeue' || typeName === 'dequeue-research') {
+    if (!at(1)) return { ok: false, error: 'truncated dequeue' }
+    off += 1
+  } else if (typeName === 'reorder-queue') {
+    if (!at(2)) return { ok: false, error: 'truncated reorder-queue' }
+    off += 2
+  } else if (
+    typeName === 'attack-move' ||
+    typeName === 'attack' ||
+    typeName === 'build' ||
+    typeName === 'collect' ||
+    typeName === 'assign-dock' ||
+    typeName === 'keep-attack' ||
+    typeName === 'guard' ||
+    typeName === 'remove-mine' ||
+    typeName === 'repair-unit' ||
+    typeName === 'transport-load'
+  ) {
+    if (!at(4)) return { ok: false, error: 'truncated target' }
+    off += 4
+  } else if (typeName === 'transport-unload') {
+    if (!at(8)) return { ok: false, error: 'truncated transport-unload' }
+    off += 8
+  } else if (typeName === 'set-auto-fire') {
+    if (!at(1)) return { ok: false, error: 'truncated set-auto-fire' }
+    off += 1
+  } else if (typeName === 'set-formation') {
+    if (!at(2)) return { ok: false, error: 'truncated set-formation' }
+    off += 2
+  }
+
+  if (off !== data.length) return { ok: false, error: `trailing ${data.length - off} bytes` }
+  return { ok: true }
+}
+
 export const crc32 = (data: Uint8Array): number => {
   let crc = 0xffffffff
   for (let i = 0; i < data.length; i++) {
@@ -466,6 +581,9 @@ export interface JoinMessage {
   /** Supabase session access token (Phase 2). The server verifies it and binds the
    *  player slot to an account so finished matches update games/wins/high_score. */
   token?: string
+  /** Client's PROTOCOL_VERSION. Old clients omit it — the server only rejects a
+   *  *claimed* number outside the grace band; a missing number is admitted. */
+  protocol?: number
 }
 export interface LobbyMessage {
   kind: 'H_LOBBY'

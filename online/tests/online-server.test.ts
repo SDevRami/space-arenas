@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createServer } from 'node:net'
 import WebSocket from 'ws'
-import { decodeControl, encodeControl } from '../shared/src/index.ts'
+import { decodeControl, decodeFrame, encodeControl, encodeCmd, BIN, MIN_PROTOCOL_VERSION, type EnvelopeCommand } from '../shared/src/index.ts'
 import { hashPassphrase } from '../src/passphrase.ts'
 import { rateLimit } from '../src/ratelimit.ts'
 import { MOD_MAX_BYTES, modLabel, sanitizeMod } from '../src/mods.ts'
@@ -676,6 +676,174 @@ describe('online server tamper watch', () => {
     })
     assert.equal(kickedCode, 4001, 'kicked player socket must close with code 4001')
     assert.ok(cheaterId >= 0, 'cheater id should be resolvable')
+
+    guest.ws.close()
+    host.ws.close()
+  })
+})
+
+describe('online server protocol version gate', () => {
+  const makeRoom = async (): Promise<{ code: string; hash: string }> => {
+    const { body } = await json('/api/rooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ hostName: 'Ver', passphrase: 'proto' }),
+    })
+    const code = (body as { roomCode: string }).roomCode
+    return { code, hash: hashPassphrase('proto', code) }
+  }
+
+  const joinExpecting = (roomCode: string, hash: string, protocol: number | undefined, want: string): Promise<string | null> =>
+    new Promise((resolve, reject) => {
+      const ws = new WebSocket(wsBase)
+      ws.on('open', () => {
+        ws.send(encodeControl({ kind: 'C_JOIN', roomCode, passphraseHash: hash, name: 'Proto' + (protocol ?? 'x'), ...(protocol !== undefined ? { protocol } : {}) }))
+      })
+      ws.on('message', (data) => {
+        const msg = decodeControl(data.toString())
+        if (msg.kind === want) {
+          ws.close()
+          resolve(want === 'H_LOBBY' ? 'joined' : (msg as { message: string }).message)
+        }
+      })
+      ws.on('close', (code) => reject(new Error(`connection closed with ${code} while waiting for ${want}`)))
+      ws.on('error', reject)
+      setTimeout(() => reject(new Error(`timed out waiting for ${want}`)), 3000)
+    })
+
+  it('admits a client inside the grace band and rejects one far outside it', async () => {
+    const { code, hash } = await makeRoom()
+    assert.ok(await joinExpecting(code, hash, MIN_PROTOCOL_VERSION, 'H_LOBBY'), 'min protocol should join')
+    const msg = await joinExpecting(code, hash, 9999, 'H_ERROR')
+    assert.ok(msg !== null && /protocol \d+/.test(msg), `expected a protocol mismatch error, got ${msg}`)
+  })
+
+  it('admits clients that omit the protocol field (old clients)', async () => {
+    const { code, hash } = await makeRoom()
+    assert.ok(await joinExpecting(code, hash, undefined, 'H_LOBBY'), 'missing protocol should join')
+  })
+})
+
+describe('online server wire-frame validation', () => {
+  it('relays a valid command but drops malformed frames and kicks repeat offenders', async () => {
+    const { body } = await json('/api/rooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ hostName: 'Gate', passphrase: 'wire' }),
+    })
+    const code = (body as { roomCode: string }).roomCode
+    const hash = hashPassphrase('wire', code)
+
+    type Sock = {
+      ws: WebSocket
+      yourId: number
+      frames: Array<{ tick: number; commands: EnvelopeCommand[] }>
+      msgs: Array<Record<string, unknown>>
+      waitForFrames: (pred: (f: Sock['frames'][number]) => boolean, tries?: number) => Promise<boolean>
+      waitForMsg: (kind: string, tries?: number) => Promise<boolean>
+      waitClose: () => Promise<number | undefined>
+    }
+    const open = (name: string): Promise<Sock> =>
+      new Promise((resolve, reject) => {
+        const ws = new WebSocket(wsBase)
+        const frames: Sock['frames'] = []
+        const msgs: Array<Record<string, unknown>> = []
+        const waitForFrames = async (pred: (f: Sock['frames'][number]) => boolean, tries = 40): Promise<boolean> => {
+          for (let i = 0; i < tries; i++) {
+            if (frames.some(pred)) return true
+            await new Promise((r) => setTimeout(r, 50))
+          }
+          return false
+        }
+        const waitForMsg = async (kind: string, tries = 40): Promise<boolean> => {
+          for (let i = 0; i < tries; i++) {
+            if (msgs.some((m) => m.kind === kind)) return true
+            await new Promise((r) => setTimeout(r, 50))
+          }
+          return false
+        }
+        const waitClose = (): Promise<number | undefined> =>
+          new Promise((r) => {
+            ws.on('close', (code) => r(code))
+            setTimeout(() => r(undefined), 3000)
+          })
+        let yourId = -1
+        ws.on('open', () => {
+          ws.send(encodeControl({ kind: 'C_JOIN', roomCode: code, passphraseHash: hash, name, clientId: `wire-${name}-${Date.now()}`, protocol: 21 }))
+        })
+        ws.on('message', (data, isBinary) => {
+          if (isBinary) {
+            const buf = new Uint8Array(data as ArrayBuffer)
+            if (buf[0] === BIN.FRAME) frames.push(decodeFrame(buf))
+            return
+          }
+          const msg = decodeControl(data.toString())
+          msgs.push(msg as unknown as Record<string, unknown>)
+          if (msg.kind === 'H_ERROR') reject(new Error(`server rejected join: ${(msg as { message: string }).message}`))
+          if (msg.kind === 'H_LOBBY') {
+            yourId = (msg as { yourId: number }).yourId
+            resolve({ ws, yourId, frames, msgs, waitForFrames, waitForMsg, waitClose })
+          }
+        })
+        ws.on('error', reject)
+        ws.on('close', (code) => {
+          if (code !== 4001) reject(new Error(`connection closed with ${code} before H_LOBBY`))
+        })
+        setTimeout(() => reject(new Error(`no H_LOBBY for ${name}`)), 3000)
+      })
+
+    const host = await open('Gate')
+    const guest = await open('Guy')
+    const hostId = host.yourId
+    const guestId = guest.yourId
+
+    const send = (t: Sock, msg: unknown): void => t.ws.send(encodeControl(msg as Parameters<typeof encodeControl>[0]))
+    send(guest, { kind: 'C_READY', ready: true })
+    await new Promise((r) => setTimeout(r, 150))
+    send(host, { kind: 'C_START' })
+    assert.ok(await host.waitForMsg('S_MATCH_START'), 'host should get S_MATCH_START')
+    assert.ok(await guest.waitForMsg('S_MATCH_START'), 'guest should get S_MATCH_START')
+
+    // Both sides loaded → the relay starts and frames begin broadcasting.
+    send(host, { kind: 'C_LOADED' })
+    send(guest, { kind: 'C_LOADED' })
+    // Wait until the relay is actually ticking (guest has received an empty frame),
+    // then send the command so it cannot race the relay startup.
+    assert.ok(await guest.waitForFrames(() => true), 'relay should start broadcasting')
+    const baselineN = guest.frames.filter((f) => f.commands.length > 0).length
+
+    const valid = encodeCmd({
+      player: hostId,
+      seq: 1,
+      tick: 0,
+      cmd: { type: 'move', entities: [7], x: 480, y: 960 },
+    })
+    host.ws.send(valid)
+    const relayed = await guest.waitForFrames((f) =>
+      f.commands.some((c) => c.player === hostId && c.cmd.type === 'move' && c.cmd.entities[0] === 7),
+    )
+    const seen = guest.frames
+      .filter((f) => f.commands.length > 0)
+      .map((f) => ({ tick: f.tick, first: { p: f.commands[0].player, t: f.commands[0].cmd.type, seq: f.commands[0].seq } }))
+      .slice(-4)
+    assert.ok(relayed, `a valid command envelope must be relayed to the other player; guest saw ${JSON.stringify(seen)}, nonEmptyBefore=${baselineN}`)
+
+    // Malformed frames: unknown command type, a truncated envelope, trailing bytes.
+    const garbage = [
+      new Uint8Array([BIN.CMD, 250]), // unknown type id 250
+      new Uint8Array([BIN.CMD, 0, 0, 0, 0, 0, guestId, 1, 0, 0, 0]), // truncated entity list
+      (() => {
+        const b = new Uint8Array(encodeCmd({ player: guestId, seq: 2, tick: 0, cmd: { type: 'move', entities: [], x: 5, y: 5 } }))
+        const withTrail = new Uint8Array(b.length + 1)
+        withTrail.set(b)
+        withTrail[b.length] = 0xff
+        return withTrail
+      })(), // valid envelope + trailing byte
+    ]
+    for (let n = 0; n < 10; n++) guest.ws.send(garbage[n % garbage.length])
+    const closeCode = await guest.waitClose()
+    assert.equal(closeCode, 4002, 'repeat protocol offenders must be disconnected with code 4002')
+    assert.equal(host.ws.readyState, WebSocket.OPEN, 'the innocent player must stay connected')
 
     guest.ws.close()
     host.ws.close()

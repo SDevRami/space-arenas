@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { extname, join, relative, resolve } from 'node:path'
-import { readFile } from 'node:fs/promises'
 import { hostname } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import type WebSocket from 'ws'
@@ -43,6 +43,75 @@ const BEACON_PORT = Number(process.env.SA_BEACON_PORT ?? DEFAULT_BEACON_PORT)
 const HOST_BASE = typeof __dirname !== 'undefined' ? __dirname : fileURLToPath(new URL('.', import.meta.url))
 const CLIENT_DIST = resolve(HOST_BASE, '../../client/dist')
 const MAPBUILDER_DIST = resolve(HOST_BASE, '../../mapbuilder/dist')
+
+// ---------------------------------------------------------------------------
+// Local player-profile backup: browsers keep their data in localStorage keyed
+// by origin (scheme://host:port). If the game moves to another port/URL that
+// storage looks empty and the player would lose everything. The client dumps
+// its localStorage here on load and on close, as ONE overwritten JSON file in
+// the game folder's `profile/backup.json` (atomic write, never blocks the event
+// loop), so a safe restore is always one file away. `SA_PROFILE_DIR` overrides
+// the folder for tests.
+// ---------------------------------------------------------------------------
+const PROFILE_DIR = resolve(process.env.SA_PROFILE_DIR ?? resolve(HOST_BASE, '../../profile'))
+const PROFILE_MAX_BYTES = 32 * 1024 * 1024
+const PROFILE_FILE = 'backup.json'
+const LEGACY_PROFILE_RE = /^backup-\d{8}-\d{6}-\d{3}\.json$/
+
+/** Info row for the (single) backup file, or null when none exists yet. */
+const profileStats = async (): Promise<{ name: string; savedAt: string } | null> => {
+  try {
+    const st = await stat(join(PROFILE_DIR, PROFILE_FILE))
+    return { name: PROFILE_FILE, savedAt: new Date(st.mtime).toISOString() }
+  } catch {
+    return null
+  }
+}
+
+/** Writes the one `backup.json` atomically (tmp + rename) and clears the legacy
+ *  timestamped snapshots written by an earlier build of this feature. */
+const saveProfileFile = async (profile: unknown): Promise<boolean> => {
+  try {
+    await mkdir(PROFILE_DIR, { recursive: true })
+  } catch {
+    return false
+  }
+  const finalPath = join(PROFILE_DIR, PROFILE_FILE)
+  const tmpPath = join(PROFILE_DIR, '.backup.tmp')
+  try {
+    await writeFile(tmpPath, JSON.stringify(profile))
+    await rename(tmpPath, finalPath)
+  } catch {
+    try {
+      await rm(tmpPath)
+    } catch {
+      /* ignore */
+    }
+    return false
+  }
+  try {
+    for (const n of readdirSync(PROFILE_DIR)) {
+      if (LEGACY_PROFILE_RE.test(n)) {
+        try {
+          await rm(join(PROFILE_DIR, n))
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return true
+}
+
+const readProfileFile = async (): Promise<unknown | null> => {
+  try {
+    return JSON.parse(await readFile(join(PROFILE_DIR, PROFILE_FILE), 'utf8')) as unknown
+  } catch {
+    return null
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Sprite bundle: one request that carries every PNG the game could need. On
@@ -750,6 +819,40 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
     rooms.detachMod(name)
     broadcastLobby()
     writeJson(res, 200, { ok: true })
+    return true
+  }
+  if (req.method === 'GET' && urlPath === '/api/profile') {
+    const st = await profileStats()
+    writeJson(res, 200, { ok: true, files: st ? [st] : [] })
+    return true
+  }
+  if (req.method === 'GET' && urlPath === '/api/profile/latest') {
+    const profile = await readProfileFile()
+    if (!profile) {
+      writeJson(res, 404, { ok: false, error: 'no backup' })
+      return true
+    }
+    writeJson(res, 200, { ok: true, name: PROFILE_FILE, profile })
+    return true
+  }
+  if (req.method === 'POST' && urlPath === '/api/profile') {
+    const body = await readJson(req, PROFILE_MAX_BYTES)
+    if (!body || typeof body !== 'object' || !body.keys || typeof body.keys !== 'object') {
+      writeJson(res, 400, { ok: false, error: 'profile needs a keys object' })
+      return true
+    }
+    const keys: Record<string, string> = {}
+    for (const [k, v] of Object.entries(body.keys as Record<string, unknown>)) {
+      if (typeof v === 'string') keys[k] = v
+    }
+    const profile = {
+      v: 1,
+      origin: typeof body.origin === 'string' ? body.origin : '',
+      savedAt: typeof body.savedAt === 'string' ? body.savedAt : new Date().toISOString(),
+      keys,
+    }
+    const ok = await saveProfileFile(profile)
+    writeJson(res, ok ? 200 : 500, ok ? { ok: true } : { ok: false, error: 'write failed' })
     return true
   }
   return false
