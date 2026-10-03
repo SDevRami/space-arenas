@@ -12,7 +12,7 @@ import { MapPreview } from './ui/map-preview.ts'
 import { createPlayerRow } from './ui/player-row.ts'
 import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
 import { initControlsSettings } from './ui/controls-settings.ts'
-import { preloadFxFrames } from './render/building-sprites.ts'
+import { preloadAllMatchAssets, preloadFxFrames } from './render/building-sprites.ts'
 import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setFieldScale, setObstacleScale, setObstacleOffset, setUnitScale, setUnitOffset, setAssetPath, setFxScale, setFxOffset, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, setSpriteLayerOrder, setProjectileBulletSize, setProjectileRocketSize, setProjectileShellSize, setProjectileShellHeight, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_FIELD_SCALE, DEFAULT_OBSTACLE_SCALE, DEFAULT_OBSTACLE_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_UNIT_OFFSET, DEFAULT_FX_SCALE, DEFAULT_FX_OFFSET, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, DEFAULT_SPRITE_LAYER_ORDER, DEFAULT_PROJECTILE_BULLET_SIZE, DEFAULT_PROJECTILE_ROCKET_SIZE, DEFAULT_PROJECTILE_SHELL_SIZE, DEFAULT_PROJECTILE_SHELL_HEIGHT, SPRITE_LAYER_KINDS, UNIT_ASSET_IDS, HUD_ASSET_IDS, OBSTACLE_ASSET_TYPES, reloadGraphics } from './ui/graphics.ts'
 import { getAudio, setOverride, setTuning, reloadAudio, TUNING_VOL_MAX, TUNING_PITCH_MIN, TUNING_PITCH_MAX, type SoundId } from './audio/settings.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
@@ -28,6 +28,9 @@ const NAME_DEBOUNCE_MS = 500
 const MAX_CHAT_LINES = 100
 const POLL_INTERVAL_MS = 2500
 const AUTO_JOIN_DELAY_MS = 600
+/** Base lobby-refresh cadence; grows with backoff while the online server is unreachable. */
+const ONLINE_LOBBY_POLL_MS = 5000
+const ONLINE_LOBBY_POLL_MAX_MS = 60_000
 
 const COLOR_HEXES = PLAYER_COLORS.map((c) => `#${c.toString(16).padStart(6, '0')}`)
 
@@ -838,6 +841,7 @@ interface OnlineRoom {
 let onlineRooms: OnlineRoom[] = []
 let selectedOnlineRoom: OnlineRoom | null = null
 let creatingOnline = false
+let onlineRoomsEtag: string | null = null
 
 const onlineName = (): string => onlineNameEl.value.trim() || 'Commander'
 
@@ -910,21 +914,56 @@ const applyOnlineStats = (s: { rooms?: number; players?: number; registered?: nu
   onlineStatRegisteredEl.textContent = fmt(s.registered)
 }
 
+/** Live servers expose registered/online players in the `/api/rooms` payload.
+ *  A server running an older build omits them — fall back to `/api/status` there
+ *  so the online-stats row keeps working until every server is redeployed. */
+const fetchOnlineStats = async (roomsCount: number): Promise<{ rooms: number; players: number; registered: number | null }> => {
+  const res = await fetch(`${ONLINE_URL}/api/status`)
+  if (!res.ok) throw new Error(String(res.status))
+  const j = (await res.json()) as { rooms?: number; players?: number; registered?: number | null }
+  return {
+    rooms: typeof j.rooms === 'number' ? j.rooms : roomsCount,
+    players: typeof j.players === 'number' ? j.players : NaN,
+    registered: typeof j.registered === 'number' ? j.registered : null,
+  }
+}
+
 const refreshOnlineList = async (silent = false): Promise<void> => {
   try {
-    const [roomsRes, statusRes] = await Promise.all([fetch(`${ONLINE_URL}/api/rooms`), fetch(`${ONLINE_URL}/api/status`)])
-    if (!roomsRes.ok) throw new Error(String(roomsRes.status))
-    const data = (await roomsRes.json()) as { rooms?: OnlineRoom[] }
+    const headers: Record<string, string> = {}
+    if (onlineRoomsEtag) headers['If-None-Match'] = onlineRoomsEtag
+    const res = await fetch(`${ONLINE_URL}/api/rooms`, { headers })
+    if (res.status === 304) {
+      onlinePollDelay = ONLINE_LOBBY_POLL_MS
+      if (!silent) setOnlineStatus(t('online.refreshed'))
+      return
+    }
+    if (!res.ok) throw new Error(String(res.status))
+    const data = (await res.json()) as { rooms?: OnlineRoom[]; players?: number; registered?: number | null }
+    onlineRoomsEtag = res.headers.get('etag') ?? null
     onlineRooms = data.rooms ?? []
     selectedOnlineRoom = onlineRooms.some((r) => selectedOnlineRoom && r.id === selectedOnlineRoom.id) ? selectedOnlineRoom : null
     renderOnlineMatches()
-    if (statusRes.ok) {
-      const st = (await statusRes.json()) as { rooms?: number; players?: number; registered?: number | null }
-      applyOnlineStats(st)
+    if (typeof data.players === 'number' && typeof data.registered === 'number') {
+      applyOnlineStats({ rooms: (data.rooms ?? []).length, players: data.players, registered: data.registered })
+    } else {
+      // Old server build: stats live on /api/status instead. A missing/corrupt
+      // status payload keeps the current dash values rather than zeroing them.
+      try {
+        applyOnlineStats(await fetchOnlineStats((data.rooms ?? []).length))
+      } catch {
+        applyOnlineStats({
+          rooms: (data.rooms ?? []).length,
+          players: data.players,
+          registered: data.registered,
+        })
+      }
     }
+    onlinePollDelay = ONLINE_LOBBY_POLL_MS
     if (!silent) setOnlineStatus(t('online.refreshed'))
   } catch {
     applyOnlineStats({})
+    onlinePollDelay = Math.min(onlinePollDelay * 2, ONLINE_LOBBY_POLL_MAX_MS)
     if (!silent) setOnlineStatus(t('online.serverDown'), true)
   }
 }
@@ -1275,9 +1314,24 @@ onlineTabMapsBtn.addEventListener('click', () => {
   void loadRepoMaps(false)
 })
 
-setInterval(() => {
-  if (!onlinePanel.classList.contains('hidden-panel')) void refreshOnlineList(true)
-}, 5_000)
+let onlinePollTimer: number | null = null
+let onlinePollDelay = ONLINE_LOBBY_POLL_MS
+const pollOnlineLobby = (): void => {
+  if (onlinePollTimer !== null) window.clearTimeout(onlinePollTimer)
+  onlinePollTimer = window.setTimeout(async () => {
+    if (document.visibilityState === 'visible' && !onlinePanel.classList.contains('hidden-panel')) {
+      await refreshOnlineList(true)
+    }
+    pollOnlineLobby()
+  }, onlinePollDelay)
+}
+pollOnlineLobby()
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    onlinePollDelay = ONLINE_LOBBY_POLL_MS
+    if (!onlinePanel.classList.contains('hidden-panel')) void refreshOnlineList(true)
+  }
+})
 
 onlineNameEl.addEventListener('input', () => {
   const name = onlineNameEl.value.trim() || 'Commander'
@@ -5142,7 +5196,7 @@ const lobbyVisible = (): boolean => {
 }
 
 window.setInterval(() => {
-  if (lobbyVisible()) void pollNetwork()
+  if (document.visibilityState === 'visible' && lobbyVisible()) void pollNetwork()
 }, POLL_INTERVAL_MS)
 void pollNetwork()
 
@@ -5214,20 +5268,35 @@ if (inviteCode) {
 
 // ---------- hide loading screen ----------
 
-void Promise.allSettled([graphicsReady, audioReady, mapBuilderReady, infoCatalogReady]).then(() => {
+/** Cap on how long the lobby waits on the asset preload. Loads continue in the
+ *  background and feed the renderer's caches; the screen always gives way within
+ *  budget so an unreachable remote asset origin can never wedge boot. */
+const PRELOAD_BUDGET_MS = 30_000
+
+const bootReady = (async () => {
+  await Promise.allSettled([graphicsReady, audioReady, mapBuilderReady, infoCatalogReady])
+  const fillEl = document.getElementById('loader-fill')
+  const statusEl = document.getElementById('loader-status')
+  await Promise.race([
+    preloadAllMatchAssets((done, total) => {
+      if (fillEl) fillEl.style.width = `${Math.min(100, Math.floor((done / Math.max(1, total)) * 100))}%`
+      if (statusEl) statusEl.textContent = `Loading assets ${Math.min(done, total)}/${total}`
+    }),
+    new Promise<void>((resolve) => window.setTimeout(resolve, PRELOAD_BUDGET_MS)),
+  ])
   const el = document.getElementById('loading-screen')
   if (el) {
     el.classList.add('hidden')
     window.setTimeout(() => el.remove(), 500)
   }
-})
+})()
 
 // ---------- offer to resume a running match after a page reload ----------
 
 const stashedMatch = readActiveMatch()
 if (stashedMatch) {
   pendingResume = stashedMatch
-  void Promise.allSettled([graphicsReady, audioReady, mapBuilderReady, infoCatalogReady]).then(() => {
+  void bootReady.then(() => {
     if (stashedMatch === pendingResume && !inviteCode) resumeOverlayEl.classList.add('visible')
   })
 }

@@ -1005,7 +1005,7 @@
       "assetObstacle": { "label": "Scenery image path", "desc": "Static object image (tree, rock, wreck), e.g. ao/tree.png — leave empty for the vector shape" },
       "assetBurn": { "label": "Burning fire path", "desc": "Animated overlay for heavily damaged units; {frame} = 0001-0002. e.g. fx/burn/burn_{frame}.png. Empty = procedural flame" },
       "assetFx": { "label": "Effects", "desc": "Effects — animated overlays (2 frames: {frame} = 1-2)" },
-      "audioPath": { "label": "Sound override", "desc": "A single file (…/x.wav/.mp3/.ogg) OR a folder under client/dist such as sound/{id}/ holding v1.wav, v2.wav, … Ordinary sounds play a shuffled variant each time; ambient-lobby/ambient-game play their files one-after-another in a shuffled loop. Empty = default synth" },
+      "audioPath": { "label": "Sound override", "desc": "A single file (…/x.wav/.mp3/.ogg) OR a folder under client/dist such as sound/{id}/. By default the bundled sound/{id}/{name}.wav is used (or the legacy v1.wav, v2.wav pool). Ordinary sounds play a shuffled variant each time; ambient-lobby/ambient-game play their files one-after-another in a shuffled loop. Empty = bundled file, else synth" },
       "audioPathApply": { "label": "Use generated", "desc": "Point this sound at the generated WAV folder: sound/{id}/ under client/dist (applies live; clear to fall back to the synth)" },
       "audioPathClear": { "label": "Synth", "desc": "Clear the override and play the built-in synth for this sound" },
       "audioPlay": { "label": "Play", "desc": "Preview this sound right now with the current override + tuning, at full volume and without positional falloff (no match needed). Ambience previews ~4 s." },

@@ -45,11 +45,11 @@ const DEFAULTS: AudioSettings = {
 }
 
 /** Every sound kind played in the game, overridable via the dev-settings Audio
- * section. An override may be a single audio file (…/x.wav/.mp3/.ogg/.m4a) or a
- * folder path (`sound/<id>/`) containing `v1.wav, v2.wav, …` — for ordinary
- * sounds one variant is shuffled per play; for the ambient ids
- * (`ambient-lobby`/`ambient-game`/`rain-ambient`/`snow-ambient`/`storm-ambient`)
- * the files play one-after-another in a shuffled loop. Empty override = synth. */
+ *  section. An override may be a single audio file (…/x.wav/.mp3/.ogg/.m4a) or a
+ *  folder path (`sound/<id>/`). A folder is first checked for the bundled
+ *  single-file name from SOUND_FILE_NAMES (e.g. `sound/select/slct.wav`); if that
+ *  is missing the legacy `v1.wav, v2.wav, …` pool layout is probed. Empty
+ *  override = synth. */
 export const SOUND_IDS = [
   'select',
   'move-bleep',
@@ -81,6 +81,38 @@ export const SOUND_IDS = [
   'storm-ambient',
 ] as const
 export type SoundId = (typeof SOUND_IDS)[number]
+
+/** Bundled wav per sound kind, one file per folder under `client/dist/sound/<id>/`.
+ *  Kinds not listed here have no bundled audio yet and fall back to the synth
+ *  (the ambient ids play their file in a looping shuffled rotation). */
+export const SOUND_FILE_NAMES: Record<string, string> = {
+  select: 'slct.wav',
+  'move-bleep': 'bleep.wav',
+  alert: 'alrt.wav',
+  'weapon-rifle': 'rfl.wav',
+  'weapon-rocket': 'rct.wav',
+  'weapon-cannon': 'cnon.wav',
+  'weapon-artillery': 'art.wav',
+  'weapon-air-cannon': 'arcnon.wav',
+  'building-completed': 'bldcmpl.wav',
+  'supply-harvested': 'splyhrv.wav',
+  'combat-hit': 'ht.wav',
+  'laser-strike': 'lsrst.wav',
+  'bomb-strike': 'bmbst.wav',
+  'emp-strike': 'mpst.wav',
+  'airstrike-called': 'airst.wav',
+  'grenade-exploded': 'grndxpl.wav',
+  'smoke-landed': 'smk.wav',
+  'power-down': 'pwrdn.wav',
+  'game-over': 'los.wav',
+  victory: 'wn.wav',
+  achievement: 'ach.wav',
+  'ambient-lobby': 'ambl.wav',
+  'ambient-game': 'ambg.wav',
+  'rain-ambient': 'ambr.wav',
+  'snow-ambient': 'ambs.wav',
+  'storm-ambient': 'ambst.wav',
+}
 
 const load = (): AudioSettings => {
   const base: AudioSettings = { ...DEFAULTS, overrides: { ...DEFAULTS.overrides }, tuning: {} }

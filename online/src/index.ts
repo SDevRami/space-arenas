@@ -91,6 +91,19 @@ const reconnectTimers = new Map<string, Map<number, NodeJS.Timeout>>()
 /** Socket → room code binding (set on join, cleared on close). */
 const socketRooms = new Map<WebSocket, string>()
 
+/** TTL cache for DB-backed lobby stats so idle clients polling every few seconds never hit Supabase. */
+const LOBBY_STATS_TTL_MS = 30_000
+let lobbyStatsCache: { at: number; registered: number | null; db: boolean } | null = null
+const lobbyStats = async (): Promise<{ registered: number | null; db: boolean }> => {
+  const now = Date.now()
+  if (lobbyStatsCache && now - lobbyStatsCache.at < LOBBY_STATS_TTL_MS) {
+    return { registered: lobbyStatsCache.registered, db: lobbyStatsCache.db }
+  }
+  const [registered, db] = await Promise.all([dbProfileCount(), dbProbe()])
+  lobbyStatsCache = { at: now, registered, db }
+  return { registered, db }
+}
+
 const send = (ws: WebSocket, msg: ControlMessage): void => {
   if (ws.readyState === 1) ws.send(encodeControl(msg))
 }
@@ -604,9 +617,22 @@ const readJson = (req: IncomingMessage, maxBytes = 1_000_000): Promise<Record<st
     req.on('error', rejectBody)
   })
 
-const writeJson = (res: ServerResponse, code: number, body: unknown): void => {
-  res.writeHead(code, { 'Content-Type': 'application/json' })
+const writeJson = (res: ServerResponse, code: number, body: unknown, extra: Record<string, string> = {}): void => {
+  res.writeHead(code, { 'Content-Type': 'application/json', ...extra })
   res.end(JSON.stringify(body))
+}
+
+/** Weak content hash of the current lobby listing + DB stat — used as an ETag for cheap 304 polls. */
+const lobbyEtag = (registered: number | null): string => {
+  let h = 5381
+  const feed = `${registered ?? ''}|`
+  for (let i = 0; i < feed.length; i++) h = ((h << 5) + h + feed.charCodeAt(i)) | 0
+  const rooms = registry.list()
+  for (const r of rooms) {
+    const s = `${r.code}|${r.hostName}|${r.map.name}|${registry.matchSlots(r).length}|${r.maxPlayers}|${r.started ? 1 : 0}|${r.passwordRequired ? 1 : 0}|${r.createdAt}`
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  }
+  return `"lobby-${(h >>> 0).toString(36)}-${rooms.length}"`
 }
 
 const bearerToken = (req: IncomingMessage): string => {
@@ -1105,6 +1131,7 @@ const handleMaps = async (req: IncomingMessage, res: ServerResponse, urlPath: st
 
 const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: string): Promise<boolean> => {
   if (req.method === 'GET' && urlPath === '/api/status') {
+    const stats = await lobbyStats()
     writeJson(res, 200, {
       ok: true,
       service: 'space-arenas-online',
@@ -1112,8 +1139,8 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       protocol: PROTOCOL_VERSION,
       rooms: registry.list().length,
       players: registry.list().reduce((n, r) => n + registry.matchSlots(r).length, 0),
-      registered: await dbProfileCount(),
-      db: await dbProbe(),
+      registered: stats.registered,
+      db: stats.db,
     })
     return true
   }
@@ -1140,7 +1167,20 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       writeJson(res, 503, { ok: false, error: 'online lobby disabled (SA_MODE=online required)' })
       return true
     }
-    writeJson(res, 200, { rooms: registry.list().map(roomSummary) })
+    const stats = await lobbyStats()
+    const rooms = registry.list().map(roomSummary)
+    const body = {
+      rooms,
+      players: registry.list().reduce((n, r) => n + registry.matchSlots(r).length, 0),
+      registered: stats.registered,
+    }
+    const etag = lobbyEtag(stats.registered)
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { ETag: etag })
+      res.end()
+      return true
+    }
+    writeJson(res, 200, body, { ETag: etag })
     return true
   }
   if (req.method === 'GET' && urlPath.startsWith('/api/rooms/search')) {

@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { existsSync } from 'node:fs'
-import { extname, resolve } from 'node:path'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { extname, join, relative, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { hostname } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -43,6 +43,53 @@ const BEACON_PORT = Number(process.env.SA_BEACON_PORT ?? DEFAULT_BEACON_PORT)
 const HOST_BASE = typeof __dirname !== 'undefined' ? __dirname : fileURLToPath(new URL('.', import.meta.url))
 const CLIENT_DIST = resolve(HOST_BASE, '../../client/dist')
 const MAPBUILDER_DIST = resolve(HOST_BASE, '../../mapbuilder/dist')
+
+// ---------------------------------------------------------------------------
+// Sprite bundle: one request that carries every PNG the game could need. On
+// mobile/hotspot networks the browser's per-file requests crawl (~1s each) when
+// there is no WAN, which freezes the 1950-file preload even though all textures
+// sit on the LAN host. The client falls back to this single fetch when it
+// detects that crawl, then builds every texture locally from the bytes.
+//   wire format: [u32 headerLen][header JSON [[path, offset, len], ...]][payload]
+// ---------------------------------------------------------------------------
+const SPRITE_BUNDLE_CACHE_CONTROL = 'public, max-age=31536000, immutable'
+let spriteBundle: Buffer | null = null
+
+const buildSpriteBundle = (): Buffer => {
+  if (spriteBundle) return spriteBundle
+  const walk = (dir: string, out: string[]): void => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name)
+      if (e.isDirectory()) walk(p, out)
+      else if (e.name.toLowerCase().endsWith('.png')) out.push(p)
+    }
+  }
+  const files: string[] = []
+  try {
+    walk(CLIENT_DIST, files)
+  } catch {
+    /* dist not built yet */
+  }
+  const chunks: Buffer[] = []
+  const manifest: Array<[string, number, number]> = []
+  let dataOffset = 0
+  for (const f of files) {
+    let bytes: Buffer
+    try {
+      bytes = readFileSync(f)
+    } catch {
+      continue
+    }
+    manifest.push([relative(CLIENT_DIST, f).replace(/\\/g, '/'), dataOffset, bytes.length])
+    dataOffset += bytes.length
+    chunks.push(bytes)
+  }
+  const headerJson = Buffer.from(JSON.stringify(manifest))
+  const head = Buffer.alloc(4)
+  head.writeUInt32LE(headerJson.length, 0)
+  spriteBundle = Buffer.concat([head, headerJson, ...chunks])
+  return spriteBundle
+}
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -710,6 +757,11 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
 
 const server = createServer(async (req, res) => {
   const urlPath = (req.url ?? '/').split('?')[0]
+  if (urlPath === '/assets/sprites.bundle') {
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': SPRITE_BUNDLE_CACHE_CONTROL })
+    res.end(buildSpriteBundle())
+    return
+  }
   if (urlPath.startsWith('/api/')) {
     try {
       const handled = await handleApi(req, res, urlPath)

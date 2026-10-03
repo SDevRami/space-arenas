@@ -1,5 +1,5 @@
 import type { SimEvent } from '../core/events.ts'
-import { effectsVolume, ambientVolume, ambientInMatchVolume, getAudio, getTuning, onChangeAudio } from './settings.ts'
+import { effectsVolume, ambientVolume, ambientInMatchVolume, getAudio, getTuning, onChangeAudio, SOUND_FILE_NAMES } from './settings.ts'
 import type { WeatherId } from '../ui/graphics.ts'
 
 interface ToneOpts {
@@ -156,12 +156,7 @@ export class AudioHooks {
       void this.playAsset(kind, opts.url, opts)
       return
     }
-    const o = getAudio().overrides[kind]
-    if (o && o.length > 0) {
-      void this.playVariants(kind, opts)
-      return
-    }
-    this.synthSfx(kind, opts)
+    void this.playVariants(kind, opts)
   }
 
   /** Files the current override for `kind` resolves to (empty = built-in synth).
@@ -214,20 +209,41 @@ export class AudioHooks {
   }
 
   /** Resolve the override for `kind` into a list of candidate file URLs (empty = synth). */
+  /** Resolve audio for `kind` into a list of candidate file URLs (empty = synth).
+   * An explicit override (file or folder) wins. With no override the bundled
+   * `sound/<kind>/<name>.wav` is probed when `kind` has a bundled name — a single
+   * request, no 404 hunting. */
   private async overrideUrls(kind: string): Promise<string[]> {
     const o = getAudio().overrides[kind]
-    if (!o || o.length === 0) return []
-    if (/\.(wav|mp3|ogg|m4a)$/i.test(o)) return [o]
-    return this.resolveVariants(o)
+    if (o && o.length > 0) {
+      if (/\.(wav|mp3|ogg|m4a)$/i.test(o)) return [o]
+      return this.resolveVariants(o, kind)
+    }
+    const name = SOUND_FILE_NAMES[kind]
+    if (!name) return []
+    const folder = `sound/${kind}/`
+    const cached = this.variants.get(folder)
+    if (cached) return cached
+    try {
+      const resp = await fetch(`${folder}${name}`, { method: 'HEAD' })
+      const urls = resp.ok ? [`${folder}${name}`] : []
+      this.variants.set(folder, urls)
+      return urls
+    } catch {
+      this.variants.set(folder, [])
+      return []
+    }
   }
 
-  /** Resolve a folder override into its `v1, v2, …` variant files (probed + cached). */
-  private async resolveVariants(folder: string): Promise<string[]> {
+  /** Resolve a folder override into its variant files (probed + cached).
+   * Checks the bundled single-file name (`<folder><SOUND_FILE_NAMES[kind]>`)
+   * first, falling back to the legacy `v1.wav … v12.wav` pool layout. */
+  private async resolveVariants(folder: string, kind: string): Promise<string[]> {
     const cached = this.variants.get(folder)
     if (cached) return cached
     const inflight = this.variantsLoading.get(folder)
     if (inflight) return inflight
-    const p = this.probeVariants(folder)
+    const p = this.probeVariants(folder, kind)
     this.variantsLoading.set(folder, p)
     try {
       const urls = await p
@@ -238,19 +254,28 @@ export class AudioHooks {
     }
   }
 
-  /** Probe `folder/v1.wav` … `folder/v12.wav` and keep whatever exists. Variant
-   * numbering does not need to start at v1 or be contiguous (a folder holding only
-   * `v4.wav` still yields that file) — the game only ever loads files actually
-   * present in the folder. */
-  private async probeVariants(folder: string): Promise<string[]> {
-    const urls: string[] = []
-    for (let i = 1; i <= 12; i++) {
-      const u = `${folder}v${i}.wav`
+  /** Probe a folder's audio files: the bundled name for `kind` first, then the
+   * legacy `v1.wav … v12.wav` pool. Only files actually present are returned,
+   * so deleting a file drops it immediately without 404 noise. */
+  private async probeVariants(folder: string, kind: string): Promise<string[]> {
+    const probe = async (u: string): Promise<boolean> => {
       try {
         const resp = await fetch(u, { method: 'HEAD' })
-        if (resp.ok) urls.push(u)
+        return resp.ok
       } catch {
-        /* missing file — skip */
+        return false
+      }
+    }
+    const urls: string[] = []
+    const bundled = SOUND_FILE_NAMES[kind]
+    if (bundled) {
+      const u = `${folder}${bundled}`
+      if (await probe(u)) urls.push(u)
+    }
+    if (urls.length === 0) {
+      for (let i = 1; i <= 12; i++) {
+        const u = `${folder}v${i}.wav`
+        if (await probe(u)) urls.push(u)
       }
     }
     return urls

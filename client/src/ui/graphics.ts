@@ -101,6 +101,7 @@ const UNIT_ASSET_FOLDERS: Record<string, string> = {
   fighter: 'v_f',
   carrier: 'v_c',
   'missile-boat': 'v_mb',
+  apc: 'v_at',
 }
 
 /** Entities with a dedicated HUD selection-bar icon in client/dist/hud (hud_<folder>.png). */
@@ -382,6 +383,19 @@ export const getGraphics = (): GraphicsSettings => state
  * in place applies the restored values immediately. */
 export const reloadGraphics = (): void => {
   Object.assign(state, load())
+}
+
+/** Guard for asset-path overrides. While the device is offline, an override that
+ * points at a foreign origin (absolute http(s) URL) cannot load and would hang the
+ * asset preloader on slow DNS/connect timeouts — even though the bundled sprites
+ * live locally on disk. Such overrides are ignored offline and the bundled local
+ * template is used instead. Relative and same-origin ('/...') overrides are always
+ * kept, as they resolve against the local server either way. */
+export const resolveAssetTemplate = (override: string | undefined, fallback: string): string => {
+  const raw = override?.trim() ?? ''
+  if (!raw) return fallback
+  if (navigator.onLine === false && /^https?:\/\//i.test(raw)) return fallback
+  return raw
 }
 
 export const setBuildingFill = (q: GraphicsQuality, value: number): void => {

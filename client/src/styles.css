@@ -872,6 +872,8 @@
       #loading-screen h1 { font-size: 28px; color: var(--color-accent); margin: 0 0 8px; letter-spacing: 2px; }
       #loading-screen p { font-size: 13px; color: var(--color-text-muted); margin: 0 0 24px; }
       .loader { width: 40px; height: 40px; border: 3px solid var(--color-border); border-top-color: var(--color-accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+      .loader-bar { width: 240px; height: 6px; margin-top: 16px; background: var(--color-border); border-radius: 3px; overflow: hidden; }
+      #loader-fill { display: block; height: 100%; width: 0%; background: var(--color-accent); transition: width 90ms linear; }
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes results-rise { 0% { opacity: 0; transform: translateY(18px) scale(0.92); } 60% { transform: translateY(-2px) scale(1.03); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
       @keyframes cinematic-in { 0% { opacity: 0; transform: scale(0.7) translateY(40px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }

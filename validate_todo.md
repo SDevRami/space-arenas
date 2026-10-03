@@ -1,6 +1,4 @@
-# Validate TODO — 2026-10-02
-
-## Task B — Online server version check (design decision)
+## Online server version check (design decision)
 
 Decided approach: **`protocol` field for UX + strict server-side frame validation as the real gate + `MIN_PROTOCOL_VERSION` grace + no client secrets.**
 
@@ -35,14 +33,3 @@ Gate lives only in `online/src`; the local host never consults it.
 XOR/derived encoding of the constant so `PROTOCOL_VERSION` isn't greppable in the minified bundle — stops casual patchers, honest disclaimer included.
 
 ---
-
-## Task A follow-up — Projectile effects polish (active)
-
-### Shorter smoke/fire tails
-
-- Rocket smoke tail and shell fire tail too long — shorten lifetime and/or spawn span.
-
-### Artillery arched trajectory
-
-- Artillery tracer is currently a straight line; should be a high-arcing (parabolic) trajectory so it visually "lobs" toward the target.
-- Ground carve should follow the arc's ground projection so it lands exactly at the target.
