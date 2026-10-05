@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.log
+# Stale tsc emit next to the sources (esbuild bundles from .ts; the server runs dist/).
+src/**/*.js
+shared/src/**/*.js

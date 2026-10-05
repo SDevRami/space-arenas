@@ -1,0 +1,22 @@
+{
+  "name": "@space-arenas/host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/host.js --external:ws --external:qrcode && npm run typecheck",
+    "start": "node dist/host.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@space-arenas/shared": "*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "@types/ws": "^8.5.12",
+    "esbuild": "^0.24.0",
+    "tsx": "^4.19.0"
+  }
+}

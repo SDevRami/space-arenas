@@ -1,0 +1,2432 @@
+{
+  "app": {
+    "title": "Space Arenas — RTS"
+  },
+  "lobby": {
+    "brand": "Space Arenas",
+    "tab": {
+      "offline": "Offline Game",
+      "network": "Network Play",
+      "invite": "Invite",
+      "online": "Online Server",
+      "mapbuilder": "Map Builder",
+      "info": "Game Info",
+      "settings": "Settings",
+      "mobile": "Mobile Mode",
+      "dev": "Dev Settings",
+      "profile": "Profile",
+      "mods": "Mods",
+      "archive": "Archive"
+    },
+    "mobileOn": " (ON)",
+    "inviteTitle": "Invite players",
+    "inviteHint": "Scan the QR code on another device to join this machine's network match.",
+    "inviteClose": "Close",
+    "inviteCopy": "Copy Link",
+    "inviteCopied": "Link copied to clipboard",
+    "inviteCopyFail": "Could not copy the link",
+    "inviteNone": "Host a network match first — there is no invite yet.",
+    "inviteGone": "That room no longer exists. Ask the host to send a fresh invite link."
+  },
+  "settings": {
+    "h1": "Settings",
+    "language": "Language",
+    "languageHint": "The whole interface switches immediately. Your choice is saved on this device.",
+    "english": "English",
+    "arabic": "العربية",
+    "close": "Close",
+    "controls": {
+      "h2": "Controls",
+      "hint": "Rebind keyboard shortcuts below. Mouse rows let you pick Left or Right for the click actions — changing one swaps all of them so no two actions share a button.",
+      "change": "Change controls",
+      "info": "Controls info",
+      "restore": "Restore defaults",
+      "restored": "Controls restored to defaults.",
+      "keyboard": "Keyboard shortcuts",
+      "slots": "Control groups (number keys)",
+      "mouse": "Mouse",
+      "slot": "Control group {n}",
+      "setKey": "Set",
+      "left": "Left",
+      "right": "Right",
+      "popupH2": "Change controls",
+      "infoH2": "Controls & mobile info",
+      "rebindHint": "Click Set on a row, then press the new key. Press Esc to cancel.",
+      "pressKey": "Press the new key… (Esc to cancel)",
+      "rebound": "Bound to {key}.",
+      "done": "Done",
+      "entries": {
+        "groupMod": "Group modifier (X + number)",
+        "boxSelect": "Box-select mode toggle",
+        "log": "Toggle game log overlay",
+        "selectCombat": "Select all combat units",
+        "selectHarvesters": "Select all harvesters"
+      }
+    },
+    "graphics": {
+      "h2": "Graphics",
+      "qualityLine": "Quality: {q}",
+      "qualityLabel": "Quality preset",
+      "qualityDesc": "Low = simple shapes. Medium = layered shapes. High = reserved for future sprites.",
+      "quality": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "hint": "Effects below apply to on-screen combat visuals. They all default to ON.",
+      "on": "ON",
+      "off": "OFF",
+      "saved": "Graphics settings saved.",
+      "effectsLabel": "Effects",
+      "effectsDesc": "Toggles all on-screen combat visuals at once: bullet impact flashes, projectile tracers, and the laser beam.",
+      "weather": "Weather (visual only)",
+      "weatherLabel": "Weather",
+      "weatherHint": "A cosmetic overlay on your screen only. It does not change the game rules.",
+      "iconSize": "Thumbnail size (px)",
+      "iconSizeDesc": "Size of the unit/building thumbnails in the selection bar.",
+      "uiScale": "UI size",
+      "uiScaleDesc": "Scales every game-UI screen and the lobby (1 = original size)."
+    },
+    "audio": {
+      "h2": "Audio",
+      "master": "Master volume",
+      "masterDesc": "Overall loudness of every sound.",
+      "effects": "Effects volume",
+      "effectsDesc": "UI clicks, weapon and unit sounds (scaled by master).",
+      "ambient": "Lobby ambient",
+      "ambientDesc": "Menu drone/wind while in the lobby.",
+      "ambientInMatch": "In-match ambient",
+      "ambientInMatchDesc": "Field hum while a match is running.",
+      "muted": "Mute all",
+      "mutedDesc": "Silences every sound and both ambient layers at once.",
+      "ambientOn": "Ambient layer",
+      "ambientOnDesc": "Master toggle for both the lobby and in-match ambient layers.",
+      "haptics": "Mobile vibration",
+      "hapticsDesc": "Vibrate on select, actions and taking damage (phones/tablets).",
+      "on": "ON",
+      "off": "OFF",
+      "saved": "Audio settings saved.",
+      "effective": "Effective levels — effects {e}% · lobby {a}% · match {i}%"
+    }
+  },
+  "online": {
+    "h1": "Online Server",
+    "myAccount": "My Account",
+    "serverSetup": "Server Setup",
+    "statsRegistered": "Registered players",
+    "statsOnline": "Online players",
+    "statsMatches": "Current matches",
+    "name": "User name",
+    "email": "Email",
+    "password": "Password",
+    "register": "Register",
+    "login": "Log in",
+    "accountPopupH2": "My Account",
+    "accountPhase2": "Sign-in and profile arrive in Phase 2. Your host name below is what other players see in the lobby.",
+    "serverPopupH2": "Server Setup",
+    "serverSetupHint": "The server address is fixed at build time — no manual editing.",
+    "serverAddress": "Server address",
+    "serverLabel": "Server connection",
+    "dbLabel": "Database",
+    "serverOnline": "Online — coaching matches and the lobby",
+    "serverDown": "Unreachable — check your connection or the deploy",
+    "dbPending": "Phase 2 (accounts & leaderboard)",
+    "search": "Search matches",
+    "searchPlaceholder": "Room code or host name…",
+    "matchesH3": "Current matches",
+    "thRoom": "Room",
+    "thHost": "Host",
+    "thMap": "Map",
+    "thPlayers": "Players",
+    "thStatus": "Status",
+    "create": "+ Create match",
+    "join": "Join selected",
+    "joinPassH2": "Enter password",
+    "joinPassDesc": "This match is password-protected. Ask the host for the password.",
+    "joinPassPlaceholder": "Password",
+    "ok": "OK",
+    "close": "Close",
+    "noMatches": "No matches yet — be the first to create one.",
+    "refreshed": "Match list refreshed.",
+    "refresh": "Refresh",
+    "tabMatches": "Matches",
+    "tabLeaderboard": "Leaderboard",
+    "leaderboardH3": "Leaderboard",
+    "lbRank": "#",
+    "lbPlayer": "Player",
+    "lbScore": "Score",
+    "lbEmpty": "No scores yet.",
+    "lbYou": "(you)",
+    "lbUnavailable": "Leaderboard unavailable — database not configured.",
+    "dbOnline": "Online",
+    "dbOffline": "Offline",
+    "accountSummary": "Logged in as {name} — Games {games} · Wins {wins} · Best {score}",
+    "newPass": "New password",
+    "changePass": "Change password",
+    "logout": "Log out",
+    "fillAll": "Fill in all fields first.",
+    "pwShort": "Password must be at least 6 characters.",
+    "working": "Working…",
+    "unknownError": "Something went wrong.",
+    "registerOk": "Account created — welcome, {name}!",
+    "loginOk": "Logged in as {name}.",
+    "registeredLoginFellBack": "Account created. Log in with your email and password.",
+    "passwordChanged": "Password updated.",
+    "loggedOut": "Logged out.",
+    "signInTo": {
+      "create": "Log in to create an online room.",
+      "join": "Log in to join this match.",
+      "spectate": "Log in to watch this match.",
+      "publish": "Log in to publish to the repository."
+    },
+    "sessionExpired": "Your session expired. Log in again to keep playing online.",
+    "authUnavailable": "Online play is unavailable right now — the account service is down. Try again shortly.",
+    "tabData": "Data",
+    "tabMods": "Mods",
+    "tabMaps": "Maps",
+    "dataH3": "Cloud backups",
+    "dataHint": "Back up this device's dev-settings or local profile to your account and restore it on another PC. Backups are encrypted with your passphrase and expire after 7 days. The passphrase is never stored on the server — keep it safe.",
+    "dataPass": "Backup passphrase",
+    "dataPassPlaceholder": "At least 4 characters",
+    "dataUploadDev": "Back up dev-settings",
+    "dataUploadProfile": "Back up profile",
+    "dataMy": "My backups",
+    "dataExpiresIn": "Expires in {n} day(s) · {date}",
+    "dataExpired": "Expired — will be cleaned up",
+    "dataRestore": "Restore",
+    "dataDelete": "Delete",
+    "dataEmpty": "No backups yet.",
+    "dataNeedLogin": "Sign in to use cloud backups.",
+    "dataNeedPass": "Enter a backup passphrase first (at least 4 characters).",
+    "dataNoDev": "No dev-settings saved on this device yet.",
+    "dataNoProfile": "No profile data on this device yet.",
+    "dataUploaded": "Backup uploaded — it expires after 7 days.",
+    "dataRestored": "Backup restored to this device.",
+    "dataDeleted": "Backup deleted.",
+    "dataUnavailable": "Backups unavailable — server or account error.",
+    "dataBadBlob": "The backup could not be read (wrong passphrase or corrupted data).",
+    "dataKindDev": "Dev settings",
+    "dataKindProfile": "Profile"
+  },
+  "mapbuilder": {
+    "h1": "Map Builder",
+    "hint": "Create and edit your own maps. Paint terrain, drop spawns, supply and oil fields, then Save — saved maps appear immediately in the offline and online map lists.",
+    "mapsH3": "Maps",
+    "thName": "Name",
+    "thPlayers": "Players",
+    "thVariant": "Variant",
+    "thDesc": "Description",
+    "import": "Import",
+    "create": "Create",
+    "export": "Export",
+    "refresh": "Refresh",
+    "clone": "Clone selected",
+    "edit": "Edit selected",
+    "delete": "Delete selected",
+    "refreshed": "Map list refreshed.",
+    "noSelection": "Select a map first.",
+    "deleteNoCustom": "Only custom maps can be deleted.",
+    "deleted": "Map deleted.",
+    "exported": "Map exported.",
+    "imported": "Map imported.",
+    "importError": "Could not import map: {n}",
+    "back": "Back",
+    "reset": "Reset",
+    "mapInfo": "Map info",
+    "save": "Save",
+    "newTitle": "New Map",
+    "newMapName": "My Map",
+    "dirty": "Unsaved changes",
+    "saved": "Map saved.",
+    "saveError": "Cannot save: {n}",
+    "brush": "Brush",
+    "color": "Ground color",
+    "colorDefault": "Palette",
+    "size": "Brush size",
+    "brushes": {
+      "ground": "Ground",
+      "water": "Water"
+    },
+    "tools": {
+      "paint": "Paint",
+      "fill": "Fill",
+      "spawn": "Spawn",
+      "supply": "Supply field",
+      "oil": "Oil field",
+      "erase": "Erase",
+      "obstruction": "Static object"
+    },
+    "objectsTitle": "Object kind",
+    "objectsHint": "Tree: crushable by vehicles. Rock: blocks movement, shootable. Wreck: indestructible rubble.",
+    "objects": {
+      "tree": "Tree",
+      "rock": "Rock",
+      "wreck": "Wreck"
+    },
+    "light": "Day / night light",
+    "lightHint": "-10 to +10. 0 = natural colors, + lighter (day), - darker (night). Saved into the map.",
+    "confirmTitle": "Leave the editor?",
+    "confirmBody": "You have unsaved changes. Leave anyway?",
+    "confirmOk": "Leave anyway",
+    "confirmCancel": "Keep editing",
+    "infoTitle": "Map information",
+    "infoName": "Map name",
+    "infoWidth": "Width",
+    "infoHeight": "Height",
+    "infoVariant": "Variant",
+    "infoDesc": "Description",
+    "infoSave": "Save",
+    "infoCancel": "Cancel",
+    "sizeLink": "Link/unlink map dimensions",
+    "sizeLinked": "Linked",
+    "sizeUnlinked": "Unlinked",
+    "world": {
+      "open": "Real world",
+      "title": "Real world map",
+      "hint": "Drag to pan, scroll to zoom, frame the area you want, then draw it into the grid.",
+      "draw": "Draw to map grid",
+      "close": "Back",
+      "zoom": "Zoom",
+      "loading": "Loading satellite tiles…",
+      "imported": "Real-world area drawn into the map. Add spawns and fields, then save."
+    }
+  },
+  "offline": {
+    "h1": "Offline Game",
+    "map": "Map",
+    "startingCredits": "Starting credits",
+    "weather": "Weather (visual only)",
+    "weatherHint": "A cosmetic overlay on your screen only. It does not change the game rules.",
+    "fogMode": "Fog of war",
+    "fogHint": "How the map remembers what your units explored.",
+    "fog": {
+      "memory": "Classic (map stays explored)",
+      "classic": "Classic+ (no fade — seen areas stay bright)",
+      "hard": "Hard (fog always returns)"
+    },
+    "dayNight": "Day/night cycle",
+    "dayNightHint": "A 5-minute day/night cycle darkens the world at night. Cosmetic.",
+    "winCondition": "Win condition",
+    "win": {
+      "standard": "Standard (base destruction)",
+      "annihilation": "Total Annihilation",
+      "commandCenter": "Command Center"
+    },
+    "winDesc": {
+      "standard": "Lose when your Command Center is destroyed and you cannot rebuild it: all Bulldozers dead, or not enough money (credits + refunds from selling your buildings and units) for a new one.",
+      "annihilation": "Lose when all of your buildings and units are destroyed.",
+      "commandCenter": "Lose when your Command Center is destroyed, no matter what."
+    },
+    "addBot": "+ Add Bot",
+    "start": "Start Game",
+    "cancel": "Cancel",
+    "bot": "Bot {n}",
+    "playerRow": {
+      "name": "Name",
+      "team": "Team {n}",
+      "spawn": "Spawn {n}",
+      "color": "Color {n}",
+      "botDiff": "Bot · {d}",
+      "you": "you",
+      "removeBot": "Remove bot",
+      "teamTitle": "Team number — players on the same team are allies",
+      "spawnTitle": "Starting position on the map (numbered in the preview)",
+      "colorTitle": "Player color — used for flag, units and base"
+    },
+    "status": {
+      "tooMany": "This map supports up to {n} players.",
+      "needHuman": "Add a human player slot before starting.",
+      "needOpponent": "Add at least one opponent (bot or player) to start."
+    },
+    "modesHint": "Two offline modes. Bots Match is the classic fight against AI and also tracks your daily missions list below. Campaign is planned as a future feature.",
+    "modes": {
+      "bots": "Bots Match",
+      "campaign": "Campaign"
+    }
+  },
+  "bot": {
+    "easy": "Easy",
+    "medium": "Medium",
+    "hard": "Hard"
+  },
+  "daily": {
+    "challenge": "Mission list #{n}",
+    "missionButton": "Mission",
+    "missionButtonTitle": "Show the daily mission list",
+    "close": "Close",
+    "hudRemaining": "Missions left: {n}",
+    "level": "Level {level} · {xp}/{required} XP",
+    "keep": "{n} mission(s) left — the list stays exactly as-is until you finish all of them.",
+    "allDone": "Challenge complete — a brand new list is ready!",
+    "hint": "A fixed set of missions tracked from every bots match — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up. Offline modes have no leaderboard.",
+    "mission": {
+      "win": "Win a daily match",
+      "train": "Train {n} units",
+      "build": "Build {n} buildings",
+      "destroy": "Destroy {n} enemy units",
+      "supply": "Harvest {n} supply"
+    },
+    "resultsNote": "+{xp} XP · Level {level} · {remaining} mission(s) left",
+    "resultsNoteComplete": "+{xp} XP · Level {level} · Challenge complete!",
+    "acceptLabel": "Count this match toward the daily mission list",
+    "acceptOn": "This match counts toward the daily mission list — completed tasks bank XP and the streak.",
+    "acceptOff": "Daily tasks are skipped for this match: nothing is added to the mission list or XP.",
+    "profileLabel": "Count this match toward my profile and achievements",
+    "profileOn": "This match counts toward profile stats, match history and achievements.",
+    "profileOff": "This match is not counted anywhere in the profile or achievements."
+  },
+  "campaign": {
+    "hint": "The scripted campaign is planned as a future feature. This mode is a placeholder for now.",
+    "comingSoon": "The campaign is a future feature — stay tuned!"
+  },
+  "network": {
+    "h1": "Network Play",
+    "yourName": "Your name",
+    "namePlaceholder": "Commander",
+    "yourAddress": "Your address (auto-detected)",
+    "addrPlaceholder": "detecting…",
+    "matchPassword": "Match password (only if the match requires one)",
+    "noPassPlaceholder": "(empty = no password)",
+    "create": "+ Create a Match",
+    "manual": "Manual connect",
+    "serverAddress": "Server address (host:port)",
+    "roomCode": "Room code",
+    "join": "Join",
+    "hint": "Pick a match below to auto-fill the address and room code, or use Manual connect. If a match has already started you can re-join it or watch it as a spectator.",
+    "playersTitle": "Players on your network",
+    "openMatches": "Open matches",
+    "lobbyChat": "LAN lobby chat",
+    "chatPlaceholder": "Message the players on your network…",
+    "send": "Send",
+    "youSuffix": " (you)",
+    "noPlayers": "No other players detected yet. Everyone running the game on this network appears here.",
+    "noMatches": "No open matches. Press “+ Create a Match” to host one.",
+    "inLobby": "in lobby",
+    "inMatch": "in match",
+    "waiting": "waiting · {n}/{m}",
+    "spectate": "Spectate",
+    "rejoin": "Re-join",
+    "roomFullTitle": "Match already playing",
+    "roomFullBody": "All player seats are taken. Watch this match as a spectator instead?",
+    "roomFullBack": "Back",
+    "roomFullSpectate": "Play as Spectator",
+    "tamperTitle": "Settings changed mid-match",
+    "tamperHostBody": "{player} changed their match values after the match started.",
+    "tamperOffenderBody": "You changed match values after the match started. The host was notified — restore your settings to avoid being removed.",
+    "tamperKick": "Kick player",
+    "tamperSkip": "Skip for now",
+    "tamperOk": "OK",
+    "resumeTitle": "Resume match?",
+    "resumeHint": "You left a running match. Reconnect and continue it?",
+    "resumeYes": "Reconnect",
+    "resumeNo": "Later",
+    "status": {
+      "left": "Left the match.",
+      "creating": "Creating match…",
+      "needCode": "Enter or pick a room code.",
+      "connecting": "Connecting…",
+      "joining": "Joining…",
+      "createFailed": "Could not create a match.",
+      "created": "Match created — room code {code}. Joining…",
+      "hostUnreachable": "Could not reach your local host server.",
+      "serverUnreachable": "Could not connect to that server.",
+      "needsPassword": "That match requires a password — enter it above.",
+      "matchStarted": "Match already started.",
+      "full": "Room is full.",
+      "reconnecting": "Connection lost — reconnecting to match…",
+      "reconnected": "Reconnected.",
+      "spectating": "Joining as spectator…",
+      "lost": "The connection was lost — match ended.",
+      "disconnectedMatch": "Disconnected from the match.",
+      "disconnected": "Disconnected."
+    }
+  },
+  "create": {
+    "h1": "Create Match",
+    "desc": "This machine will host the match on your network. Other players will see it in their match list and can join with the password you set.",
+    "address": "Match address",
+    "password": "Match password (leave empty for no password)",
+    "passPlaceholder": "optional",
+    "cancel": "Cancel",
+    "create": "Create"
+  },
+  "match": {
+    "h1": "Match Options",
+    "room": "Room ",
+    "players": "Players",
+    "options": "Match Options",
+    "note": "Share the room code above, or the address on your network panel, so friends can join.",
+    "map": "Map",
+    "mapChanging": "Changing map…",
+    "passLabel": "Match password",
+    "passNewPlaceholder": "new password (optional)",
+    "passChange": "Change",
+    "passSet": "Set",
+    "passChanging": "Changing password…",
+    "passSetting": "Setting password…",
+    "addBots": "Add bots",
+    "addBot": "+ Add Bot",
+    "addingBot": "Adding {d} bot…",
+    "removingBot": "Removing bot…",
+    "protected": "This match is password-protected.",
+    "noPassword": "No password required.",
+    "hostOnly": "Only the host can change match options.",
+    "qr": "Invite players by scanning this QR code:",
+    "host": "HOST",
+    "spectator": "SPECTATOR",
+    "bot": "BOT · {d}",
+    "team": "Team {n}",
+    "spawn": "Spawn {n}",
+    "color": "Color {n}",
+    "ready": "READY",
+    "waiting": "WAITING",
+    "leave": "Leave Match",
+    "disconnected": "Disconnected",
+    "notReady": "Not Ready",
+    "readyBtn": "Ready",
+    "start": "Start Match",
+    "startWhenReady": "Start Match (waiting for everyone…)",
+    "waitingReady": "Waiting for Ready… ({r}/{t})",
+    "you": "(you)",
+    "teamTitle": "Team — players on the same team are allies",
+    "spawnTitle": "Spawn point — where you start on the map",
+    "colorTitle": "Player color — used for flag, units and base",
+    "displayName": "Your display name",
+    "removeBot": "Remove bot",
+    "botTitleEdit": "Edit bot name",
+    "botDifficultyTitle": "Bot difficulty",
+    "creditsUpdating": "Updating starting credits…",
+    "winChanging": "Changing win condition to {n}…",
+    "fogChanging": "Changing fog of war to {n}…",
+    "dayNightOn": "Day/night cycle ON",
+    "dayNightOff": "Day/night cycle OFF",
+    "coopEconomy": "Alliance economy",
+    "coopRank": "Alliance rank",
+    "coopControl": "Alliance control",
+    "coopNone": "Off",
+    "coopPower": "Power grid",
+    "coopSupply": "Supply bank",
+    "coopBoth": "Both",
+    "coopScore": "Shared score",
+    "coopLevel": "Shared rank level",
+    "coopUnits": "Units only",
+    "coopAll": "All units + buildings",
+    "coopEconomyHint": "Allies share one credit bank and/or one fused power grid.",
+    "coopRankHint": "Allies climb one combined ladder with merged scores.",
+    "coopControlHint": "Allies may command each other's units and buildings."
+  },
+  "info": {
+    "h1": "Game Info",
+    "devNote": "Values follow your current dev settings and update automatically when they change.",
+    "tab": {
+      "start": "Getting Started",
+      "units": "Units",
+      "buildings": "Buildings",
+      "power": "Power & Economy",
+      "bots": "Bot Difficulty",
+      "tech": "Tech & Upgrades",
+      "combat": "Combat & Vet",
+      "vision": "Fog & Weather",
+      "sea": "Naval & Transports",
+      "super": "Super Weapons",
+      "maps": "Maps & Builder",
+      "mods": "Balance Mods",
+      "online": "Online Play"
+    },
+    "empty": "Select a topic.",
+    "start": {
+      "whatH3": "What is Space Arenas?",
+      "whatP": "<b>Space Arenas</b> is a deterministic, isometric real-time strategy game. You command a base, harvest supply from <b>supply fields</b>, generate power, train an army, and destroy every opponent's <b>Command Center</b>.",
+      "flowH3": "Game flow",
+      "flow1": "<b>Command Center</b> gives you power and can train <b>Bulldozers</b>.",
+      "flow2": "Use a Bulldozer to build a <b>Supply Dock</b> (your income), then a <b>Barracks</b> for combat units.",
+      "flow3": "Harvesters you build at a Supply Dock automatically ferry supply back for credits.",
+      "flow4": "Watch your <b>power</b> — if production buildings need more power than plants provide, everything shuts down (buildings tint red with a lightning marker).",
+      "flow5": "Attack-move your army at enemy bases. Win by destroying all enemy Command Centers.",
+      "matchH3": "Starting a match",
+      "matchP": "In the <b>Offline Game</b> tab, pick a map, starting credits, and add bots at the difficulty you want. Assign every player a numbered <b>Team</b> (a 2-player map lists Team 1 and Team 2, a 4-player map Team 1–4). Players on the same team are <b>allies</b>: their units stay visible to you through the fog, friendly fire is off, and the team wins together when all other teams are eliminated. Each player also picks a <b>Spawn</b> — the numbered starting position shown on the map preview — so you can shuffle who starts where. Press <b>Start Game</b>; a 5-second countdown begins, then the match runs.",
+      "netP": "Network rooms use the same build-a-match screen as offline: host a room with <b>Create Game</b>, then edit every player – and bot – name, team, spawn and difficulty before the match starts, exactly like the offline setup.",
+      "duringH3": "During and after a match",
+      "duringP": "Open the <b>Menu</b> button (top-right) to pause and view live match stats, resume, or quit. When the match ends a results screen shows final stats for every team. Use <b>Quit Game</b> or the results <b>Back to Menu</b> button to return to the lobby and start a new match.",
+      "modH3": "Balance mods",
+      "modP": "Mods let you tweak costs, build times, damage, ranges and economy without changing code. Export a mod from Dev Settings, or use the Mods tab to import/export shareable JSON files.",
+      "onlineModH3": "Online mod sharing",
+      "onlineModP": "In online rooms, the host can upload a balance mod (C_UPDATE_ROOM) so it travels with the room. Guests who don't have the matching file are prompted to download, install and acknowledge (C_MOD_ACK) before the match can start."
+    },
+    "controls": {
+      "h3": "Controls",
+      "thAction": "Action",
+      "thInput": "Input",
+      "select": "Select entity",
+      "inputSelect": "Left-click",
+      "box": "Box-select units",
+      "inputBox": "Drag left button",
+      "ctrl": "Add / remove from selection",
+      "inputCtrl": "Ctrl + left-click",
+      "move": "Move / attack / build / repair",
+      "inputMove": "Right-click (context-sensitive)",
+      "attackMove": "Attack-move",
+      "inputAttackMove": "Hold <code>A</code> + right-click",
+      "keepAttack": "Keep attack",
+      "inputKeepAttack": "<code>K</code> / button, then right-click a spot",
+      "guard": "Guard",
+      "inputGuard": "<code>G</code> / button, then right-click a spot",
+      "multiPos": "Multi-position move",
+      "inputMultiPos": "<code>J</code> toggles the waypoint mode",
+      "stop": "Stop (cancel order)",
+      "inputStop": "<code>S</code> or Stop button",
+      "home": "Center camera on home base",
+      "inputHome": "<code>H</code>",
+      "idleWorker": "Jump to nearest idle worker",
+      "inputIdleWorker": "<code>I</code> or the Idle Worker button in the tool bar",
+      "idleDozer": "Jump to nearest idle bulldozer",
+      "inputIdleDozer": "<code>D</code> or the Idle Bulldozer button in the tool bar",
+      "borders": "Toggle hitboxes / borders",
+      "inputBorders": "<code>B</code>",
+      "paths": "Toggle move-path overlay",
+      "inputPaths": "<code>P</code>",
+      "bases": "Toggle base markers (circles / diamonds)",
+      "inputBases": "<code>N</code>",
+      "minimap": "Toggle minimap size",
+      "inputMinimap": "<code>M</code>",
+      "sell": "Sell selected buildings",
+      "inputSell": "<code>Delete</code> / <code>Backspace</code> or Destroy button (asks for confirmation)",
+      "spawnPoint": "Set spawn point (near the building; hold <code>V</code>)",
+      "inputSpawnPoint": "Hold <code>V</code>, then click to place",
+      "flag": "Set flag — rally point",
+      "inputFlag": "Hold <code>R</code>, then click to place",
+      "esc": "Cancel placement / clear selection",
+      "inputEsc": "<code>Esc</code>",
+      "zoomIn": "Zoom in",
+      "inputZoomIn": "<code>=</code>",
+      "zoomOut": "Zoom out",
+      "inputZoomOut": "<code>-</code>",
+      "panUp": "Pan camera up",
+      "inputPanUp": "<code>↑</code> (or the arrow keys while selected)",
+      "panDown": "Pan camera down",
+      "inputPanDown": "<code>↓</code>",
+      "panLeft": "Pan camera left",
+      "inputPanLeft": "<code>←</code>",
+      "panRight": "Pan camera right",
+      "inputPanRight": "<code>→</code>",
+      "pan": "Pan camera",
+      "inputPan": "Hold middle mouse button",
+      "zoom": "Zoom",
+      "inputZoom": "Mouse wheel",
+      "minimapJump": "Jump to location / zoom from minimap",
+      "inputMinimapJump": "Click / wheel on the minimap",
+      "edgePan": "Edge-scroll the camera",
+      "inputEdgePan": "Move the mouse to the screen edge while holding Ctrl",
+      "rightClickH3": "Right-click is context-sensitive",
+      "right1": "On a <b>damaged or unfinished</b> friendly building with a Bulldozer selected → build/repair it.",
+      "right2": "On a friendly <b>Supply Dock</b> with Harvesters selected → assign them to that dock.",
+      "right3": "On an <b>enemy</b> → attack it.",
+      "right4": "On open ground with a production building selected → set its rally point.",
+      "right5": "Otherwise → move there.",
+      "combatOrdersH3": "Combat orders",
+      "combatMove": "<b>Move</b> — march to the spot; a selected group keeps formation and spreads out to avoid piling up.",
+      "combatAttack": "<b>Attack</b> — engage a selected enemy or point on the ground: if it is already in firing range the unit fires in place; otherwise it advances only to the edge of firing range, stops, and fires once — it never walks up to or past the target. Multiple units spread out around it.",
+      "combatAttackMove": "<b>Attack-move</b> (A + right-click) — advance along the path, engaging anything in range, but keep pressing toward the destination after each kill.",
+      "combatKeepAttack": "<b>Keep attack</b> (K + right-click) — like attack, but keeps pressing the spot and loops without stopping until you cancel.",
+      "combatGuard": "<b>Guard</b> (G + right-click) — units march to the guard position and form up around it, then act as turrets: they hold position and shoot anything that comes within firing range without ever chasing. Selecting a guard shows its range circle."
+    },
+    "mobile": {
+      "h3": "Mobile Mode",
+      "p": "Turn on <b>Mobile Mode</b> with the toggle button in the lobby side menu (it remembers your choice). It adds touch controls and on-screen shortcut buttons so the whole game is playable without a mouse or keyboard.",
+      "touchH3": "Touch controls",
+      "thAction": "Action",
+      "thInput": "Input",
+      "select": "Select entity",
+      "inputSelect": "Tap",
+      "box": "Box-select units",
+      "inputBox": "Turn on the <code>X</code> button, then drag with one finger",
+      "move": "Move / attack / build / repair",
+      "inputMove": "With units selected, tap the target — an <b>enemy</b> is attacked, open ground moves your units, and tapping a friendly unit or building re-selects it (context-sensitive, like right-click on desktop)",
+      "cmdMode": "Command mode",
+      "inputCmdMode": "Turn on the <code>C</code> button so every tap issues a command without the long-press (long-press still works as a fallback)",
+      "attackMove": "Attack-move",
+      "inputAttackMove": "Turn on the <code>A</code> button, then tap",
+      "pan": "Pan camera",
+      "inputPan": "Drag with one finger",
+      "zoom": "Zoom",
+      "inputZoom": "Pinch with two fingers",
+      "buttonsH3": "On-screen buttons",
+      "buttonsP": "While in a match, Mobile Mode shows a small button column (bottom-left, above the event log):",
+      "bC": "<code>C</code> — command mode: every tap moves (no long-press).",
+      "bA": "<code>A</code> — toggles attack-move for commands.",
+      "bX": "<code>X</code> — toggles box select: drag to select multiple units.",
+      "bB": "<code>B</code> — toggles hitbox / border overlay.",
+      "bP": "<code>P</code> — toggles the move-path overlay.",
+      "bM": "<code>M</code> — toggles minimap size.",
+      "bH": "<code>H</code> — centers the camera on your home base.",
+      "bI": "<code>I</code> — jumps to the nearest idle harvester (tap again to cycle to the next).",
+      "bD": "<code>D</code> — jumps to the nearest idle bulldozer (tap again to cycle to the next).",
+      "bS": "<code>S</code> — stops the selected units.",
+      "bL": "<code>L</code> — toggles the game log overlay.",
+      "shortcutsP": "These are the keyboard shortcuts (<code>B</code>/<code>P</code>/<code>F</code>/<code>M</code>/<code>H</code>/<code>I</code>/<code>D</code>/<code>S</code>/<code>L</code>/<code>X</code> and hold-<code>A</code>) as tappable toggles.",
+      "toolbarNote": "Mobile Mode also keeps a fixed tool bar at the right of the screen (Satellite, Idle Worker, Idle Bulldozer), and a <b>Deselect</b> button appears next to <b>Destroy</b> so you can clear your selection."
+    },
+    "units": {
+      "h3": "Units",
+      "thUnit": "Unit",
+      "thRole": "Role",
+      "thCost": "Cost",
+      "thHp": "HP",
+      "thSpeed": "Speed",
+      "thTime": "Train time",
+      "thAt": "Trained at",
+      "thWeapon": "Weapon",
+      "p": "Infantry are cheap and fast; vehicles are tougher and hit harder. <b>Bulldozers</b> build and repair; <b>Harvesters</b> gather supply automatically once a dock exists. Infantry train at the <b>Barracks</b>, vehicles at the <b>War Factory</b>.",
+      "ghostP": "Units hidden in the fog still show a faint centered marker, so you can spot activity even when the unit details are hidden."
+    },
+    "buildings": {
+      "h3": "Buildings",
+      "thName": "Building",
+      "thCost": "Cost",
+      "thTime": "Build time",
+      "thHp": "HP",
+      "thPower": "Power",
+      "thNotes": "Notes",
+      "p": "Every finished building that consumes power (barracks, docks, factories, turrets, tech centers) stops working if your team's power <b>net</b> drops below zero.",
+      "footprint": "{w}×{h} tiles",
+      "notes": {
+        "trains": "trains {name}",
+        "limit": "limit {n}"
+      }
+    },
+    "power": {
+      "h3": "Power",
+      "p1": "Each team has a power budget: <b>generation</b> (Command Center +10, each Power Plant +50) minus <b>usage</b> from finished buildings. If usage exceeds generation, the whole team <b>powers down</b>:",
+      "l1": "Production queues freeze (no new units).",
+      "l2": "Turrets stop firing.",
+      "l3": "Power-using buildings are tinted red and show a lightning marker above them.",
+      "p2": "Power status is live: the moment you finish a new Power Plant, buildings and the power bar recover automatically.",
+      "maxPowerH": "Max Power",
+      "maxPowerP": "A finished Power Plant at <b>full health</b> can be pushed to <b>Max Power</b> from its command bar: power generation is doubled for {s} seconds. When the overdrive ends the plant overheats and its health drops to 50% — a damaged plant cannot be overdriven until a Bulldozer repairs it back to full.",
+      "h4": "Supply &amp; economy",
+      "s1": "<b>Supply fields</b> are solid deposits on the map; each has a capacity shown by its bar and <code>trips/capacity</code> label.",
+      "s2": "A <b>Harvester</b> built at a Supply Dock automatically picks the nearest field, loads, returns, and grants <code>$50</code> per trip.",
+      "s3": "Fields deplete; when one is empty harvesters switch to another. The map has small corner fields that refill gameplay pacing, and mid fields.",
+      "s4": "<b>Oil fields</b> can be claimed: keep a <b>Scout</b> inside one and after a short claim time it starts paying your team <code>$50</code> every 10 seconds. A bar above the field shows claim / income progress.",
+      "s5": "Oil fields stay captured once claimed and cannot be stolen — the first team to park a Scout there keeps the income for good."
+    },
+    "bots": {
+      "h3": "Bot difficulty",
+      "p": "Bots share the same build order logic but differ in how fast they plan, how much economy they run, and how aggressively they attack. Lower difficulty = slower, more passive, weaker economy. Higher difficulty = denser base, faster planning, more frequent attacks.",
+      "thSetting": "Setting",
+      "thEasy": "Easy",
+      "thMedium": "Medium",
+      "thHard": "Hard",
+      "rDecision": "Decision rate",
+      "rReserve": "Spending reserve / floor",
+      "rHarvesters": "Harvesters",
+      "rDozers": "Build dozers",
+      "rArmy": "Attack at army of",
+      "rAttack": "Attack every",
+      "rPower": "Spare power kept",
+      "h4": "How each bot plays",
+      "prose": "<li><span class=\"{tagClass}\">{difficulty}</span> — plans every {interval}; keeps ${reserve} in reserve (floor ${floor}); runs up to {harvesterCap} harvesters with {dozers} dozer(s); reinforces its army once it has {army} combat units and launches an attack roughly every {attackInterval}; keeps {powerMargin} spare power capacity. Builds: {targets}. Produces: {products}.</li>",
+      "deterministic": "Every bot is <b>deterministic</b>: on the same seed and settings it always takes the same actions, so matches are reproducible."
+    },
+    "tech": {
+      "h3": "Research &amp; upgrades",
+      "thUpgrade": "Upgrade",
+      "thCost": "Cost",
+      "thTime": "Research time",
+      "thAt": "Available at",
+      "p": "<b>Radar</b> connects your minimap — until it is researched the minimap is offline and shows only a \"CONNECT RADAR\" notice. <b>Satellite</b> (requires Radar) scans the whole battlefield, briefly revealing every unit and building even in fog; use the <b>Satellite</b> button in the top-right tool bar, then wait for its cooldown. Select a Tech Center and press the Research button to start research."
+    },
+    "combat": {
+      "h3": "Combat, veterancy and effects",
+      "p": "Weapons vary by range, cooldown, damage, splash and anti-air. Positioning, flanking, chokepoints and cover all matter.",
+      "l1": "Splash damage (artillery, sea missiles) hits groups in an area.",
+      "l2": "Anti-air weapons target flying units.",
+      "l3": "Crushing: heavy vehicles deal extra damage to infantry.",
+      "l4": "Abilities: grenades/smoke unlock with Abilities Tech (where applicable).",
+      "l5": "Mines and defenses punish reckless pushes.",
+      "vetH3": "Veterancy",
+      "vetP": "Units earn experience from combat and can gain ranks (Elite, Heroic, Legendary) granting small bonuses.",
+      "minesH3": "Mines & traps",
+      "minesP": "Mines are placed via Mine Tech and detonate on contact with enemy ground units."
+    },
+    "vision": {
+      "h3": "Fog of war, stealth and weather",
+      "p": "Fog of war is configurable per match (Memory, Classic+, Hard). Stealth units are hidden unless revealed by detectors.",
+      "l1": "Memory: explored terrain stays visible (classic C&C feel).",
+      "l2": "Classic+: seen areas stay bright (no fade).",
+      "l3": "Hard: fog always returns when vision is lost.",
+      "p2": "Detectors and Radar/Satellite reveal stealthed units in range.",
+      "weatherH3": "Weather",
+      "weatherP": "Rain, snow and thunderstorms are visual-only effects by default (cosmetic) and can be selected in match setup.",
+      "daynightH3": "Day/night cycle",
+      "daynightP": "A 5-minute day/night cycle darkens the world at night (cosmetic)."
+    },
+    "sea": {
+      "h3": "Naval, transports and off-map play",
+      "p": "Water maps support naval units and amphibious logistics.",
+      "l1": "Carrier transports ground units across water.",
+      "l2": "Missile Boat provides long-range naval fire.",
+      "l3": "Transports (APC/Carrier) carry infantry/vehicles with capacity limits.",
+      "p2": "Naval combat favors positioning and range (sea missiles deal splash damage)."
+    },
+    "maps": {
+      "h3": "Procedural maps, Map Builder and publishing",
+      "p": "Generate instant arenas, design custom maps in the built-in Map Builder, or download community maps.",
+      "l1": "Procedural: quick random maps with balanced spawn placement.",
+      "l2": "Map Builder: resize, paint terrain, place spawns, supplies, rocks/trees/wrecks, and export/import JSON map files.",
+      "l3": "Community Maps: publish and browse maps on the landing page Community hub (with ratings/download counts)."
+    },
+    "mods": {
+      "h3": "Balance Mods (economy, units, weapons)",
+      "p1": "JSON mods override balance values (costs, build times, HP, speed, vision, damage, cooldown, range, splash/AA, economy).",
+      "p2": "Export from Dev Settings as a Mod, import via the Mods tab, or enable a mod in offline match options.",
+      "p3": "Online rooms: the host uploads the mod file to the room and every non-host player must install and acknowledge it before starting.",
+      "p4": "The community Balance Mods repository lets players publish/download mods (with ratings and download counts)."
+    },
+    "online": {
+      "h3": "Online play, lobbies, accounts and safety",
+      "p1": "Password-protected rooms, match browser, spectator support, LAN or public server.",
+      "l1": "Accounts: sign up to enable leaderboard, encrypted backups, replays and mod publishing.",
+      "l2": "Backups: encrypted progress backups stored in the cloud (account required).",
+      "l3": "Replays: local replay saves and viewing support.",
+      "l4": "Tamper-watch: optional verification for ranked matches (anti-cheat design).",
+      "l5": "Room mod gate: host-carried balance mod with per-guest download+ack before C_START.",
+      "acH3": "Anti-cheat & determinism",
+      "acP": "Lockstep simulation, settings fingerprinting and tamper detection help keep matches fair."
+    },
+    "super": {
+      "h3": "Super Weapons (rank-gated)",
+      "p": "Unlocked via the Tech Center/Super Weapon building chain depending on upgrades.",
+      "laser": "Space Laser",
+      "laserP": "Orbital strike dealing massive area damage at the target point.",
+      "airstrike": "Airstrike",
+      "airstrikeP": "Call in bomber waves against enemy positions.",
+      "emp": "EMP Pulse",
+      "empP": "Electromagnetic pulse that disables or disrupts affected units/buildings in its radius."
+    }
+  },
+  "units": {
+    "class": {
+      "harvester": "harvester",
+      "infantry": "infantry",
+      "vehicle": "vehicle",
+      "naval": "naval"
+    },
+    "role": {
+      "bulldozer": "Builds and repairs your base and buildings.",
+      "harvester": "Gathers supply from fields and banks credits.",
+      "scout": "Fast, long-vision recon that reveals the map, spots enemy movement, and claims oil fields.",
+      "rifleman": "Reliable all-round infantry shooter.",
+      "rocket-trooper": "Heavy anti-armour rocket damage.",
+      "assault-walker": "Tough frontline vehicle with a cannon.",
+      "aa-platform": "Anti-air defence platform.",
+      "artillery": "Long-range splash-damage bombardments.",
+      "fighter": "Ghost fighter: flies over anything, strikes once, then returns to the Air Force to reload.",
+      "carrier": "Armoured troop transport that carries infantry across open water.",
+      "missile-boat": "Fast warship firing sea missiles that splash ground and naval targets — never aircraft."
+    }
+  },
+  "weapon": {
+    "dmg": "{d} dmg · range {r} · every {s}s",
+    "splash": "splash",
+    "antiAir": "anti-air"
+  },
+  "difficulty": {
+    "easy": "Easy",
+    "medium": "Medium",
+    "hard": "Hard"
+  },
+  "maps": {
+    "breach": {
+      "name": "The Breach",
+      "desc": "A winding river splits two bases. Classic 2-player duel."
+    },
+    "four-corners": {
+      "name": "Four Corners",
+      "desc": "Four bases around a central lake crossed by two bridges."
+    },
+    "six-settlers": {
+      "name": "Six Settlers",
+      "desc": "Six bases on the rim of a wide, supply-rich field."
+    },
+    "grand-arena": {
+      "name": "Grand Arena",
+      "desc": "Eight bases ring a fortified center. Maximum carnage."
+    },
+    "dead-mans-pass": {
+      "name": "Dead Man's Pass",
+      "desc": "Two bases split by a sheer mountain ridge. Only two passes let you cross — hold them."
+    },
+    "crossroads-of-cinder": {
+      "name": "Crossroads of Cinder",
+      "desc": "Four bases linked by a stone cross of roads around a rich central plaza. Corner lakes box the map in."
+    },
+    "sixfold-ring": {
+      "name": "The Sixfold Ring",
+      "desc": "A crater lake crowned by an island, ringed by a circular road and six bases. Fight over the ring and the bridge."
+    },
+    "shattered-circlet": {
+      "name": "Shattered Circlet",
+      "desc": "Eight bases around a broken wasteland core. Only the eight road-spokes make it crossable."
+    },
+    "repo": {
+      "repoH3": "Community maps",
+      "repoHint": "Browse maps shared by other players. Install one into your map library with a click, or publish a map of your own. Your custom maps are the ones you save in Map Builder.",
+      "repoSearch": "Search maps…",
+      "repoSortNewest": "Newest",
+      "repoSortRating": "Top rated",
+      "repoSortDownloads": "Most downloaded",
+      "repoSortPlayers": "Biggest battles",
+      "repoLoading": "Loading…",
+      "repoEmpty": "No community maps here yet.",
+      "repoError": "Could not load community maps.",
+      "repoBy": "by {author}",
+      "repoDownloads": "{n} downloads",
+      "repoRating": "★ {avg}/5 ({c} ratings)",
+      "repoNoRatings": "no ratings yet",
+      "repoInstall": "Install",
+      "repoInstalled": "Map installed into your library.",
+      "repoInstallFail": "Could not install that map.",
+      "repoRate": "Rate",
+      "repoRatePrompt": "Rate this map from 1 to 5:",
+      "repoRateInvalid": "Enter a number from 1 to 5.",
+      "repoRateOk": "Rated {n}/5.",
+      "repoRateFail": "Could not submit rating.",
+      "repoComments": "Comments",
+      "repoCommentsEmpty": "No comments yet.",
+      "repoCommentsFail": "Could not load comments.",
+      "repoCommentPlaceholder": "Write a comment…",
+      "repoCommentSend": "Send",
+      "repoCommentFail": "Could not post comment.",
+      "repoNeedLogin": "Sign in to use this.",
+      "repoDelete": "Delete",
+      "repoDeleteConfirm": "Delete published map “{name}”?",
+      "repoDeleteFail": "Could not delete map.",
+      "repoDeleted": "Map deleted.",
+      "repoPublishH3": "Publish a map",
+      "repoPublishHint": "Pick one of your custom maps to share it with everyone. A short description is required and shows up on the landing page. Only the owner can delete a published map.",
+      "repoPublish": "Publish",
+      "repoPublishDescPlaceholder": "Short description… (up to 160 characters)",
+      "repoPublishNeedDesc": "Write a short description first.",
+      "repoPublishNoMaps": "You don’t have a valid map to publish. Build one in Map Builder.",
+      "repoPublishOk": "“{name}” is live in Community maps.",
+      "repoPublishFail": "Could not publish map."
+    }
+  },
+  "dev": {
+    "h1": "Dev Settings",
+    "hint": "Tune numeric match variables for debugging. Edits take effect for the next match in this session; use <b>Save changes</b> to persist them for future sessions and push them to a match you host — every client receives them at match start so games stay in sync.",
+    "save": "Save changes",
+    "reset": "Reset to defaults",
+    "saveAsDefault": "Save as default",
+    "collapse": "Close all sections",
+    "overlayBtn": "Dev",
+    "overlayBtnTitle": "Open the dev popup (performance, header parts, shortcuts)",
+    "overlayH1": "Dev popup",
+    "overlayPerf": "Performance",
+    "overlayHud": "Header",
+    "overlayRender": "Render toggles",
+    "overlayShortcuts": "Dev shortcuts",
+    "overlayClose": "Close",
+    "hudFps": "Show FPS",
+    "hudTicks": "Show tick",
+    "hudSync": "Show sync status",
+    "perfFps": "FPS",
+    "perfTicks": "Tick",
+    "perfTickRate": "Tick rate",
+    "perfEntities": "Entities",
+    "perfSync": "Sync",
+    "assets": {
+      "buildings": "Buildings (8 status frames: 1-4 construction, 5 complete, 6-8 damage)",
+      "fields": "Fields",
+      "supplyField": "Supply field (25 fill frames: {frame} = 1-25, one step per 1/25 capacity)",
+      "oilField": "Oil field (4 damage frames: {frame} = 1-4 at 100/75/50/25% health)",
+      "units": "Units — moving sprites (8 heading frames: {frame} = 0001-0008; 0002 = south, then west+south, south, east+south, east, north+east, north, west+north, west)",
+      "hud": "HUD icons — selection bar (one flat image per object, e.g. hud/hud_cc.png)",
+      "scenery": "Scenery — static objects (tree, rock, wreck)",
+      "obstacles": "Obstacles — trap/mine sprites",
+      "fx": "Effects — animated overlays",
+      "burn": "Burning fire (2 frames: {frame} = 1-2)",
+      "minimap": "Minimap"
+    },
+    "sections": {
+      "economy": "Economy & production",
+      "power": "Power",
+      "satellite": "Satellite",
+      "laser": "Space laser",
+      "superWeapon": "Super weapon (synced)",
+      "abilities": "Combat abilities (synced)",
+      "stealth": "Stealth & detectors (synced)",
+      "mines": "Mines (synced)",
+      "heal": "Engineer healing (synced)",
+      "fog": "Fog of war",
+      "dayNight": "Day/night cycle (synced)",
+      "worldFields": "World fields (0 = use the map value)",
+      "movement": "Movement & separation (synced)",
+      "combat": "Combat behaviour (synced)",
+      "veterancy": "Veterancy (synced)",
+      "planes": "Planes (synced)",
+      "pathfinding": "Pathfinding (synced)",
+      "assets": "Assets — high-quality images (client-only, not synced)",
+      "audio": "Audio — asset file overrides (client-only, not synced)",
+      "match": "Match — victory cinematic (client-only, not synced)",
+      "zoom": "Camera zoom (client-only, not synced)",
+      "buildingFill": "Building sprite fill (client-only, not synced)",
+      "layerOrder": "Sprite layer z-order (client-only, not synced)",
+      "buildings": "Buildings",
+      "units": "Units",
+      "weapons": "Weapons",
+      "upgrades": "Upgrades",
+      "projectileFx": "Projectile effects (client-only, not synced)",
+      "profile": "Profile — achievement targets (client-only, not synced)"
+    },
+    "fields": {
+      "startingCredits": {
+        "label": "Starting credits",
+        "desc": "Credits each player begins with"
+      },
+      "oilIncome": {
+        "label": "Oil income",
+        "desc": "Credits awarded per oil payout"
+      },
+      "oilIncomeIntervalTicks": {
+        "label": "Oil payout interval",
+        "desc": "Time between oil payouts"
+      },
+      "oilClaimTicks": {
+        "label": "Oil claim time",
+        "desc": "Time to take over an oil rig"
+      },
+      "supplyPerTrip": {
+        "label": "Supply per trip",
+        "desc": "Supply delivered per harvest trip"
+      },
+      "harvesterLoadTicks": {
+        "label": "Harvester load time",
+        "desc": "Time a harvester spends loading"
+      },
+      "builderRepairPerTick": {
+        "label": "Builder repair",
+        "desc": "HP a builder repairs each tick"
+      },
+      "sellRefundFraction": {
+        "label": "Sell refund",
+        "desc": "Fraction of value refunded when selling"
+      },
+      "sellTicks": {
+        "label": "Sell time",
+        "desc": "How long a building stays animating while it is being sold"
+      },
+      "wreckValueFraction": {
+        "label": "Wreck value",
+        "desc": "Fraction of an object's cost recovered by collecting its wreck"
+      },
+      "wreckCollectTicks": {
+        "label": "Wreck collect time",
+        "desc": "How long a bulldozer must work to collect a wreck"
+      },
+      "queueLimit": {
+        "label": "Queue limit",
+        "desc": "Max production orders per factory"
+      },
+      "satelliteRevealTicks": {
+        "label": "Satellite reveal",
+        "desc": "How long a scan reveals the map"
+      },
+      "satelliteCooldownTicks": {
+        "label": "Satellite cooldown",
+        "desc": "Cooldown between satellite scans"
+      },
+      "laserCooldownTicks": {
+        "label": "Laser cooldown",
+        "desc": "Cooldown between space laser strikes"
+      },
+      "airstrikeCooldownTicks": {
+        "label": "Airstrike cooldown",
+        "desc": "Cooldown between airstrike squadrons"
+      },
+      "empCooldownTicks": {
+        "label": "EMP cooldown",
+        "desc": "Cooldown between EMP pulses"
+      },
+      "airstrikeBombDamage": {
+        "label": "Airstrike damage",
+        "desc": "Damage dealt by each airstrike bomb"
+      },
+      "airstrikeBombRadius": {
+        "label": "Airstrike radius",
+        "desc": "Splash radius of an airstrike bomb in cells"
+      },
+      "empRadiusTiles": {
+        "label": "EMP radius",
+        "desc": "Area of effect radius of the EMP pulse in cells"
+      },
+      "empDurationTicks": {
+        "label": "EMP duration",
+        "desc": "How long the EMP disables enemy units and buildings"
+      },
+      "laserRadius": {
+        "label": "Laser radius",
+        "desc": "Area of effect radius in cells"
+      },
+      "laserDurationTicks": {
+        "label": "Laser duration",
+        "desc": "How long a strike keeps dealing damage"
+      },
+      "laserDamagePerTick": {
+        "label": "Laser DPS",
+        "desc": "Damage dealt per tick to everything in the radius"
+      },
+      "laserMaxLevel": {
+        "label": "Laser max level",
+        "desc": "Max space laser upgrades a team can research"
+      },
+      "laserDelayTicksLv1": {
+        "label": "Laser wind-up lv.1",
+        "desc": "Delay after picking the target before a level-1 laser starts firing"
+      },
+      "laserDelayTicksLv2": {
+        "label": "Laser wind-up lv.2",
+        "desc": "Delay after picking the target before a level-2 laser starts firing"
+      },
+      "maxPowerTicks": {
+        "label": "Max Power duration",
+        "desc": "How long the Max Power overdrive lasts before a power plant overheats to 50% HP"
+      },
+      "fogFadeDistance": {
+        "label": "Fog fade distance",
+        "desc": "How deep (in cells) enemy units stay visible behind the fog edge"
+      },
+      "fogMode": {
+        "label": "Fog mode",
+        "desc": "How the map treats tiles you have seen: keep explored (memory), keep bright forever (classic), or forget instantly (hard)"
+      },
+      "dayNightCycleTicks": {
+        "label": "Day/night cycle",
+        "desc": "Time for a full day → dusk → night → dawn cycle"
+      },
+      "dayNightTransitionTicks": {
+        "label": "Dusk/dawn transition",
+        "desc": "Length of the dusk and dawn fade phases"
+      },
+      "supplyFieldCapacity": {
+        "label": "Supply field capacity",
+        "desc": "0 = use the map value"
+      },
+      "supplyFieldBonus": {
+        "label": "Supply capture bonus",
+        "desc": "Extra % per trip from a supply field your team holds with a scout"
+      },
+      "supplyFieldClaimTicks": {
+        "label": "Supply capture time",
+        "desc": "Scout presence needed to flip a supply field's bonus to your team"
+      },
+      "supplyFieldHoldTicks": {
+        "label": "Supply hold time",
+        "desc": "How long a captured field keeps its bonus once the scout leaves"
+      },
+      "supplyFieldRadius": {
+        "label": "Supply field radius",
+        "desc": "0 = use the map value"
+      },
+      "oilFieldRadius": {
+        "label": "Oil field radius",
+        "desc": "0 = use the map value"
+      },
+      "spawnRange": {
+        "label": "Spawn/rally range",
+        "desc": "Max tile distance from building footprint for spawn and rally points"
+      },
+      "oilFieldHp": {
+        "label": "Oil field HP",
+        "desc": "Hit points of the oil field structure"
+      },
+      "treeHp": {
+        "label": "Tree HP",
+        "desc": "Hit points of a tree (crushable by vehicles)"
+      },
+      "rockHp": {
+        "label": "Rock HP",
+        "desc": "Hit points of a rock"
+      },
+      "crushDamage": {
+        "label": "Crush damage",
+        "desc": "Damage per tick a vehicle deals to a tree it drives over"
+      },
+      "sepVehicle": {
+        "label": "Vehicle separation",
+        "desc": "Minimum spacing kept between vehicles, in tiles"
+      },
+      "sepInfantry": {
+        "label": "Infantry separation",
+        "desc": "Minimum spacing kept between infantry, in tiles"
+      },
+      "sepMaxPush": {
+        "label": "Max push per tick",
+        "desc": "Cap on separation displacement applied per tick, in tiles"
+      },
+      "buildingMarginVehicle": {
+        "label": "Building clearance (vehicle)",
+        "desc": "Clearance vehicles keep from building footprints, in tiles"
+      },
+      "buildingMarginInfantry": {
+        "label": "Building clearance (infantry)",
+        "desc": "Clearance infantry keeps from building footprints, in tiles"
+      },
+      "fieldMargin": {
+        "label": "Field clearance",
+        "desc": "Clearance units keep from supply/oil fields, in tiles"
+      },
+      "samePosJitter": {
+        "label": "Same-position jitter",
+        "desc": "Emergency sideways shove when two same-team units occupy the exact same spot, in tiles"
+      },
+      "lateralSepDist": {
+        "label": "Lateral separation distance",
+        "desc": "Within this distance of its destination a moving unit is only pushed sideways, never away from the goal, in tiles"
+      },
+      "stuckRelocateRadius": {
+        "label": "Stuck relocate radius",
+        "desc": "Search radius in tiles to relocate a unit left standing on an impassable tile"
+      },
+      "repathCooldownBlockedTicks": {
+        "label": "Repath delay (blocked)",
+        "desc": "Wait before re-pathing when the current path crosses a newly blocked tile"
+      },
+      "repathCooldownFailTicks": {
+        "label": "Repath delay (failed)",
+        "desc": "Wait before retrying a move/chase order that produced no path"
+      },
+      "chaseLeash": {
+        "label": "Chase leash",
+        "desc": "How far (× weapon range) a unit pursues a target before giving up"
+      },
+      "guardArriveCells": {
+        "label": "Guard arrival radius",
+        "desc": "How close (in tiles) a guard unit must come to the guard post center before it starts acting as a turret"
+      },
+      "targetBiasLastHit": {
+        "label": "Target bias: last hit",
+        "desc": "Auto-target score bonus for the most recently damaged target. Very high = units keep shooting the same target; lower = they switch more eagerly"
+      },
+      "targetBiasFocusFire": {
+        "label": "Target bias: focus fire",
+        "desc": "Auto-target score bonus per friendly attacker already on that target. Higher = concentrated fire, lower = spread out"
+      },
+      "targetBiasLowHp": {
+        "label": "Target bias: low HP",
+        "desc": "Auto-target score bonus favoring wounded targets (scaled by missing HP). 0 = ignore target health when picking"
+      },
+      "defaultSplash": {
+        "label": "Default splash radius",
+        "desc": "Splash radius in cells for ground hits by weapons without explicit splash (rifle, cannon, AA, turret gun, air cannon)"
+      },
+      "veteranRank1Kills": {
+        "label": "Veteran kills",
+        "desc": "Enemy units a unit must destroy to reach rank 1 (one pip)"
+      },
+      "veteranRank2Kills": {
+        "label": "Rank 2 kills",
+        "desc": "Enemy units a unit must destroy to reach rank 2 (two pips)"
+      },
+      "veteranRank3Kills": {
+        "label": "Rank 3 kills",
+        "desc": "Enemy units a unit must destroy to reach rank 3 (three pips)"
+      },
+      "veteranRank4Kills": {
+        "label": "Rank 4 kills",
+        "desc": "Enemy units a unit must destroy to reach rank 4 (four pips)"
+      },
+      "veteranRank5Kills": {
+        "label": "Rank 5 kills",
+        "desc": "Enemy units a unit must destroy to reach the top rank (gold star)"
+      },
+      "veteranDamagePerRank": {
+        "label": "Damage bonus/rank",
+        "desc": "Extra damage fraction per veterancy rank (rank 1 = +25% at default, rank 5 = +125%)"
+      },
+      "veteranRangePerRank": {
+        "label": "Range bonus/rank",
+        "desc": "Extra attack range fraction per veterancy rank (rank 1 = +10% at default, rank 5 = +50%)"
+      },
+      "veteranArmorPerRank": {
+        "label": "Damage reduction/rank",
+        "desc": "Fraction of incoming damage negated per veterancy rank, capped at 50% (rank 1 = −20% at default). Does not affect buildings"
+      },
+      "planeOrbitRadius": {
+        "label": "Plane orbit radius",
+        "desc": "Idle orbit radius around the hover point, in tiles"
+      },
+      "planeReloadRadius": {
+        "label": "Plane reload radius",
+        "desc": "Distance from home air force within which a plane rearms, in tiles"
+      },
+      "planeSortieMult": {
+        "label": "Plane sortie range",
+        "desc": "Auto-attack acquisition radius as × of weapon range/vision while idle"
+      },
+      "workPadDistance": {
+        "label": "Dozer work pad",
+        "desc": "Distance beyond the building edge where the bulldozer parks to work, in tiles"
+      },
+      "workStuckTicks": {
+        "label": "Dozer stuck patience",
+        "desc": "How many ticks a bulldozer may fail to get closer to its work pad before it starts building anyway (helps boxed-in buildings), in ticks"
+      },
+      "pathBudgetPerTick": {
+        "label": "Path budget/tick",
+        "desc": "Max A* path computations allowed per tick (excess waits)"
+      },
+      "pathMaxNodes": {
+        "label": "A* max nodes",
+        "desc": "Node cap per A* search; exceeding it aborts and retries later"
+      },
+      "astarCostStraight": {
+        "label": "A* straight cost",
+        "desc": "Internal A* cost of one cardinal step (relative to diagonal cost)"
+      },
+      "astarCostDiagonal": {
+        "label": "A* diagonal cost",
+        "desc": "Internal A* cost of one diagonal step (~1.4× straight is standard)"
+      },
+      "grenadeRange": {
+        "label": "Grenade range",
+        "desc": "How far from a unit a grenade throw can land, in tiles"
+      },
+      "grenadeBlastRadius": {
+        "label": "Grenade blast radius",
+        "desc": "Radius of the explosion area of effect, in tiles"
+      },
+      "grenadeDamage": {
+        "label": "Grenade damage",
+        "desc": "Damage applied to everything inside the blast radius"
+      },
+      "grenadeFuseTicks": {
+        "label": "Grenade fuse",
+        "desc": "Time between throwing and the explosion, in seconds"
+      },
+      "grenadeCooldownTicks": {
+        "label": "Grenade cooldown",
+        "desc": "Delay before a unit can throw another grenade"
+      },
+      "smokeRange": {
+        "label": "Smoke range",
+        "desc": "How far from a unit a smoke shell can land, in tiles"
+      },
+      "smokeRadius": {
+        "label": "Smoke cloud radius",
+        "desc": "Radius of the smoke cloud area, in tiles"
+      },
+      "smokeDurationTicks": {
+        "label": "Smoke duration",
+        "desc": "How long a smoke cloud lingers, in seconds"
+      },
+      "smokeMissChance": {
+        "label": "Smoke miss chance",
+        "desc": "Chance (0–1) that a shot crossing the cloud misses"
+      },
+      "smokeCooldownTicks": {
+        "label": "Smoke cooldown",
+        "desc": "Delay before a unit can throw another smoke shell"
+      },
+      "mineCost": {
+        "label": "Mine cost",
+        "desc": "Credits to plant one mine"
+      },
+      "minePlaceRange": {
+        "label": "Mine place/sweep range",
+        "desc": "Radius in tiles within which an engineer can plant mines, and engineers/bulldozers can sweep own mines"
+      },
+      "mineTriggerRadius": {
+        "label": "Mine trigger radius",
+        "desc": "Radius in tiles at which a mine detects an enemy ground unit and detonates"
+      },
+      "mineBlastRadius": {
+        "label": "Mine blast radius",
+        "desc": "Radius of the mine explosion area of effect, in tiles"
+      },
+      "mineDamage": {
+        "label": "Mine damage",
+        "desc": "Damage applied to everything inside the blast radius"
+      },
+      "mineArmTicks": {
+        "label": "Mine arming time",
+        "desc": "Delay after placing before a mine can detonate, in seconds"
+      },
+      "mineLimit": {
+        "label": "Mines per team",
+        "desc": "Maximum number of mines a team can own at once"
+      },
+      "friendlyMineDamage": {
+        "label": "Friendly mine damage",
+        "desc": "When ON, own mines detonate on allies too and damage them"
+      },
+      "engineerHealPerTick": {
+        "label": "Engineer heal/tick",
+        "desc": "HP restored per tick while an engineer heals a unit"
+      },
+      "engineerHealRange": {
+        "label": "Engineer heal range",
+        "desc": "Distance in tiles at which an engineer can heal an ordered ally"
+      },
+      "engineerHealAuraRadius": {
+        "label": "Engineer heal aura",
+        "desc": "Radius in tiles of the passive rank 3+ healing aura"
+      },
+      "engineerHealRank": {
+        "label": "Engineer heal rank",
+        "desc": "Veteran rank required for the passive AoE healing aura (1 = always on)"
+      },
+      "detectorCost": {
+        "label": "Detector cost",
+        "desc": "Credits to equip a finished building with a stealth detector"
+      },
+      "detectorRange": {
+        "label": "Detector range",
+        "desc": "Radius in tiles within which a detector reveals stealth units"
+      },
+      "stealthRevealTicks": {
+        "label": "Stealth reveal duration",
+        "desc": "How long a stealthed unit stays visible after firing"
+      },
+      "buildingFillMedium": {
+        "label": "Medium-quality fill",
+        "desc": "Building sprite scale at medium quality, as a fraction of the base diamond width"
+      },
+      "buildingFillHigh": {
+        "label": "High-quality fill",
+        "desc": "Building sprite scale at high quality, as a fraction of the base diamond width"
+      },
+      "buildingOffsetMedium": {
+        "label": "Medium-quality offset",
+        "desc": "Sprite shift down from the base center at medium quality, as a fraction of r (center-to-bottom distance)"
+      },
+      "buildingOffsetHigh": {
+        "label": "High-quality offset",
+        "desc": "Sprite shift down from the base center at high quality, as a fraction of r (center-to-bottom distance)"
+      },
+      "assetBuilding": {
+        "label": "Building images path",
+        "desc": "High-quality status image template; {frame} = image 0001-0008 (1-5 construction, 5-8 damage), {color} = player color folder. e.g. pp/1/pp_0001.png. Applied on the next match"
+      },
+      "assetUnit": {
+        "label": "Unit image path",
+        "desc": "High-quality heading-frame sprite template; {frame} = image 0001-0008 (0002 = south: west+south, south, east+south, east, north+east, north, west+north, west), {color} = player color folder. e.g. v_b/1/v_b_0002.png. Empty = vector shape"
+      },
+      "assetHud": {
+        "label": "HUD icon path",
+        "desc": "Flat HUD selection-bar icon for this object, e.g. hud/hud_cc.png. Empty = falls back to the sprite frame"
+      },
+      "assetObstacle": {
+        "label": "Scenery image path",
+        "desc": "Static object image (tree, rock, wreck), e.g. ao/tree.png — leave empty for the vector shape"
+      },
+      "assetBurn": {
+        "label": "Burning fire path",
+        "desc": "Animated overlay for heavily damaged units; {frame} = 0001-0002. e.g. fx/burn/burn_{frame}.png. Empty = procedural flame"
+      },
+      "assetFx": {
+        "label": "Effects",
+        "desc": "Effects — animated overlays (2 frames: {frame} = 1-2)"
+      },
+      "audioPath": {
+        "label": "Sound override",
+        "desc": "A single file (…/x.wav/.mp3/.ogg) OR a folder under client/dist such as sound/{id}/. By default the bundled sound/{id}/{name}.wav is used (or the legacy v1.wav, v2.wav pool). Ordinary sounds play a shuffled variant each time; ambient-lobby/ambient-game play their files one-after-another in a shuffled loop. Empty = bundled file, else synth"
+      },
+      "audioPathApply": {
+        "label": "Use generated",
+        "desc": "Point this sound at the generated WAV folder: sound/{id}/ under client/dist (applies live; clear to fall back to the synth)"
+      },
+      "audioPathClear": {
+        "label": "Synth",
+        "desc": "Clear the override and play the built-in synth for this sound"
+      },
+      "audioPlay": {
+        "label": "Play",
+        "desc": "Preview this sound right now with the current override + tuning, at full volume and without positional falloff (no match needed). Ambience previews ~4 s."
+      },
+      "audioPing": {
+        "label": "Ping",
+        "desc": "Play a short 880 Hz tone straight through the audio graph (no files, no tuning) — confirms the speakers and AudioContext work. If this is silent but others are not, the problem is the file/decode side."
+      },
+      "audioTune": {
+        "vol": {
+          "label": "Volume",
+          "desc": "Loudness multiplier for this sound (0–4×), applied on top of the per-kind play gain"
+        },
+        "pitch": {
+          "label": "Pitch",
+          "desc": "Playback rate / pitch multiplier (0.25–4×): files repitch via PlaybackRate, synth via oscillator frequency"
+        }
+      },
+      "fieldSupply": {
+        "label": "Supply field image path",
+        "desc": "Fill-level image template; {frame} = 1-25, one step per 1/25 of the stored capacity"
+      },
+      "fieldOil": {
+        "label": "Oil field image path",
+        "desc": "Damage image template; {frame} = 1-4 at 100/75/50/25% health"
+      },
+      "fieldOffset": {
+        "label": "High-quality field offset",
+        "desc": "Shifts the supply/oil field images down from the tile center, as a fraction of r (center-to-bottom distance)"
+      },
+      "fieldScale": {
+        "label": "Field sprite scale",
+        "desc": "Size multiplier for the supply/oil field images — both high-quality images and vector shapes (applies live)"
+      },
+      "obstacleScale": {
+        "label": "Obstacle sprite scale",
+        "desc": "Size multiplier for rock/tree/wreck/mine sprites — both high-quality images and vector shapes (applies live)"
+      },
+      "obstacleOffset": {
+        "label": "Obstacle sprite offset",
+        "desc": "Shifts rock/tree/wreck/mine sprites down from the base center, as a fraction of r (center-to-bottom distance)"
+      },
+      "fxScale": {
+        "label": "Effect size",
+        "desc": "Size of hit flashes and burning fire as a fraction of the object's ground footprint (0.5 = half the object's size)"
+      },
+      "fxOffset": {
+        "label": "Effect offset",
+        "desc": "Shifts hit flashes and burning fire down from the object's base center, as a fraction of the object's ground footprint size"
+      },
+      "minimapScale": {
+        "label": "Minimap zoom",
+        "desc": "How much the minimap grows when you toggle it with the Map button (1 = normal size)"
+      },
+      "victoryCinematic": {
+        "label": "Victory cinematic",
+        "desc": "Seconds the victory/defeat text stays on screen (all players spectate) before the results popup. 0 = skip straight to results"
+      },
+      "zoomMin": {
+        "label": "Match zoom-out floor",
+        "desc": "Smallest camera zoom (farthest out) allowed in normal matches"
+      },
+      "zoomMax": {
+        "label": "Match zoom-in ceiling",
+        "desc": "Largest camera zoom (closest in) allowed in normal matches"
+      },
+      "replayZoomMin": {
+        "label": "Replay zoom-out floor",
+        "desc": "Smallest camera zoom (farthest out) allowed in replays and spectating"
+      },
+      "projectileBulletSize": {
+        "label": "Bullet tracer size",
+        "desc": "Size of simple bullet tracers (rifle, anti-air, turret, bunker guns)"
+      },
+      "projectileRocketSize": {
+        "label": "Rocket tracer size",
+        "desc": "Size of rocket/missile tracers and their smoke tail (rockets, air cannons, sea missiles)"
+      },
+      "projectileShellSize": {
+        "label": "Shell tracer size",
+        "desc": "Size of artillery shell tracers and their fire tail"
+      },
+      "projectileShellHeight": {
+        "label": "Shell arch height",
+        "desc": "How many pixels above the ground line artillery shells arch (peak of the flight arc)"
+      },
+      "replayZoomMax": {
+        "label": "Replay zoom-in ceiling",
+        "desc": "Largest camera zoom (closest in) allowed in replays and spectating"
+      },
+      "unitScale": {
+        "desc": "Size multiplier applied to that unit class's sprite — both high-quality directional images and vector shapes (applies live)",
+        "vehicle": {
+          "label": "Vehicle sprite scale"
+        },
+        "infantry": {
+          "label": "Troop sprite scale"
+        },
+        "air": {
+          "label": "Aircraft sprite scale"
+        },
+        "naval": {
+          "label": "Naval sprite scale"
+        }
+      },
+      "unitOffset": {
+        "desc": "Vertical sprite shift down from the base center for that unit class, as a fraction of the sprite's own width (applies live)",
+        "vehicle": {
+          "label": "Vehicle sprite offset"
+        },
+        "infantry": {
+          "label": "Troop sprite offset"
+        },
+        "air": {
+          "label": "Aircraft sprite offset"
+        },
+        "naval": {
+          "label": "Naval sprite offset"
+        }
+      },
+      "spriteLayer": {
+        "desc": "Lower = drawn first (further behind). Lets you reorder which sprite kind draws on top of the others.",
+        "border": {
+          "label": "Border/boundary shapes z-order"
+        },
+        "troop": {
+          "label": "Troops z-order"
+        },
+        "vehicle": {
+          "label": "Vehicles z-order"
+        },
+        "building": {
+          "label": "Buildings z-order"
+        },
+        "effect": {
+          "label": "Effects z-order"
+        }
+      },
+      "achievementKillsInfantry": {
+        "label": "Achievement: kills infantry",
+        "desc": "Target for ‘Marine Hunter’ (kills of enemy infantry keep counting past it)"
+      },
+      "achievementKillsVehicle": {
+        "label": "Achievement: kills vehicles",
+        "desc": "Target for ‘Tank Buster’"
+      },
+      "achievementKillsAir": {
+        "label": "Achievement: kills aircraft",
+        "desc": "Target for ‘Sky Killer’"
+      },
+      "achievementKillsBuilding": {
+        "label": "Achievement: kills buildings",
+        "desc": "Target for ‘Base Breaker’"
+      },
+      "achievementSupplies": {
+        "label": "Achievement: supplies",
+        "desc": "Target for ‘Capitalist’ (total supply harvested, counting forever)"
+      },
+      "achievementVeteranPromotions": {
+        "label": "Achievement: promotions",
+        "desc": "Target for ‘War Hero’"
+      },
+      "achievementTroopsTransported": {
+        "label": "Achievement: transported",
+        "desc": "Target for ‘Transport’ (APC/fighter passenger loadings)"
+      },
+      "achievementMatches": {
+        "label": "Achievement: matches",
+        "desc": "Target for ‘Five Matches’"
+      },
+      "achievementWins": {
+        "label": "Achievement: wins",
+        "desc": "Target for ‘Ten Wins’"
+      }
+    },
+    "overrides": {
+      "cost": {
+        "label": "Cost",
+        "desc": "Credits to build"
+      },
+      "buildTimeTicks": {
+        "label": "Build time",
+        "desc": "Time to construct"
+      },
+      "hp": {
+        "label": "Hit points",
+        "desc": "Building health"
+      },
+      "powerGen": {
+        "label": "Power output",
+        "desc": "Power this building generates"
+      },
+      "powerUse": {
+        "label": "Power use",
+        "desc": "Power this building consumes"
+      },
+      "speed": {
+        "label": "Speed",
+        "desc": "Movement speed"
+      },
+      "vision": {
+        "label": "Vision",
+        "desc": "Vision radius"
+      },
+      "capacity": {
+        "label": "Capacity",
+        "desc": "Max planes per air force"
+      },
+      "maxAmmo": {
+        "label": "Max ammo",
+        "desc": "Shots before the plane returns to reload"
+      },
+      "reloadTicks": {
+        "label": "Reload time",
+        "desc": "Time spent reloading at the air force"
+      },
+      "damage": {
+        "label": "Damage",
+        "desc": "Damage per shot"
+      },
+      "cooldownTicks": {
+        "label": "Cooldown",
+        "desc": "Time between shots"
+      },
+      "range": {
+        "label": "Range",
+        "desc": "Attack range"
+      },
+      "splash": {
+        "label": "Splash radius",
+        "desc": "Area of effect radius"
+      },
+      "researchTimeTicks": {
+        "label": "Research time",
+        "desc": "Time to complete research"
+      }
+    },
+    "units": {
+      "credits": "credits",
+      "sec": "sec",
+      "hpPerTick": "hp/tick",
+      "hp": "hp",
+      "fraction": "0–1",
+      "orders": "orders",
+      "units": "units",
+      "cells": "cells",
+      "cellsPerSec": "cells/s",
+      "power": "power",
+      "dmg": "dmg",
+      "levels": "levels",
+      "rounds": "rounds",
+      "x": "×",
+      "nodes": "nodes",
+      "score": "score",
+      "kills": "kills",
+      "px": "px",
+      "default": "Default: {v}"
+    },
+    "status": {
+      "sent": "Sent to the match — new settings apply when the match starts.",
+      "saved": "Dev settings saved.",
+      "reset": "Dev settings reset to defaults.",
+      "syncedOnce": "Settings cloned for this match only (not saved).",
+      "defaultsSaved": "Current values saved as your default settings.",
+      "assetSaved": "Asset path saved (applies on the next match).",
+      "audioSaved": "Sound path saved (plays instead of the synth).",
+      "audioTuned": "Tuned this sound (volume / pitch).",
+      "audioPing": "Ping played (880 Hz tone).",
+      "audioPreview": "Playing audio preview…",
+      "audioPreviewFiles": "Playing — sources: {urls}",
+      "audioPreviewSynth": "built-in synth",
+      "scalarDefault": "{label}: default ({v})",
+      "scalarSet": "{label}: {v}",
+      "overrideDefault": "{id}.{field} → default ({v})",
+      "overrideSet": "{id}.{field} → {v}",
+      "fillSet": "{quality} building fill: {v}",
+      "offsetSet": "{quality} building offset: {v}"
+    },
+    "audio": {
+      "ui": "UI & selection",
+      "weapons": "Weapons",
+      "events": "Game events",
+      "select": "Select",
+      "move-bleep": "Move command",
+      "alert": "Alert / notification",
+      "weapon-rifle": "Rifle weapon",
+      "weapon-rocket": "Rocket weapon",
+      "weapon-cannon": "Cannon weapon",
+      "weapon-artillery": "Artillery weapon",
+      "weapon-air-cannon": "Anti-air weapon",
+      "unit-trained": "Unit trained",
+      "building-completed": "Building completed",
+      "upgrade-completed": "Upgrade completed",
+      "supply-harvested": "Supply harvested",
+      "combat-hit": "Combat hit",
+      "laser-strike": "Laser strike",
+      "airstrike-called": "Airstrike incoming",
+      "bomb-strike": "Airstrike bomb",
+      "emp-strike": "EMP strike",
+      "grenade-exploded": "Grenade explosion",
+      "smoke-landed": "Smoke landing",
+      "power-down": "Power down",
+      "game-over": "Game over",
+      "victory": "Match victory",
+      "achievement": "Achievement unlocked",
+      "ambient": "Ambient (looping)",
+      "ambient-lobby": "Ambient — lobby",
+      "ambient-game": "Ambient — in match",
+      "weather": "Weather ambient (looping)",
+      "rain-ambient": "Weather — rain",
+      "snow-ambient": "Weather — snow",
+      "storm-ambient": "Weather — storm"
+    }
+  },
+  "menu": {
+    "paused": "Paused",
+    "button": "Menu",
+    "stats": "Match Stats",
+    "saveReplay": "Save Replay",
+    "resume": "Resume",
+    "quit": "Quit Game",
+    "back": "Back to Menu",
+    "victory": "Victory!",
+    "defeat": "Defeat",
+    "draw": "Draw",
+    "over": "Match Over",
+    "rankUpTitle": "Rank up — {rank}★",
+    "rankUpDesc": "New tech unlocked. Free of charge.",
+    "rankUpHeader": "Rank up!"
+  },
+  "rank": {
+    "buttonTitle": "General rank — click to view the ladder"
+  },
+  "hud": {
+    "noSelection": "No selection",
+    "playerN": "Player {n}",
+    "power": "power {use}/{gen}",
+    "powerDown": "power DOWN",
+    "tick": "tick {t}",
+    "tickTotal": "tick {t}/{total}",
+    "inSync": "in sync",
+    "desync": "DESYNC!",
+    "fps": "{fps} fps",
+    "ping": "{ms} ms",
+    "selected": "{n} selected — {names}",
+    "hp": "HP {p}%",
+    "cost": "cost ${c}",
+    "powerPlus": "power +{p}",
+    "powerMinus": "power -{p}",
+    "buildingPct": "building {p}%",
+    "makes": "makes {name}",
+    "researching": "researching {name}",
+    "powerDownNote": "POWER DOWN",
+    "shieldStatus": "shield {p}%",
+    "maxPower": "Max Power",
+    "maxPowerActive": "Max Power ({s}s left)",
+    "maxPowerHpDrop": "HP dropping…",
+    "unitDesc": "{name} — HP {hp}%\nspeed {speed}",
+    "buildingDesc": "{name} — HP {p}%",
+    "rankLevel": "Rank {rank}",
+    "kills": "{kills} kills",
+    "achievementTitle": "Achievements — kills and rank",
+    "rankStars": "star {n}",
+    "rankScore": "score {score} — next star at {next} pts",
+    "rankScoreEmpty": "Earn score from battle, supply, research and expansion. Reach the next score floor and the promotion is free — the score keeps counting towards the following star.",
+    "rankFloor": "1-star floor · {pts} pts",
+    "rankTier1": "Tier-2 arsenal research unlocked (Stealth, Detector, Mines, Grenades, Transport capacity)",
+    "rankTier2": "Defense Dome + Weapon Upgrade unlocked",
+    "rankTier3": "Super Weapon upgrade + Space Laser bonus unlocked (Airstrike/EMP at the Super Weapon)",
+    "rankUnlocked": "Unlocked",
+    "rankLocked": "Locked",
+    "rankRequired": "Requires {n}★ general rank",
+    "swLaserDefault": "Space Laser: armed by default — pick an Airstrike or EMP as your second strike.",
+    "headers": {
+      "command": "Command",
+      "produce": "Produce",
+      "queue": "Queue",
+      "research": "Research",
+      "power": "Power",
+      "build": "Build",
+      "detector": "Detectors",
+      "superWeapon": "Super Weapon",
+      "garrison": "Loaded"
+    },
+    "destroy": "Destroy <span class=\"cost\">+${r}</span>",
+    "deselect": "Deselect",
+    "stop": "Stop",
+    "grenade": "Grenade",
+    "smoke": "Smoke",
+    "placeMine": "Place Mine",
+    "removeMine": "Remove Mine",
+    "detector": "Detector",
+    "stealth": "Stealth",
+    "unload": "Unload Here",
+    "unloadRider": "Click to unload this unit nearby",
+    "attack": "Attack <em>(A)</em>",
+    "keepAttack": "Keep Attack",
+    "multiPos": "Multi Pos",
+    "guard": "Guard",
+    "autoFire": "Auto-Fire",
+    "formHold": "Hold Formation",
+    "formTight": "Tight",
+    "formLoose": "Loose",
+    "spawnPoint": "Spawn <em>(V)</em>",
+    "flag": "Flag <em>(R)</em>",
+    "queueCancel": "Click to cancel this order",
+    "queueMoveLeft": "Move earlier in the queue",
+    "queueMoveRight": "Move later in the queue",
+    "researchProgress": "Research in progress"
+  },
+  "chat": {
+    "global": "Global",
+    "team": "Team",
+    "close": "Close chat",
+    "button": "Chat",
+    "buttonTitle": "Chat with the other players",
+    "send": "Send",
+    "emptyGlobal": "Global chat — everyone sees this.",
+    "emptyTeam": "Team chat — only your team sees this.",
+    "spectatorTeam": "Spectators can only use global chat",
+    "inputPlaceholder": "Message…"
+  },
+  "stats": {
+    "headers": {
+      "player": "Player",
+      "units": "Units",
+      "buildings": "Buildings",
+      "kills": "Kills",
+      "losses": "Losses",
+      "damage": "Damage",
+      "supply": "Supply"
+    },
+    "team": "Team {n}",
+    "bot": "bot",
+    "player": "player",
+    "subBot": "bot · {d}"
+  },
+  "countdown": {
+    "starting": "Starting match…",
+    "cancel": "Cancel"
+  },
+  "sync": {
+    "title": "Dev settings check",
+    "hint": "Tick a player and clone their dev settings — manually, never automatically.",
+    "continue": "Continue to match",
+    "youTag": "you",
+    "hostTag": "host",
+    "botTag": "bot",
+    "noSettingsTag": "no settings published",
+    "sameAsYou": "Same as yours",
+    "diffFromYou": "Different from yours",
+    "matchSame": "matches game settings",
+    "matchDiff": "differs from game settings",
+    "syncOnce": "Sync once",
+    "syncSave": "Sync & save",
+    "copySync": "Copy & save"
+  },
+  "confirm": {
+    "title": "Sell selected?",
+    "sellMsg": "Sell {n} selected entities for a ${refund} refund?",
+    "cancel": "Cancel",
+    "sell": "Sell"
+  },
+  "groups": {
+    "h2": "Control groups",
+    "hint": "Groups you saved in this match with your group key + a number (default Ctrl+1-9). Press a group key to select its units again, or remove a group below.",
+    "empty": "No control groups yet — select units, then press your group key + a number (default Ctrl+1) to save them.",
+    "remove": "Remove",
+    "removeTitle": "Empty control group {key}"
+  },
+  "tools": {
+    "label": "Tools",
+    "log": "Log",
+    "logTitle": "Toggle game log (L)",
+    "keys": "Keys",
+    "keysTitle": "Control groups saved in this match",
+    "minimapShort": "Map",
+    "minimapTitle": "Toggle minimap size (M)",
+    "homeShort": "Home",
+    "homeTitle": "Center on home (H)",
+    "pingAlertTitle": "Ping alert — Alt+click to drop an alert ping",
+    "pingAssistTitle": "Ping assist — Alt+click to ask for help",
+    "pingOmwTitle": "Ping on my way — Alt+click to say you're coming",
+    "satellite": "Satellite",
+    "idleWorker": "Idle Worker",
+    "idleDozer": "Idle Bulldozer",
+    "idleWorkerTitle": "Jump to nearest idle worker (I)",
+    "idleDozerTitle": "Jump to nearest idle bulldozer (D)",
+    "satelliteDisabled": "Research Satellite in a Tech Center first",
+    "satelliteReady": "Reveal all enemy objects",
+    "satelliteCooldown": "Satellite on cooldown",
+    "satelliteCountdown": "Satellite ({s}s)",
+    "satelliteNoCenter": "Tech Center destroyed — rebuild it to use Satellite",
+    "laser": "Space Laser",
+    "laserLevel": "Space Laser lv.{lv}",
+    "weaponLevel": "Weapon lv.{lv}",
+    "laserDisabled": "Research Space Laser at the Super Weapon first",
+    "laserReady": "Fire a devastating area-of-effect laser",
+    "laserCooldown": "Space Laser on cooldown",
+    "laserCountdown": "Space Laser ({s}s)",
+    "laserUnavailable": "Space Laser offline — rebuild the Super Weapon",
+    "swLaser": "Laser",
+    "swAirstrike": "Airstrike",
+    "swEmp": "EMP",
+    "strikeReady": "Fire the Super Weapon strike",
+    "strikeCountdown": "{name} ({s}s)",
+    "strikeCooldown": "{name} on cooldown",
+    "strikeUnavailable": "{name} offline — rebuild the Super Weapon"
+  },
+  "mobile": {
+    "label": "Touch",
+    "btns": {
+      "C": "Command mode: tap the map to move (no long-press)",
+      "A": "Attack-move toggle (A)",
+      "X": "Box select toggle: drag to select multiple units (X)",
+      "B": "Toggle borders (B)",
+      "P": "Toggle move paths (P)",
+      "N": "Toggle base markers (N)",
+      "M": "Toggle minimap size (M)",
+      "H": "Center on home (H)",
+      "I": "Jump to nearest idle worker (I)",
+      "D": "Jump to nearest idle bulldozer (D)",
+      "S": "Stop (S)",
+      "L": "Toggle game log (L)"
+    }
+  },
+  "oil": {
+    "fieldName": "Oil Field"
+  },
+  "supply": {
+    "fieldName": "Supply Field"
+  },
+  "archive": {
+    "h1": "Match Archive",
+    "hint": "Recorded matches saved by this host are listed below. Play any replay, rename it, or delete it. You can also upload a replay file to this archive.",
+    "upload": "Upload Replay",
+    "refresh": "Refresh",
+    "empty": "No replays recorded yet.",
+    "unreachable": "Could not reach the host's archive. Is a host running?",
+    "missing": "That replay file is no longer available.",
+    "play": "Play",
+    "rename": "Rename",
+    "delete": "Delete",
+    "invalid": "Invalid",
+    "unknown": "unknown",
+    "renamePrompt": "New replay name:",
+    "renameFail": "Could not rename the replay.",
+    "invalidFile": "That file is not a valid replay.",
+    "deleteConfirm": "Delete this replay from the archive?",
+    "mpName": "Name",
+    "mpMap": "Map",
+    "mpDate": "Saved",
+    "mpTicks": "Ticks"
+  },
+  "mods": {
+    "h1": "Balance Mods",
+    "hint": "Mods change the match balance — costs, build times, damage, ranges, credits and more — without touching the game code. Upload a mod or export one from the Dev Settings tab. Give the file to your friends: open the Mods tab on their machine to upload, or pick a mod in the match options so everyone in the room can grab it too.",
+    "exportBtn": "Export as Mod",
+    "upload": "Upload Mod",
+    "refresh": "Refresh",
+    "empty": "No mods yet — export one from the Dev Settings tab or upload a file.",
+    "unreachable": "Could not reach the host's mod library. Is a host running?",
+    "invalid": "Invalid",
+    "protocol": "Protocol mismatch",
+    "active": "Active",
+    "deactivated": "Off",
+    "activate": "On",
+    "deactivate": "Off",
+    "download": "Download",
+    "rename": "Rename",
+    "delete": "Delete",
+    "renamePrompt": "New mod name:",
+    "renameFail": "Could not rename the mod.",
+    "deleteConfirm": "Delete this mod? Matches currently using it are updated immediately.",
+    "invalidFile": "That file is not a valid mod.",
+    "none": "None",
+    "colName": "Mod",
+    "colSize": "Size",
+    "colStatus": "Status",
+    "exportNothing": "There is nothing to export — the dev settings are all at their defaults.",
+    "exported": "Mod exported and saved to the library.",
+    "exportNamePrompt": "Mod name:",
+    "exportNoHost": "Mod downloaded as a file — no host was running to store a copy, so upload it from the Mods tab.",
+    "offlineTitle": "Balance mod",
+    "enableForMatch": "Use a balance mod",
+    "offlineHint": "Manage mods from the Mods tab. Mods are applied to this match only — your dev settings stay unchanged.",
+    "matchTitle": "Balance mod",
+    "pickHint": "Pick a mod for this match. Every player in the room gets the effective settings at match start.",
+    "noMods": "No active mods — upload one from the Mods tab first.",
+    "noModsHost": "No active mods on this machine.",
+    "hostMod": "Host mod: {n}",
+    "hostModUnknown": "Host mod: {n}",
+    "getCopy": "Download mod",
+    "noneForMatch": "No balance mod is applied to this match.",
+    "syncHint": "Match-scoped only: this mod changes the match settings, never your dev-settings panel.",
+    "unknownSelected": "The selected mod is not available on this machine anymore.",
+    "applied": "Balance mod applied: {n}",
+    "cleared": "Balance mod cleared",
+    "uploadFailed": "Couldn't read the mod file — try re-selecting it.",
+    "requiredTitle": "Balance mod required",
+    "requiredBody": "To join this match you need to install the balance mod \"{n}\". Download it now — it will be added to your local mods and activated.",
+    "requiredMissing": "You don't have this mod yet. Download it to ready up.",
+    "requiredInstalling": "Downloading and installing…",
+    "requiredDone": "Installed — you can ready up.",
+    "requiredFail": "Download failed — try again.",
+    "cancel": "Cancel",
+    "joinDownload": "Download & join",
+    "repo": {
+      "repoH3": "Community repository",
+      "repoHint": "Browse balance mods shared by other players. Install one into your local library with a click, or publish a mod of your own.",
+      "repoSearch": "Search mods…",
+      "repoSortNewest": "Newest",
+      "repoSortDownloads": "Most downloaded",
+      "repoSortRating": "Top rated",
+      "repoLoading": "Loading mods…",
+      "repoEmpty": "No mods found.",
+      "repoError": "Could not load the repository.",
+      "repoBy": "by {author}",
+      "repoDownloads": "{n} downloads",
+      "repoRating": "Rating {avg}/5 from {c} player(s)",
+      "repoNoRatings": "Not rated yet",
+      "repoInstall": "Install",
+      "repoInstalled": "Mod installed into the local library.",
+      "repoInstallFail": "Could not install the mod.",
+      "repoRate": "Rate",
+      "repoRatePrompt": "Rate this mod from 1 to 5:",
+      "repoRateInvalid": "Rating must be a whole number from 1 to 5.",
+      "repoRateOk": "Thanks — rated {n}/5.",
+      "repoRateFail": "Could not save the rating.",
+      "repoComments": "Comments",
+      "repoCommentsEmpty": "No comments yet.",
+      "repoCommentsFail": "Could not load comments.",
+      "repoCommentPlaceholder": "Write a comment…",
+      "repoCommentSend": "Send",
+      "repoCommentFail": "Could not post the comment.",
+      "repoNeedLogin": "Sign in to do that.",
+      "repoDelete": "Delete",
+      "repoDeleteConfirm": "Delete your mod \"{name}\" from the repository?",
+      "repoDeleteFail": "Could not delete the mod.",
+      "repoDeleted": "Mod removed from the repository.",
+      "repoPublishH3": "Publish a mod",
+      "repoPublishHint": "Pick one of your local balance mods to share it with everyone. A short description is required and shows up on the landing page. Only the owner can delete a published mod.",
+      "repoPublish": "Publish",
+      "repoPublishDescPlaceholder": "Short description… (up to 160 characters)",
+      "repoPublishNeedDesc": "Write a short description before publishing.",
+      "repoPublishNoMods": "No publishable mods on this device.",
+      "repoPublishOk": "Mod \"{name}\" published to the repository.",
+      "repoPublishFail": "Could not publish the mod."
+    }
+  },
+  "game": {
+    "matchStarted": "Match started",
+    "startPlayers": "Match started — {n} players ({b} bots). Build, produce, and destroy the opposition.",
+    "startOffline": "Offline — your Bulldozer is selected. Pick a building in the Build menu, then click to place it. The Bulldozer walks over and builds it; it stays busy until done (Stop cancels). Right-click a damaged or unfinished building with a Bulldozer selected to build/repair it.",
+    "spectating": "You are spectating this match.",
+    "replayStarted": "Replay from {date} — use the Menu button to exit when finished.",
+    "replaySaved": "Replay saved to the archive.",
+    "replayDownloaded": "No host running — replay downloaded as a file. Upload it from the Archive tab.",
+    "error": "Error: {msg}",
+    "rejected": "Rejected: {reason}",
+    "events": {
+      "placedYou": "You started building {name}",
+      "placedTeam": "Team {t} started building {name}",
+      "complete": "{name} complete",
+      "trained": "{name} trained",
+      "queued": "{name} queued",
+      "dequeued": "{name} order cancelled (+${c})",
+      "researchStarted": "Researching {name}",
+      "researchQueued": "{name} queued for research",
+      "researchCancelled": "{name} research cancelled",
+      "researchDone": "{name} researched",
+      "sold": "{name} sold (+${r})",
+      "unitSold": "{name} destroyed (+${r})",
+      "collected": "Wreck collected (+${a} credits)",
+      "dozerConstruct": "Bulldozer constructing {name}",
+      "dozerRepair": "Bulldozer repairing {name}",
+      "building": "building",
+      "workStopped": "Work stopped",
+      "rallyPoint": "Rally point set",
+      "flagPoint": "Flag point set",
+      "dockAssigned": "Harvester dock assigned",
+      "satelliteLaunched": "Satellite launched — enemy positions revealed",
+      "laserStrike": "Space laser deployed — let it burn!",
+      "laserStrikeTeam": "Team {t} deployed a space laser!",
+      "swChosen": "Super weapon armed: {name}",
+      "airstrikeCalled": "Airstrike inbound!",
+      "airstrikeBombTeam": "Team {t} bombed your lines!",
+      "empStrike": "EMP disruption deployed!",
+      "empStrikeTeam": "Team {t} released an EMP wave!",
+      "supply": "+${a} supply",
+      "supplyBonus": "+${a} supply (+${b} capture bonus)",
+      "supplyCaptured": "Supply capture bonus active — your harvesters earn extra at this field",
+      "supplyCapturedTeam": "Team {t} captured a supply field",
+      "supplyCapturedLost": "Supply capture bonus lost — the field is unguarded",
+      "oilClaiming": "Oil field claim started — keep your scout there",
+      "oilClaimingTeam": "Team {t} is claiming an oil field",
+      "oilClaimed": "Oil field claimed — +$50 every 10s",
+      "oilClaimedTeam": "Team {t} claimed an oil field",
+      "oilIncome": "+${a} oil income",
+      "powerDown": "POWER DOWN — production and defenses halted",
+      "powerRestored": "Power restored",
+      "maxPowerOn": "Max Power engaged — generation doubled",
+      "maxPowerTeam": "Team {t} pushed a power plant to Max Power",
+      "maxPowerEnd": "Max Power over — power plant overheated to 50% HP",
+      "playerLeft": "Team {t} left — ${a} distributed to supply fields",
+      "destroyed": "{name} destroyed",
+      "baseAttacked": "Your base is under attack — team {t}",
+      "rankedUp": "Unit promoted to rank {rank}!",
+      "rankUp": "General rank up — you reached ★{rank}!"
+    },
+    "noFreeDozer": "No free Bulldozer selected",
+    "place": "Place {name} — click a location, Esc to cancel",
+    "cannotPlace": "Cannot place there",
+    "orderQueued": "Build order queued ({n}/{max})",
+    "orderQueueFull": "Build order queue full",
+    "placementCancelled": "Placement cancelled",
+    "cmdModeOn": "Command mode ON: tap map to move",
+    "cmdModeOff": "Command mode OFF",
+    "attackMoveOn": "Attack-move ON (A)",
+    "attackMoveOff": "Attack-move OFF",
+    "keepAttackOn": "Keep Attack ON",
+    "keepAttackOff": "Keep Attack OFF",
+    "multiPosOn": "Multi-position move ON — click points in order",
+    "multiPosOff": "Single-position move",
+    "guardOn": "Guard ON",
+    "guardOff": "Guard OFF",
+    "autoFireOn": "Auto-fire ON — units engage enemies in range",
+    "autoFireOff": "Auto-fire OFF — units wait for orders",
+    "formHoldOn": "Hold Formation ON — keeps the current layout",
+    "formHoldOff": "Hold Formation OFF",
+    "formTightOn": "Tight formation",
+    "formLooseOn": "Loose formation",
+    "formNormal": "Normal formation",
+    "boxSelectOn": "Box select ON: drag to select multiple units (X)",
+    "boxSelectOff": "Box select OFF (X)",
+    "bordersOn": "Borders ON (B)",
+    "bordersOff": "Borders OFF (B)",
+    "pathsOn": "Move paths ON (P)",
+    "pathsOff": "Move paths OFF (P)",
+    "basesOn": "Base markers ON (N)",
+    "basesOff": "Base markers OFF (N)",
+    "minimapEnlarged": "Minimap enlarged (M)",
+    "minimapNormal": "Minimap normal (M)",
+    "noIdleHarvesters": "No idle harvesters",
+    "noIdleDozers": "No idle bulldozers",
+    "idleHarvester": "Idle harvester {i}/{n}",
+    "idleDozer": "Idle bulldozer {i}/{n}",
+    "noCombatUnits": "No combat units",
+    "selectedCombat": "Selected {n} combat unit(s)",
+    "noHarvesters": "No harvesters",
+    "selectedHarvesters": "Selected {n} harvester(s)",
+    "groupSaved": "Group {n} saved ({count})",
+    "groupCleared": "Group {n} cleared",
+    "laserTarget": "Space laser targeting — click a location, Esc to cancel",
+    "airstrikeTarget": "Airstrike squad incoming — click a target tile",
+    "empTarget": "EMP targeting — click the center tile of the zone",
+    "laserCancelled": "Super weapon targeting cancelled",
+    "laserInvalid": "Cannot target there",
+    "laserUnavailable": "Space laser unavailable",
+    "grenadeOn": "Grenade throw ON — right-click inside the ring to throw",
+    "grenadeOff": "Grenade throw OFF",
+    "noThrower": "Select a unit that can carry grenades/smoke first",
+    "noMineUnit": "Select an Engineer or Bulldozer first",
+    "abilitiesLocked": "Research Grenades & Smoke in the Tech Center first",
+    "smokeOn": "Smoke throw ON — right-click inside the ring to throw",
+    "smokeOff": "Smoke throw OFF",
+    "minePlaceOn": "Place Mine ON — right-click inside the ring to plant a mine",
+    "minePlaceOff": "Place Mine OFF",
+    "mineRemoveOn": "Remove Mine ON — right-click an own mine to sweep it",
+    "mineRemoveOff": "Remove Mine OFF",
+    "spawnTarget": "Set spawn point — click a location near the building, Esc to cancel",
+    "spawnCancelled": "Spawn point mode cancelled",
+    "spawnSet": "Spawn point set",
+    "flagTarget": "Set flag — click a location, Esc to cancel",
+    "flagCancelled": "Flag mode cancelled",
+    "flagSet": "Flag set",
+    "unloadTarget": "Unload — click a drop-off point, Esc to cancel",
+    "unloadCancelled": "Unload mode cancelled",
+    "unloadOrdered": "Unload ordered — troops leave the transport first",
+    "selectLoadedTransport": "Select a transport with units inside first",
+    "selectProducer": "Select a production building first",
+    "spectatingTick": "Now spectating at tick {t}.",
+    "reconnected": "Reconnected — fast-forwarded to tick {t}.",
+    "expandSelection": "Expand selection bar",
+    "collapseSelection": "Collapse selection bar",
+    "logShown": "Game log ON (L)",
+    "logHidden": "Game log OFF (L)",
+    "pingAlert": "Ping alert — Alt+click the map",
+    "pingAssist": "Ping assist — Alt+click the map",
+    "pingOmw": "Ping on my way — Alt+click the map",
+    "pingModeOff": "Ping mode OFF, click to dismiss",
+    "pingOutOfBounds": "Cannot ping there"
+  },
+  "names": {
+    "command-center": "Command Center",
+    "power-plant": "Power Plant",
+    "supply-dock": "Supply Dock",
+    "barracks": "Barracks",
+    "war-factory": "War Factory",
+    "turret": "Turret",
+    "bunker": "Bunker",
+    "tech-center": "Tech Center",
+    "dock": "Dock",
+    "bulldozer": "Bulldozer",
+    "harvester": "Harvester",
+    "scout": "Scout",
+    "rifleman": "Rifleman",
+    "rocket-trooper": "Rocket Trooper",
+    "assault-walker": "Assault Walker",
+    "aa-platform": "Anti-Air Platform",
+    "artillery": "Artillery",
+    "engineer": "Engineer",
+    "apc": "APC",
+    "carrier": "Carrier",
+    "missile-boat": "Missile Boat",
+    "radar": "Radar",
+    "satellite": "Satellite",
+    "air-force": "Air Force",
+    "super-weapon": "Super Weapon",
+    "fighter": "Fighter",
+    "space-laser": "Space Laser",
+    "stealth-tech": "Stealth Tech",
+    "detector-upgrade": "Detector Upgrade",
+    "mine-tech": "Mine Tech",
+    "abilities-tech": "Grenades & Smoke",
+    "transport-capacity": "Troop Capacity",
+    "defense-dome": "Defense Dome",
+    "weapon-upgrade": "Weapon Upgrade",
+    "airstrike-level": "Airstrike Payload",
+    "emp-level": "EMP Overcharge"
+  },
+  "weather": {
+    "none": "None",
+    "rain": "Rain",
+    "snow": "Snow",
+    "thunder": "Thunderstorm"
+  },
+  "profile": {
+    "h1": "Player Profile",
+    "hint": "Career stats and achievements. Counters keep counting forever — even after an achievement unlocks — so your true totals keep growing.",
+    "games": "Games",
+    "wins": "Wins",
+    "losses": "Losses",
+    "winRate": "Win rate",
+    "kills": "Kills",
+    "supplies": "Supply",
+    "unitsTrained": "Units built",
+    "buildingsBuilt": "Buildings built",
+    "unlocked": "Unlocked",
+    "timePlayed": "Time played",
+    "achievements": "Achievements",
+    "usernameLabel": "Commander name",
+    "usernameHint": "Saving also fills the name field when hosting or joining a match.",
+    "spectated": "Spectated",
+    "totalScore": "Total score",
+    "radarChart": "Career radar chart",
+    "hex": {
+      "combat": "Combat",
+      "economy": "Economy",
+      "army": "Army",
+      "expansion": "Expansion",
+      "research": "Research",
+      "intel": "Intel"
+    },
+    "toastTitle": "Achievement unlocked",
+    "reset": "Reset Profile",
+    "prompt": "New commander name (leave empty for the default):",
+    "group": {
+      "economy": "Economy",
+      "army": "Army",
+      "research": "Research & Defense",
+      "combat": "Combat & Veterancy",
+      "superweapons": "Super Weapons & Tools",
+      "career": "Career",
+      "spectator": "Spectator"
+    },
+    "modeRecords": "Mode Records",
+    "modeDaily": "Daily",
+    "modeLevel": "Daily level",
+    "modeStreak": "Day streak",
+    "modeBestStreak": "best",
+    "modeMissionsDone": "Missions completed"
+  },
+  "achievements": {
+    "names": {
+      "builder": "Foundation",
+      "power-plant": "Power Up",
+      "supply-dock": "Supply Lines",
+      "harvester-fleet": "Harvester Fleet",
+      "capitalist": "Capitalist",
+      "squad": "First Squad",
+      "armor": "Heavy Armor",
+      "flak": "Flak Screen",
+      "arty": "Artillery Battery",
+      "engineer-army": "Engineer Corps",
+      "apc-fleet": "APC Fleet",
+      "air-wing": "Air Wing",
+      "transport": "Taxi Service",
+      "sentry-net": "Sentry Net",
+      "bunker-line": "Bunker Line",
+      "air-force-hangar": "Base of Air Power",
+      "arsenal": "Arsenal",
+      "fortify": "Fortification",
+      "camo": "Camo Netting",
+      "bandolier": "Bandolier",
+      "satellite-eye": "Eye in the Sky",
+      "super-weapon": "Doomsday Machine",
+      "first-blood": "First Blood",
+      "marine-hunter": "Marine Hunter",
+      "tank-buster": "Tank Buster",
+      "sky-killer": "Sky Killer",
+      "base-breaker": "Base Breaker",
+      "warlord": "Warlord",
+      "veteran-cert": "Veteran Battalion",
+      "war-hero": "War Hero",
+      "miner": "Demolition Expert",
+      "grenade-spam": "Grenade Spam",
+      "laser-lord": "Laser Lord",
+      "airstrike-master": "Airstrike Master",
+      "emp-master": "EMP Master",
+      "satellite-scout": "Satellite Scout",
+      "first-match": "First Deployment",
+      "first-win": "First Victory",
+      "five-matches": "Combat Veteran",
+      "ten-wins": "Legendary Commander",
+      "first-spectate": "Observer",
+      "five-spectates": "Field Reporter",
+      "ten-spectates": "War Correspondent"
+    },
+    "descs": {
+      "builder": "Build any building",
+      "power-plant": "Build a Power Plant",
+      "supply-dock": "Build a Supply Dock",
+      "harvester-fleet": "Build 3 Harvesters",
+      "capitalist": "Harvest 1,000 supply in total",
+      "squad": "Build 10 Riflemen in total",
+      "armor": "Build 5 Assault Walkers in total",
+      "flak": "Build 3 Anti-Air Platforms in total",
+      "arty": "Build 3 Artillery in total",
+      "engineer-army": "Build 3 Engineers in total",
+      "apc-fleet": "Build 3 APCs in total",
+      "air-wing": "Build 3 Fighters in total",
+      "transport": "Load 25 troops into transports in total",
+      "sentry-net": "Build 4 Turrets in total",
+      "bunker-line": "Build 3 Bunkers in total",
+      "air-force-hangar": "Build an Air Force",
+      "arsenal": "Research Weapon Upgrade",
+      "fortify": "Research Defense Dome",
+      "camo": "Research Stealth Tech",
+      "bandolier": "Research Grenades & Smoke",
+      "satellite-eye": "Research Satellite",
+      "super-weapon": "Build a Super Weapon",
+      "first-blood": "Destroy a unit or building in combat",
+      "marine-hunter": "Destroy 20 enemy infantry in total",
+      "tank-buster": "Destroy 10 enemy vehicles in total",
+      "sky-killer": "Destroy 5 enemy aircraft in total",
+      "base-breaker": "Destroy 5 enemy buildings in total",
+      "warlord": "Deal 5,000 damage in total",
+      "veteran-cert": "Promote a unit to Veteran",
+      "war-hero": "Earn 10 veteran promotions in total",
+      "miner": "Plant 20 mines in total",
+      "grenade-spam": "Lob 20 grenades in total",
+      "laser-lord": "Call in the Space Laser",
+      "airstrike-master": "Call in an Airstrike",
+      "emp-master": "Call in an EMP strike",
+      "satellite-scout": "Use a Satellite scan",
+      "first-match": "Play your first match",
+      "first-win": "Win your first match",
+      "five-matches": "Play 5 matches in total",
+      "ten-wins": "Win 10 matches in total",
+      "first-spectate": "Spectate a match",
+      "five-spectates": "Spectate 5 matches in total",
+      "ten-spectates": "Spectate 10 matches in total"
+    }
+  },
+  "replay": {
+    "restart": "Restart replay",
+    "back": "Back 10 seconds",
+    "play": "Play ▸ pause",
+    "fwd": "Forward 10 seconds",
+    "speed": "Playback speed",
+    "seeking": "Seeking…",
+    "hudToggle": "Show / hide the minimap & selection bar",
+    "hudShown": "Minimap & selection info shown",
+    "hudHidden": "Minimap & selection info hidden",
+    "autoSave": "Auto-save replay after the match",
+    "autoSaveHint": "When on, a local replay file is saved automatically at the end of every match (offline, LAN or online)."
+  }
+}

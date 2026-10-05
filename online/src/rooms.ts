@@ -1,0 +1,423 @@
+import type WebSocket from 'ws'
+import {
+  PLAYER_COLOR_COUNT,
+  mapForPreset,
+  mapPreset,
+  mergeMatchSettings,
+  modHash,
+  modSettingsDelta,
+  validateMap,
+  WIN_RULE_DEFAULT,
+  type MapData,
+  type MatchSettings,
+  type ModFile,
+  type PlayerSlot,
+  type RoomMod,
+  type WinRule,
+} from '@space-arenas/shared'
+import { hashPassphrase, newRoomCode } from './passphrase.ts'
+import { sanitizeSettings } from './sanitize.ts'
+import { modLabel, sanitizeMod } from './mods.ts'
+
+export interface HostPlayer extends PlayerSlot {
+  connected: boolean
+  spectator: boolean
+  devSettings?: Partial<MatchSettings>
+  /** Balance-mod hash this slot acked (C_MOD_ACK) once it has the room's mod locally. */
+  modAck?: string
+  /** Persistent per-browser id used to reclaim this slot on reconnect. */
+  clientId?: string
+  /** True once the player sent C_FORFEIT: the slot must not reclaim or wait out grace. */
+  forfeited?: boolean
+  /** Supabase account id bound at join via a verified access token (Phase 2). */
+  authUserId?: string
+}
+
+export interface Room {
+  code: string
+  passphraseHash: string
+  passwordRequired: boolean
+  invitePass: string
+  hostName: string
+  players: Map<WebSocket, HostPlayer>
+  nextPlayerId: number
+  nextSpectatorId: number
+  maxPlayers: number
+  mapId: string
+  map: MapData
+  seed: number
+  settings: MatchSettings
+  /** Match-options settings before any applied balance mod. */
+  baseSettings: MatchSettings
+  /** Applied balance-mod filename, '' = none. */
+  modId: string
+  /** Sanitized balance-mod content the host uploaded for this room ('' = none). */
+  mod?: ModFile
+  /** Account that created the room over REST (undefined for a LAN/self-hosted room). */
+  ownerUserId?: string
+  winRule: WinRule
+  started: boolean
+  ended: boolean
+  /** Sim tick clock start (ms epoch) set when the host sends C_START. */
+  startedAt: number
+  /** Participants exactly as sent in S_MATCH_START, snapshotted at start so a replay
+   *  still includes players who quit mid-match. */
+  startSlots: PlayerSlot[]
+  /** Anti-cheat: per-player settings fingerprint taken at match start. */
+  devSnap?: Map<number, string>
+  /** Anti-cheat: last fingerprint already alerted for each player (anti-spam). */
+  devAlerted?: Map<number, string>
+  /** Anti-cheat: players the host chose to "skip for now" — cleared on their next change. */
+  devSkipped?: Set<number>
+  createdAt: number
+  lastActivityAt: number
+}
+
+const SPECTATOR_ID_BASE = 100
+const DEFAULT_MAP_ID = 'four-corners'
+
+export class RoomRegistry {
+  private readonly rooms = new Map<string, Room>()
+
+  createRoom(passphrase: string, hostName: string, initialMapId?: string): Room {
+    const code = newRoomCode()
+    const preset = mapPreset(initialMapId ?? DEFAULT_MAP_ID) ?? mapPreset(DEFAULT_MAP_ID)!
+    const now = Date.now()
+    const room: Room = {
+      code,
+      passphraseHash: hashPassphrase(passphrase, code),
+      passwordRequired: passphrase !== '',
+      invitePass: passphrase,
+      hostName,
+      players: new Map(),
+      nextPlayerId: 0,
+      nextSpectatorId: SPECTATOR_ID_BASE,
+      maxPlayers: preset.players,
+      mapId: preset.id,
+      map: mapForPreset(preset),
+      seed: 0,
+      settings: mergeMatchSettings(),
+      baseSettings: mergeMatchSettings(),
+      modId: '',
+      winRule: WIN_RULE_DEFAULT,
+      started: false,
+      ended: false,
+      startedAt: now,
+      startSlots: [],
+      createdAt: now,
+      lastActivityAt: now,
+    }
+    this.rooms.set(code, room)
+    return room
+  }
+
+  /** Room by id/entry code, null when absent or ended. */
+  get(code: string): Room | null {
+    const room = this.rooms.get(code)
+    if (!room || room.ended) return null
+    return room
+  }
+
+  close(code: string): void {
+    const room = this.rooms.get(code)
+    if (!room) return
+    this.rooms.delete(code)
+    room.ended = true
+  }
+
+  touch(room: Room): void {
+    room.lastActivityAt = Date.now()
+  }
+
+  /** Rooms still open (not ended), newest first. */
+  list(): Room[] {
+    return [...this.rooms.values()]
+      .filter((r) => !r.ended)
+      .sort((a, b) => b.createdAt - a.createdAt)
+  }
+
+  search(query: string): Room[] {
+    const q = query.trim().toLowerCase()
+    if (!q) return this.list()
+    return this.list().filter(
+      (r) => r.code.toLowerCase().includes(q) || r.hostName.toLowerCase().includes(q),
+    )
+  }
+
+  joinRoom(room: Room, ws: WebSocket, passphraseHash: string, name: string, clientId?: string): { ok: boolean; error?: string } {
+    if (room.ended) return { ok: false, error: 'Match over — ask the host to create a new one' }
+    if (room.started) return { ok: false, error: 'Match already started' }
+    if (room.passphraseHash !== passphraseHash) return { ok: false, error: 'Wrong passphrase' }
+    if (room.players.size >= room.maxPlayers) return { ok: false, error: 'Room is full' }
+    const player: HostPlayer = {
+      id: room.nextPlayerId++,
+      name,
+      ready: false,
+      host: false,
+      team: room.nextPlayerId - 1,
+      spawn: room.nextPlayerId - 1,
+      color: (room.nextPlayerId - 1) % PLAYER_COLOR_COUNT,
+      connected: true,
+      spectator: false,
+      ...(clientId ? { clientId } : {}),
+    }
+    room.players.set(ws, player)
+    return { ok: true }
+  }
+
+  joinSpectator(room: Room, ws: WebSocket, passphraseHash: string, name: string, clientId?: string): { ok: boolean; error?: string } {
+    if (room.ended) return { ok: false, error: 'Match over — ask the host to create a new one' }
+    if (!room.started) return { ok: false, error: 'Match has not started yet' }
+    if (room.passphraseHash !== passphraseHash) return { ok: false, error: 'Wrong passphrase' }
+    const player: HostPlayer = {
+      id: room.nextSpectatorId++,
+      name,
+      ready: false,
+      host: false,
+      connected: true,
+      spectator: true,
+      ...(clientId ? { clientId } : {}),
+    }
+    room.players.set(ws, player)
+    return { ok: true }
+  }
+
+  /** Reclaims an existing slot (player or spectator) for a reconnecting clientId.
+   *  Re-binds the room slot to the new websocket so the same id/team is kept. */
+  reconnectPlayer(room: Room, ws: WebSocket, clientId: string): HostPlayer | null {
+    for (const [oldWs, p] of room.players) {
+      if (p.clientId && p.clientId === clientId) {
+        if (oldWs !== ws) room.players.delete(oldWs)
+        p.connected = true
+        room.players.set(ws, p)
+        return p
+      }
+    }
+    return null
+  }
+
+  playerFor(room: Room, ws: WebSocket): HostPlayer | null {
+    return room.players.get(ws) ?? null
+  }
+
+  playerById(room: Room, id: number): { ws: WebSocket; p: HostPlayer } | null {
+    for (const [ws, p] of room.players) {
+      if (p.id === id) return { ws, p }
+    }
+    return null
+  }
+
+  updateSlot(room: Room, ws: WebSocket, patch: { name?: string; team?: number; spawn?: number; color?: number }): void {
+    const p = this.playerFor(room, ws)
+    if (!p || p.spectator) return
+    if (patch.name !== undefined) {
+      const name = patch.name.trim().slice(0, 16)
+      if (name) p.name = name
+    }
+    if (patch.team !== undefined && Number.isFinite(patch.team)) {
+      p.team = Math.max(0, Math.min(room.maxPlayers - 1, Math.floor(patch.team)))
+    }
+    if (patch.spawn !== undefined && Number.isFinite(patch.spawn)) {
+      const spawnCount = room.map.spawnPoints.length
+      p.spawn = Math.max(0, Math.min(spawnCount - 1, Math.floor(patch.spawn)))
+    }
+    if (patch.color !== undefined && Number.isFinite(patch.color)) {
+      p.color = Math.max(0, Math.min(PLAYER_COLOR_COUNT - 1, Math.floor(patch.color)))
+    }
+  }
+
+  setDevSettings(room: Room, ws: WebSocket, settings: Partial<MatchSettings>): void {
+    const p = this.playerFor(room, ws)
+    if (!p) return
+    p.devSettings = sanitizeSettings(settings)
+  }
+
+  /** Resolves spawn-point conflicts and rewrites the map spawns to the active player ids. */
+  assignSpawns(room: Room): void {
+    const players = this.nonSpectators(room).sort((a, b) => a.id - b.id)
+    const chosen = new Map<number, HostPlayer>()
+    const fallback: HostPlayer[] = []
+    for (const p of players) {
+      const want = p.spawn ?? p.id
+      if (chosen.has(want)) fallback.push(p)
+      else chosen.set(want, p)
+    }
+    const used = new Set(chosen.keys())
+    const free: number[] = []
+    for (let i = 0; i < room.map.spawnPoints.length; i++) {
+      if (!used.has(i)) free.push(i)
+    }
+    for (const p of fallback) {
+      const idx = free.shift()
+      if (idx === undefined) break
+      chosen.set(idx, p)
+    }
+    const n = players.length
+    room.map.spawnPoints.forEach((s, i) => {
+      const p = chosen.get(i)
+      s.team = p ? p.id : n + i
+    })
+  }
+
+  updateRoomOptions(
+    room: Room,
+    patch: { mapId?: string; map?: MapData; password?: string; settings?: Partial<MatchSettings>; winRule?: WinRule; modId?: string; mod?: ModFile },
+  ): { ok: boolean; error?: string } {
+    if (patch.modId !== undefined || patch.mod !== undefined) {
+      const nextName = String(patch.modId ?? room.modId).trim().slice(0, 80)
+      if (nextName === '') {
+        room.modId = ''
+        room.mod = undefined
+      } else if (patch.mod !== undefined) {
+        const mod = sanitizeMod(patch.mod)
+        if (!mod) return { ok: false, error: 'Invalid mod file' }
+        const name = mod.meta?.name?.trim()
+        room.modId = (name && name !== '' ? name : nextName).slice(0, 80)
+        room.mod = mod
+      } else if (nextName !== room.modId) {
+        // Name-only toggle needs the mod's content to be usable online.
+        return { ok: false, error: 'Mod file content is required' }
+      }
+    }
+    if (patch.map !== undefined) {
+      const validation = validateMap(patch.map)
+      if (!validation.ok) return { ok: false, error: `Invalid custom map: ${validation.errors[0] ?? 'bad map'}` }
+      const name = patch.map.name.trim().slice(0, 48) || 'Custom'
+      const occupants = room.players.size
+      if (occupants > patch.map.spawnPoints.length) {
+        return { ok: false, error: `This map fits ${patch.map.spawnPoints.length} players — ${occupants} are in the room` }
+      }
+      room.mapId = `custom:${name}`
+      room.map = JSON.parse(JSON.stringify(patch.map)) as MapData
+      room.map.name = name
+      room.maxPlayers = room.map.spawnPoints.length
+    } else if (patch.mapId !== undefined) {
+      const preset = mapPreset(patch.mapId)
+      if (!preset) return { ok: false, error: 'Unknown map' }
+      const occupants = room.players.size
+      if (occupants > preset.players) {
+        return { ok: false, error: `This map fits ${preset.players} players — ${occupants} are in the room` }
+      }
+      room.mapId = preset.id
+      room.map = mapForPreset(preset)
+      room.maxPlayers = preset.players
+    }
+    if (patch.settings !== undefined) {
+      room.baseSettings = mergeMatchSettings({ ...room.baseSettings, ...sanitizeSettings(patch.settings) })
+    }
+    if (patch.winRule !== undefined) {
+      if (patch.winRule === 'standard' || patch.winRule === 'annihilation' || patch.winRule === 'command-center') {
+        room.winRule = patch.winRule
+      }
+    }
+    if (patch.password !== undefined) {
+      const pass = patch.password
+      room.passphraseHash = hashPassphrase(pass, room.code)
+      room.passwordRequired = pass !== ''
+      room.invitePass = pass
+    }
+    if (patch.settings !== undefined || patch.mod !== undefined || patch.modId !== undefined) {
+      this.recomputeSettings(room)
+    }
+    return { ok: true }
+  }
+
+  /** Sim settings = base match options + the applied balance mod's delta. */
+  recomputeSettings(room: Room): void {
+    room.settings = room.mod
+      ? mergeMatchSettings({ ...room.baseSettings, ...modSettingsDelta(room.baseSettings, room.mod) })
+      : room.baseSettings
+  }
+
+  /** Lobby details for the room's balance mod, if any. */
+  roomMod(room: Room): RoomMod | undefined {
+    if (!room.mod) return undefined
+    const size = JSON.stringify(room.mod).length
+    return {
+      name: room.modId,
+      label: modLabel(room.mod.meta, room.modId),
+      author: room.mod.meta?.author,
+      description: room.mod.meta?.description,
+      version: room.mod.meta?.version,
+      size,
+      hash: modHash(room.mod),
+    }
+  }
+
+  modRequired(room: Room): boolean {
+    return this.roomMod(room) !== undefined
+  }
+
+  /** True when every non-host participant has acked the room's mod (or none is set). */
+  allNonSpectatorsHaveMod(room: Room): boolean {
+    const hash = room.mod ? modHash(room.mod) : null
+    if (hash === null) return true
+    for (const p of this.nonSpectators(room)) {
+      if (!p.host && p.modAck !== hash) return false
+    }
+    return true
+  }
+
+  /** Names of non-host participants still missing the room's balance mod. */
+  missingModPlayers(room: Room): string[] {
+    const hash = room.mod ? modHash(room.mod) : null
+    if (hash === null) return []
+    return this.nonSpectators(room)
+      .filter((p) => !p.host && p.modAck !== hash)
+      .map((p) => p.name)
+  }
+
+  /** Records a player's C_MOD_ACK — only accepted when the hash matches the room mod. */
+  setModAck(room: Room, ws: WebSocket, hash: string): boolean {
+    const p = room.players.get(ws)
+    if (!p || !room.mod) return false
+    if (modHash(room.mod) !== hash) return false
+    p.modAck = hash
+    return true
+  }
+
+  removePlayer(room: Room, ws: WebSocket): void {
+    room.players.delete(ws)
+  }
+
+  /** All active (non-spectator) participants: connected humans. */
+  nonSpectators(room: Room): HostPlayer[] {
+    return [...room.players.values()].filter((p) => !p.spectator)
+  }
+
+  /** Marks a slot as disconnected without dropping it, so a matching clientId can reclaim it. */
+  disconnectPlayer(room: Room, ws: WebSocket): HostPlayer | null {
+    const p = room.players.get(ws)
+    if (!p) return null
+    p.connected = false
+    return p
+  }
+
+  slots(room: Room): PlayerSlot[] {
+    const slots: PlayerSlot[] = []
+    const hash = room.mod ? modHash(room.mod) : null
+    room.players.forEach((p) => {
+      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, connected: p.connected, difficulty: p.difficulty, modOk: hash === null ? undefined : !p.spectator && (p.host || p.modAck === hash), ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}) })
+    })
+    return slots.sort((a, b) => a.id - b.id)
+  }
+
+  matchSlots(room: Room): PlayerSlot[] {
+    const slots: PlayerSlot[] = []
+    room.players.forEach((p) => {
+      if (p.spectator) return
+      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, difficulty: p.difficulty })
+    })
+    return slots.sort((a, b) => a.id - b.id)
+  }
+
+  hostReady(room: Room, ws: WebSocket): boolean {
+    const p = room.players.get(ws)
+    return !!p && p.host
+  }
+
+  hostId(room: Room): number {
+    for (const p of room.players.values()) if (p.host) return p.id
+    return -1
+  }
+}

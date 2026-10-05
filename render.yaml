@@ -1,0 +1,27 @@
+# Render Blueprint for the online server (the online/ service inside the game repo).
+# rootDir: online makes Render build/start inside that subfolder only.
+services:
+  - type: web
+    name: space-arenas-online
+    runtime: node
+    plan: free
+    rootDir: online
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/status
+    autoDeploy: true
+    envVars:
+      - key: SA_MODE
+        value: online
+      - key: SA_PORT
+        value: 17321
+      - key: SA_PASSPHRASE
+        sync: false
+      - key: SA_PUBLIC_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

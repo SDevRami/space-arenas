@@ -1,0 +1,506 @@
+import { getBuilding, getUnit, getWeapon, sqDist, tileToFx, VETERAN_MAX_RANK, WEAPON_UPGRADE_DAMAGE_PER_LEVEL } from '@space-arenas/shared'
+import type { World } from '../core/world.ts'
+import { unitVeteranBonus, veteranRankForKills } from '../core/world.ts'
+import { setMove } from '../entities/factories.ts'
+
+export const applyDamage = (world: World, target: number, amount: number, attacker: number, teamOverride = -1): void => {
+  const h = world.healths.get(target)
+  if (!h) return
+  const attackerUnit = world.units.get(attacker)
+  const team = teamOverride >= 0 ? teamOverride : attackerUnit ? attackerUnit.team : (world.buildings.get(attacker)?.team ?? -1)
+  // Day 15 kill credit: track the last hostile damager so the killer can be
+  // rewarded when the target dies. Mine blasts and EMP-self-hits are excluded.
+  if (team !== world.teamOf(target)) world.lastAttacker.set(target, team)
+  // Defense Dome (Day 12.1): the Command Center (only) takes hits on its shield first.
+  const bsh = world.buildings.get(target)
+  if (bsh && bsh.shieldHp > 0) {
+    const absorbed = Math.min(bsh.shieldHp, amount)
+    bsh.shieldHp -= absorbed
+    amount -= absorbed
+    if (absorbed > 0) world.emit({ type: 'shield-hit', attacker, target, damage: absorbed, team: bsh.team })
+  }
+  const targetUnit = world.units.get(target)
+  if (targetUnit && targetUnit.veteranRank > 0) {
+    amount *= unitVeteranBonus(world, targetUnit.veteranRank).armor
+  }
+  h.hp -= amount
+  world.flashes.set(target, { hitTick: world.tick })
+  world.emit({ type: 'combat-hit', attacker, target, damage: amount, team })
+  const b = world.buildings.get(target)
+  if (b && b.done && b.sellingUntil <= world.tick && world.teamOf(attacker) !== b.team) {
+    const t = world.transforms.get(target)
+    world.emit({ type: 'base-under-attack', building: target, team: b.team, x: t?.x ?? 0, y: t?.y ?? 0 })
+  }
+  const a = world.attacks.get(target)
+  const attackerKind = world.kindOf(attacker)
+  if (a && (attackerKind === 'unit' || attackerKind === 'building')) {
+    a.lastHit = attacker
+    // Day 21: auto-fire OFF (or an ordered guard/aggressor move) suppresses the
+    // reflexive counterattack — the unit only fights when told to.
+    if (a.autoFire !== false && a.target === null && a.targetPos === null) {
+      const m = world.moves.get(target)
+      if (!m || m.attackMove) a.target = attacker
+    }
+  }
+  if (h.hp <= 0) {
+    // Veterancy: only destroying an enemy unit counts as a kill. The attacker
+    // must be a unit itself (buildings/oil/wrecks never gain veterancy).
+    if (attackerUnit && targetUnit && !world.sameTeam(attackerUnit.team, targetUnit.team)) {
+      attackerUnit.killCount++
+      const newRank = veteranRankForKills(world, attackerUnit.killCount)
+      if (newRank > attackerUnit.veteranRank) {
+        const promotedRank = newRank as 1 | 2 | 3 | 4 | 5
+        attackerUnit.veteranRank = promotedRank
+        world.emit({ type: 'unit-ranked-up', unit: attacker, rank: promotedRank })
+      }
+    }
+    const deadX = world.transforms.get(target)?.x ?? 0
+    const deadY = world.transforms.get(target)?.y ?? 0
+    const u = world.units.get(target)
+    const b = world.buildings.get(target)
+    const owner = u ? u.team : b ? b.team : -1
+    const srcKind: 'unit' | 'building' | null = u ? 'unit' : b ? 'building' : null
+    const cost = u ? getUnit(u.unitType, world.settings).cost : b ? getBuilding(b.buildingType, world.settings).cost : 0
+    const value = Math.floor(cost * world.settings.wreckValueFraction)
+    // only buildings and vehicle/naval-class units leave a collectable wreck —
+    // troops/infantry (and aircraft) just vanish
+    const canWreck = srcKind !== null && (srcKind === 'building' || (u ? u.class === 'vehicle' || u.class === 'naval' : false))
+    world.removeEntity(target)
+    if (srcKind && canWreck && value > 0 && owner >= 0) world.spawnWreck(deadX, deadY, value, owner, srcKind)
+  }
+}
+
+export const setChase = (world: World, id: number, tx: number, ty: number): void => {
+  let m = world.moves.get(id)
+  if (!m) {
+    m = { tx, ty, path: [], pathIndex: 0, attackMove: false, needsPath: true, chase: true, repathCooldown: 0 }
+    world.moves.set(id, m)
+  } else {
+    m.chase = true
+    if (m.tx !== tx || m.ty !== ty) {
+      m.tx = tx
+      m.ty = ty
+      // A MOVING target (e.g. a fleeing enemy troop) changes position every
+      // tick. Marking needsPath=true here made the unit halt — movement skips
+      // while a path is pending, and combat re-clears the path next tick, so a
+      // pursuit of anything that moves froze on the spot. Instead drop the stale
+      // path and keep needsPath=false so the unit DIRECTLY marches at the prey's
+      // current position every tick; if the straight step is impassable,
+      // movement itself re-engages pathfinding around the obstacle.
+      m.path = []
+      m.pathIndex = 0
+      m.needsPath = false
+      m.repathCooldown = 0
+    }
+  }
+}
+
+export const pickTarget = (
+  world: World,
+  id: number,
+  team: number,
+  x: number,
+  y: number,
+  rangeFx: number,
+  preferred = -1,
+  targetsAir = false,
+): number => {
+  const rangeSq = rangeFx * rangeFx
+  const cands: Array<{ id: number; hpFrac: number; d: number }> = []
+  const consider = (other: number, ox: number, oy: number): void => {
+    if (other === id) return
+    if (world.empStunned(other)) return
+    const t2 = world.units.get(other)?.team ?? world.buildings.get(other)?.team
+    if (t2 === undefined || world.sameTeam(team, t2)) return
+    if (!world.isVisibleTo(team, other)) return
+    if (world.units.get(other)?.class === 'air' && !targetsAir) return
+    const d = sqDist(x, y, ox, oy)
+    if (d > rangeSq) return
+    const h = world.healths.get(other)
+    const hpFrac = h && h.maxHp > 0 ? h.hp / h.maxHp : 1
+    cands.push({ id: other, hpFrac, d })
+  }
+  world.units.forEach((other, u) => {
+    if (u.team === team) return
+    const tp = world.transforms.get(other)
+    if (tp) consider(other, tp.x, tp.y)
+  })
+  world.buildings.forEach((other, b) => {
+    if (b.team === team || !b.done) return
+    const tp = world.transforms.get(other)
+    if (tp) consider(other, tp.x, tp.y)
+  })
+  world.oilFields.forEach((other, f) => {
+    if (f.owner < 0 || world.sameTeam(team, f.owner)) return
+    if (!world.isVisibleTo(team, other)) return
+    const tp = world.transforms.get(other)
+    if (!tp) return
+    const d = sqDist(x, y, tp.x, tp.y)
+    if (d > rangeSq) return
+    const h = world.healths.get(other)
+    const hpFrac = h && h.maxHp > 0 ? h.hp / h.maxHp : 1
+    cands.push({ id: other, hpFrac, d })
+  })
+  if (cands.length === 0) return -1
+  const focused = new Map<number, number>()
+  world.attacks.forEach((attackerId, a) => {
+    if (world.teamOf(attackerId) !== team) return
+    if (a.target !== null && a.target >= 0) {
+      focused.set(a.target, (focused.get(a.target) ?? 0) + 1)
+    }
+  })
+  let best = -1
+  let bestScore = -Infinity
+  const biasLast = world.settings.targetBiasLastHit
+  const biasFocus = world.settings.targetBiasFocusFire
+  const biasHp = world.settings.targetBiasLowHp
+  for (const c of cands) {
+    const focus = focused.get(c.id) ?? 0
+    const dist = Math.sqrt(c.d)
+    const score = (c.id === preferred ? biasLast : 0) + focus * biasFocus - c.hpFrac * biasHp - dist
+    if (score > bestScore) {
+      bestScore = score
+      best = c.id
+    }
+  }
+  return best
+}
+
+export const CombatSystem = {
+  name: 'Combat',
+  update(world: World): void {
+world.attacks.forEach((id, a) => {
+        if (world.planes.has(id)) return
+        if (world.empStunned(id)) return
+      const t = world.transforms.get(id)
+      if (!t) return
+      const weapon = getWeapon(a.weaponId, world.settings)
+      const weaponUnit = world.units.get(id)
+      const veterancy = weaponUnit && weaponUnit.veteranRank > 0 ? unitVeteranBonus(world, weaponUnit.veteranRank) : null
+      const rangeFx = tileToFx(weapon.range) * (veterancy ? veterancy.range : 1)
+      const rangeSq = rangeFx * rangeFx
+      const keepSq = rangeSq * world.settings.chaseLeash * world.settings.chaseLeash
+      const isBuilding = world.buildings.has(id)
+      const team = isBuilding ? world.buildings.require(id).team : world.units.require(id).team
+      const targetsAir = weapon.targetsAir === true
+      // Day 12.3: the Weapon Upgrade research multiplies damage, but only for
+      // units that have reached the maximum veteran rank (5).
+      const ts = world.teams.get(team)
+      const weaponUpgrade =
+        weaponUnit && weaponUnit.veteranRank >= VETERAN_MAX_RANK && ts && ts.weaponUpgradeLevel > 0
+          ? 1 + WEAPON_UPGRADE_DAMAGE_PER_LEVEL * ts.weaponUpgradeLevel
+          : 1
+      const damageMult = (veterancy ? veterancy.damage : 1) * weaponUpgrade
+
+      if (a.currentCooldown > 0) a.currentCooldown--
+
+      // Garrisoned turrets (bunker) fire one bullet per held trooper, so a full
+      // bunker lets off a full salvo instead of always a single shot.
+      let volleys = 1
+      if (isBuilding) {
+        const b = world.buildings.require(id)
+        if (!b.done) return
+        const s = world.teams.get(team)
+        if (s && s.powerDown) return
+        // Day 12.3 garrison (bunker): a building turret only fires while it is
+        // holding at least one infantryman — an empty bunker is just cover.
+        const garrison = world.transports.get(id)
+        if (garrison) {
+          if (garrison.passengers.length === 0) return
+          volleys = garrison.passengers.length
+        }
+      }
+
+      let target = a.target
+      if (target !== null && (!world.isAlive(target) || world.sameTeam(team, world.teamOf(target)))) {
+        a.target = null
+        target = null
+        const m = world.moves.get(id)
+        if (m && m.chase) world.moves.delete(id)
+        // loop back to the keep-attack spot / guard post so the unit holds its area
+        if (!isBuilding) {
+          const post = a.keepAttack ?? a.guardPost
+          if (post) {
+            const back = setMove(world, id, post.x, post.y, false)
+            back.needsPath = true
+            back.attackMove = true
+          }
+        }
+      }
+
+      if (target !== null) {
+        const tp = world.transforms.get(target)
+        if (!tp) {
+          a.target = null
+          return
+        }
+        const dSq = sqDist(t.x, t.y, tp.x, tp.y)
+        if (dSq <= rangeSq) {
+          // In fire range: stop and shoot — don't keep advancing onto the
+          // target. Re-issue the standoff move only if the target pulls away.
+          if (a.currentCooldown === 0) {
+            for (let v = 0; v < volleys; v++) {
+              fire(world, id, target, tp.x, tp.y, weapon.damage * damageMult, weapon.splash, targetsAir)
+            }
+            a.currentCooldown = weapon.cooldownTicks
+          }
+          const m = world.moves.get(id)
+          if (m) world.moves.delete(id)
+        } else if (a.guardMode) {
+          // Guard turret: hold the post. If the target wanders out of range we
+          // just wait (never chase); it will be re-engaged when it re-enters
+          // range. The march to the post itself is handled by the targetPos
+          // branch while no valid target is engaged.
+          const g = world.moves.get(id)
+          if (g) world.moves.delete(id)
+        } else if (a.keepAttack !== null) {
+          // keep-attack: hold the spot (leash), only engaging targets that come
+          // within keepSq of it; while a live target exists just chase it, and
+          // drop back to the spot if it wanders beyond the leash.
+          if (dSq <= keepSq) {
+            setChase(world, id, tp.x, tp.y)
+          } else {
+            a.target = null
+            const m = world.moves.get(id)
+            if (m && m.chase) world.moves.delete(id)
+            // leash dropped: return to the keep-attack spot / guard post
+            if (!isBuilding) {
+              const post = a.keepAttack ?? a.guardPost
+              if (post) {
+                const back = setMove(world, id, post.x, post.y, false)
+                back.attackMove = true
+                a.guardMode = true
+              }
+            }
+          }
+        } else {
+          // Plain attack / attack-move-with-target: advance toward the target
+          // exactly like keep-attack does (setChase) and rely on the in-range
+          // branch above to stop and fire at firing range — so an attacker never
+          // walks onto/through the target. Multiple attackers converge and
+          // separation spreads them at the edge of range.
+          setChase(world, id, tp.x, tp.y)
+        }
+      } else if (a.targetPos !== null) {
+        if (a.guardMode && a.guardPost) {
+          // Guard: march to the exact center of the guard circle, THEN hold it
+          // as a turret. Targets are only auto-acquired once the unit has
+          // arrived at the post, so it never gets pulled off course en route.
+          const post = a.guardPost
+          const dPost = Math.sqrt(sqDist(t.x, t.y, post.x, post.y))
+          const atPost = dPost <= world.settings.guardArriveCells * 1000
+          if (atPost) {
+            if (a.currentCooldown === 0) {
+              const lastHit = world.isAlive(a.lastHit) && world.isVisibleTo(team, a.lastHit) ? a.lastHit : -1
+              const found = pickTarget(world, id, team, t.x, t.y, rangeFx, lastHit, targetsAir)
+              if (found >= 0) {
+                a.target = found
+                return
+              }
+            }
+            const m = world.moves.get(id)
+            if (m) world.moves.delete(id)
+          } else if (!isBuilding) {
+            const m = world.moves.get(id)
+            if (
+              !m ||
+              Math.sqrt(Math.pow(m.tx - post.x, 2) + Math.pow(m.ty - post.y, 2)) > 400
+            ) {
+              const mm = setMove(world, id, post.x, post.y, false)
+              mm.needsPath = true
+              mm.attackMove = true
+            }
+          }
+          return
+        }
+        if (a.currentCooldown === 0) {
+          const lastHit = world.isAlive(a.lastHit) && world.isVisibleTo(team, a.lastHit) ? a.lastHit : -1
+          const found = pickTarget(world, id, team, t.x, t.y, rangeFx, lastHit, targetsAir)
+          if (found >= 0) {
+            a.target = found
+            return
+          }
+        }
+        const tx = a.targetPos.x
+        const ty = a.targetPos.y
+        const dSq = sqDist(t.x, t.y, tx, ty)
+        if (dSq <= rangeSq) {
+          if (a.currentCooldown === 0 && !a.guardMode) {
+            fireGround(world, id, tx, ty, weapon.damage * damageMult, weapon.splash, targetsAir)
+            a.currentCooldown = weapon.cooldownTicks
+          }
+          if (!a.keepAttack && !a.guardMode) {
+            a.targetPos = null
+            const m = world.moves.get(id)
+            if (m) world.moves.delete(id)
+          }
+        } else if (!isBuilding) {
+          if (a.keepAttack || a.guardMode) {
+            const d = Math.sqrt(dSq) || 1
+            const stand = Math.max(0, d - rangeFx * 0.9)
+            const gx = t.x + Math.floor(((tx - t.x) * stand) / d)
+            const gy = t.y + Math.floor(((ty - t.y) * stand) / d)
+            const m = world.moves.get(id)
+            if (!m || Math.sqrt(Math.pow(m.tx - gx, 2) + Math.pow(m.ty - gy, 2)) > 400) {
+              const mm = setMove(world, id, gx, gy, false)
+              mm.needsPath = true
+              mm.attackMove = true
+            }
+          } else {
+            setChase(world, id, tx, ty)
+          }
+        }
+      } else {
+        // Day 21 idle auto-fire: OFF auto-fire (or an active guard/move order) skips
+        // the free auto-acquire; guard/attack-move/keep-attack chains stay explicit.
+        const m = world.moves.get(id)
+        const canAuto = (a.autoFire !== false) && (!m || m.attackMove || m.chase || a.guardMode)
+        if (canAuto && a.currentCooldown === 0) {
+          const lastHit = world.isAlive(a.lastHit) && world.isVisibleTo(team, a.lastHit) ? a.lastHit : -1
+          const found = pickTarget(world, id, team, t.x, t.y, rangeFx, lastHit, targetsAir)
+          if (found >= 0) a.target = found
+        }
+      }
+    })
+  },
+}
+
+export const fire = (
+  world: World,
+  attacker: number,
+  target: number,
+  tx: number,
+  ty: number,
+  damage: number,
+  splash: number | undefined,
+  targetsAir = false,
+): void => {
+  if (world.empStunned(attacker)) return
+  const team = world.teamOf(attacker)
+  world.emit({ type: 'shot-fired', attacker, x: tx, y: ty, team })
+  revealIfStealthed(world, attacker)
+  const at = world.transforms.get(attacker)
+  if (at && shotBlockedBySmoke(world, at.x, at.y, tx, ty) && world.rng.next() / 4294967296 < world.settings.smokeMissChance) {
+    world.emit({ type: 'shot-missed', attacker, x: tx, y: ty, team })
+    return
+  }
+  const targets: Array<[number, number, number]> = []
+  if (splash && splash > 0) {
+    splashDamage(world, team, tx, ty, splash, targets, targetsAir)
+  } else if (!world.units.get(target)?.class || world.units.get(target)?.class !== 'air' || targetsAir) {
+    targets.push([target, tx, ty])
+  }
+  for (const [tid] of targets) applyDamage(world, tid, damage, attacker)
+}
+
+export const fireGround = (
+  world: World,
+  attacker: number,
+  tx: number,
+  ty: number,
+  damage: number,
+  splash: number | undefined,
+  targetsAir = false,
+): void => {
+  if (world.empStunned(attacker)) return
+  const team = world.teamOf(attacker)
+  world.emit({ type: 'shot-fired', attacker, x: tx, y: ty, team })
+  revealIfStealthed(world, attacker)
+  const at = world.transforms.get(attacker)
+  if (at && shotBlockedBySmoke(world, at.x, at.y, tx, ty) && world.rng.next() / 4294967296 < world.settings.smokeMissChance) {
+    world.emit({ type: 'shot-missed', attacker, x: tx, y: ty, team })
+    return
+  }
+  const targets: Array<[number, number, number]> = []
+  splashDamage(world, team, tx, ty, splash && splash > 0 ? splash : world.settings.defaultSplash, targets, targetsAir)
+  for (const [tid] of targets) applyDamage(world, tid, damage, attacker)
+}
+
+/** Firing gives a stealthed unit away: it stays revealed for `stealthRevealTicks`. */
+const revealIfStealthed = (world: World, attacker: number): void => {
+  const u = world.units.get(attacker)
+  if (u && u.stealth) u.revealedUntil = world.tick + world.settings.stealthRevealTicks
+}
+
+/**
+ * Current effective radius (tiles) of a smoke cloud: 0 while the canister is
+ * still arcing to the landing point, growing as it billows out, and shrinking
+ * again as it fades just before expiry. Deterministic in `tick`, so shots and
+ * the renderer always agree on the cloud's size.
+ */
+export const smokeRadiusAt = (tick: number, s: { landTick: number; untilTick: number; radius: number }): number => {
+  if (tick < s.landTick) return 0
+  const life = s.untilTick - s.landTick
+  if (life <= 0) return s.radius
+  const grow = Math.min(1, (tick - s.landTick) / Math.max(1, life * 0.25))
+  const fade = Math.min(1, Math.max(0, (s.untilTick - tick) / Math.max(1, life * 0.15)))
+  return s.radius * grow * fade
+}
+
+/** Whether the shot line from (ax,ay) to (bx,by) passes through a smoke cloud. */
+const shotBlockedBySmoke = (world: World, ax: number, ay: number, bx: number, by: number): boolean => {
+  let blocked = false
+  world.smokes.forEach((_id, s) => {
+    if (blocked) return
+    const r = smokeRadiusAt(world.tick, s) * 1000
+    if (r <= 0) return
+    const rSq = r * r
+    const dx = bx - ax
+    const dy = by - ay
+    const lenSq = dx * dx + dy * dy
+    if (lenSq === 0) {
+      if (sqDist(ax, ay, s.x, s.y) <= rSq) blocked = true
+      return
+    }
+    let t = ((s.x - ax) * dx + (s.y - ay) * dy) / lenSq
+    t = Math.max(0, Math.min(1, t))
+    const px = ax + dx * t
+    const py = ay + dy * t
+    if (sqDist(px, py, s.x, s.y) <= rSq) blocked = true
+  })
+  return blocked
+}
+
+/** Area damage at a point for an ability (grenade): enemy units/buildings/oil/scenery. */
+export const explodeAt = (world: World, team: number, x: number, y: number, radiusTiles: number, damage: number): void => {
+  const targets: Array<[number, number, number]> = []
+  splashDamage(world, team, x, y, radiusTiles, targets)
+  for (const [tid] of targets) applyDamage(world, tid, damage, -1, team)
+}
+
+const splashDamage = (
+  world: World,
+  team: number,
+  tx: number,
+  ty: number,
+  splash: number,
+  out: Array<[number, number, number]>,
+  targetsAir = false,
+): void => {
+  const splashFx = tileToFx(splash)
+  const splashSq = splashFx * splashFx
+  world.units.forEach((id, u) => {
+    if (world.sameTeam(team, u.team)) return
+    if (u.class === 'air' && !targetsAir) return
+    const tp = world.transforms.get(id)
+    if (!tp) return
+    if (sqDist(tx, ty, tp.x, tp.y) <= splashSq) out.push([id, tp.x, tp.y])
+  })
+  world.buildings.forEach((id, b) => {
+    if (world.sameTeam(team, b.team) || !b.done) return
+    const tp = world.transforms.get(id)
+    if (!tp) return
+    if (sqDist(tx, ty, tp.x, tp.y) <= splashSq) out.push([id, tp.x, tp.y])
+  })
+  world.oilFields.forEach((id, f) => {
+    if (f.owner < 0 || world.sameTeam(team, f.owner)) return
+    const tp = world.transforms.get(id)
+    if (!tp) return
+    if (sqDist(tx, ty, tp.x, tp.y) <= splashSq) out.push([id, tp.x, tp.y])
+  })
+  world.scenery.forEach((id, _s) => {
+    const tp = world.transforms.get(id)
+    if (!tp) return
+    if (sqDist(tx, ty, tp.x, tp.y) <= splashSq) out.push([id, tp.x, tp.y])
+  })
+}
