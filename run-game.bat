@@ -1,7 +1,12 @@
 @echo off
 setlocal
-title Space Arenas - Game (LAN auto-discovery)
+title Space Arenas v0.1 - launcher by sdevrami
 cd /d "%~dp0"
+
+REM --- background worker modes: re-invoke this same script for the long steps so
+REM     the parent window can keep drawing a live progress bar while it runs. ---
+if /I "%~1"=="__bg_build" goto :bg_build
+if /I "%~1"=="__bg_deps" goto :bg_deps
 
 REM --- clear previously generated invite QR codes ---
 if exist "%~dp0invites" (
@@ -20,6 +25,10 @@ for %%F in ("%~dp0lib\*.msi") do set "SA_MSI_PATH=%%F"
 
 REM Node major version this game needs.
 set "SA_REQUIRED_NODE=20"
+
+REM --- carriage return used to redraw progress bars in place (best effort). ---
+set "CR="
+for /f %%A in ('copy /Z "%~f0" nul') do set "CR=%%A"
 
 echo.
 echo  ==========================================================
@@ -43,15 +52,18 @@ echo.
 REM --- stop leftover Space Arenas node processes from previous runs ---
 call :stop_stale_instances
 if errorlevel 1 exit /b 1
+call :drawbar 8 "Stopping previous instances"
 
 REM --- PREREQUISITE CHECKLIST (pause on anything fatal) ---
 echo  [CHECK] Node.js (%SA_REQUIRED_NODE%+) ...
 call :check_node
 if not defined SA_NODE_OK goto :fatal_node
+call :drawbar 16 "Node.js %SA_NODE_VERSION% ready"
 
 echo  [CHECK] npm ...
 call :check_npm
 if errorlevel 1 goto :fatal_npm
+call :drawbar 22 "npm %SA_NPM_VERSION% ready"
 
 echo  [CHECK] Project dependencies ...
 call :check_deps
@@ -59,6 +71,7 @@ if errorlevel 1 goto :fatal_deps
 
 echo  [CHECK] System / network readiness ...
 call :check_system
+call :drawbar 55 "System and network check"
 
 REM -- dry-run mode: report only, do not start the game (useful for support) --
 if defined SA_CHECK_ONLY (
@@ -71,6 +84,7 @@ if defined SA_CHECK_ONLY (
 REM --- ensure the game port is free (auto-picks the next free port) ---
 call :ensure_free_port
 if errorlevel 1 exit /b 1
+call :drawbar 62 "Game port %SA_PORT% ready"
 
 REM --- start loading page so the browser opens immediately ---
 set "SA_LOADING_PID="
@@ -92,17 +106,12 @@ if %SA_WAIT% LSS 10 goto :wait_loading_pid
 echo.
 echo  Opening loading page at http://localhost:%SA_PORT%/ ...
 start "" "http://localhost:%SA_PORT%/"
+call :drawbar 68 "Opening loading page"
 
-REM --- build everything ---
-echo.
-echo  Building shared, client and host...
-call npm run build -w shared -w client -w host
-if errorlevel 1 (
-  echo.
-  echo  Build failed. Fix the errors above, then run this again.
-  pause
-  exit /b 1
-)
+REM --- build everything (long step: run in a worker so the bar can animate) ---
+call :run_bg "__bg_build" "Building shared, client and host"
+if not "%SA_BG_RC%"=="0" goto :build_failed
+call :drawbar 100 "Build complete"
 
 REM --- stop the loading server, then WAIT until our port is actually released ---
 if defined SA_LOADING_PID (
@@ -158,6 +167,19 @@ endlocal
 exit /b 0
 
 REM ============================================================
+REM  BUILD FAILURE
+REM ============================================================
+
+:build_failed
+echo.
+echo  [FAIL] Build failed. Log:
+if exist "%TEMP%\sa_bg.log" type "%TEMP%\sa_bg.log"
+echo.
+echo  Fix the errors above, then run this again.
+pause
+exit /b 1
+
+REM ============================================================
 REM  FATAL helpers
 REM ============================================================
 
@@ -166,7 +188,7 @@ echo.
 echo  [FAIL] Node.js %SA_REQUIRED_NODE%+ could not be found or prepared on this device.
 if defined SA_MSI_PATH (
   echo  A bundled installer is available: "%SA_MSI_PATH%"
-  echo  Run it once as Administrator (it installs Node.js and npm), then run this again.
+  echo  Run it once as Administrator ^(it installs Node.js and npm^), then run this again.
 ) else (
   echo  Install Node.js %SA_REQUIRED_NODE%+ from https://nodejs.org/ and run this again.
 )
@@ -218,7 +240,7 @@ if not defined SA_GOOD (
   if defined SA_MSI_PATH (
     echo.
     echo  [..] Node.js is missing - installing %SA_MSI_PATH% ...
-    echo  (an Administrator consent window may appear)
+    echo  ^(an Administrator consent window may appear^)
     msiexec /i "%SA_MSI_PATH%" /qn /norestart
     timeout /t 2 /nobreak >nul
     if exist "%ProgramFiles%\nodejs\node.exe" (
@@ -233,49 +255,57 @@ if not defined SA_GOOD (
   )
 )
 
-if defined SA_GOOD (
-  set "SA_NODE_VERSION="
-  for /f "delims=" %%V in ('node --version 2^>nul') do set "SA_NODE_VERSION=%%V"
-  echo   [PASS] Node.js %SA_NODE_VERSION%  ^(source: %SA_NODE_SOURCE%^)
-) else (
-  echo   [FAIL] Node.js %SA_REQUIRED_NODE%+ not found on this device.
-)
+if not defined SA_GOOD goto :node_missing
+set "SA_NODE_VERSION="
+for /f "delims=" %%V in ('node --version 2^>nul') do set "SA_NODE_VERSION=%%V"
+echo   [PASS] Node.js %SA_NODE_VERSION%  ^(source: %SA_NODE_SOURCE%^)
+goto :node_check_done
+
+:node_missing
+echo   [FAIL] Node.js %SA_REQUIRED_NODE%+ not found on this device.
+
+:node_check_done
 endlocal & set "PATH=%PATH%" & set "SA_NODE_OK=%SA_GOOD%" & set "SA_NODE_SOURCE=%SA_NODE_SOURCE%" & set "SA_NODE_VERSION=%SA_NODE_VERSION%"
 if defined SA_NODE_OK exit /b 0
 exit /b 1
 
 :check_npm
-npm --version >nul 2>nul
+call npm --version >nul 2>nul
 if errorlevel 1 (
   echo   [FAIL] npm is not available.
   exit /b 1
 )
 set "SA_NPM_VERSION="
-for /f "delims=" %%V in ('npm --version 2^>nul') do set "SA_NPM_VERSION=%%V"
+for /f "delims=" %%V in ('call npm --version 2^>nul') do set "SA_NPM_VERSION=%%V"
 echo   [PASS] npm %SA_NPM_VERSION%
 exit /b 0
 
 :check_deps
-if exist "node_modules\vite\package.json" (
-  echo   [PASS] Dependencies ^(node_modules^) present.
-  exit /b 0
-)
+if not exist "node_modules\vite\package.json" goto :deps_install
+echo   [PASS] Dependencies ^(node_modules^) present.
+call :drawbar 34 "Dependencies present"
+exit /b 0
+
+:deps_install
 echo.
 echo   [..] node_modules missing - installing dependencies (needs internet)...
-call npm install
-if errorlevel 1 (
-  echo   [FAIL] npm install failed.
-  exit /b 1
-)
+call :run_bg "__bg_deps" "Installing dependencies"
+if not "%SA_BG_RC%"=="0" goto :deps_failed
 echo   [PASS] Dependencies installed.
+call :drawbar 40 "Dependencies installed"
 exit /b 0
+
+:deps_failed
+echo   [FAIL] npm install failed.
+if exist "%TEMP%\sa_bg.log" type "%TEMP%\sa_bg.log"
+exit /b 1
 
 :check_system
 REM --- Windows firewall ---
 net session >nul 2>&1
 if errorlevel 1 (
   echo   [INFO] Not running as Administrator - no automatic firewall rule.
-  echo          If players cannot connect, allow Node.js through Windows Firewall (Private networks).
+  echo          If players cannot connect, allow Node.js through Windows Firewall ^(Private networks^).
 ) else (
   powershell -NoProfile -Command "$s = (Get-Command node -ErrorAction SilentlyContinue).Source; if (-not $s) { Write-Output 'skip' } elseif (Get-NetFirewallRule -DisplayName 'Space Arenas - LAN host' -ErrorAction SilentlyContinue) { Write-Output 'ok' } else { try { New-NetFirewallRule -DisplayName 'Space Arenas - LAN host' -Direction Inbound -Action Allow -Program $s -Profile Private -ErrorAction Stop | Out-Null; Write-Output 'added' } catch { Write-Output 'failed' } }" > "%TEMP%\space_arenas_fw.txt"
   set "SA_FW="
@@ -284,9 +314,9 @@ if errorlevel 1 (
   if "%SA_FW%"=="ok" (
     echo   [PASS] Windows Firewall already allows Space Arenas.
   ) else if "%SA_FW%"=="added" (
-    echo   [PASS] Added Windows Firewall inbound rule for Node.js (Private networks).
+    echo   [PASS] Added Windows Firewall inbound rule for Node.js ^(Private networks^).
   ) else (
-    echo   [WARN] Could not auto-configure the firewall. If players cannot connect, allow Node.js manually (Networks/Private).
+    echo   [WARN] Could not auto-configure the firewall. If players cannot connect, allow Node.js manually ^(Networks/Private^).
   )
 )
 
@@ -387,3 +417,87 @@ if %SA_FREE_TRIES% GEQ 10 (
 set /a SA_PORT+=1
 echo    Port was busy - automatically switching to %SA_PORT%...
 goto :ensure_free_port_retry
+
+REM ============================================================
+REM  Progress-bar helpers
+REM ============================================================
+
+:drawbar
+REM Prints one milestone line: "[####....] N% label". %1 = percent, %2 = label.
+setlocal EnableDelayedExpansion
+set "pct=%~1"
+set "label=%~2"
+set /a "fill=(pct*24)/100"
+set "bar="
+for /L %%i in (1,1,24) do (
+  if %%i LEQ !fill! (set "bar=!bar!#") else (set "bar=!bar!.")
+)
+<nul set /p "=  [!bar!] !pct!%% !label!"
+echo(
+endlocal
+exit /b
+
+:run_bg
+REM Runs a long step as a background worker (this same script, %1 = worker token)
+REM while :anim animates a bar until the worker writes its exit code. %2 = label.
+del "%TEMP%\sa_bg_rc.txt" >nul 2>&1
+if exist "%TEMP%\sa_bg.log" del "%TEMP%\sa_bg.log" >nul 2>&1
+start /b "" "%~f0" %~1
+call :anim "%~2"
+set "SA_BG_RC="
+if exist "%TEMP%\sa_bg_rc.txt" set /p SA_BG_RC=<"%TEMP%\sa_bg_rc.txt"
+if not defined SA_BG_RC set "SA_BG_RC=1"
+exit /b
+
+:anim
+REM Indeterminate in-place bar; stops when the worker writes its rc file. %1 = label.
+setlocal EnableDelayedExpansion
+set "label=%~1"
+if not defined CR goto :anim_plain
+set "pos=2"
+set "dir=1"
+:anim_loop
+if exist "%TEMP%\sa_bg_rc.txt" goto :anim_done
+set "bar="
+for /L %%i in (1,1,24) do (
+  if %%i==!pos! (set "bar=!bar!>") else (set "bar=!bar!=")
+)
+<nul set /p "=  [!bar!] !label!                                   !CR!"
+timeout /t 1 /nobreak >nul
+set /a "pos+=dir"
+if !pos! GEQ 24 (set "pos=23" & set "dir=-1")
+if !pos! LEQ 1 (set "pos=2" & set "dir=1")
+goto :anim_loop
+
+:anim_plain
+:anim_plain_wait
+if exist "%TEMP%\sa_bg_rc.txt" goto :anim_done
+echo   [..] !label! ...
+timeout /t 2 /nobreak >nul
+goto :anim_plain_wait
+
+:anim_done
+set "full="
+for /L %%i in (1,1,24) do set "full=!full!#"
+if defined CR (
+  <nul set /p "=  [!full!] !label!                                  !CR!"
+  echo(
+) else (
+  echo   [PASS] !label!
+)
+endlocal
+exit /b
+
+REM ============================================================
+REM  Background workers (re-invoked with a worker argument)
+REM ============================================================
+
+:bg_build
+call npm run build -w shared -w client -w host > "%TEMP%\sa_bg.log" 2>&1
+> "%TEMP%\sa_bg_rc.txt" echo %errorlevel%
+exit /b 0
+
+:bg_deps
+call npm install > "%TEMP%\sa_bg.log" 2>&1
+> "%TEMP%\sa_bg_rc.txt" echo %errorlevel%
+exit /b 0
