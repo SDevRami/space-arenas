@@ -364,12 +364,17 @@ REM  Safety helpers
 REM ============================================================
 
 :stop_stale_instances
-REM Kills lingering Space Arenas node processes (game host or loading page)
-REM from a previous run, so a second launch can never hit a stuck port.
-REM Only processes whose command line references this game are touched.
-REM 1) any node.exe that looks like this game's host or loading server
+REM Closes EVERY process a previous Space Arenas run could have left behind, then
+REM frees our game port. Called once before hosting and once after the host exits,
+REM so nothing this game owns survives on open OR on close.
+REM NOTE: a browser tab pointed at the game is deliberately NOT touched - those
+REM sockets are the browser's own outgoing retries (shown as SYN_SENT), not our
+REM server. Only close the tab to clear them.
+REM 1) leftover background workers (cmd.exe running "run-game.bat __bg_*")
+powershell -NoProfile -Command "$w = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'cmd.exe' -and $_.CommandLine -match 'run-game\.bat.*__bg' }; $w | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Output ('Stopped leftover launcher worker (PID ' + $_.ProcessId + ')') }"
+REM 2) any node.exe that looks like this game's host or loading server
 powershell -NoProfile -Command "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -match 'host[\\/]dist[\\/]host(\.js)?|loading-server\.mjs' }; $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Output ('Stopped leftover Space Arenas process (PID ' + $_.ProcessId + ')') }"
-REM 2) backstop: if something still listens on our own port and it is node.exe,
+REM 3) backstop: if something still listens on our own port and it is node.exe,
 REM    it is almost certainly a leftover Space Arenas server (host or page) from a
 REM    previous run -- stop it so the port is free for this run. This covers old
 REM    builds and dev servers (tsx watch) whose command line prong 1 cannot see.
@@ -442,7 +447,7 @@ REM Runs a long step as a background worker (this same script, %1 = worker token
 REM while :anim animates a bar until the worker writes its exit code. %2 = label.
 del "%TEMP%\sa_bg_rc.txt" >nul 2>&1
 if exist "%TEMP%\sa_bg.log" del "%TEMP%\sa_bg.log" >nul 2>&1
-start /b "" "%~f0" %~1
+start /b "" cmd /c call "%~f0" %~1
 call :anim "%~2"
 set "SA_BG_RC="
 if exist "%TEMP%\sa_bg_rc.txt" set /p SA_BG_RC=<"%TEMP%\sa_bg_rc.txt"
