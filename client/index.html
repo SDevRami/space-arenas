@@ -266,6 +266,7 @@
                     <button class="ghost" id="net-join-btn" data-i18n="network.join">Join</button>
                   </details>
                   <div class="hint" data-i18n="network.hint">Pick a match below to auto-fill the address and room code, or use Manual connect. If a match has already started you can still watch it as a spectator.</div>
+                  <button class="ghost" id="net-diag-btn" data-i18n="network.diagOpen">Diagnostics</button>
                 </div>
                 <div class="net-right">
                   <h3 id="net-players-title" data-i18n="network.playersTitle">Players on your network</h3>
@@ -912,6 +913,26 @@
           </div>
         </div>
       </div>
+      <div id="relay-fallback-overlay">
+        <div class="panel">
+          <h2 data-i18n="network.fallbackTitle">Can't reach the LAN host</h2>
+          <p class="hint" id="relay-fallback-body" data-i18n="network.fallbackBody">Your device could not reach the LAN host for this match. The router may be blocking device-to-device traffic (AP/client isolation).</p>
+          <div class="status" id="relay-fallback-status"></div>
+          <div class="row">
+            <button id="fallback-lan" data-i18n="network.fallbackKeepLan">Keep LAN network</button>
+            <button class="primary" id="fallback-online" data-i18n="network.fallbackSwitchOnline">Switch to online server</button>
+          </div>
+        </div>
+      </div>
+      <div id="diag-overlay">
+        <div class="panel">
+          <h2 data-i18n="network.diagTitle">Network diagnostics</h2>
+          <pre id="diag-content"></pre>
+          <div class="row">
+            <button id="diag-close" data-i18n="network.diagClose">Close</button>
+          </div>
+        </div>
+      </div>
       <div id="groups-overlay">
         <div class="panel">
           <h2 data-i18n="groups.h2">Control groups</h2>
@@ -946,5 +967,12 @@
     <div id="lobby-toast" class="hidden-el"></div>
     <div id="err-box"></div>
     <script type="module" src="/src/main.ts"></script>
+    <script>
+      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'https:') {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(() => {})
+        })
+      }
+    </script>
   </body>
 </html>

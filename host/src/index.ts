@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, type Stats } from 'node:fs'
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { extname, join, relative, resolve } from 'node:path'
 import { hostname } from 'node:os'
@@ -34,8 +34,10 @@ import { MOD_MAX_BYTES, modStore } from './mods.ts'
 
 const ARCHIVE_MAX_BYTES = 64 * 1024 * 1024
 
-/** How long a disconnected player slot is kept before it is forfeited/cleaned up. */
-const RECONNECT_GRACE_MS = 12_000
+/** How long a disconnected player slot is kept before it is forfeited/cleaned up.
+ *  Deliberately longer than the 30s WS-dead threshold so a flaky WiFi link can
+ *  recover; tests pin it short (SA_RECONNECT_GRACE_MS) to stay fast. */
+const RECONNECT_GRACE_MS = Number(process.env.SA_RECONNECT_GRACE_MS ?? 40_000)
 
 const PORT = Number(process.env.SA_PORT ?? DEFAULT_PORT)
 const PASSPHRASE = process.env.SA_PASSPHRASE ?? 'changeme'
@@ -176,6 +178,19 @@ let pendingForfeits: number[] = []
 const reconnectTimers = new Map<number, NodeJS.Timeout>()
 const chatLog: Array<{ from: string; text: string; ts: number }> = []
 
+// --- WebSocket liveness (dead-socket detection) -------------------------
+// Browsers auto-answer ws pings with pongs, so a silent zombie socket is
+// always a broken link. Pinging every 10s and terminating anything that has
+// not ponged for 30s keeps half-open connections from ghosting a player slot
+// (which used to cause false "Client ID in use" rejections on reconnect).
+const WS_PING_MS = 10_000
+const WS_DEAD_MS = 30_000
+
+// Waits at most this long for every client's C_LOADED before starting the
+// match anyway, so a laggy/stalled player can never wedge the start screen.
+const START_GRACE_MS = 25_000
+let startGraceTimer: NodeJS.Timeout | null = null
+
 const send = (ws: WebSocket, msg: ControlMessage): void => {
   if (ws.readyState === 1) ws.send(encodeControl(msg))
 }
@@ -207,6 +222,7 @@ const endMatch = (winner: number | null): void => {
   room.ended = true
   for (const [, t] of reconnectTimers) clearTimeout(t)
   reconnectTimers.clear()
+  clearStartGrace()
   const history = relay?.history ?? []
   const ticks = relay?.currentTick ?? 0
   relay?.stop()
@@ -360,11 +376,19 @@ const forwardChat = (entry: { from: string; text: string; ts: number }): void =>
   }
 }
 
+const clearStartGrace = (): void => {
+  if (startGraceTimer) {
+    clearTimeout(startGraceTimer)
+    startGraceTimer = null
+  }
+}
+
 const maybeStartMatch = (): void => {
   const room = rooms.getRoom()
   if (!room || !room.started) return
   if (loadedCount.size < room.players.size) return
   if (relay) return
+  clearStartGrace()
   room.players.forEach((p, ws) => {
     if (!p.connected) return
     send(ws, { kind: 'H_PLAYER_STATE', players: rooms.slots(room) })
@@ -549,6 +573,8 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
       room.started = true
       room.seed = newSeed()
       loadedCount.clear()
+      clearStartGrace()
+      startGraceTimer = setTimeout(() => maybeStartMatch(), START_GRACE_MS)
       rooms.assignSpawns(room)
       room.startSlots = rooms.matchSlots(room)
       room.players.forEach((p, ws2) => {
@@ -565,6 +591,12 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
     case 'C_GAME_OVER': {
       if (!room || room.ended) return
       endMatch(msg.winner)
+      break
+    }
+    case 'C_PING': {
+      // Liveness / RTT probe. Answered regardless of room state so the client can
+      // measure latency on LAN exactly like it does on the online server.
+      send(ws, { kind: 'H_PONG' })
       break
     }
     case 'C_CHAT': {
@@ -667,6 +699,7 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
         playerCount: p.playerCount,
         maxPlayers: p.maxPlayers,
         passwordRequired: p.passwordRequired,
+        lastSeenMs: Date.now() - p.lastSeen,
       }))
     writeJson(res, 200, { self, players: [self, ...peers], chat: chatLog.slice(-100), hostDevice })
     return true
@@ -687,6 +720,7 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       relay?.stop()
       relay = null
       loadedCount.clear()
+      clearStartGrace()
       for (const [, t] of reconnectTimers) clearTimeout(t)
       reconnectTimers.clear()
       old.players.forEach((_p, ws2) => {
@@ -870,13 +904,62 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
   return false
 }
 
-const server = createServer(async (req, res) => {
-  const urlPath = (req.url ?? '/').split('?')[0]
-  if (urlPath === '/assets/sprites.bundle') {
-    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': SPRITE_BUNDLE_CACHE_CONTROL })
-    res.end(buildSpriteBundle())
+/** Serves a static file with cache-friendly headers:
+ *  - Vite's content-hashed output under `/assets/` is immutable and cached hard.
+ *  - Everything else (index.html, sprites, sounds) is ETag/Last-Modified
+ *    revalidated (`no-cache`), so a page refresh re-fetches nothing and the
+ *    game assets are never re-downloaded in full. */
+const writeStatic = async (
+  req: IncomingMessage,
+  res: ServerResponse,
+  urlPath: string,
+  filePath: string,
+): Promise<void> => {
+  let st: Stats | null = null
+  try {
+    st = await stat(filePath)
+  } catch {
+    res.writeHead(500).end('read error')
     return
   }
+  const etag = `"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`
+  const lastModified = st.mtime.toUTCString()
+  if (req.headers['if-none-match'] === etag || req.headers['if-modified-since'] === lastModified) {
+    res.writeHead(304).end()
+    return
+  }
+  try {
+    const data = await readFile(filePath)
+    res.writeHead(200, {
+      'Content-Type': MIME[extname(filePath)] ?? 'application/octet-stream',
+      'Cache-Control': urlPath.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache, must-revalidate',
+      ETag: etag,
+      'Last-Modified': lastModified,
+    })
+    res.end(data)
+  } catch {
+    res.writeHead(500).end('read error')
+  }
+}
+
+/** "Hosters only" (SA_ALLOW_DOWNLOADS=0): stop remote devices from downloading the
+ *  game build. Loopback clients (the host machine itself) are always served. */
+const ALLOW_DOWNLOADS = process.env.SA_ALLOW_DOWNLOADS !== '0'
+const isLoopbackRequest = (req: IncomingMessage): boolean => {
+  const remote = (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '')
+  return remote === '127.0.0.1' || remote === '::1'
+}
+const RESTRICTED_DOWNLOAD_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Space Arenas</title>
+<style>body{margin:0;background:#0b0e14;color:#dfe6f2;font-family:ui-monospace,monospace;display:flex;align-items:center;justify-content:center;height:100vh}
+main{max-width:520px;text-align:center;padding:24px}h1{color:#7cd4ff;font-size:20px;letter-spacing:2px}
+p{color:#8fa3c8;font-size:14px;line-height:1.6}b{color:#dfe6f2}</style></head>
+<body><main><h1>SPACE ARENAS</h1>
+<p>This match host is not sharing the game files with the network.</p>
+<p>Run the game launcher on <b>this</b> device to play, or ask the host to allow downloads.</p>
+</main></body></html>`
+
+const server = createServer(async (req, res) => {
+  const urlPath = (req.url ?? '/').split('?')[0]
   if (urlPath.startsWith('/api/')) {
     try {
       const handled = await handleApi(req, res, urlPath)
@@ -884,6 +967,20 @@ const server = createServer(async (req, res) => {
     } catch {
       writeJson(res, 400, { ok: false, error: 'bad request' })
     }
+    return
+  }
+  // Optional "hosters only" mode (SA_ALLOW_DOWNLOADS=0): serve the game files to
+  // loopback only. Remote devices reach the friendly page instead of pulling the
+  // full game build; the WebSocket / WS join path is unaffected (each guest runs
+  // the launcher on their own device and connects here).
+  if (!ALLOW_DOWNLOADS && !isLoopbackRequest(req)) {
+    res.writeHead(403, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end(RESTRICTED_DOWNLOAD_PAGE)
+    return
+  }
+  if (urlPath === '/assets/sprites.bundle') {
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': SPRITE_BUNDLE_CACHE_CONTROL })
+    res.end(buildSpriteBundle())
     return
   }
   let filePath = ''
@@ -900,18 +997,33 @@ const server = createServer(async (req, res) => {
     res.writeHead(404).end('not found')
     return
   }
-  try {
-    const data = await readFile(filePath)
-    res.writeHead(200, { 'Content-Type': MIME[extname(filePath)] ?? 'application/octet-stream' })
-    res.end(data)
-  } catch {
-    res.writeHead(500).end('read error')
-  }
+  await writeStatic(req, res, urlPath, filePath)
 })
 
 const wss = new WebSocketServer({ server, path: '/ws' })
 
+type LivelyWs = WebSocket & { saLastPong?: number }
+
+// Ping every client on a fixed cadence and terminate sockets that have not
+// ponged for WS_DEAD_MS — the browser side auto-pongs, so this only ever
+// catches genuinely dead links.
+const wsHeartbeatTimer = setInterval(() => {
+  const now = Date.now()
+  for (const ws of wss.clients) {
+    const last = (ws as LivelyWs).saLastPong ?? now
+    if (now - last > WS_DEAD_MS) {
+      ws.terminate()
+    } else {
+      ws.ping()
+    }
+  }
+}, WS_PING_MS)
+
 wss.on('connection', (ws) => {
+  ;(ws as LivelyWs).saLastPong = Date.now()
+  ws.on('pong', () => {
+    ;(ws as LivelyWs).saLastPong = Date.now()
+  })
   remoteAddrs.set(
     ws,
     ((ws as unknown as { _socket?: { remoteAddress?: string } })._socket?.remoteAddress ?? '').replace(/^::ffff:/, ''),
@@ -951,6 +1063,7 @@ wss.on('connection', (ws) => {
     if (wasHost) {
       for (const [, t] of reconnectTimers) clearTimeout(t)
       reconnectTimers.clear()
+      clearStartGrace()
       rooms.removePlayer(ws)
       if (room.started) {
         endMatch(winnerFromRemaining(room))
@@ -1020,6 +1133,11 @@ function stopHost(): void {
     server.close()
   } catch {
     /* already closed */
+  }
+  try {
+    clearInterval(wsHeartbeatTimer)
+  } catch {
+    /* already cleared */
   }
   try {
     discovery.stop()

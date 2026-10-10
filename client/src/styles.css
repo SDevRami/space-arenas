@@ -578,6 +578,25 @@
       #tamper-overlay .row button:hover { background: var(--color-surface-hover); }
       #tamper-overlay .row button.danger { background: #a4322f; border: none; color: white; }
       #tamper-overlay .row button.danger:hover { background: #c2413d; }
+      #relay-fallback-overlay { position: absolute; inset: 0; z-index: 48; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.7); }
+      #relay-fallback-overlay.visible { display: flex; }
+      #relay-fallback-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 22px; width: 440px; max-width: 92vw; border-radius: 6px; }
+      #relay-fallback-overlay h2 { color: var(--color-accent); font-size: 16px; margin-bottom: 8px; }
+      #relay-fallback-overlay .hint { font-size: 13px; line-height: 1.5; color: var(--color-text-muted); margin: 0 0 8px; }
+      #relay-fallback-overlay .status { font-size: 12px; color: var(--color-text-muted); min-height: 16px; margin-bottom: 4px; }
+      #relay-fallback-overlay .row { display: flex; gap: 10px; margin-top: 14px; }
+      #relay-fallback-overlay .row button { flex: 1 1 0; padding: 10px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); cursor: pointer; font-family: inherit; font-size: 13px; }
+      #relay-fallback-overlay .row button:hover { background: var(--color-surface-hover); }
+      #relay-fallback-overlay .row button.primary { background: var(--color-primary); border: none; color: white; }
+      #relay-fallback-overlay .row button.primary:hover { background: var(--color-primary-hover); }
+      #diag-overlay { position: absolute; inset: 0; z-index: 49; display: none; align-items: center; justify-content: center; background: rgba(4,6,12,0.7); }
+      #diag-overlay.visible { display: flex; }
+      #diag-overlay .panel { background: var(--color-panel); border: 1px solid var(--color-border-light); padding: 22px; width: 560px; max-width: 92vw; border-radius: 6px; }
+      #diag-overlay h2 { color: var(--color-accent); font-size: 16px; margin-bottom: 8px; }
+      #diag-content { font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; color: var(--color-text); white-space: pre-wrap; word-break: break-word; max-height: 60vh; overflow: auto; background: #0d1119; border: 1px solid var(--color-border); padding: 10px; margin: 0; }
+      #diag-overlay .row { display: flex; gap: 10px; margin-top: 14px; }
+      #diag-overlay .row button { flex: 1 1 0; padding: 10px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); cursor: pointer; font-family: inherit; font-size: 13px; }
+      #diag-overlay .row button:hover { background: var(--color-surface-hover); }
       #sync-panel { margin-top: 14px; border: 1px solid var(--color-border-light); padding: 12px; background: #0d1119; }
       #sync-panel h3 { color: var(--color-accent); font-size: 13px; margin: 0 0 4px; }
       #sync-panel .sync-hint { font-size: 11px; color: var(--color-text-muted); margin-bottom: 10px; }

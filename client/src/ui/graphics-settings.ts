@@ -96,6 +96,8 @@ const UI_SCALE_TARGETS = [
   'countdown-overlay',
   'reconnect-overlay',
   'roomfull-overlay',
+  'relay-fallback-overlay',
+  'diag-overlay',
   'lobby',
   'create-overlay',
   'invite-overlay',

@@ -66,7 +66,7 @@ export class LanDiscovery {
   private readonly peers = new Map<string, PeerInfo>()
   private timer: NodeJS.Timeout | null = null
   private beaconPort = DEFAULT_BEACON_PORT
-  private readonly maxAgeMs = 8000
+  private readonly maxAgeMs = 20000
 
   constructor(
     private readonly getName: () => string,
@@ -90,7 +90,7 @@ export class LanDiscovery {
     })
     socket.bind(beaconPort, () => {
       socket.setBroadcast(true)
-      this.timer = setInterval(() => this.sendBeacon(socket), 2000)
+      this.timer = setInterval(() => this.sendBeacon(socket), 1000)
       this.sendBeacon(socket)
       console.log(`[space-arenas host] LAN discovery on UDP ${beaconPort}`)
     })

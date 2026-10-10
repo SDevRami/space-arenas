@@ -4101,6 +4101,7 @@ interface NetPlayer {
   maxPlayers: number
   passwordRequired: boolean
   hostDevice: boolean
+  lastSeenMs?: number
 }
 
 const netNameEl = document.getElementById('net-name') as HTMLInputElement
@@ -4636,6 +4637,7 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
     onLobby: (msg) => {
       setJoinBusy(false)
       localTeam = msg.yourId
+      logNetEvent(t('network.diagEventJoined', { code: msg.roomCode }))
       if (!devPublishedConn) {
         devPublishedConn = true
         net?.publishDevSettings(resolvedDevSettings())
@@ -4645,12 +4647,13 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
     },
     onMatchStart: (msg: MatchStartMessage) => {
       lobbyAudio.stopAmbient()
+      logNetEvent(t('network.diagEventMatchStart'))
       if (!game) game = makeGame()
       hideLobby()
       netJoinedResumed = (msg as { resumed?: boolean }).resumed === true
       void game.startNet(net!, msg)
       saveActiveMatch()
-      if (isOnlineAddr(lastJoin?.addr)) startPing()
+      startPing()
     },
     onSpectateSync: (msg) => {
       if (netJoinedResumed) game?.catchUpSync(msg)
@@ -4661,7 +4664,8 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
       const start = netPingStart
       if (start > 0) {
         netPingStart = 0
-        game?.setPingMs(Math.max(1, Math.round(performance.now() - start)))
+        lastPingMs = Math.max(1, Math.round(performance.now() - start))
+        game?.setPingMs(lastPingMs)
       }
     },
     onFrame: (tick, commands) => game?.applyFrame(tick, commands),
@@ -4733,6 +4737,7 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
       }
       clearActiveMatch()
       setJoinBusy(false)
+      logNetEvent(t('network.diagEventDisconnected'))
       if (lobbyState) {
         const wasOnline = isOnlineAddr(lastJoin?.addr)
         lobbyState = null
@@ -4760,8 +4765,12 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
     await net.connect(connectUrl)
   } catch {
     setJoinBusy(false)
-    if (isOnlineAddr(lastJoin?.addr)) setOnlineStatus(t('network.status.serverUnreachable'), true)
-    else setNetStatus(t('network.status.serverUnreachable'), true)
+    if (isOnlineAddr(lastJoin?.addr)) {
+      setOnlineStatus(t('network.status.serverUnreachable'), true)
+    } else {
+      setNetStatus(t('network.status.serverUnreachable'), true)
+      openRelayFallback({ addr, code, pass, name })
+    }
     return
   }
   setNetStatus(t('network.status.joining'))
@@ -4775,9 +4784,11 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
 
 let netPingTimer: number | null = null
 let netPingStart = 0
+let lastPingMs: number | null = null
 
 const startPing = (): void => {
   if (netPingTimer !== null) return
+  lastPingMs = 0
   game?.setPingMs(0)
   netPingTimer = window.setInterval(() => {
     netPingStart = performance.now()
@@ -4791,6 +4802,7 @@ const stopPing = (): void => {
     netPingTimer = null
   }
   netPingStart = 0
+  lastPingMs = null
   game?.setPingMs(null)
 }
 
@@ -4910,6 +4922,78 @@ resumeNoBtn.addEventListener('click', () => {
   clearActiveMatch()
 })
 
+// ---------- online-relay fallback (non-automatic; the player chooses) ----------
+
+const relayFallbackOverlayEl = document.getElementById('relay-fallback-overlay') as HTMLDivElement
+const relayFallbackStatusEl = document.getElementById('relay-fallback-status') as HTMLDivElement
+const fallbackOnlineBtn = document.getElementById('fallback-online') as HTMLButtonElement
+const fallbackLanBtn = document.getElementById('fallback-lan') as HTMLButtonElement
+
+let selfHostDevice = false
+let pendingFallbackJoin: { addr: string; code: string; pass: string; name: string } | null = null
+
+/** Non-automatic fallback offer: shown only when a LAN join genuinely cannot reach the host.
+ *  The player decides — nothing ever switches networks on its own. */
+const openRelayFallback = (join: { addr: string; code: string; pass: string; name: string }): void => {
+  pendingFallbackJoin = join
+  relayFallbackStatusEl.textContent = ''
+  logNetEvent(t('network.diagEventFallback'))
+  relayFallbackOverlayEl.classList.add('visible')
+}
+
+const closeRelayFallback = (): void => {
+  relayFallbackOverlayEl.classList.remove('visible')
+  pendingFallbackJoin = null
+}
+
+/** Host: creates an online mirror of the LAN room and joins it. Guest: routes to the online
+ *  tab, where the host's new room will be listed. Either way this needs internet. */
+const switchToOnlineRelay = async (): Promise<void> => {
+  const join = pendingFallbackJoin
+  closeRelayFallback()
+  if (!join) return
+  net?.close()
+  net = null
+  logNetEvent(t('network.diagEventSwitchedOnline'))
+  setTab('online')
+  if (!selfHostDevice) {
+    // A guest cannot reach the LAN host, so it cannot receive a code from it. The online
+    // server lists rooms, so the host's replacement room appears there.
+    lobbyToast(t('network.fallbackGuestHint'), false)
+    return
+  }
+  const token = authToken()
+  if (token === undefined) {
+    setOnlineStatus(t('online.signInTo.create'), true)
+    openAccountPopup()
+    return
+  }
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/rooms`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ hostName: join.name, passphrase: join.pass }),
+    })
+    const data = (await res.json()) as { ok: boolean; roomCode?: string; error?: string }
+    if (!res.ok || !data.ok || !data.roomCode) {
+      const msg = res.status === 401 || res.status === 503 ? authErrorText(res.status, data.error) : data.error ?? t('network.status.createFailed')
+      setOnlineStatus(t('game.error', { msg }), true)
+      if (res.status === 401) {
+        saveAuth(null)
+        openAccountPopup()
+      }
+      return
+    }
+    setOnlineStatus(t('network.status.created', { code: data.roomCode }))
+    void connectJoin(ONLINE_WS_BASE, data.roomCode, join.pass, join.name)
+  } catch {
+    setOnlineStatus(t('network.fallbackNoInternet'), true)
+  }
+}
+
+fallbackOnlineBtn.addEventListener('click', () => void switchToOnlineRelay())
+fallbackLanBtn.addEventListener('click', () => closeRelayFallback())
+
 // ---------- in-game auto-reconnect (Day 18) ----------
 
 const reconnectOverlayEl = document.getElementById('reconnect-overlay') as HTMLDivElement
@@ -4949,6 +5033,7 @@ const beginReconnect = (): void => {
   net = null
   reconnectPhase = 'player'
   reconnectAttempts = 0
+  logNetEvent(t('network.diagEventReconnecting'))
   setReconnecting(true)
   void attemptReconnect()
 }
@@ -5090,6 +5175,7 @@ const finishReconnect = (): void => {
 const reconnectGiveUp = (message = ''): void => {
   if (reconnectPhase === 'off') return
   reconnectPhase = 'off'
+  logNetEvent(t('network.diagEventGaveUp'))
   if (reconnectTimer !== null) {
     window.clearTimeout(reconnectTimer)
     reconnectTimer = null
@@ -5111,6 +5197,82 @@ const reconnectGiveUp = (message = ''): void => {
     setNetStatus(message ? t('game.error', { msg: message }) : t('network.status.lost'))
   }
 }
+
+// ---------- network diagnostics panel (C1) ----------
+
+const diagOverlayEl = document.getElementById('diag-overlay') as HTMLDivElement
+const diagContentEl = document.getElementById('diag-content') as HTMLPreElement
+const netDiagBtn = document.getElementById('net-diag-btn') as HTMLButtonElement
+const diagCloseBtn = document.getElementById('diag-close') as HTMLButtonElement
+
+interface NetworkSnapshot {
+  self: NetPlayer
+  players: NetPlayer[]
+  chat: Array<{ from: string; text: string; ts: number }>
+}
+let lastNetworkData: NetworkSnapshot | null = null
+let knownPeerKeys = ''
+
+const netEvents: string[] = []
+const logNetEvent = (text: string): void => {
+  const d = new Date()
+  const stamp = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
+  netEvents.push(`[${stamp}] ${text}`)
+  if (netEvents.length > 20) netEvents.shift()
+  if (diagOverlayEl.classList.contains('visible')) renderDiagnostics()
+}
+
+const wsStateText = (): string => {
+  if (!net) return t('network.diagIdle')
+  if (game) return t('network.diagInMatch')
+  if (lobbyState) return t('network.diagInLobby')
+  return t('network.diagConnected')
+}
+
+const renderDiagnostics = (): void => {
+  const lines: string[] = []
+  const self = lastNetworkData?.self
+  lines.push(t('network.diagSelf'))
+  lines.push(`  name: ${netNameEl.value || 'Commander'}`)
+  lines.push(`  address: ${self ? `${self.ip}:${self.port}` : netAddrEl.value || '(detecting)'}`)
+  lines.push(`  mode: ${selfHostDevice ? t('network.diagHostDevice') : t('network.diagGuest')}`)
+  if (lobbyState) lines.push(`  room: ${lobbyState.roomCode}  players: ${lobbyState.players.length}/${lobbyState.maxPlayers}`)
+  lines.push(t('network.diagConnection'))
+  lines.push(`  websocket: ${wsStateText()}`)
+  lines.push(`  rtt: ${lastPingMs !== null ? `${lastPingMs} ms` : 'n/a'}`)
+  lines.push(`  status: ${netStatusEl.textContent || '-'}`)
+  const peers = (lastNetworkData?.players ?? []).filter((p) => !(p.ip === self?.ip && p.port === self?.port))
+  lines.push(t('network.diagDiscovery'))
+  lines.push(`  peers: ${peers.length}`)
+  for (const p of peers) {
+    const seen = typeof p.lastSeenMs === 'number' ? ` last-seen=${Math.round(p.lastSeenMs / 1000)}s` : ''
+    const state = p.started ? t('network.inMatch') : t('network.inLobby')
+    lines.push(`  - ${p.name} @ ${p.ip}:${p.port} room=${p.roomCode ?? '-'} ${state}${seen}`)
+  }
+  lines.push(t('network.diagEvents'))
+  if (netEvents.length === 0) lines.push(`  ${t('network.diagNone')}`)
+  else for (const e of netEvents) lines.push(`  ${e}`)
+  lines.push('')
+  lines.push(t('network.diagShortcut'))
+  diagContentEl.textContent = lines.join('\n')
+}
+
+const openDiag = (): void => {
+  renderDiagnostics()
+  diagOverlayEl.classList.add('visible')
+}
+const closeDiag = (): void => {
+  diagOverlayEl.classList.remove('visible')
+}
+netDiagBtn.addEventListener('click', openDiag)
+diagCloseBtn.addEventListener('click', closeDiag)
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+    e.preventDefault()
+    if (diagOverlayEl.classList.contains('visible')) closeDiag()
+    else openDiag()
+  }
+})
 
 const joinSelectedOrManual = (): void => {
   const name = netNameEl.value.trim() || 'Commander'
@@ -5422,16 +5584,27 @@ const pollNetwork = async (): Promise<void> => {
     const res = await fetch('/api/network')
     if (!res.ok) return
     const data = (await res.json()) as { self: NetPlayer; players: NetPlayer[]; chat: Array<{ from: string; text: string; ts: number }> }
+    lastNetworkData = data
     if (!netAddrEl.value) netAddrEl.value = `${data.self.ip}:${data.self.port}`
     if (!netAddrManualEl.value) netAddrManualEl.value = `${data.self.ip}:${data.self.port}`
     const hostDevice = data.self.hostDevice
+    selfHostDevice = hostDevice === true
     netCreateBtn.style.display = hostDevice ? '' : 'none'
     netPlayersTitleEl.style.display = hostDevice ? '' : 'none'
     netPlayersEl.style.display = hostDevice ? '' : 'none'
     const others = data.players.filter((p) => !(p.ip === data.self.ip && p.port === data.self.port))
+    const peerKeys = others
+      .map((p) => `${p.ip}:${p.port}`)
+      .sort()
+      .join(',')
+    if (peerKeys !== knownPeerKeys) {
+      knownPeerKeys = peerKeys
+      logNetEvent(others.length === 0 ? t('network.diagNoPeersEvent') : t('network.diagPeersEvent', { n: others.length }))
+    }
     renderNetPlayers(others, data.self)
     renderNetMatches(data.players)
     renderLobbyChat(data.chat)
+    if (diagOverlayEl.classList.contains('visible')) renderDiagnostics()
   } catch {
     /* local host server not reachable (e.g. vite dev without host) */
   }

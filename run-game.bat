@@ -14,15 +14,24 @@ if not "%~1"=="" set "SA_PORT=%~1"
 if not "%~2"=="" set "SA_PASSPHRASE=%~2"
 if not "%~3"=="" set "SA_ROOM_CODE=%~3"
 
+REM --- bundled Node.js installer (optional self-healing install) ---
+set "SA_MSI_PATH="
+for %%F in ("%~dp0lib\*.msi") do set "SA_MSI_PATH=%%F"
+
+REM Node major version this game needs.
+set "SA_REQUIRED_NODE=20"
+
 echo.
 echo  ==========================================================
 echo   Space Arenas - Game
 echo.
-echo   This single launcher builds and starts the LAN host with
-echo   automatic player discovery. Open the URL below and pick
-echo   "Network Play" to see who is on your network, create or
-echo   join a match, and chat. "Offline Game" works the same way.
+echo   This launcher first CHECKs your device (Node, npm, deps,
+echo   port, firewall, disk), fixes what it can automatically, and
+echo   then starts the LAN host with automatic player discovery.
+echo   Open the URL below and pick "Network Play" to create or join
+echo   a match. "Offline Game" works the same way.
 echo.
+echo   If Node.js is missing, a bundled installer from lib\ is used.
 echo   Any leftover instance from a previous run is stopped
 echo   automatically, so you never have to fix port conflicts.
 echo.
@@ -35,11 +44,28 @@ REM --- stop leftover Space Arenas node processes from previous runs ---
 call :stop_stale_instances
 if errorlevel 1 exit /b 1
 
-REM --- stop loading server from a previous run if it is still up ---
-if exist "%~dp0tools\.loading-pid" (
-  set /p STALE_LOADING_PID=<"%~dp0tools\.loading-pid"
-  if defined STALE_LOADING_PID taskkill /PID %STALE_LOADING_PID% /F >nul 2>&1
-  del "%~dp0tools\.loading-pid" >nul 2>&1
+REM --- PREREQUISITE CHECKLIST (pause on anything fatal) ---
+echo  [CHECK] Node.js (%SA_REQUIRED_NODE%+) ...
+call :check_node
+if not defined SA_NODE_OK goto :fatal_node
+
+echo  [CHECK] npm ...
+call :check_npm
+if errorlevel 1 goto :fatal_npm
+
+echo  [CHECK] Project dependencies ...
+call :check_deps
+if errorlevel 1 goto :fatal_deps
+
+echo  [CHECK] System / network readiness ...
+call :check_system
+
+REM -- dry-run mode: report only, do not start the game (useful for support) --
+if defined SA_CHECK_ONLY (
+  echo.
+  echo  Check-only mode: prerequisites verified. Not starting the game.
+  endlocal
+  exit /b 0
 )
 
 REM --- ensure the game port is free (auto-picks the next free port) ---
@@ -50,8 +76,18 @@ REM --- start loading page so the browser opens immediately ---
 set "SA_LOADING_PID="
 del "%~dp0tools\.loading-pid" >nul 2>&1
 start /b node tools/loading-server.mjs >nul 2>&1
+REM Wait (up to ~10s) for the loading server to publish its PID. A fixed 1s delay
+REM was sometimes too short for a cold Node start, and a missed PID left the loading
+REM server alive on our port. The host then drifted to a different port while the
+REM browser stayed on the old one, hanging on "Building game..." until a re-run.
+set "SA_WAIT=0"
+:wait_loading_pid
 timeout /t 1 /nobreak >nul
 if exist "%~dp0tools\.loading-pid" set /p SA_LOADING_PID=<"%~dp0tools\.loading-pid"
+if defined SA_LOADING_PID goto :loading_ready
+set /a SA_WAIT+=1
+if %SA_WAIT% LSS 10 goto :wait_loading_pid
+:loading_ready
 
 echo.
 echo  Opening loading page at http://localhost:%SA_PORT%/ ...
@@ -68,8 +104,15 @@ if errorlevel 1 (
   exit /b 1
 )
 
-REM --- stop loading server ---
-if defined SA_LOADING_PID taskkill /PID %SA_LOADING_PID% /F >nul 2>&1
+REM --- stop the loading server, then WAIT until our port is actually released ---
+if defined SA_LOADING_PID (
+  taskkill /PID %SA_LOADING_PID% /F >nul 2>&1
+) else (
+  echo   [WARN] Loading page did not report its PID - stopping it by name...
+  powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -match 'loading-server\.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+)
+del "%~dp0tools\.loading-pid" >nul 2>&1
+call :wait_port_free
 
 REM --- re-check the port right before hosting (defence in depth) ---
 call :ensure_free_port
@@ -99,6 +142,8 @@ echo  The room code and passphrase are printed below when the host starts.
 echo  Press 'c' in this window to stop the game and close this window.
 echo  (Ctrl+C works too.)
 echo.
+echo  READY! Node source: %SA_NODE_SOURCE%  Version: %SA_NODE_VERSION%
+echo.
 
 node host/dist/host.js
 
@@ -110,6 +155,178 @@ echo.
 echo  Game stopped. Closing this window...
 timeout /t 3 /nobreak >nul
 endlocal
+exit /b 0
+
+REM ============================================================
+REM  FATAL helpers
+REM ============================================================
+
+:fatal_node
+echo.
+echo  [FAIL] Node.js %SA_REQUIRED_NODE%+ could not be found or prepared on this device.
+if defined SA_MSI_PATH (
+  echo  A bundled installer is available: "%SA_MSI_PATH%"
+  echo  Run it once as Administrator (it installs Node.js and npm), then run this again.
+) else (
+  echo  Install Node.js %SA_REQUIRED_NODE%+ from https://nodejs.org/ and run this again.
+)
+pause
+exit /b 1
+
+:fatal_npm
+echo.
+echo  [FAIL] npm is missing. Reinstall Node.js (it bundles npm) and run this again.
+pause
+exit /b 1
+
+:fatal_deps
+echo.
+echo  [FAIL] Project dependencies could not be installed.
+if not exist node_modules echo  Copy the node_modules folder from another device into this folder, or run this where internet is available.
+pause
+exit /b 1
+
+REM ============================================================
+REM  Prerequisite subroutines
+REM ============================================================
+
+:check_node
+setlocal
+set "SA_GOOD="
+set "SA_NODE_SOURCE=system"
+
+REM Try system Node first (must be >= SA_REQUIRED_NODE).
+set "SA_VERSION_OK="
+node --version >nul 2>nul
+if %errorlevel% equ 0 (
+  powershell -NoProfile -Command "try { $v = node --version; if ($v -notmatch '^v?(\d+)\.') { exit 2 }; if ([int]$Matches[1] -ge %SA_REQUIRED_NODE%) { exit 0 } else { exit 2 } } catch { exit 2 }"
+  if errorlevel 1 (set "SA_VERSION_OK=") else (set "SA_VERSION_OK=1")
+)
+if defined SA_VERSION_OK set "SA_GOOD=1"
+
+REM Fall back to a portable copy, if someone placed one in lib\node.
+if not defined SA_GOOD (
+  if exist "%~dp0lib\node\node.exe" (
+    set "PATH=%~dp0lib\node;%PATH%"
+    set "SA_NODE_SOURCE=portable lib\node"
+    set "SA_GOOD=1"
+  )
+)
+
+REM Last resort: silent-install the bundled installer from lib\.
+if not defined SA_GOOD (
+  if defined SA_MSI_PATH (
+    echo.
+    echo  [..] Node.js is missing - installing %SA_MSI_PATH% ...
+    echo  (an Administrator consent window may appear)
+    msiexec /i "%SA_MSI_PATH%" /qn /norestart
+    timeout /t 2 /nobreak >nul
+    if exist "%ProgramFiles%\nodejs\node.exe" (
+      set "PATH=%ProgramFiles%\nodejs;%PATH%"
+      set "SA_NODE_SOURCE=installed from lib"
+      set "SA_GOOD=1"
+    ) else if exist "%ProgramFiles(x86)%\nodejs\node.exe" (
+      set "PATH=%ProgramFiles(x86)%\nodejs;%PATH%"
+      set "SA_NODE_SOURCE=installed from lib"
+      set "SA_GOOD=1"
+    )
+  )
+)
+
+if defined SA_GOOD (
+  set "SA_NODE_VERSION="
+  for /f "delims=" %%V in ('node --version 2^>nul') do set "SA_NODE_VERSION=%%V"
+  echo   [PASS] Node.js %SA_NODE_VERSION%  ^(source: %SA_NODE_SOURCE%^)
+) else (
+  echo   [FAIL] Node.js %SA_REQUIRED_NODE%+ not found on this device.
+)
+endlocal & set "PATH=%PATH%" & set "SA_NODE_OK=%SA_GOOD%" & set "SA_NODE_SOURCE=%SA_NODE_SOURCE%" & set "SA_NODE_VERSION=%SA_NODE_VERSION%"
+if defined SA_NODE_OK exit /b 0
+exit /b 1
+
+:check_npm
+npm --version >nul 2>nul
+if errorlevel 1 (
+  echo   [FAIL] npm is not available.
+  exit /b 1
+)
+set "SA_NPM_VERSION="
+for /f "delims=" %%V in ('npm --version 2^>nul') do set "SA_NPM_VERSION=%%V"
+echo   [PASS] npm %SA_NPM_VERSION%
+exit /b 0
+
+:check_deps
+if exist "node_modules\vite\package.json" (
+  echo   [PASS] Dependencies ^(node_modules^) present.
+  exit /b 0
+)
+echo.
+echo   [..] node_modules missing - installing dependencies (needs internet)...
+call npm install
+if errorlevel 1 (
+  echo   [FAIL] npm install failed.
+  exit /b 1
+)
+echo   [PASS] Dependencies installed.
+exit /b 0
+
+:check_system
+REM --- Windows firewall ---
+net session >nul 2>&1
+if errorlevel 1 (
+  echo   [INFO] Not running as Administrator - no automatic firewall rule.
+  echo          If players cannot connect, allow Node.js through Windows Firewall (Private networks).
+) else (
+  powershell -NoProfile -Command "$s = (Get-Command node -ErrorAction SilentlyContinue).Source; if (-not $s) { Write-Output 'skip' } elseif (Get-NetFirewallRule -DisplayName 'Space Arenas - LAN host' -ErrorAction SilentlyContinue) { Write-Output 'ok' } else { try { New-NetFirewallRule -DisplayName 'Space Arenas - LAN host' -Direction Inbound -Action Allow -Program $s -Profile Private -ErrorAction Stop | Out-Null; Write-Output 'added' } catch { Write-Output 'failed' } }" > "%TEMP%\space_arenas_fw.txt"
+  set "SA_FW="
+  if exist "%TEMP%\space_arenas_fw.txt" set /p SA_FW=<"%TEMP%\space_arenas_fw.txt"
+  del "%TEMP%\space_arenas_fw.txt" >nul 2>&1
+  if "%SA_FW%"=="ok" (
+    echo   [PASS] Windows Firewall already allows Space Arenas.
+  ) else if "%SA_FW%"=="added" (
+    echo   [PASS] Added Windows Firewall inbound rule for Node.js (Private networks).
+  ) else (
+    echo   [WARN] Could not auto-configure the firewall. If players cannot connect, allow Node.js manually (Networks/Private).
+  )
+)
+
+REM --- game port ---
+for /f "delims=" %%B in ('powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort $env:SA_PORT -State Listen -ErrorAction SilentlyContinue) { Write-Output 'busy' } else { Write-Output 'free' }"') do set "SA_PORTSTATE=%%B"
+if "%SA_PORTSTATE%"=="busy" (
+  echo   [WARN] Port %SA_PORT% is busy - the launcher switches to a free port automatically.
+) else (
+  echo   [PASS] Port %SA_PORT% is free.
+)
+
+REM --- game files present ---
+if not exist "client\src\main.ts" (
+  echo   [FAIL] Game source files are missing. Is this a complete copy of the game folder?
+  pause
+  exit /b 1
+)
+echo   [PASS] Game source files present.
+
+REM --- disk space ---
+for /f "delims=" %%D in ('powershell -NoProfile -Command "$f = (Get-PSDrive -Name $env:SystemDrive[0]).Free; if ($f -lt 1GB) { Write-Output 'low' } else { Write-Output 'ok' }"') do set "SA_DISK=%%D"
+if "%SA_DISK%"=="low" (
+  echo   [WARN] Low free disk space on %SystemDrive% - the build may fail.
+) else (
+  echo   [PASS] Disk space looks fine.
+)
+
+REM --- folder writable (profile/backup, invites, archive rely on it) ---
+for /f "delims=" %%W in ('powershell -NoProfile -Command "try { New-Item -ItemType File -Force -Path '.sa-write-test' | Out-Null; Remove-Item -Force '.sa-write-test'; Write-Output 'ok' } catch { Write-Output 'fail' }"') do set "SA_WRITE=%%W"
+if "%SA_WRITE%"=="ok" (
+  echo   [PASS] Game folder is writable.
+) else (
+  echo   [FAIL] Cannot write to the game folder. Move it somewhere writable and run again.
+  pause
+  exit /b 1
+)
+
+REM --- online: is a new Node / info available? (informational only) ---
+powershell -NoProfile -Command "try { $l = (Invoke-RestMethod 'https://nodejs.org/dist/index.json' -TimeoutSec 6)[0].version; Write-Output ('[INFO] Online: latest Node.js is ' + $l + ' | this game needs ' + %SA_REQUIRED_NODE% + '+ | you have ' + (node --version).Trim()) } catch { Write-Output '[INFO] Offline - node-update check skipped.' }"
+
 exit /b 0
 
 REM ============================================================
@@ -132,6 +349,24 @@ if errorlevel 1 (
   echo  Could not scan for leftover processes. Continuing anyway...
 )
 exit /b 0
+
+:wait_port_free
+REM Blocks until nothing listens on SA_PORT (up to ~10s). The just-killed loading
+REM server frees the port asynchronously; without this wait, :ensure_free_port
+REM could see it briefly busy and drift the host to a different port than the
+REM already-open browser, leaving the loading page polling forever.
+set "SA_PF=0"
+:wait_port_free_loop
+set "SA_BUSY="
+for /f "delims=" %%B in ('powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort $env:SA_PORT -State Listen -ErrorAction SilentlyContinue) { 'busy' }"') do set "SA_BUSY=%%B"
+if not defined SA_BUSY exit /b 0
+set /a SA_PF+=1
+if %SA_PF% GEQ 10 (
+  echo   [WARN] Port %SA_PORT% is still held after stopping the loading page.
+  exit /b 0
+)
+timeout /t 1 /nobreak >nul
+goto :wait_port_free_loop
 
 :ensure_free_port
 REM Verifies nothing else is listening on SA_PORT; if a foreign program holds

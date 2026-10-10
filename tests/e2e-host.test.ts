@@ -4,7 +4,7 @@ import { createServer, type Server } from 'node:net'
 import { pbkdf2Sync } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { networkInterfaces, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolve, dirname } from 'node:path'
@@ -65,6 +65,16 @@ function freePort(): Promise<number> {
 
 function passHash(pass: string, code: string): string {
   return pbkdf2Sync(pass, `space-arenas:${code}`, 100_000, 32, 'sha256').toString('hex')
+}
+
+/** First non-internal IPv4 address, or null when the box has no LAN interface. */
+function lanIPv4(): string | null {
+  for (const addrs of Object.values(networkInterfaces())) {
+    for (const a of addrs ?? []) {
+      if (a.family === 'IPv4' && !a.internal) return a.address
+    }
+  }
+  return null
 }
 
 async function waitForHttp(url: string, timeoutMs = 15000): Promise<void> {
@@ -214,6 +224,9 @@ async function startHost(
       SA_ROOM_CODE: code,
       SA_PASSPHRASE: pass,
       SA_ARCHIVE_DIR: archiveDir,
+      // Tests wait on forfeit/match-end events; keep the reconnect-grace window
+      // short here (production default is 40s). Reclaim tests are unaffected.
+      ...(process.env.SA_RECONNECT_GRACE_MS ? {} : { SA_RECONNECT_GRACE_MS: '12000' }),
       ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -312,6 +325,55 @@ describe('host: lobby flow', () => {
     c.ws.close()
     bad.host.kill()
   }, 15000)
+
+  // The client measures LAN latency with the same C_PING/H_PONG round-trip it uses
+  // against the online server, and the diagnostics panel reads /api/network. Both are
+  // answered regardless of room state, and the host must flag a loopback caller as the
+  // host device (which is what the "hosters only" download gate keys off).
+  it('answers C_PING with H_PONG and reports the caller as the host device', async () => {
+    const { host: hp, port: pp } = await startHost()
+    const c = new TestClient()
+    await c.connect(pp)
+    c.send({ kind: 'C_PING' })
+    const pong = await c.waitFor('H_PONG')
+    expect(pong.kind).toBe('H_PONG')
+
+    const net = (await (await fetch(`http://127.0.0.1:${pp}/api/network`)).json()) as {
+      hostDevice: boolean
+      self: { hostDevice: boolean; roomCode: string | null }
+    }
+    expect(net.hostDevice).toBe(true)
+    expect(net.self.hostDevice).toBe(true)
+
+    c.ws.close()
+    hp.kill()
+  }, 15000)
+
+  // "Hosters only" mode: the host still plays locally, but remote devices must not
+  // download the game build — they get the friendly page while loopback is served.
+  it('SA_ALLOW_DOWNLOADS=0 refuses remote static downloads but serves loopback', async () => {
+    const ip = lanIPv4()
+    if (!ip) return // no LAN interface to test the remote path from
+    const { host: hs, port: ps } = await startHost(ROOM_CODE, PASS, { SA_ALLOW_DOWNLOADS: '0' })
+
+    const local = await fetch(`http://127.0.0.1:${ps}/`)
+    expect(local.status).toBe(200)
+
+    let remoteStatus = 0
+    let remoteBody = ''
+    try {
+      const r = await fetch(`http://${ip}:${ps}/`)
+      remoteStatus = r.status
+      remoteBody = await r.text()
+    } catch {
+      hs.kill()
+      return // LAN route unavailable (e.g. firewall) — skip rather than flake
+    }
+    expect(remoteStatus).toBe(403)
+    expect(remoteBody).toContain('not sharing the game files')
+
+    hs.kill()
+  }, 20000)
 
   // A stale invite link — the room was recreated after the link was shared — must be
   // refused outright. The client keys its "that room is gone" notice off this exact
@@ -551,6 +613,49 @@ describe('host: lobby flow', () => {
     b.ws.close()
     h2.kill()
   }, 30000)
+
+  // Slots are keyed by a persistent clientId so a dropped player can reclaim them. That
+  // key must not let a second live connection hijack a seat: while a clientId is actively
+  // connected, another socket presenting it is refused and never handed a slot. (Half-open
+  // ghosts that used to trip this guard as a false positive are swept by the WS heartbeat.)
+  it('rejects a second live connection that reuses an active clientId', async () => {
+    const { host: h2, port: p2 } = await startHost()
+    const a = new TestClient()
+    const b = new TestClient()
+    const dup = new TestClient()
+
+    await a.connect(p2)
+    a.join('Alpha')
+    const lobby1 = (await a.waitFor('H_LOBBY')) as LobbyMessage
+    expect(lobby1.players).toHaveLength(1)
+
+    await b.connect(p2)
+    b.join('Bravo', { clientId: 'device-x' })
+    const lobby2 = await a.waitForLobby((m) => m.players.length === 2)
+    expect(lobby2.players.map((p) => p.name).sort()).toEqual(['Alpha', 'Bravo'])
+    expect(b.id).toBeGreaterThanOrEqual(0)
+
+    // A second socket presenting the SAME clientId while Bravo is still live is refused.
+    await dup.connect(p2)
+    dup.join('Imposter', { clientId: 'device-x' })
+    const err = await dup.waitFor('H_ERROR')
+    expect(err.kind).toBe('H_ERROR')
+    if (err.kind === 'H_ERROR') expect(err.message).toContain('Client ID in use')
+    // No seat was ever handed out to the impostor.
+    expect(dup.id).toBe(-1)
+
+    // The rejection broadcast nothing: the room still holds exactly the two real players.
+    await new Promise((r) => setTimeout(r, 250))
+    const last = a.queue.filter((m) => m.kind === 'H_LOBBY').pop() as LobbyMessage | undefined
+    const players = (last ?? lobby2).players
+    expect(players.map((p) => p.name).sort()).toEqual(['Alpha', 'Bravo'])
+    expect(players.some((p) => p.name === 'Imposter')).toBe(false)
+
+    a.ws.close()
+    b.ws.close()
+    dup.ws.close()
+    h2.kill()
+  }, 20000)
 
   it('does not end a co-op match when one of two allied humans quits and enemy bots remain', async () => {
     const { host: h2, port: p2 } = await startHost()
