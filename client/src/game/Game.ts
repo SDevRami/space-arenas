@@ -1977,7 +1977,19 @@ export class Game {
       }
       return
     }
-    if (this.placePendingMarker(info.world)) return
+    if (info.touch) {
+      if (this.placePendingMarker(info.world)) return
+    } else if (this.pendingSpawnPoint || this.pendingFlag) {
+      this.hud.toast(this.pendingSpawnPoint ? t('game.spawnCancelled') : t('game.flagCancelled'))
+      this.pendingSpawnPoint = false
+      this.pendingFlag = false
+      this.holdPlaced = false
+      this.syncMobileToolButtons()
+      this.selection.clear()
+      return
+    } else if (this.placePendingMarker(info.world)) {
+      return
+    }
     const hit = this.pickEntity(info.world.x, info.world.y)
     if (info.touch && this.selection.size > 0) {
       const hasUnits = [...this.selection].some((id) => world.units.has(id))
@@ -3513,6 +3525,21 @@ export class Game {
         this.closeDevOverlay()
         return
       }
+      const hadToggle =
+        this.pendingPlace !== null ||
+        this.pendingLaser ||
+        this.pendingAirstrike ||
+        this.pendingEmp ||
+        this.pendingSpawnPoint ||
+        this.pendingFlag ||
+        this.pendingUnload ||
+        this.pingMode !== null ||
+        this.multiPosMode ||
+        this.abilityModes.size > 0 ||
+        this.mineModes.size > 0 ||
+        (this.input?.aKey ?? false) ||
+        (this.input?.keepAttackKey ?? false) ||
+        (this.input?.guardKey ?? false)
       this.pendingPlace = null
       this.cancelStrikeTargeting(true)
       this.pendingSpawnPoint = false
@@ -3521,11 +3548,16 @@ export class Game {
       this.pingMode = null
       this.syncPingButtons()
       this.holdPlaced = false
+      this.abilityModes.clear()
+      this.mineModes.clear()
+      this.multiPosMode = false
       if (this.input) {
+        this.input.aKey = false
         this.input.keepAttackKey = false
         this.input.guardKey = false
       }
-      this.selection.clear()
+      this.syncMobileToolButtons()
+      if (!hadToggle) this.selection.clear()
       return
     }
     if (!isTypingTarget(e.target) && this.modifierHeld(e)) {
