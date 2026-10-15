@@ -950,6 +950,17 @@
     "reset": "Reset to defaults",
     "saveAsDefault": "Save as default",
     "collapse": "Close all sections",
+    "search": "Search settings…",
+    "groupAll": "All",
+    "groupSynced": "Synced",
+    "groupClient": "Client-only",
+    "groupModified": "Modified only",
+    "colSetting": "Setting",
+    "colValue": "Value",
+    "colUnit": "Unit",
+    "colDefault": "Default",
+    "colActions": "Reset",
+    "resetField": "Reset this field",
     "overlayBtn": "Dev",
     "overlayBtnTitle": "Open the dev popup (performance, header parts, shortcuts)",
     "overlayH1": "Dev popup",
@@ -1303,6 +1314,10 @@
         "label": "Dozer stuck patience",
         "desc": "How many ticks a bulldozer may fail to get closer to its work pad before it starts building anyway (helps boxed-in buildings), in ticks"
       },
+      "maxBuildOrders": {
+        "label": "Max simultaneous builds",
+        "desc": "Maximum buildings a single builder can have under construction at once"
+      },
       "pathBudgetPerTick": {
         "label": "Path budget/tick",
         "desc": "Max A* path computations allowed per tick (excess waits)"
@@ -1414,6 +1429,10 @@
       "detectorRange": {
         "label": "Detector range",
         "desc": "Radius in tiles within which a detector reveals stealth units"
+      },
+      "stealthCost": {
+        "label": "Stealth cost",
+        "desc": "Credits to equip a finished building with a stealth field"
       },
       "stealthRevealTicks": {
         "label": "Stealth reveal duration",
@@ -1726,6 +1745,9 @@
       "nodes": "nodes",
       "score": "score",
       "kills": "kills",
+      "percent": "%",
+      "dmgPerTick": "dmg/tick",
+      "ticks": "ticks",
       "px": "px",
       "default": "Default: {v}"
     },

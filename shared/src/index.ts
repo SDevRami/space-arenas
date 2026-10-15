@@ -1,4 +1,5 @@
 export * from './constants.ts'
+export * from './dev-settings-registry.ts'
 export * from './fixed.ts'
 export * from './rng.ts'
 export * from './maps.ts'

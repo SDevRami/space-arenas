@@ -378,19 +378,37 @@
       #lobby .match-add-actions button.ghost { width: auto; margin-top: 0; padding: 8px 14px; }
       #lobby .match-add-actions .match-pass-row { margin-top: 0; }
 
-      #lobby .dev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 18px; margin-top: 12px; }
-      #lobby .dev-field { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; background: var(--color-surface-dark); border: 1px solid var(--color-divider); }
-      #lobby .dev-field label { margin: 0; color: var(--color-text-muted); }
-      #lobby .dev-desc { font-size: 11px; color: var(--color-text-dim); line-height: 1.35; }
-      #lobby .dev-field input { width: 100%; }
-      #lobby .dev-field select { width: 100%; background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); padding: 8px; font-family: inherit; }
-      #lobby .dev-field.dev-overridden { border-color: #2e6fb0; background: #101a2e; }
-      #lobby .dev-field.dev-overridden label { color: #ffd479; }
-      #lobby .dev-field.dev-overridden .dev-desc { color: #7d92b8; }
-      #lobby .dev-section { grid-column: 1 / -1; margin: 14px 0 4px; padding-top: 12px; border-top: 1px solid var(--color-divider); color: var(--color-accent); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
-      #lobby .dev-section:first-child { border-top: none; margin-top: 0; padding-top: 0; }
-      #lobby .dev-item { grid-column: 1 / -1; margin: 10px 0 2px; color: #cdd8ee; font-size: 13px; }
-      #lobby .dev-group { grid-column: 1 / -1; margin: 8px 0 0; border: 1px solid var(--color-divider); background: var(--color-bg); border-radius: 4px; }
+      #lobby .dev-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+      #lobby .dev-search { flex: 1 1 180px; min-width: 0; background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); padding: 7px 10px; font-family: inherit; }
+      #lobby .dev-tabs { display: flex; }
+      #lobby .dev-tab { padding: 7px 12px; background: var(--color-surface); color: var(--color-text-muted); border: 1px solid var(--color-border); border-right-width: 0; cursor: pointer; font-family: inherit; font-size: 12px; }
+      #lobby .dev-tab:last-child { border-right-width: 1px; }
+      #lobby .dev-tab:hover { background: #141b2e; }
+      #lobby .dev-tab.active { background: #17223c; border-color: #3d5a96; color: #cfe0ff; }
+      #lobby .dev-modified-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }
+      #lobby .dev-grid { display: block; margin-top: 12px; }
+      #lobby .dev-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+      #lobby .dev-table th { text-align: left; padding: 6px 10px; color: var(--color-text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--color-divider); }
+      #lobby .dev-table td { padding: 6px 10px; border-bottom: 1px solid var(--color-divider); vertical-align: middle; }
+      #lobby .dev-table tr:last-child td { border-bottom: none; }
+      #lobby .dev-table .dev-name { width: 38%; }
+      #lobby .dev-table .dev-value { width: 24%; }
+      #lobby .dev-table .dev-unit { width: 10%; color: var(--color-text-muted); white-space: nowrap; }
+      #lobby .dev-table .dev-default { width: 16%; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #lobby .dev-table .dev-reset { width: 12%; text-align: right; }
+      #lobby .dev-table .dev-name label { color: var(--color-text-muted); }
+      #lobby .dev-table .dev-desc { font-size: 11px; color: var(--color-text-dim); line-height: 1.3; margin-top: 2px; }
+      #lobby .dev-table .dev-value input[type='number'] { width: 110px; }
+      #lobby .dev-table .dev-value input[type='text'] { width: 100%; }
+      #lobby .dev-table .dev-value select { width: 100%; background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); padding: 6px; font-family: inherit; }
+      #lobby .dev-row.dev-overridden { background: #101a2e; }
+      #lobby .dev-row.dev-overridden .dev-name label { color: #ffd479; }
+      #lobby .dev-row.dev-overridden .dev-desc { color: #7d92b8; }
+      #lobby .dev-subhead td { padding: 10px 10px 4px; color: var(--color-accent); font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: none; }
+      #lobby .dev-reset-btn { padding: 2px 9px; background: var(--color-surface); color: var(--color-text-muted); border: 1px solid var(--color-border); cursor: pointer; font-family: inherit; font-size: 13px; line-height: 1.4; }
+      #lobby .dev-reset-btn:hover { background: var(--color-surface-hover); color: var(--color-text); }
+      #lobby .dev-row-hidden { display: none; }
+      #lobby .dev-group { margin: 8px 0 0; border: 1px solid var(--color-divider); background: var(--color-bg); border-radius: 4px; }
       #lobby .dev-group:first-child { margin-top: 0; }
       #lobby .dev-group > summary { cursor: pointer; list-style: none; padding: 9px 12px; background: var(--color-panel); color: var(--color-accent); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; user-select: none; border-bottom: 1px solid var(--color-divider); }
       #lobby .dev-group > summary::-webkit-details-marker { display: none; }
@@ -399,7 +417,7 @@
       #lobby .dev-group > summary:hover { background: #141b2e; }
       #lobby .dev-group.dev-object > summary { color: #cdd8ee; text-transform: none; letter-spacing: 0; font-size: 13px; }
       #lobby .dev-group.dev-object > summary::after { content: ' — fields'; color: var(--color-text-dim); font-size: 11px; text-transform: none; letter-spacing: 0; }
-      #lobby .dev-group-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 18px; padding: 10px; }
+      #lobby .dev-group-body { display: block; padding: 0; }
       #lobby .dev-actions { display: flex; gap: 10px; margin-top: 12px; }
       #lobby .dev-audio-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; }
       #lobby .dev-audio-line input[type='text'] { flex: 1 1 150px; min-width: 0; }

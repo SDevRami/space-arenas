@@ -1,5 +1,5 @@
 import './styles.css'
-import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, modHash, PROTOCOL_VERSION, type ModFile, type ModMeta, type RoomMod, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, modHash, PROTOCOL_VERSION, DEV_SCALAR_SECTIONS, DEV_OVERRIDE_BUILDING_FIELDS, DEV_OVERRIDE_UNIT_FIELDS, DEV_OVERRIDE_WEAPON_FIELDS, DEV_OVERRIDE_UPGRADE_FIELDS, type DevOverrideFieldDef, type ModFile, type ModMeta, type RoomMod, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, validateMap, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { AudioHooks, AMBIENT_SYNTH } from './audio/hooks.ts'
@@ -2454,26 +2454,9 @@ const devResetBtn = document.getElementById('dev-reset') as HTMLButtonElement
 const devSaveDefaultBtn = document.getElementById('dev-save-default') as HTMLButtonElement
 const devCollapseBtn = document.getElementById('dev-collapse') as HTMLButtonElement
 
-interface DevFieldDef {
-  key: keyof MatchSettings
-  unit?: string
-  min: number
-  max: number
-  step: number
-  seconds?: boolean
-}
 
 type OverrideMapKey = 'buildingOverrides' | 'unitOverrides' | 'weaponOverrides' | 'upgradeOverrides'
 
-interface OverrideFieldDef {
-  field: string
-  unit?: string
-  min: number
-  max: number
-  step: number
-  seconds?: boolean
-  only?: string[]
-}
 
 const DEV_UNIT_KEYS: Record<string, string> = {
   credits: 'credits',
@@ -2493,196 +2476,13 @@ const DEV_UNIT_KEYS: Record<string, string> = {
   nodes: 'nodes',
   score: 'score',
   kills: 'kills',
+  '%': 'percent',
+  'dmg/tick': 'dmgPerTick',
+  ticks: 'ticks',
 }
 
 const devUnit = (u: string): string => t(`dev.units.${DEV_UNIT_KEYS[u] ?? u}`)
 
-const DEV_SCALAR_SECTIONS: Array<{ title: string; fields: DevFieldDef[] }> = [
-  {
-    title: 'economy',
-    fields: [
-      { key: 'startingCredits', unit: 'credits', min: 100, max: 100000, step: 100 },
-      { key: 'oilIncome', unit: 'credits', min: 0, max: 100000, step: 10 },
-      { key: 'oilIncomeIntervalTicks', unit: 'sec', min: 0.1, max: 600, step: 0.5, seconds: true },
-      { key: 'oilClaimTicks', unit: 'sec', min: 0.1, max: 600, step: 0.5, seconds: true },
-      { key: 'supplyPerTrip', unit: 'units', min: 0, max: 100000, step: 10 },
-      { key: 'supplyFieldCapacity', unit: 'units', min: 0, max: 100000, step: 10 },
-      { key: 'supplyFieldBonus', unit: '%', min: 0, max: 1000, step: 5 },
-      { key: 'supplyFieldClaimTicks', unit: 'sec', min: 0.1, max: 600, step: 0.5, seconds: true },
-      { key: 'supplyFieldHoldTicks', unit: 'sec', min: 0, max: 600, step: 0.5, seconds: true },
-      { key: 'harvesterLoadTicks', unit: 'sec', min: 0.1, max: 120, step: 0.1, seconds: true },
-      { key: 'builderRepairPerTick', unit: 'hp/tick', min: 0, max: 100000, step: 5 },
-      { key: 'sellRefundFraction', unit: '0–1', min: 0, max: 1, step: 0.05 },
-      { key: 'sellTicks', unit: 'sec', min: 0, max: 300, step: 0.5, seconds: true },
-      { key: 'wreckValueFraction', unit: '0–1', min: 0, max: 1, step: 0.05 },
-      { key: 'wreckCollectTicks', unit: 'sec', min: 0.1, max: 300, step: 0.5, seconds: true },
-      { key: 'queueLimit', unit: 'orders', min: 1, max: 50, step: 1 },
-    ],
-  },
-  {
-    title: 'satellite',
-    fields: [
-      { key: 'satelliteRevealTicks', unit: 'sec', min: 0.1, max: 600, step: 0.5, seconds: true },
-      { key: 'satelliteCooldownTicks', unit: 'sec', min: 0, max: 600, step: 0.5, seconds: true },
-    ],
-  },
-  {
-    title: 'power',
-    fields: [{ key: 'maxPowerTicks', unit: 'sec', min: 1, max: 300, step: 1, seconds: true }],
-  },
-  {
-    title: 'laser',
-    fields: [
-      { key: 'laserMaxLevel', unit: 'levels', min: 1, max: 10, step: 1 },
-      { key: 'laserCooldownTicks', unit: 'sec', min: 0.1, max: 600, step: 0.5, seconds: true },
-      { key: 'laserRadius', unit: 'cells', min: 0.5, max: 30, step: 0.5 },
-      { key: 'laserDurationTicks', unit: 'sec', min: 0.1, max: 30, step: 0.1, seconds: true },
-      { key: 'laserDamagePerTick', unit: 'dmg/tick', min: 0, max: 100000, step: 10 },
-      { key: 'laserDelayTicksLv1', unit: 'sec', min: 0, max: 30, step: 0.1, seconds: true },
-      { key: 'laserDelayTicksLv2', unit: 'sec', min: 0, max: 30, step: 0.1, seconds: true },
-    ],
-  },
-  {
-    title: 'superWeapon',
-    fields: [
-      { key: 'airstrikeCooldownTicks', unit: 'sec', min: 1, max: 600, step: 1, seconds: true },
-      { key: 'empCooldownTicks', unit: 'sec', min: 1, max: 600, step: 1, seconds: true },
-      { key: 'airstrikeBombDamage', unit: 'dmg', min: 0, max: 100000, step: 10 },
-      { key: 'airstrikeBombRadius', unit: 'cells', min: 0.5, max: 30, step: 0.5 },
-      { key: 'empRadiusTiles', unit: 'cells', min: 0.5, max: 30, step: 0.5 },
-      { key: 'empDurationTicks', unit: 'sec', min: 0.1, max: 60, step: 0.5, seconds: true },
-    ],
-  },
-  {
-    title: 'fog',
-    fields: [{ key: 'fogFadeDistance', unit: 'cells', min: 0, max: 30, step: 1 }],
-  },
-  {
-    title: 'abilities',
-    fields: [
-      { key: 'grenadeRange', unit: 'cells', min: 1, max: 30, step: 1 },
-      { key: 'grenadeBlastRadius', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
-      { key: 'grenadeDamage', unit: 'dmg', min: 0, max: 100000, step: 10 },
-      { key: 'grenadeFuseTicks', unit: 'sec', min: 0.2, max: 30, step: 0.2, seconds: true },
-      { key: 'grenadeCooldownTicks', unit: 'sec', min: 0.1, max: 120, step: 0.5, seconds: true },
-      { key: 'smokeRange', unit: 'cells', min: 1, max: 30, step: 1 },
-      { key: 'smokeRadius', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
-      { key: 'smokeDurationTicks', unit: 'sec', min: 1, max: 120, step: 1, seconds: true },
-      { key: 'smokeMissChance', unit: '0–1', min: 0, max: 1, step: 0.05 },
-      { key: 'smokeCooldownTicks', unit: 'sec', min: 0.1, max: 120, step: 0.5, seconds: true },
-    ],
-  },
-  {
-    title: 'stealth',
-    fields: [
-      { key: 'detectorCost', unit: 'credits', min: 0, max: 100000, step: 50 },
-      { key: 'detectorRange', unit: 'cells', min: 1, max: 100, step: 1 },
-      { key: 'stealthCost', unit: 'credits', min: 0, max: 100000, step: 50 },
-      { key: 'stealthRevealTicks', unit: 'sec', min: 0.1, max: 120, step: 0.5, seconds: true },
-    ],
-  },
-  {
-    title: 'dayNight',
-    fields: [
-      { key: 'dayNightCycleTicks', unit: 'sec', min: 30, max: 3600, step: 5, seconds: true },
-      { key: 'dayNightTransitionTicks', unit: 'sec', min: 1, max: 600, step: 1, seconds: true },
-    ],
-  },
-  {
-    title: 'mines',
-    fields: [
-      { key: 'mineCost', unit: 'credits', min: 0, max: 100000, step: 10 },
-      { key: 'minePlaceRange', unit: 'cells', min: 0.5, max: 30, step: 0.5 },
-      { key: 'mineTriggerRadius', unit: 'cells', min: 0.1, max: 5, step: 0.1 },
-      { key: 'mineBlastRadius', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
-      { key: 'mineDamage', unit: 'dmg', min: 0, max: 100000, step: 10 },
-      { key: 'mineArmTicks', unit: 'sec', min: 0, max: 60, step: 0.5, seconds: true },
-      { key: 'mineLimit', unit: 'units', min: 1, max: 1000, step: 1 },
-      { key: 'friendlyMineDamage', unit: '0–1', min: 0, max: 1, step: 1 },
-    ],
-  },
-  {
-    title: 'heal',
-    fields: [
-      { key: 'engineerHealPerTick', unit: 'hp/tick', min: 0, max: 1000, step: 1 },
-      { key: 'engineerHealRange', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
-      { key: 'engineerHealAuraRadius', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
-      { key: 'engineerHealRank', unit: 'levels', min: 1, max: 5, step: 1 },
-    ],
-  },
-  {
-    title: 'worldFields',
-    fields: [
-      { key: 'supplyFieldRadius', unit: 'cells', min: 0, max: 30, step: 1 },
-      { key: 'oilFieldRadius', unit: 'cells', min: 0, max: 30, step: 1 },
-      { key: 'spawnRange', unit: 'cells', min: 1, max: 20, step: 1 },
-      { key: 'oilFieldHp', unit: 'hp', min: 1, max: 1000000, step: 50 },
-      { key: 'treeHp', unit: 'hp', min: 1, max: 100000, step: 5 },
-      { key: 'rockHp', unit: 'hp', min: 1, max: 100000, step: 5 },
-      { key: 'crushDamage', unit: 'dmg', min: 0, max: 10000, step: 1 },
-      { key: 'workPadDistance', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
-      { key: 'workStuckTicks', unit: 'ticks', min: 5, max: 300, step: 5 },
-      { key: 'maxBuildOrders', unit: 'orders', min: 1, max: 12, step: 1 },
-    ],
-  },
-  {
-    title: 'movement',
-    fields: [
-      { key: 'sepVehicle', unit: 'cells', min: 0.2, max: 5, step: 0.05 },
-      { key: 'sepInfantry', unit: 'cells', min: 0.2, max: 5, step: 0.05 },
-      { key: 'sepMaxPush', unit: 'cells', min: 0, max: 2, step: 0.02 },
-      { key: 'buildingMarginVehicle', unit: 'cells', min: 0, max: 3, step: 0.05 },
-      { key: 'buildingMarginInfantry', unit: 'cells', min: 0, max: 3, step: 0.05 },
-      { key: 'fieldMargin', unit: 'cells', min: 0, max: 3, step: 0.05 },
-      { key: 'samePosJitter', unit: 'cells', min: 0, max: 2, step: 0.01 },
-      { key: 'lateralSepDist', unit: 'cells', min: 0, max: 2, step: 0.01 },
-      { key: 'stuckRelocateRadius', unit: 'cells', min: 1, max: 30, step: 1 },
-      { key: 'repathCooldownBlockedTicks', unit: 'sec', min: 0.04, max: 4, step: 0.04, seconds: true },
-      { key: 'repathCooldownFailTicks', unit: 'sec', min: 0.04, max: 4, step: 0.04, seconds: true },
-    ],
-  },
-  {
-    title: 'combat',
-    fields: [
-      { key: 'chaseLeash', unit: 'x', min: 1, max: 10, step: 0.25 },
-      { key: 'guardArriveCells', unit: 'cells', min: 0, max: 10, step: 0.1 },
-      { key: 'targetBiasLastHit', unit: 'score', min: 0, max: 100000000, step: 1000000 },
-      { key: 'targetBiasFocusFire', unit: 'score', min: 0, max: 10000000, step: 100000 },
-      { key: 'targetBiasLowHp', unit: 'score', min: 0, max: 1000000, step: 1000 },
-      { key: 'defaultSplash', unit: 'cells', min: 0, max: 10, step: 0.1 },
-    ],
-  },
-  {
-    title: 'veterancy',
-    fields: [
-      { key: 'veteranRank1Kills', unit: 'kills', min: 0, max: 100, step: 1 },
-      { key: 'veteranRank2Kills', unit: 'kills', min: 0, max: 200, step: 1 },
-      { key: 'veteranRank3Kills', unit: 'kills', min: 0, max: 300, step: 1 },
-      { key: 'veteranRank4Kills', unit: 'kills', min: 0, max: 400, step: 1 },
-      { key: 'veteranRank5Kills', unit: 'kills', min: 0, max: 500, step: 1 },
-      { key: 'veteranDamagePerRank', unit: 'x', min: 0, max: 2, step: 0.05 },
-      { key: 'veteranRangePerRank', unit: 'x', min: 0, max: 2, step: 0.05 },
-      { key: 'veteranArmorPerRank', unit: '0–1', min: 0, max: 1, step: 0.05 },
-    ],
-  },
-  {
-    title: 'planes',
-    fields: [
-      { key: 'planeOrbitRadius', unit: 'cells', min: 0.2, max: 10, step: 0.1 },
-      { key: 'planeReloadRadius', unit: 'cells', min: 1, max: 40, step: 1 },
-      { key: 'planeSortieMult', unit: 'x', min: 0, max: 20, step: 0.5 },
-    ],
-  },
-  {
-    title: 'pathfinding',
-    fields: [
-      { key: 'pathBudgetPerTick', unit: 'orders', min: 1, max: 100, step: 1 },
-      { key: 'pathMaxNodes', unit: 'nodes', min: 100, max: 200000, step: 100 },
-      { key: 'astarCostStraight', unit: 'score', min: 1, max: 100, step: 1 },
-      { key: 'astarCostDiagonal', unit: 'score', min: 1, max: 200, step: 1 },
-    ],
-  },
-]
 
 const PROFILE_TARGET_FIELDS: Array<{ key: string; target: number; min: number; max: number; step: number }> = [
   { key: 'achievementKillsInfantry', target: 20, min: 1, max: 100000, step: 1 },
@@ -2696,36 +2496,6 @@ const PROFILE_TARGET_FIELDS: Array<{ key: string; target: number; min: number; m
   { key: 'achievementWins', target: 10, min: 1, max: 100000, step: 1 },
 ]
 
-const OVERRIDE_BUILDING_FIELDS: OverrideFieldDef[] = [
-  { field: 'cost', unit: 'credits', min: 0, max: 1000000, step: 100 },
-  { field: 'buildTimeTicks', unit: 'sec', min: 0.1, max: 900, step: 0.5, seconds: true },
-  { field: 'hp', unit: 'hp', min: 1, max: 1000000, step: 100 },
-  { field: 'powerGen', unit: 'power', min: 0, max: 100000, step: 10, only: ['power-plant'] },
-  { field: 'powerUse', unit: 'power', min: 0, max: 100000, step: 10 },
-]
-
-const OVERRIDE_UNIT_FIELDS: OverrideFieldDef[] = [
-  { field: 'cost', unit: 'credits', min: 0, max: 1000000, step: 50 },
-  { field: 'buildTimeTicks', unit: 'sec', min: 0.1, max: 300, step: 0.5, seconds: true },
-  { field: 'hp', unit: 'hp', min: 1, max: 1000000, step: 50 },
-  { field: 'speed', unit: 'cells/s', min: 1, max: 1000, step: 5 },
-  { field: 'vision', unit: 'cells', min: 1, max: 100, step: 1 },
-  { field: 'capacity', unit: 'units', min: 1, max: 100, step: 1, only: ['fighter'] },
-  { field: 'maxAmmo', unit: 'rounds', min: 1, max: 100, step: 1, only: ['fighter'] },
-  { field: 'reloadTicks', unit: 'sec', min: 0.1, max: 300, step: 0.5, seconds: true, only: ['fighter'] },
-]
-
-const OVERRIDE_WEAPON_FIELDS: OverrideFieldDef[] = [
-  { field: 'damage', unit: 'dmg', min: 0, max: 1000000, step: 5 },
-  { field: 'cooldownTicks', unit: 'sec', min: 0.04, max: 120, step: 0.05, seconds: true },
-  { field: 'range', unit: 'cells', min: 1, max: 100, step: 1 },
-  { field: 'splash', unit: 'cells', min: 0, max: 100, step: 0.5, only: ['artillery'] },
-]
-
-const OVERRIDE_UPGRADE_FIELDS: OverrideFieldDef[] = [
-  { field: 'cost', unit: 'credits', min: 0, max: 1000000, step: 50 },
-  { field: 'researchTimeTicks', unit: 'sec', min: 0.1, max: 600, step: 0.5, seconds: true },
-]
 
 let devOverrides: Partial<MatchSettings> = {}
 let savedDefaults: Partial<MatchSettings> = {}
@@ -2803,11 +2573,74 @@ const OVERRIDE_SOURCES: Record<OverrideMapKey, Record<string, Record<string, num
   upgradeOverrides: UPGRADES as unknown as Record<string, Record<string, number>>,
 }
 
-let devGroupEl: HTMLElement = devFormEl
+// ---------- dev settings form (registry-driven table UI) ----------
 
-const appendDevSection = (title: string): void => {
+type DevGroup = 'synced' | 'client'
+
+interface DevRowHandle {
+  row: HTMLTableRowElement
+  group: DevGroup
+  search: string
+  isOverridden: () => boolean
+}
+
+let devRows: DevRowHandle[] = []
+let devFilterGroup: DevGroup | 'all' = 'all'
+let devFilterText = ''
+let devFilterModified = false
+
+const devSearchEl = document.getElementById('dev-search') as HTMLInputElement | null
+const devModifiedEl = document.getElementById('dev-modified') as HTMLInputElement | null
+const devTabEls = Array.from(document.querySelectorAll<HTMLButtonElement>('.dev-tab'))
+
+const registerDevRow = (row: HTMLTableRowElement, group: DevGroup, search: string, isOverridden: () => boolean): void => {
+  devRows.push({ row, group, search: search.toLowerCase(), isOverridden })
+}
+
+const syncRowMark = (row: HTMLTableRowElement, overridden: boolean): void => {
+  row.classList.toggle('dev-overridden', overridden)
+}
+
+/** Hide rows that fail the active group/text/modified filters, then hide any
+ *  section that has no visible rows left. */
+const applyDevFilters = (): void => {
+  for (const entry of devRows) {
+    const groupOk = devFilterGroup === 'all' || entry.group === devFilterGroup
+    const textOk = devFilterText === '' || entry.search.includes(devFilterText)
+    const modifiedOk = !devFilterModified || entry.isOverridden()
+    entry.row.classList.toggle('dev-row-hidden', !(groupOk && textOk && modifiedOk))
+  }
+  for (const section of Array.from(devFormEl.querySelectorAll<HTMLDetailsElement>('details.dev-group'))) {
+    const rows = section.querySelectorAll<HTMLTableRowElement>('tr.dev-row')
+    if (rows.length === 0) continue
+    section.hidden = !Array.from(rows).some((r) => !r.classList.contains('dev-row-hidden'))
+  }
+}
+
+const setDevFilterGroup = (group: DevGroup | 'all'): void => {
+  devFilterGroup = group
+  for (const b of devTabEls) b.classList.toggle('active', b.dataset.devGroup === group)
+  applyDevFilters()
+}
+
+devSearchEl?.addEventListener('input', () => {
+  devFilterText = devSearchEl.value.trim().toLowerCase()
+  applyDevFilters()
+})
+
+devModifiedEl?.addEventListener('change', () => {
+  devFilterModified = devModifiedEl.checked
+  applyDevFilters()
+})
+
+for (const b of devTabEls) {
+  b.addEventListener('click', () => setDevFilterGroup((b.dataset.devGroup ?? 'all') as DevGroup | 'all'))
+}
+
+const appendDevSection = (title: string, group: DevGroup): HTMLDivElement => {
   const details = document.createElement('details')
   details.className = 'dev-group'
+  details.dataset.group = group
   details.open = true
   const summary = document.createElement('summary')
   summary.textContent = title
@@ -2816,164 +2649,241 @@ const appendDevSection = (title: string): void => {
   details.appendChild(summary)
   details.appendChild(body)
   devFormEl.appendChild(details)
-  devGroupEl = body
+  return body
 }
 
-const appendDevItemHeader = (name: string): void => {
+const appendDevItemHeader = (parent: HTMLElement, title: string): HTMLDivElement => {
   const details = document.createElement('details')
   details.className = 'dev-group dev-object'
   details.open = true
   const summary = document.createElement('summary')
-  summary.textContent = name
+  summary.textContent = title
   const body = document.createElement('div')
   body.className = 'dev-group-body'
   details.appendChild(summary)
   details.appendChild(body)
-  devFormEl.appendChild(details)
-  devGroupEl = body
+  parent.appendChild(details)
+  return body
 }
 
-const makeNumberInput = (
-  label: string,
-  desc: string,
-  unit: string | undefined,
-  value: number,
-  defaultValue: number,
-  min: number,
-  max: number,
-  step: number,
-  overridden: boolean,
-  onCommit: (v: number) => void,
+const makeTable = (parent: HTMLElement): HTMLTableSectionElement => {
+  const table = document.createElement('table')
+  table.className = 'dev-table'
+  const thead = document.createElement('thead')
+  const headRow = document.createElement('tr')
+  const cols: Array<[string, string]> = [
+    ['dev.colSetting', 'dev-name'],
+    ['dev.colValue', 'dev-value'],
+    ['dev.colUnit', 'dev-unit'],
+    ['dev.colDefault', 'dev-default'],
+    ['dev.colActions', 'dev-reset'],
+  ]
+  for (const [key, cls] of cols) {
+    const th = document.createElement('th')
+    th.className = cls
+    th.textContent = t(key)
+    headRow.appendChild(th)
+  }
+  thead.appendChild(headRow)
+  const tbody = document.createElement('tbody')
+  table.appendChild(thead)
+  table.appendChild(tbody)
+  parent.appendChild(table)
+  return tbody
+}
+
+const appendSubhead = (tbody: HTMLTableSectionElement, text: string): void => {
+  const tr = document.createElement('tr')
+  tr.className = 'dev-subhead'
+  const td = document.createElement('td')
+  td.colSpan = 5
+  td.textContent = text
+  tr.appendChild(td)
+  tbody.appendChild(tr)
+}
+
+interface DevRowOpts {
+  label: string
+  desc: string
+  unit?: string
+  group: DevGroup
+  defaultText: string
+  isOverridden: () => boolean
+  buildValue: (cell: HTMLTableCellElement) => void
+  onReset?: () => void
+}
+
+const appendDevRow = (tbody: HTMLTableSectionElement, o: DevRowOpts): HTMLTableRowElement => {
+  const tr = document.createElement('tr')
+  tr.className = 'dev-row'
+  const nameCell = document.createElement('td')
+  nameCell.className = 'dev-name'
+  const lab = document.createElement('label')
+  lab.textContent = o.label
+  const desc = document.createElement('div')
+  desc.className = 'dev-desc'
+  desc.textContent = o.desc
+  nameCell.appendChild(lab)
+  nameCell.appendChild(desc)
+  const valueCell = document.createElement('td')
+  valueCell.className = 'dev-value'
+  o.buildValue(valueCell)
+  const unitCell = document.createElement('td')
+  unitCell.className = 'dev-unit'
+  unitCell.textContent = o.unit ?? ''
+  const defCell = document.createElement('td')
+  defCell.className = 'dev-default'
+  defCell.textContent = o.defaultText
+  const resetCell = document.createElement('td')
+  resetCell.className = 'dev-reset'
+  if (o.onReset) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'dev-reset-btn'
+    btn.textContent = '\u21ba'
+    btn.title = t('dev.resetField')
+    btn.addEventListener('click', () => o.onReset?.())
+    resetCell.appendChild(btn)
+  }
+  tr.appendChild(nameCell)
+  tr.appendChild(valueCell)
+  tr.appendChild(unitCell)
+  tr.appendChild(defCell)
+  tr.appendChild(resetCell)
+  tbody.appendChild(tr)
+  syncRowMark(tr, o.isOverridden())
+  registerDevRow(tr, o.group, `${o.label} ${o.desc}`, o.isOverridden)
+  return tr
+}
+
+const makeNumberRow = (
+  tbody: HTMLTableSectionElement,
+  o: {
+    label: string
+    desc: string
+    unit?: string
+    group?: DevGroup
+    value: number
+    default: number
+    min: number
+    max: number
+    step: number
+    onCommit: (v: number) => void
+    onReset?: () => void
+  },
 ): void => {
-  const wrap = document.createElement('div')
-  wrap.className = 'dev-field'
-  const l = document.createElement('label')
-  l.textContent = unit ? `${label} (${unit})` : label
-  const d = document.createElement('div')
-  d.className = 'dev-desc'
-  d.textContent = desc
   const input = document.createElement('input')
   input.type = 'number'
-  input.min = String(min)
-  input.max = String(max)
-  input.step = String(step)
-  input.value = String(value)
-  input.title = t('dev.units.default', { v: `${defaultValue}${unit ? ` ${unit}` : ''}` })
-  const setMark = (ov: boolean): void => {
-    wrap.classList.toggle('dev-overridden', ov)
+  input.min = String(o.min)
+  input.max = String(o.max)
+  input.step = String(o.step)
+  input.value = String(o.value)
+  input.title = t('dev.units.default', { v: `${o.default}${o.unit ? ` ${o.unit}` : ''}` })
+  const isOverridden = (): boolean => {
+    const v = Number(input.value)
+    return Number.isFinite(v) && Math.abs(v - o.default) >= 1e-9
   }
-  setMark(overridden)
+  const row = appendDevRow(tbody, {
+    label: o.label,
+    desc: o.desc,
+    unit: o.unit,
+    group: o.group ?? 'synced',
+    defaultText: `${o.default}${o.unit ? ` ${o.unit}` : ''}`,
+    isOverridden,
+    buildValue: (cell) => cell.appendChild(input),
+    onReset: o.onReset,
+  })
   input.addEventListener('change', () => {
     const raw = Number(input.value)
     if (!Number.isFinite(raw)) return
-    const v = clampNum(raw, min, max)
+    const v = clampNum(raw, o.min, o.max)
     input.value = String(v)
-    setMark(Math.abs(v - defaultValue) >= 1e-9)
-    onCommit(v)
-    // info tables reflect effective values — keep them in sync
+    syncRowMark(row, isOverridden())
+    o.onCommit(v)
     renderActiveInfoTab()
+    applyDevFilters()
   })
-  wrap.appendChild(l)
-  wrap.appendChild(d)
-  wrap.appendChild(input)
-  devGroupEl.appendChild(wrap)
 }
 
-const makeTextInput = (
-  label: string,
-  desc: string,
-  value: string,
-  onCommit: (v: string) => void,
-  placeholder = 'folder/{color}/folder_{frame}.png',
+const makeTextRow = (
+  tbody: HTMLTableSectionElement,
+  o: { label: string; desc: string; value: string; placeholder?: string; onCommit: (v: string) => void },
 ): void => {
-  const wrap = document.createElement('div')
-  wrap.className = 'dev-field'
-  const l = document.createElement('label')
-  l.textContent = label
-  const d = document.createElement('div')
-  d.className = 'dev-desc'
-  d.textContent = desc
   const input = document.createElement('input')
   input.type = 'text'
-  input.value = value
-  input.placeholder = placeholder
-  input.addEventListener('change', () => onCommit(input.value.trim()))
-  wrap.appendChild(l)
-  wrap.appendChild(d)
-  wrap.appendChild(input)
-  devGroupEl.appendChild(wrap)
-}
-
-const makeSelectInput = (
-  label: string,
-  desc: string,
-  value: string,
-  options: Array<{ value: string; label: string }>,
-  defaultValue: string,
-  onCommit: (v: string) => void,
-): void => {
-  const wrap = document.createElement('div')
-  wrap.className = 'dev-field'
-  const l = document.createElement('label')
-  l.textContent = label
-  const d = document.createElement('div')
-  d.className = 'dev-desc'
-  d.textContent = desc
-  const input = document.createElement('select')
-  for (const o of options) {
-    const opt = document.createElement('option')
-    opt.value = o.value
-    opt.textContent = o.label
-    input.appendChild(opt)
-  }
-  input.value = value
-  wrap.classList.toggle('dev-overridden', value !== defaultValue)
-  input.addEventListener('change', () => {
-    wrap.classList.toggle('dev-overridden', input.value !== defaultValue)
-    onCommit(input.value)
-    renderActiveInfoTab()
+  input.value = o.value
+  input.placeholder = o.placeholder ?? 'folder/{color}/folder_{frame}.png'
+  const isOverridden = (): boolean => input.value.trim().length > 0
+  const row = appendDevRow(tbody, {
+    label: o.label,
+    desc: o.desc,
+    group: 'client',
+    defaultText: '',
+    isOverridden,
+    buildValue: (cell) => cell.appendChild(input),
   })
-  wrap.appendChild(l)
-  wrap.appendChild(d)
-  wrap.appendChild(input)
-  devGroupEl.appendChild(wrap)
+  input.addEventListener('change', () => {
+    o.onCommit(input.value.trim())
+    syncRowMark(row, isOverridden())
+    applyDevFilters()
+  })
 }
 
-const appendAssetGroupLabel = (text: string): void => {
-  const h = document.createElement('div')
-  h.className = 'tools-label'
-  h.style.textAlign = 'left'
-  h.style.marginTop = '6px'
-  h.textContent = text
-  devGroupEl.appendChild(h)
+const makeSelectRow = (
+  tbody: HTMLTableSectionElement,
+  o: {
+    label: string
+    desc: string
+    value: string
+    options: Array<{ value: string; label: string }>
+    default: string
+    onCommit: (v: string) => void
+    onReset?: () => void
+  },
+): void => {
+  const select = document.createElement('select')
+  for (const opt of o.options) {
+    const el = document.createElement('option')
+    el.value = opt.value
+    el.textContent = opt.label
+    select.appendChild(el)
+  }
+  select.value = o.value
+  const isOverridden = (): boolean => select.value !== o.default
+  const row = appendDevRow(tbody, {
+    label: o.label,
+    desc: o.desc,
+    group: 'synced',
+    defaultText: o.options.find((x) => x.value === o.default)?.label ?? o.default,
+    isOverridden,
+    buildValue: (cell) => cell.appendChild(select),
+    onReset: o.onReset,
+  })
+  select.addEventListener('change', () => {
+    syncRowMark(row, isOverridden())
+    o.onCommit(select.value)
+    renderActiveInfoTab()
+    applyDevFilters()
+  })
 }
 
-/** Dev-settings audio row for one sound kind: override path (with quick apply/clear)
- * plus per-sound volume & pitch tune inputs. */
-const audioRow = (id: SoundId): void => {
+/** Audio row: path override with quick apply/clear, plus per-sound volume & pitch. */
+const makeAudioRow = (tbody: HTMLTableSectionElement, id: SoundId): void => {
   const tun = getAudio().tuning[id] ?? { vol: 1, pitch: 1 }
-  const wrap = document.createElement('div')
-  wrap.className = 'dev-field'
-  const l = document.createElement('label')
-  l.textContent = t(`dev.audio.${id}`)
-  const d = document.createElement('div')
-  d.className = 'dev-desc'
-  d.textContent = t('dev.fields.audioPath.desc')
   const pathLine = document.createElement('div')
   pathLine.className = 'dev-audio-line'
   const input = document.createElement('input')
   input.type = 'text'
   input.value = getAudio().overrides[id] ?? ''
   input.placeholder = 'sound/{id}/'
-  const mark = (ov: boolean): void => {
-    wrap.classList.toggle('dev-overridden', ov)
-  }
+  const isOverridden = (): boolean => (getAudio().overrides[id] ?? '').length > 0
+  let audioRowEl: HTMLTableRowElement | null = null
   const commitPath = (): void => {
-    const value = input.value.trim()
-    setOverride(id, value)
-    mark(value.length > 0)
+    setOverride(id, input.value.trim())
+    if (audioRowEl) syncRowMark(audioRowEl, isOverridden())
     setDevStatus(t('dev.status.audioSaved'))
     renderActiveInfoTab()
+    applyDevFilters()
   }
   const playBtn = document.createElement('button')
   playBtn.type = 'button'
@@ -3016,11 +2926,11 @@ const audioRow = (id: SoundId): void => {
     commitPath()
   })
   input.addEventListener('change', commitPath)
-  mark((getAudio().overrides[id] ?? '').length > 0)
   pathLine.appendChild(playBtn)
   pathLine.appendChild(input)
   pathLine.appendChild(applyBtn)
   pathLine.appendChild(clearBtn)
+
   const tuneLine = document.createElement('div')
   tuneLine.className = 'dev-audio-line'
   const mkTune = (field: 'vol' | 'pitch'): HTMLInputElement => {
@@ -3055,14 +2965,21 @@ const audioRow = (id: SoundId): void => {
   }
   volInput.addEventListener('change', commitTune)
   pitchInput.addEventListener('change', commitTune)
-  wrap.appendChild(l)
-  wrap.appendChild(d)
-  wrap.appendChild(pathLine)
-  wrap.appendChild(tuneLine)
-  devGroupEl.appendChild(wrap)
+
+  audioRowEl = appendDevRow(tbody, {
+    label: t(`dev.audio.${id}`),
+    desc: t('dev.fields.audioPath.desc'),
+    group: 'client',
+    defaultText: '',
+    isOverridden,
+    buildValue: (cell) => {
+      cell.appendChild(pathLine)
+      cell.appendChild(tuneLine)
+    },
+  })
 }
 
-const buildOverrideInputs = (mapKey: OverrideMapKey, id: string, defs: OverrideFieldDef[]): void => {
+const buildOverrideInputs = (tbody: HTMLTableSectionElement, mapKey: OverrideMapKey, id: string, defs: DevOverrideFieldDef[]): void => {
   const defaults = OVERRIDE_SOURCES[mapKey][id] ?? {}
   const devMaps = devOverrides as Record<string, Record<string, Record<string, number>> | undefined>
   for (const f of defs) {
@@ -3072,17 +2989,17 @@ const buildOverrideInputs = (mapKey: OverrideMapKey, id: string, defs: OverrideF
     const current = overrideRaw ?? defaultRaw
     const inSeconds = f.seconds === true
     const displayDefault = inSeconds ? defaultRaw / SIM_TICK_HZ : defaultRaw
-    makeNumberInput(
-      t(`dev.overrides.${f.field}.label`),
-      t(`dev.overrides.${f.field}.desc`),
-      f.unit ? devUnit(f.unit) : undefined,
-      inSeconds ? current / SIM_TICK_HZ : current,
-      displayDefault,
-      f.min,
-      f.max,
-      f.step,
-      overrideRaw !== undefined,
-      (v) => {
+    makeNumberRow(tbody, {
+      label: t(`dev.overrides.${f.field}.label`),
+      desc: t(`dev.overrides.${f.field}.desc`),
+      unit: f.unit ? devUnit(f.unit) : undefined,
+      group: 'synced',
+      value: inSeconds ? current / SIM_TICK_HZ : current,
+      default: displayDefault,
+      min: f.min,
+      max: f.max,
+      step: f.step,
+      onCommit: (v) => {
         if (Math.abs(v - displayDefault) < 1e-9) {
           clearDevOverride(mapKey, id, f.field)
           setDevStatus(t('dev.status.overrideDefault', { id, field: f.field, v: inSeconds ? `${displayDefault}s` : displayDefault }))
@@ -3092,447 +3009,655 @@ const buildOverrideInputs = (mapKey: OverrideMapKey, id: string, defs: OverrideF
           setDevStatus(t('dev.status.overrideSet', { id, field: f.field, v: inSeconds ? `${v}s (${raw} ticks)` : v }))
         }
       },
-    )
+      onReset: () => {
+        clearDevOverride(mapKey, id, f.field)
+        refreshDevForm()
+      },
+    })
   }
 }
 
 const buildDevForm = (): void => {
+  devRows = []
   devFormEl.innerHTML = ''
   const resolved = resolvedDevSettings()
   const g = getGraphics()
-  appendDevSection(t('dev.sections.buildingFill'))
-  makeNumberInput(
-    t('dev.fields.buildingFillMedium.label'),
-    t('dev.fields.buildingFillMedium.desc'),
-    devUnit('0–1'),
-    g.buildingFill.medium,
-    DEFAULT_BUILDING_FILL.medium,
-    0,
-    1,
-    0.05,
-    Math.abs(g.buildingFill.medium - DEFAULT_BUILDING_FILL.medium) >= 1e-9,
-    (v) => {
-      setBuildingFill('medium', v)
-      setDevStatus(t('dev.status.fillSet', { quality: t('settings.graphics.quality.medium'), v }))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.buildingFillHigh.label'),
-    t('dev.fields.buildingFillHigh.desc'),
-    devUnit('0–1'),
-    g.buildingFill.high,
-    DEFAULT_BUILDING_FILL.high,
-    0,
-    1,
-    0.05,
-    Math.abs(g.buildingFill.high - DEFAULT_BUILDING_FILL.high) >= 1e-9,
-    (v) => {
-      setBuildingFill('high', v)
-      setDevStatus(t('dev.status.fillSet', { quality: t('settings.graphics.quality.high'), v }))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.buildingOffsetMedium.label'),
-    t('dev.fields.buildingOffsetMedium.desc'),
-    devUnit('0–1'),
-    g.buildingOffset.medium,
-    DEFAULT_BUILDING_OFFSET.medium,
-    -2,
-    2,
-    0.05,
-    Math.abs(g.buildingOffset.medium - DEFAULT_BUILDING_OFFSET.medium) >= 1e-9,
-    (v) => {
-      setBuildingOffset('medium', v)
-      setDevStatus(t('dev.status.offsetSet', { quality: t('settings.graphics.quality.medium'), v }))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.buildingOffsetHigh.label'),
-    t('dev.fields.buildingOffsetHigh.desc'),
-    devUnit('0–1'),
-    g.buildingOffset.high,
-    DEFAULT_BUILDING_OFFSET.high,
-    -2,
-    2,
-    0.05,
-    Math.abs(g.buildingOffset.high - DEFAULT_BUILDING_OFFSET.high) >= 1e-9,
-    (v) => {
-      setBuildingOffset('high', v)
-      setDevStatus(t('dev.status.offsetSet', { quality: t('settings.graphics.quality.high'), v }))
-    },
-  )
-  appendDevSection(t('dev.sections.assets'))
-  appendAssetGroupLabel(t('dev.assets.buildings'))
-  for (const id of Object.keys(BUILDINGS)) {
-    makeTextInput(
-      tn(id, BUILDINGS[id].name),
-      t('dev.fields.assetBuilding.desc'),
-      g.assetPaths[`building:${id}`] ?? '',
-      (v) => {
-        setAssetPath(`building:${id}`, v)
-        setDevStatus(t('dev.status.assetSaved'))
-      },
-    )
+
+  // ---- Synced: match variables ----
+  for (const section of DEV_SCALAR_SECTIONS) {
+    const tbody = makeTable(appendDevSection(t(`dev.sections.${section.title}`), 'synced'))
+    for (const def of section.fields) {
+      const currentRaw = resolved[def.key] as number
+      const defaultRaw = DEFAULT_MATCH_SETTINGS[def.key] as number
+      const inSeconds = def.seconds === true
+      const displayCurrent = inSeconds ? currentRaw / SIM_TICK_HZ : currentRaw
+      const displayDefault = inSeconds ? defaultRaw / SIM_TICK_HZ : defaultRaw
+      const fieldLabel = t(`dev.fields.${def.key}.label`)
+      makeNumberRow(tbody, {
+        label: fieldLabel,
+        desc: t(`dev.fields.${def.key}.desc`),
+        unit: def.unit ? devUnit(def.unit) : undefined,
+        group: 'synced',
+        value: displayCurrent,
+        default: displayDefault,
+        min: def.min,
+        max: def.max,
+        step: def.step,
+        onCommit: (v) => {
+          const isDefault = Math.abs(v - displayDefault) < 1e-9
+          if (isDefault) clearDevScalar(def.key)
+          else devOverrides = { ...devOverrides, [def.key]: inSeconds ? SECONDS_TO_TICKS(v) : v }
+          setDevStatus(
+            isDefault
+              ? t('dev.status.scalarDefault', { label: fieldLabel, v: displayDefault })
+              : t('dev.status.scalarSet', { label: fieldLabel, v: inSeconds ? `${v}s (${SECONDS_TO_TICKS(v)} ticks)` : v }),
+          )
+        },
+        onReset: () => {
+          clearDevScalar(def.key)
+          refreshDevForm()
+        },
+      })
+    }
+    if (section.title === 'fog') {
+      makeSelectRow(tbody, {
+        label: t('dev.fields.fogMode.label'),
+        desc: t('dev.fields.fogMode.desc'),
+        value: resolved.fogMode,
+        options: FOG_MODES.map((m) => ({ value: m, label: t(`offline.fog.${m}`) })),
+        default: DEFAULT_MATCH_SETTINGS.fogMode,
+        onCommit: (v) => {
+          if (v === DEFAULT_MATCH_SETTINGS.fogMode) clearDevScalar('fogMode')
+          else devOverrides = { ...devOverrides, fogMode: v as FogMode }
+          setDevStatus(
+            v === DEFAULT_MATCH_SETTINGS.fogMode
+              ? t('dev.status.scalarDefault', { label: t('dev.fields.fogMode.label'), v: t(`offline.fog.${DEFAULT_MATCH_SETTINGS.fogMode}`) })
+              : t('dev.status.scalarSet', { label: t('dev.fields.fogMode.label'), v: t(`offline.fog.${v}`) }),
+          )
+        },
+        onReset: () => {
+          clearDevScalar('fogMode')
+          refreshDevForm()
+        },
+      })
+    }
   }
-  appendAssetGroupLabel(t('dev.assets.units'))
-  for (const id of UNIT_ASSET_IDS) {
-    makeTextInput(tn(id, UNITS[id]?.name ?? id), t('dev.fields.assetUnit.desc'), g.assetPaths[`unit:${id}`] ?? '', (v) => {
-      setAssetPath(`unit:${id}`, v)
-      setDevStatus(t('dev.status.assetSaved'))
-    })
-  }
-  appendAssetGroupLabel(t('dev.assets.hud'))
-  for (const id of HUD_ASSET_IDS) {
-    makeTextInput(
-      tn(id, UNITS[id]?.name ?? BUILDINGS[id]?.name ?? id),
-      t('dev.fields.assetHud.desc'),
-      g.assetPaths[`hud:${id}`] ?? '',
-      (v) => {
-        setAssetPath(`hud:${id}`, v)
-        setDevStatus(t('dev.status.assetSaved'))
-      },
-      'hud/hud_cc.png',
-    )
-  }
-  for (const cls of ['vehicle', 'infantry', 'air', 'naval'] as const) {
-    makeNumberInput(
-      t(`dev.fields.unitScale.${cls}.label`),
-      t('dev.fields.unitScale.desc'),
-      devUnit('x'),
-      g.unitScale[cls],
-      DEFAULT_UNIT_SCALE[cls],
-      0.1,
-      5,
-      0.05,
-      Math.abs(g.unitScale[cls] - DEFAULT_UNIT_SCALE[cls]) >= 1e-9,
-      (v) => {
-        setUnitScale(cls, v)
-        setDevStatus(t('dev.status.saved'))
-      },
-    )
-  }
-  for (const cls of ['vehicle', 'infantry', 'air', 'naval'] as const) {
-    makeNumberInput(
-      t(`dev.fields.unitOffset.${cls}.label`),
-      t('dev.fields.unitOffset.desc'),
-      devUnit('0–1'),
-      g.unitOffset[cls],
-      DEFAULT_UNIT_OFFSET[cls],
-      -2,
-      2,
-      0.05,
-      Math.abs(g.unitOffset[cls] - DEFAULT_UNIT_OFFSET[cls]) >= 1e-9,
-      (v) => {
-        setUnitOffset(cls, v)
-        setDevStatus(t('dev.status.saved'))
-      },
-    )
-  }
-  appendDevSection(t('dev.sections.layerOrder'))
-  for (const kind of SPRITE_LAYER_KINDS) {
-    makeNumberInput(
-      t(`dev.fields.spriteLayer.${kind}.label`),
-      t('dev.fields.spriteLayer.desc'),
-      devUnit('1'),
-      g.spriteLayerOrder[kind],
-      DEFAULT_SPRITE_LAYER_ORDER[kind],
-      -50,
-      50,
-      1,
-      g.spriteLayerOrder[kind] !== DEFAULT_SPRITE_LAYER_ORDER[kind],
-      (v) => {
-        setSpriteLayerOrder(kind, v)
-        setDevStatus(t('dev.status.saved'))
-      },
-    )
-  }
-  appendAssetGroupLabel(t('dev.assets.fields'))
-  makeTextInput(
-    t('dev.assets.supplyField'),
-    t('dev.fields.fieldSupply.desc'),
-    g.assetPaths['field:supply'] ?? '',
-    (v) => {
-      setAssetPath('field:supply', v)
-      setDevStatus(t('dev.status.assetSaved'))
-    },
-  )
-  makeTextInput(
-    t('dev.assets.oilField'),
-    t('dev.fields.fieldOil.desc'),
-    g.assetPaths['field:oil'] ?? '',
-    (v) => {
-      setAssetPath('field:oil', v)
-      setDevStatus(t('dev.status.assetSaved'))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.fieldOffset.label'),
-    t('dev.fields.fieldOffset.desc'),
-    devUnit('0–1'),
-    g.fieldOffset,
-    DEFAULT_FIELD_OFFSET,
-    -2,
-    2,
-    0.05,
-    Math.abs(g.fieldOffset - DEFAULT_FIELD_OFFSET) >= 1e-9,
-    (v) => {
-      setFieldOffset(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.fieldScale.label'),
-    t('dev.fields.fieldScale.desc'),
-    devUnit('x'),
-    g.fieldScale,
-    DEFAULT_FIELD_SCALE,
-    0.1,
-    5,
-    0.05,
-    Math.abs(g.fieldScale - DEFAULT_FIELD_SCALE) >= 1e-9,
-    (v) => {
-      setFieldScale(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  appendAssetGroupLabel(t('dev.assets.obstacles'))
-  for (const k of OBSTACLE_ASSET_TYPES) {
-    makeTextInput(k, t('dev.fields.assetObstacle.desc'), g.assetPaths[`obstacle:${k}`] ?? '', (v) => {
-      setAssetPath(`obstacle:${k}`, v)
-      setDevStatus(t('dev.status.assetSaved'))
-    })
-  }
-  makeNumberInput(
-    t('dev.fields.obstacleScale.label'),
-    t('dev.fields.obstacleScale.desc'),
-    devUnit('x'),
-    g.obstacleScale,
-    DEFAULT_OBSTACLE_SCALE,
-    0.1,
-    5,
-    0.05,
-    Math.abs(g.obstacleScale - DEFAULT_OBSTACLE_SCALE) >= 1e-9,
-    (v) => {
-      setObstacleScale(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.obstacleOffset.label'),
-    t('dev.fields.obstacleOffset.desc'),
-    devUnit('0–1'),
-    g.obstacleOffset,
-    DEFAULT_OBSTACLE_OFFSET,
-    -2,
-    2,
-    0.05,
-    Math.abs(g.obstacleOffset - DEFAULT_OBSTACLE_OFFSET) >= 1e-9,
-    (v) => {
-      setObstacleOffset(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  appendAssetGroupLabel(t('dev.assets.fx'))
-  makeTextInput(t('dev.assets.burn'), t('dev.fields.assetBurn.desc'), g.assetPaths['fx:burn'] ?? '', (v) => {
-    setAssetPath('fx:burn', v)
-    setDevStatus(t('dev.status.assetSaved'))
-    preloadFxFrames('burn')
-  })
-  makeNumberInput(
-    t('dev.fields.fxScale.label'),
-    t('dev.fields.fxScale.desc'),
-    devUnit('x'),
-    g.fxScale,
-    DEFAULT_FX_SCALE,
-    0.05,
-    3,
-    0.05,
-    Math.abs(g.fxScale - DEFAULT_FX_SCALE) >= 1e-9,
-    (v) => {
-      setFxScale(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.fxOffset.label'),
-    t('dev.fields.fxOffset.desc'),
-    devUnit('0–1'),
-    g.fxOffset,
-    DEFAULT_FX_OFFSET,
-    -2,
-    2,
-    0.05,
-    Math.abs(g.fxOffset - DEFAULT_FX_OFFSET) >= 1e-9,
-    (v) => {
-      setFxOffset(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  appendAssetGroupLabel(t('dev.assets.minimap'))
-  makeNumberInput(
-    t('dev.fields.minimapScale.label'),
-    t('dev.fields.minimapScale.desc'),
-    devUnit('x'),
-    g.minimapScale,
-    DEFAULT_MINIMAP_SCALE,
-    1.2,
-    4,
-    0.1,
-    Math.abs(g.minimapScale - DEFAULT_MINIMAP_SCALE) >= 1e-9,
-    (v) => {
-      setMinimapScale(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  appendDevSection(t('dev.sections.match'))
-  makeNumberInput(
-    t('dev.fields.victoryCinematic.label'),
-    t('dev.fields.victoryCinematic.desc'),
-    devUnit('sec'),
-    g.victoryCinematicSec,
-    DEFAULT_VICTORY_CINEMATIC,
-    0,
-    30,
-    1,
-    g.victoryCinematicSec !== DEFAULT_VICTORY_CINEMATIC,
-    (v) => {
-      setVictoryCinematicSec(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  appendDevSection(t('dev.sections.zoom'))
-  makeNumberInput(
-    t('dev.fields.zoomMin.label'),
-    t('dev.fields.zoomMin.desc'),
-    devUnit('x'),
-    g.zoomMin,
-    DEFAULT_ZOOM_MIN,
-    0.05,
-    1,
-    0.05,
-    Math.abs(g.zoomMin - DEFAULT_ZOOM_MIN) >= 1e-9,
-    (v) => {
-      setZoomMin(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.zoomMax.label'),
-    t('dev.fields.zoomMax.desc'),
-    devUnit('x'),
-    g.zoomMax,
-    DEFAULT_ZOOM_MAX,
-    1,
-    20,
-    0.05,
-    Math.abs(g.zoomMax - DEFAULT_ZOOM_MAX) >= 1e-9,
-    (v) => {
-      setZoomMax(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.replayZoomMin.label'),
-    t('dev.fields.replayZoomMin.desc'),
-    devUnit('x'),
-    g.replayZoomMin,
-    DEFAULT_REPLAY_ZOOM_MIN,
-    0.05,
-    1,
-    0.05,
-    Math.abs(g.replayZoomMin - DEFAULT_REPLAY_ZOOM_MIN) >= 1e-9,
-    (v) => {
-      setReplayZoomMin(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.replayZoomMax.label'),
-    t('dev.fields.replayZoomMax.desc'),
-    devUnit('x'),
-    g.replayZoomMax,
-    DEFAULT_REPLAY_ZOOM_MAX,
-    1,
-    50,
-    0.1,
-    Math.abs(g.replayZoomMax - DEFAULT_REPLAY_ZOOM_MAX) >= 1e-9,
-    (v) => {
-      setReplayZoomMax(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  appendDevSection(t('dev.sections.projectileFx'))
-  makeNumberInput(
-    t('dev.fields.projectileBulletSize.label'),
-    t('dev.fields.projectileBulletSize.desc'),
-    devUnit('x'),
-    g.projectileBulletSize,
-    DEFAULT_PROJECTILE_BULLET_SIZE,
-    0.2,
-    4,
-    0.1,
-    Math.abs(g.projectileBulletSize - DEFAULT_PROJECTILE_BULLET_SIZE) >= 1e-9,
-    (v) => {
-      setProjectileBulletSize(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.projectileRocketSize.label'),
-    t('dev.fields.projectileRocketSize.desc'),
-    devUnit('x'),
-    g.projectileRocketSize,
-    DEFAULT_PROJECTILE_ROCKET_SIZE,
-    0.2,
-    4,
-    0.1,
-    Math.abs(g.projectileRocketSize - DEFAULT_PROJECTILE_ROCKET_SIZE) >= 1e-9,
-    (v) => {
-      setProjectileRocketSize(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.projectileShellSize.label'),
-    t('dev.fields.projectileShellSize.desc'),
-    devUnit('x'),
-    g.projectileShellSize,
-    DEFAULT_PROJECTILE_SHELL_SIZE,
-    0.2,
-    4,
-    0.1,
-    Math.abs(g.projectileShellSize - DEFAULT_PROJECTILE_SHELL_SIZE) >= 1e-9,
-    (v) => {
-      setProjectileShellSize(v)
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  makeNumberInput(
-    t('dev.fields.projectileShellHeight.label'),
-    t('dev.fields.projectileShellHeight.desc'),
-    devUnit('px'),
-    g.projectileShellHeight,
-    DEFAULT_PROJECTILE_SHELL_HEIGHT,
-    0,
-    60,
-    1,
-    Math.abs(g.projectileShellHeight - DEFAULT_PROJECTILE_SHELL_HEIGHT) >= 1e-9,
-    (v) => {
-      setProjectileShellHeight(Math.round(v))
-      setDevStatus(t('dev.status.saved'))
-    },
-  )
-  appendDevSection(t('dev.sections.audio'))
+
   {
-    const wrap = document.createElement('div')
-    wrap.className = 'dev-field'
-    const l = document.createElement('label')
-    l.textContent = t('dev.fields.audioPing.label')
-    const d = document.createElement('div')
-    d.className = 'dev-desc'
-    d.textContent = t('dev.fields.audioPing.desc')
-    const line = document.createElement('div')
-    line.className = 'dev-audio-line'
+    const body = appendDevSection(t('dev.sections.buildings'), 'synced')
+    for (const id of Object.keys(BUILDINGS)) {
+      buildOverrideInputs(makeTable(appendDevItemHeader(body, tn(id, BUILDINGS[id].name))), 'buildingOverrides', id, DEV_OVERRIDE_BUILDING_FIELDS)
+    }
+  }
+  {
+    const body = appendDevSection(t('dev.sections.units'), 'synced')
+    for (const id of Object.keys(UNITS)) {
+      buildOverrideInputs(makeTable(appendDevItemHeader(body, tn(id, UNITS[id].name))), 'unitOverrides', id, DEV_OVERRIDE_UNIT_FIELDS)
+    }
+  }
+  {
+    const body = appendDevSection(t('dev.sections.weapons'), 'synced')
+    for (const id of Object.keys(WEAPONS)) {
+      buildOverrideInputs(makeTable(appendDevItemHeader(body, WEAPONS[id].id)), 'weaponOverrides', id, DEV_OVERRIDE_WEAPON_FIELDS)
+    }
+  }
+  {
+    const body = appendDevSection(t('dev.sections.upgrades'), 'synced')
+    for (const id of Object.keys(UPGRADES)) {
+      buildOverrideInputs(makeTable(appendDevItemHeader(body, tn(id, UPGRADES[id].name))), 'upgradeOverrides', id, DEV_OVERRIDE_UPGRADE_FIELDS)
+    }
+  }
+
+  // ---- Client-only: presentation ----
+  {
+    const tbody = makeTable(appendDevSection(t('dev.sections.buildingFill'), 'client'))
+    makeNumberRow(tbody, {
+      label: t('dev.fields.buildingFillMedium.label'),
+      desc: t('dev.fields.buildingFillMedium.desc'),
+      unit: devUnit('0–1'),
+      group: 'client',
+      value: g.buildingFill.medium,
+      default: DEFAULT_BUILDING_FILL.medium,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      onCommit: (v) => {
+        setBuildingFill('medium', v)
+        setDevStatus(t('dev.status.fillSet', { quality: t('settings.graphics.quality.medium'), v }))
+      },
+      onReset: () => {
+        setBuildingFill('medium', DEFAULT_BUILDING_FILL.medium)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.buildingFillHigh.label'),
+      desc: t('dev.fields.buildingFillHigh.desc'),
+      unit: devUnit('0–1'),
+      group: 'client',
+      value: g.buildingFill.high,
+      default: DEFAULT_BUILDING_FILL.high,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      onCommit: (v) => {
+        setBuildingFill('high', v)
+        setDevStatus(t('dev.status.fillSet', { quality: t('settings.graphics.quality.high'), v }))
+      },
+      onReset: () => {
+        setBuildingFill('high', DEFAULT_BUILDING_FILL.high)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.buildingOffsetMedium.label'),
+      desc: t('dev.fields.buildingOffsetMedium.desc'),
+      unit: devUnit('0–1'),
+      group: 'client',
+      value: g.buildingOffset.medium,
+      default: DEFAULT_BUILDING_OFFSET.medium,
+      min: -2,
+      max: 2,
+      step: 0.05,
+      onCommit: (v) => {
+        setBuildingOffset('medium', v)
+        setDevStatus(t('dev.status.offsetSet', { quality: t('settings.graphics.quality.medium'), v }))
+      },
+      onReset: () => {
+        setBuildingOffset('medium', DEFAULT_BUILDING_OFFSET.medium)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.buildingOffsetHigh.label'),
+      desc: t('dev.fields.buildingOffsetHigh.desc'),
+      unit: devUnit('0–1'),
+      group: 'client',
+      value: g.buildingOffset.high,
+      default: DEFAULT_BUILDING_OFFSET.high,
+      min: -2,
+      max: 2,
+      step: 0.05,
+      onCommit: (v) => {
+        setBuildingOffset('high', v)
+        setDevStatus(t('dev.status.offsetSet', { quality: t('settings.graphics.quality.high'), v }))
+      },
+      onReset: () => {
+        setBuildingOffset('high', DEFAULT_BUILDING_OFFSET.high)
+        refreshDevForm()
+      },
+    })
+  }
+
+  {
+    const tbody = makeTable(appendDevSection(t('dev.sections.assets'), 'client'))
+    appendSubhead(tbody, t('dev.assets.buildings'))
+    for (const id of Object.keys(BUILDINGS)) {
+      makeTextRow(tbody, {
+        label: tn(id, BUILDINGS[id].name),
+        desc: t('dev.fields.assetBuilding.desc'),
+        value: g.assetPaths[`building:${id}`] ?? '',
+        onCommit: (v) => {
+          setAssetPath(`building:${id}`, v)
+          setDevStatus(t('dev.status.assetSaved'))
+        },
+      })
+    }
+    appendSubhead(tbody, t('dev.assets.units'))
+    for (const id of UNIT_ASSET_IDS) {
+      makeTextRow(tbody, {
+        label: tn(id, UNITS[id]?.name ?? id),
+        desc: t('dev.fields.assetUnit.desc'),
+        value: g.assetPaths[`unit:${id}`] ?? '',
+        onCommit: (v) => {
+          setAssetPath(`unit:${id}`, v)
+          setDevStatus(t('dev.status.assetSaved'))
+        },
+      })
+    }
+    appendSubhead(tbody, t('dev.assets.hud'))
+    for (const id of HUD_ASSET_IDS) {
+      makeTextRow(tbody, {
+        label: tn(id, UNITS[id]?.name ?? BUILDINGS[id]?.name ?? id),
+        desc: t('dev.fields.assetHud.desc'),
+        value: g.assetPaths[`hud:${id}`] ?? '',
+        placeholder: 'hud/hud_cc.png',
+        onCommit: (v) => {
+          setAssetPath(`hud:${id}`, v)
+          setDevStatus(t('dev.status.assetSaved'))
+        },
+      })
+    }
+    appendSubhead(tbody, t('dev.fields.unitScale.desc'))
+    for (const cls of ['vehicle', 'infantry', 'air', 'naval'] as const) {
+      makeNumberRow(tbody, {
+        label: t(`dev.fields.unitScale.${cls}.label`),
+        desc: t('dev.fields.unitScale.desc'),
+        unit: devUnit('x'),
+        group: 'client',
+        value: g.unitScale[cls],
+        default: DEFAULT_UNIT_SCALE[cls],
+        min: 0.1,
+        max: 5,
+        step: 0.05,
+        onCommit: (v) => {
+          setUnitScale(cls, v)
+          setDevStatus(t('dev.status.saved'))
+        },
+        onReset: () => {
+          setUnitScale(cls, DEFAULT_UNIT_SCALE[cls])
+          refreshDevForm()
+        },
+      })
+    }
+    for (const cls of ['vehicle', 'infantry', 'air', 'naval'] as const) {
+      makeNumberRow(tbody, {
+        label: t(`dev.fields.unitOffset.${cls}.label`),
+        desc: t('dev.fields.unitOffset.desc'),
+        unit: devUnit('0–1'),
+        group: 'client',
+        value: g.unitOffset[cls],
+        default: DEFAULT_UNIT_OFFSET[cls],
+        min: -2,
+        max: 2,
+        step: 0.05,
+        onCommit: (v) => {
+          setUnitOffset(cls, v)
+          setDevStatus(t('dev.status.saved'))
+        },
+        onReset: () => {
+          setUnitOffset(cls, DEFAULT_UNIT_OFFSET[cls])
+          refreshDevForm()
+        },
+      })
+    }
+    appendSubhead(tbody, t('dev.assets.fields'))
+    makeTextRow(tbody, {
+      label: t('dev.assets.supplyField'),
+      desc: t('dev.fields.fieldSupply.desc'),
+      value: g.assetPaths['field:supply'] ?? '',
+      onCommit: (v) => {
+        setAssetPath('field:supply', v)
+        setDevStatus(t('dev.status.assetSaved'))
+      },
+    })
+    makeTextRow(tbody, {
+      label: t('dev.assets.oilField'),
+      desc: t('dev.fields.fieldOil.desc'),
+      value: g.assetPaths['field:oil'] ?? '',
+      onCommit: (v) => {
+        setAssetPath('field:oil', v)
+        setDevStatus(t('dev.status.assetSaved'))
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.fieldOffset.label'),
+      desc: t('dev.fields.fieldOffset.desc'),
+      unit: devUnit('0–1'),
+      group: 'client',
+      value: g.fieldOffset,
+      default: DEFAULT_FIELD_OFFSET,
+      min: -2,
+      max: 2,
+      step: 0.05,
+      onCommit: (v) => {
+        setFieldOffset(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setFieldOffset(DEFAULT_FIELD_OFFSET)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.fieldScale.label'),
+      desc: t('dev.fields.fieldScale.desc'),
+      unit: devUnit('x'),
+      group: 'client',
+      value: g.fieldScale,
+      default: DEFAULT_FIELD_SCALE,
+      min: 0.1,
+      max: 5,
+      step: 0.05,
+      onCommit: (v) => {
+        setFieldScale(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setFieldScale(DEFAULT_FIELD_SCALE)
+        refreshDevForm()
+      },
+    })
+    appendSubhead(tbody, t('dev.assets.obstacles'))
+    for (const k of OBSTACLE_ASSET_TYPES) {
+      makeTextRow(tbody, {
+        label: k,
+        desc: t('dev.fields.assetObstacle.desc'),
+        value: g.assetPaths[`obstacle:${k}`] ?? '',
+        onCommit: (v) => {
+          setAssetPath(`obstacle:${k}`, v)
+          setDevStatus(t('dev.status.assetSaved'))
+        },
+      })
+    }
+    makeNumberRow(tbody, {
+      label: t('dev.fields.obstacleScale.label'),
+      desc: t('dev.fields.obstacleScale.desc'),
+      unit: devUnit('x'),
+      group: 'client',
+      value: g.obstacleScale,
+      default: DEFAULT_OBSTACLE_SCALE,
+      min: 0.1,
+      max: 5,
+      step: 0.05,
+      onCommit: (v) => {
+        setObstacleScale(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setObstacleScale(DEFAULT_OBSTACLE_SCALE)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.obstacleOffset.label'),
+      desc: t('dev.fields.obstacleOffset.desc'),
+      unit: devUnit('0–1'),
+      group: 'client',
+      value: g.obstacleOffset,
+      default: DEFAULT_OBSTACLE_OFFSET,
+      min: -2,
+      max: 2,
+      step: 0.05,
+      onCommit: (v) => {
+        setObstacleOffset(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setObstacleOffset(DEFAULT_OBSTACLE_OFFSET)
+        refreshDevForm()
+      },
+    })
+    appendSubhead(tbody, t('dev.assets.fx'))
+    makeTextRow(tbody, {
+      label: t('dev.assets.burn'),
+      desc: t('dev.fields.assetBurn.desc'),
+      value: g.assetPaths['fx:burn'] ?? '',
+      onCommit: (v) => {
+        setAssetPath('fx:burn', v)
+        setDevStatus(t('dev.status.assetSaved'))
+        preloadFxFrames('burn')
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.fxScale.label'),
+      desc: t('dev.fields.fxScale.desc'),
+      unit: devUnit('x'),
+      group: 'client',
+      value: g.fxScale,
+      default: DEFAULT_FX_SCALE,
+      min: 0.05,
+      max: 3,
+      step: 0.05,
+      onCommit: (v) => {
+        setFxScale(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setFxScale(DEFAULT_FX_SCALE)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.fxOffset.label'),
+      desc: t('dev.fields.fxOffset.desc'),
+      unit: devUnit('0–1'),
+      group: 'client',
+      value: g.fxOffset,
+      default: DEFAULT_FX_OFFSET,
+      min: -2,
+      max: 2,
+      step: 0.05,
+      onCommit: (v) => {
+        setFxOffset(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setFxOffset(DEFAULT_FX_OFFSET)
+        refreshDevForm()
+      },
+    })
+    appendSubhead(tbody, t('dev.assets.minimap'))
+    makeNumberRow(tbody, {
+      label: t('dev.fields.minimapScale.label'),
+      desc: t('dev.fields.minimapScale.desc'),
+      unit: devUnit('x'),
+      group: 'client',
+      value: g.minimapScale,
+      default: DEFAULT_MINIMAP_SCALE,
+      min: 1.2,
+      max: 4,
+      step: 0.1,
+      onCommit: (v) => {
+        setMinimapScale(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setMinimapScale(DEFAULT_MINIMAP_SCALE)
+        refreshDevForm()
+      },
+    })
+  }
+
+  {
+    const tbody = makeTable(appendDevSection(t('dev.sections.layerOrder'), 'client'))
+    for (const kind of SPRITE_LAYER_KINDS) {
+      makeNumberRow(tbody, {
+        label: t(`dev.fields.spriteLayer.${kind}.label`),
+        desc: t('dev.fields.spriteLayer.desc'),
+        group: 'client',
+        value: g.spriteLayerOrder[kind],
+        default: DEFAULT_SPRITE_LAYER_ORDER[kind],
+        min: -50,
+        max: 50,
+        step: 1,
+        onCommit: (v) => {
+          setSpriteLayerOrder(kind, v)
+          setDevStatus(t('dev.status.saved'))
+        },
+        onReset: () => {
+          setSpriteLayerOrder(kind, DEFAULT_SPRITE_LAYER_ORDER[kind])
+          refreshDevForm()
+        },
+      })
+    }
+  }
+
+  {
+    const tbody = makeTable(appendDevSection(t('dev.sections.projectileFx'), 'client'))
+    makeNumberRow(tbody, {
+      label: t('dev.fields.projectileBulletSize.label'),
+      desc: t('dev.fields.projectileBulletSize.desc'),
+      unit: devUnit('x'),
+      group: 'client',
+      value: g.projectileBulletSize,
+      default: DEFAULT_PROJECTILE_BULLET_SIZE,
+      min: 0.2,
+      max: 4,
+      step: 0.1,
+      onCommit: (v) => {
+        setProjectileBulletSize(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setProjectileBulletSize(DEFAULT_PROJECTILE_BULLET_SIZE)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.projectileRocketSize.label'),
+      desc: t('dev.fields.projectileRocketSize.desc'),
+      unit: devUnit('x'),
+      group: 'client',
+      value: g.projectileRocketSize,
+      default: DEFAULT_PROJECTILE_ROCKET_SIZE,
+      min: 0.2,
+      max: 4,
+      step: 0.1,
+      onCommit: (v) => {
+        setProjectileRocketSize(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setProjectileRocketSize(DEFAULT_PROJECTILE_ROCKET_SIZE)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.projectileShellSize.label'),
+      desc: t('dev.fields.projectileShellSize.desc'),
+      unit: devUnit('x'),
+      group: 'client',
+      value: g.projectileShellSize,
+      default: DEFAULT_PROJECTILE_SHELL_SIZE,
+      min: 0.2,
+      max: 4,
+      step: 0.1,
+      onCommit: (v) => {
+        setProjectileShellSize(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setProjectileShellSize(DEFAULT_PROJECTILE_SHELL_SIZE)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.projectileShellHeight.label'),
+      desc: t('dev.fields.projectileShellHeight.desc'),
+      unit: devUnit('px'),
+      group: 'client',
+      value: g.projectileShellHeight,
+      default: DEFAULT_PROJECTILE_SHELL_HEIGHT,
+      min: 0.2,
+      max: 4,
+      step: 0.1,
+      onCommit: (v) => {
+        setProjectileShellHeight(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setProjectileShellHeight(DEFAULT_PROJECTILE_SHELL_HEIGHT)
+        refreshDevForm()
+      },
+    })
+  }
+
+  {
+    const tbody = makeTable(appendDevSection(t('dev.sections.zoom'), 'client'))
+    makeNumberRow(tbody, {
+      label: t('dev.fields.zoomMin.label'),
+      desc: t('dev.fields.zoomMin.desc'),
+      unit: devUnit('x'),
+      group: 'client',
+      value: g.zoomMin,
+      default: DEFAULT_ZOOM_MIN,
+      min: 0.05,
+      max: 1,
+      step: 0.05,
+      onCommit: (v) => {
+        setZoomMin(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setZoomMin(DEFAULT_ZOOM_MIN)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.zoomMax.label'),
+      desc: t('dev.fields.zoomMax.desc'),
+      unit: devUnit('x'),
+      group: 'client',
+      value: g.zoomMax,
+      default: DEFAULT_ZOOM_MAX,
+      min: 1,
+      max: 20,
+      step: 0.05,
+      onCommit: (v) => {
+        setZoomMax(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setZoomMax(DEFAULT_ZOOM_MAX)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.replayZoomMin.label'),
+      desc: t('dev.fields.replayZoomMin.desc'),
+      unit: devUnit('x'),
+      group: 'client',
+      value: g.replayZoomMin,
+      default: DEFAULT_REPLAY_ZOOM_MIN,
+      min: 0.05,
+      max: 1,
+      step: 0.05,
+      onCommit: (v) => {
+        setReplayZoomMin(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setReplayZoomMin(DEFAULT_REPLAY_ZOOM_MIN)
+        refreshDevForm()
+      },
+    })
+    makeNumberRow(tbody, {
+      label: t('dev.fields.replayZoomMax.label'),
+      desc: t('dev.fields.replayZoomMax.desc'),
+      unit: devUnit('x'),
+      group: 'client',
+      value: g.replayZoomMax,
+      default: DEFAULT_REPLAY_ZOOM_MAX,
+      min: 1,
+      max: 50,
+      step: 0.1,
+      onCommit: (v) => {
+        setReplayZoomMax(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setReplayZoomMax(DEFAULT_REPLAY_ZOOM_MAX)
+        refreshDevForm()
+      },
+    })
+  }
+
+  {
+    const tbody = makeTable(appendDevSection(t('dev.sections.match'), 'client'))
+    makeNumberRow(tbody, {
+      label: t('dev.fields.victoryCinematic.label'),
+      desc: t('dev.fields.victoryCinematic.desc'),
+      unit: devUnit('sec'),
+      group: 'client',
+      value: g.victoryCinematicSec,
+      default: DEFAULT_VICTORY_CINEMATIC,
+      min: 0,
+      max: 30,
+      step: 1,
+      onCommit: (v) => {
+        setVictoryCinematicSec(v)
+        setDevStatus(t('dev.status.saved'))
+      },
+      onReset: () => {
+        setVictoryCinematicSec(DEFAULT_VICTORY_CINEMATIC)
+        refreshDevForm()
+      },
+    })
+  }
+
+  {
+    const tbody = makeTable(appendDevSection(t('dev.sections.audio'), 'client'))
     const pingBtn = document.createElement('button')
     pingBtn.type = 'button'
     pingBtn.className = 'dev-audio-btn'
@@ -3543,127 +3668,72 @@ const buildDevForm = (): void => {
       lobbyAudio.ping()
       setDevStatus(t('dev.status.audioPing'))
     })
-    line.appendChild(pingBtn)
-    wrap.appendChild(l)
-    wrap.appendChild(d)
-    wrap.appendChild(line)
-    devGroupEl.appendChild(wrap)
-  }
-  appendAssetGroupLabel(t('dev.audio.ui'))
-  for (const id of ['select', 'move-bleep', 'alert'] as SoundId[]) audioRow(id)
-  appendAssetGroupLabel(t('dev.audio.weapons'))
-  for (const id of ['weapon-rifle', 'weapon-rocket', 'weapon-cannon', 'weapon-artillery', 'weapon-air-cannon'] as SoundId[]) {
-    audioRow(id)
-  }
-  appendAssetGroupLabel(t('dev.audio.events'))
-  for (const id of ['unit-trained', 'building-completed', 'upgrade-completed', 'supply-harvested', 'combat-hit', 'laser-strike', 'airstrike-called', 'bomb-strike', 'emp-strike', 'grenade-exploded', 'smoke-landed', 'power-down', 'game-over', 'victory', 'achievement'] as SoundId[]) {
-    audioRow(id)
-  }
-  appendAssetGroupLabel(t('dev.audio.ambient'))
-  for (const id of ['ambient-lobby', 'ambient-game'] as SoundId[]) audioRow(id)
-  appendAssetGroupLabel(t('dev.audio.weather'))
-  for (const id of ['rain-ambient', 'snow-ambient', 'storm-ambient'] as SoundId[]) audioRow(id)
-  for (const section of DEV_SCALAR_SECTIONS) {
-    appendDevSection(t(`dev.sections.${section.title}`))
-    for (const def of section.fields) {
-      const currentRaw = resolved[def.key] as number
-      const defaultRaw = DEFAULT_MATCH_SETTINGS[def.key] as number
-      const inSeconds = def.seconds === true
-      const displayCurrent = inSeconds ? currentRaw / SIM_TICK_HZ : currentRaw
-      const displayDefault = inSeconds ? defaultRaw / SIM_TICK_HZ : defaultRaw
-      const label = t(`dev.fields.${def.key}.label`)
-      makeNumberInput(
-        label,
-        t(`dev.fields.${def.key}.desc`),
-        def.unit ? devUnit(def.unit) : undefined,
-        displayCurrent,
-        displayDefault,
-        def.min,
-        def.max,
-        def.step,
-        currentRaw !== defaultRaw,
-        (v) => {
-          const isDefault = Math.abs(v - displayDefault) < 1e-9
-          if (isDefault) clearDevScalar(def.key)
-          else devOverrides = { ...devOverrides, [def.key]: inSeconds ? SECONDS_TO_TICKS(v) : Math.round(v) }
-          setDevStatus(
-            isDefault
-              ? t('dev.status.scalarDefault', { label, v: inSeconds ? `${displayDefault}s` : displayDefault })
-              : t('dev.status.scalarSet', {
-                  label,
-                  v: inSeconds ? `${v}s (${devOverrides[def.key]} ticks)` : (devOverrides[def.key] as number),
-                }),
-          )
-        },
-      )
+    appendDevRow(tbody, {
+      label: t('dev.fields.audioPing.label'),
+      desc: t('dev.fields.audioPing.desc'),
+      group: 'client',
+      defaultText: '',
+      isOverridden: () => false,
+      buildValue: (cell) => cell.appendChild(pingBtn),
+    })
+    appendSubhead(tbody, t('dev.audio.ui'))
+    for (const id of ['select', 'move-bleep', 'alert'] as SoundId[]) makeAudioRow(tbody, id)
+    appendSubhead(tbody, t('dev.audio.weapons'))
+    for (const id of ['weapon-rifle', 'weapon-rocket', 'weapon-cannon', 'weapon-artillery', 'weapon-air-cannon'] as SoundId[]) {
+      makeAudioRow(tbody, id)
     }
-    if (section.title === 'fog') {
-      const fogCurrent = resolved.fogMode
-      const fogDefault = DEFAULT_MATCH_SETTINGS.fogMode
-      makeSelectInput(
-        t('dev.fields.fogMode.label'),
-        t('dev.fields.fogMode.desc'),
-        fogCurrent,
-        FOG_MODES.map((m) => ({ value: m, label: t(`offline.fog.${m}`) })),
-        fogDefault,
-        (v) => {
-          const next = v as FogMode
-          if (next === fogDefault) clearDevScalar('fogMode')
-          else devOverrides = { ...devOverrides, fogMode: next }
-          setDevStatus(
-            next === fogDefault
-              ? t('dev.status.scalarDefault', { label: t('dev.fields.fogMode.label'), v: t(`offline.fog.${fogDefault}`) })
-              : t('dev.status.scalarSet', { label: t('dev.fields.fogMode.label'), v: t(`offline.fog.${next}`) }),
-          )
+    appendSubhead(tbody, t('dev.audio.events'))
+    for (const id of ['unit-trained', 'building-completed', 'upgrade-completed', 'supply-harvested', 'combat-hit', 'laser-strike', 'airstrike-called', 'bomb-strike', 'emp-strike', 'grenade-exploded', 'smoke-landed', 'power-down', 'game-over', 'victory', 'achievement'] as SoundId[]) {
+      makeAudioRow(tbody, id)
+    }
+    appendSubhead(tbody, t('dev.audio.ambient'))
+    for (const id of ['ambient-lobby', 'ambient-game'] as SoundId[]) makeAudioRow(tbody, id)
+    appendSubhead(tbody, t('dev.audio.weather'))
+    for (const id of ['rain-ambient', 'snow-ambient', 'storm-ambient'] as SoundId[]) makeAudioRow(tbody, id)
+  }
+
+  if (PROFILE_TARGET_FIELDS.length > 0) {
+    const tbody = makeTable(appendDevSection(t('dev.sections.profile'), 'client'))
+    for (const field of PROFILE_TARGET_FIELDS) {
+      const cfg = loadProfileConfig(window.localStorage)
+      const current = cfg.achievementTargets[field.key] ?? field.target
+      makeNumberRow(tbody, {
+        label: t(`dev.fields.${field.key}.label`),
+        desc: t(`dev.fields.${field.key}.desc`),
+        group: 'client',
+        value: current,
+        default: field.target,
+        min: field.min,
+        max: field.max,
+        step: field.step,
+        onCommit: (v) => {
+          const next = loadProfileConfig(window.localStorage)
+          next.achievementTargets[field.key] = Math.round(v)
+          saveProfileConfig(window.localStorage, next)
+          setDevStatus(t('dev.status.saved'))
+          renderProfilePanel()
         },
-      )
+        onReset: () => {
+          const next = loadProfileConfig(window.localStorage)
+          delete next.achievementTargets[field.key]
+          saveProfileConfig(window.localStorage, next)
+          setDevStatus(t('dev.status.saved'))
+          renderProfilePanel()
+          refreshDevForm()
+        },
+      })
     }
   }
-  appendDevSection(t('dev.sections.buildings'))
-  for (const id of Object.keys(BUILDINGS)) {
-    appendDevItemHeader(tn(id, BUILDINGS[id].name))
-    buildOverrideInputs('buildingOverrides', id, OVERRIDE_BUILDING_FIELDS)
-  }
-  appendDevSection(t('dev.sections.units'))
-  for (const id of Object.keys(UNITS)) {
-    appendDevItemHeader(tn(id, UNITS[id].name))
-    buildOverrideInputs('unitOverrides', id, OVERRIDE_UNIT_FIELDS)
-  }
-  appendDevSection(t('dev.sections.weapons'))
-  for (const id of Object.keys(WEAPONS)) {
-    appendDevItemHeader(WEAPONS[id].id)
-    buildOverrideInputs('weaponOverrides', id, OVERRIDE_WEAPON_FIELDS)
-  }
-  appendDevSection(t('dev.sections.upgrades'))
-  for (const id of Object.keys(UPGRADES)) {
-    appendDevItemHeader(tn(id, UPGRADES[id].name))
-    buildOverrideInputs('upgradeOverrides', id, OVERRIDE_UPGRADE_FIELDS)
-  }
-  if (PROFILE_TARGET_FIELDS.length > 0) appendDevSection(t('dev.sections.profile'))
-  for (const field of PROFILE_TARGET_FIELDS) {
-    const cfg = loadProfileConfig(window.localStorage)
-    const current = cfg.achievementTargets[field.key] ?? field.target
-    const changed = cfg.achievementTargets[field.key] !== undefined && current !== field.target
-    makeNumberInput(
-      t(`dev.fields.${field.key}.label`),
-      t(`dev.fields.${field.key}.desc`),
-      undefined,
-      current,
-      field.target,
-      field.min,
-      field.max,
-      field.step,
-      changed,
-      (v) => {
-        const next = loadProfileConfig(window.localStorage)
-        next.achievementTargets[field.key] = Math.round(v)
-        saveProfileConfig(window.localStorage, next)
-        setDevStatus(t('dev.status.saved'))
-        renderProfilePanel()
-      },
-    )
-  }
+
+  applyDevFilters()
 }
+
+const refreshDevForm = (): void => {
+  buildDevForm()
+  renderActiveInfoTab()
+}
+
+setDevFilterGroup('all')
 
 devSaveBtn.addEventListener('click', () => {
   saveDevOverrides()

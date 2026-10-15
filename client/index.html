@@ -703,6 +703,15 @@
                 <button class="ghost" id="dev-collapse" class="dev-collapse-btn" data-i18n="dev.collapse">Close all sections</button>
               </div>
               <div class="hint" data-i18n="dev.hint">Tune numeric match variables for debugging. Edits take effect for the next match in this session; use <b>Save changes</b> to persist them for future sessions and push them to a match you host — every client receives them at match start so games stay in sync.</div>
+              <div class="dev-toolbar">
+                <input type="search" id="dev-search" class="dev-search" data-i18n-placeholder="dev.search" placeholder="Search..." />
+                <div class="dev-tabs">
+                  <button type="button" class="dev-tab" data-dev-group="all" data-i18n="dev.groupAll">All</button>
+                  <button type="button" class="dev-tab" data-dev-group="synced" data-i18n="dev.groupSynced">Synced</button>
+                  <button type="button" class="dev-tab" data-dev-group="client" data-i18n="dev.groupClient">Client-only</button>
+                </div>
+                <label class="dev-modified-toggle"><input type="checkbox" id="dev-modified" /> <span data-i18n="dev.groupModified">Modified only</span></label>
+              </div>
               <div class="dev-grid" id="dev-settings-form"></div>
               <div class="status" id="dev-status"></div>
               <div class="dev-actions">
