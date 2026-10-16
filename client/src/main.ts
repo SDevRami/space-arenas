@@ -1,5 +1,5 @@
 import './styles.css'
-import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, modHash, PROTOCOL_VERSION, fingerprintSettings, resolveSettingsFileLayers, DEV_SCALAR_SECTIONS, DEV_OVERRIDE_BUILDING_FIELDS, DEV_OVERRIDE_UNIT_FIELDS, DEV_OVERRIDE_WEAPON_FIELDS, DEV_OVERRIDE_UPGRADE_FIELDS, type DevOverrideFieldDef, type ModFile, type ModMeta, type RoomMod, type MatchSettingsFile, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, modHash, PROTOCOL_VERSION, fingerprintSettings, resolveSettingsFileLayers, DEV_SCALAR_SECTIONS, DEV_OVERRIDE_BUILDING_FIELDS, DEV_OVERRIDE_UNIT_FIELDS, DEV_OVERRIDE_WEAPON_FIELDS, DEV_OVERRIDE_UPGRADE_FIELDS, type DevOverrideFieldDef, type ModFile, type ModMeta, type RoomMod, type ClientDevSettings, type MatchSettingsFile, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, validateMap, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { AudioHooks, AMBIENT_SYNTH } from './audio/hooks.ts'
@@ -1629,16 +1629,24 @@ const renderBackups = (): void => {
 /** Serializes one device's local data into a JSON payload (keys → raw storage values). */
 const collectPayload = (kind: 'devsettings' | 'profile'): string | null => {
   if (kind === 'devsettings') {
-    return JSON.stringify({
-      v: 1,
-      kind,
-      keys: {
-        'space-arenas:dev-settings': JSON.stringify(devOverrides),
-        'space-arenas:dev-defaults': JSON.stringify(savedDefaults),
-        'space-arenas:graphics': JSON.stringify(getGraphics()),
-        'space-arenas:audio': JSON.stringify(getAudio()),
-      },
-    })
+    // Everything the dev panel can touch: the synced overrides + defaults, the
+    // client-only graphics/audio/profile stores, plus the other local dev stores
+    // (control bindings, HUD layout, custom maps) so a cloud restore is complete.
+    const keys: Record<string, string> = {
+      'space-arenas:dev-settings': JSON.stringify(devOverrides),
+      'space-arenas:dev-defaults': JSON.stringify(savedDefaults),
+      'space-arenas:graphics': JSON.stringify(getGraphics()),
+      'space-arenas:audio': JSON.stringify(getAudio()),
+    }
+    for (const k of ['space-arenas:profile:config', 'space-arenas:controls', 'space-arenas:hud-parts', 'space-arenas:custom-maps', 'space-arenas:mods-active', 'space-arenas:offline-mod']) {
+      try {
+        const raw = localStorage.getItem(k)
+        if (raw !== null) keys[k] = raw
+      } catch {
+        /* storage unavailable */
+      }
+    }
+    return JSON.stringify({ v: 1, kind, keys })
   }
   const keys = ['space-arenas:profile', 'space-arenas:profile:config', 'space-arenas:mode-records']
   const entries: Record<string, string> = {}
@@ -1650,32 +1658,39 @@ const collectPayload = (kind: 'devsettings' | 'profile'): string | null => {
   return JSON.stringify({ v: 1, kind, keys: entries })
 }
 
-const uploadBackup = async (kind: 'devsettings' | 'profile'): Promise<void> => {
+/** Passphrase from the most recent successful cloud upload/restore this session,
+ *  so "Save changes" can refresh the cloud snapshot without re-prompting. */
+let lastBackupPass = ''
+
+const uploadBackup = async (kind: 'devsettings' | 'profile', opts?: { pass?: string; silent?: boolean }): Promise<void> => {
   if (!authSession || !authToken()) {
-    setDataStatus(t('online.dataNeedLogin'), true)
+    if (!opts?.silent) setDataStatus(t('online.dataNeedLogin'), true)
     return
   }
-  const pass = dataPassEl.value
+  const pass = opts?.pass ?? dataPassEl.value
   if (pass.length < 4) {
-    setDataStatus(t('online.dataNeedPass'), true)
+    if (!opts?.silent) setDataStatus(t('online.dataNeedPass'), true)
     return
   }
   const payload = collectPayload(kind)
   if (payload === null) {
-    setDataStatus(kind === 'devsettings' ? t('online.dataNoDev') : t('online.dataNoProfile'), true)
+    if (!opts?.silent) setDataStatus(kind === 'devsettings' ? t('online.dataNoDev') : t('online.dataNoProfile'), true)
     return
   }
-  setDataStatus(t('online.working'))
+  if (!opts?.silent) setDataStatus(t('online.working'))
   try {
     const bundle = await encryptPayload(payload, pass)
     const passphraseHash = await sha256Hex(pass)
     const r = await authApi('POST', '/api/backups', { kind, payload: bundle, passphraseHash })
     if (!r.ok) throw new Error(r.error ?? t('online.unknownError'))
+    lastBackupPass = pass
     await loadBackups(true)
-    setDataStatus(t('online.dataUploaded'))
-    dataPassEl.value = ''
+    if (!opts?.silent) {
+      setDataStatus(t('online.dataUploaded'))
+      dataPassEl.value = ''
+    }
   } catch (err) {
-    setDataStatus(err instanceof Error && err.message ? err.message : t('online.unknownError'), true)
+    if (!opts?.silent) setDataStatus(err instanceof Error && err.message ? err.message : t('online.unknownError'), true)
   }
 }
 
@@ -1721,11 +1736,13 @@ const restoreBackup = async (b: BackupInfo): Promise<void> => {
       }
       reloadGraphics()
       reloadAudio()
+      renderProfilePanel()
       buildDevForm()
     }
     if (parsed.kind === 'profile' || decodedKeys?.['space-arenas:profile'] !== undefined) {
       renderProfilePanel()
     }
+    lastBackupPass = pass
     setDataStatus(t('online.dataRestored'))
     dataPassEl.value = ''
   } catch (err) {
@@ -2570,7 +2587,45 @@ const loadSettingsFile = async (): Promise<void> => {
   }
   settingsFile = file ?? {}
   savedDefaults = { ...resolveSettingsFileLayers(settingsFile), ...savedDefaults }
+  applyClientDevSettings(settingsFile.client, false)
   buildDevForm()
+}
+
+/** The current client-only ("non-synced") dev values, shaped for `settings.json`'s
+ *  `client` block. They never reach the host's match settings; they ride in the
+ *  file so a fresh origin can restore them (and Stage E's mod snapshot carries them). */
+const clientDevSettings = (): ClientDevSettings => ({
+  graphics: getGraphics() as unknown as Record<string, unknown>,
+  audio: getAudio() as unknown as Record<string, unknown>,
+  profile: loadProfileConfig(window.localStorage) as unknown as Record<string, unknown>,
+})
+
+/** Applies `settings.json`'s `client` block to the graphics/audio/profile stores.
+ *  Without `force` an existing localStorage key always wins (boot layering); with
+ *  `force` the file wins (clone / adopt-host flows). */
+const applyClientDevSettings = (client: ClientDevSettings | undefined, force: boolean): void => {
+  if (!client) return
+  const entries: Array<[string, unknown, () => void]> = [
+    ['space-arenas:graphics', client.graphics, reloadGraphics],
+    ['space-arenas:audio', client.audio, reloadAudio],
+    ['space-arenas:profile:config', client.profile, renderProfilePanel],
+  ]
+  for (const [key, value, reload] of entries) {
+    if (value === undefined) continue
+    if (!force) {
+      try {
+        if (localStorage.getItem(key) !== null) continue
+      } catch {
+        /* storage unavailable: fall through and try to write anyway */
+      }
+    }
+    try {
+      localStorage.setItem(key, JSON.stringify(value))
+    } catch {
+      continue
+    }
+    reload()
+  }
 }
 
 const pushDevSettingsToHost = (): void => {
@@ -3780,6 +3835,12 @@ setDevFilterGroup('all')
 
 devSaveBtn.addEventListener('click', () => {
   saveDevOverrides()
+  // Flush the on-disk snapshot too, so the new dev values (synced + client-only)
+  // survive a fresh origin even if the tab closes before the idle heartbeat.
+  void saveLocalProfile()
+  // …and refresh the cloud dev-backup snapshot when this session already holds the
+  // backup passphrase (silent: no re-prompt, no error when logged out).
+  if (lastBackupPass) void uploadBackup('devsettings', { pass: lastBackupPass, silent: true })
   pushDevSettingsToHost()
   setDevStatus(t('dev.status.saved'))
   renderActiveInfoTab()
@@ -3801,11 +3862,11 @@ devSaveDefaultBtn.addEventListener('click', () => {
   } catch {
     /* storage unavailable */
   }
-  // Mirror into `profile/settings.json` (`user` layer, preserving the shipped
-  // `builtin` + client-only `client` blocks) so the defaults survive a fresh origin.
+  // Mirror into `profile/settings.json` (`user` layer + the client-only snapshot,
+  // preserving the shipped `builtin` block) so the defaults survive a fresh origin.
   const file: MatchSettingsFile = { v: 1 }
   if (settingsFile.builtin) file.builtin = settingsFile.builtin
-  if (settingsFile.client) file.client = settingsFile.client
+  file.client = clientDevSettings()
   file.user = savedDefaults
   settingsFile = file
   void saveSettingsFile(file)
