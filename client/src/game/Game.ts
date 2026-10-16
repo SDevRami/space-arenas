@@ -15,7 +15,7 @@ import { stepWorld } from '../systems/registry.ts'
 import type { SimEvent } from '../core/events.ts'
 import { BotPlayer } from '../ai/bot.ts'
 import type { MatchConfig } from './match.ts'
-import { generateDailyMissions, evaluateDailyMissions, type DailyMissionDef } from '../modes/daily.ts'
+import { generateDailyMissions, evaluateDailyMissions, resolveDailyChallenge, type DailyMissionDef } from '../modes/daily.ts'
 import { recordDailyResult, dailyLevel, dailyLevelXp, DAILY_XP_PER_LEVEL, remainingDailyMissions, loadModeRecords } from '../profile/modeRecords.ts'
 import { StatsBoard, StatsTracker, buildStatsRows, type StatsRow } from '../stats/stats.ts'
 import { SessionRecorder } from '../profile/recorder.ts'
@@ -77,9 +77,14 @@ export class Game {
   private achNotified = new Set<string>()
   private lastAchCheckTick = -1
   private modeCfg: MatchConfig | null = null
-  /** Match-option toggles (offline): daily missions accepted and profile counted. */
+  /** Match-option toggles: daily missions accepted and profile counted. Set from the
+   *  offline panel or (for net/online) the shared match-options panel. */
   private trackDaily = true
   private trackProfile = true
+  /** Stable daily-challenge generation this match counts toward, or null when the
+   *  match does not feed the mission list. */
+  private dailyGeneration: number | null = null
+  private lastDailyHudTick = -1
   private netPlayers: PlayerSlot[] = []
   private spectator = false
   private resumed = false
@@ -718,12 +723,12 @@ export class Game {
    *  accepted on this match, XP banks for any mission newly completed this play;
    *  a skipped daily list records nothing. */
   private recordModeResults(winner: number | null): void {
-    const cfg = this.modeCfg
-    if (!cfg || !cfg.daily || !this.trackDaily || !this.session) return
+    const generation = this.dailyGeneration
+    const missions = this.dailyMissionDefs
+    if (generation === null || !missions || !this.trackDaily || !this.session) return
     const storage = window.localStorage
     const summary = this.session.summary()
     this.lastModeNote = null
-    const missions = generateDailyMissions(cfg.daily.generation)
     const { done } = evaluateDailyMissions(missions, {
       won: winner === this.localTeam,
       kills: summary.counters.kills,
@@ -733,12 +738,12 @@ export class Game {
     })
     // XP is banked only for missions that weren't already finished on this challenge.
     const prior = loadModeRecords(storage).daily
-    const already = new Set(prior?.challenge?.generation === cfg.daily.generation ? prior.challenge.doneIds : [])
+    const already = new Set(prior?.challenge?.generation === generation ? prior.challenge.doneIds : [])
     const bankedXp = done.filter((m) => !already.has(m.id)).reduce((sum, m) => sum + m.xp, 0)
     // Records the newly completed missions against the persisted challenge (never the date).
-    const rec = recordDailyResult(storage, { generation: cfg.daily.generation, missions, doneIds: done.map((m) => m.id) })
+    const rec = recordDailyResult(storage, { generation, missions, doneIds: done.map((m) => m.id) })
     const daily = rec.daily
-    const remaining = daily ? remainingDailyMissions(daily, cfg.daily.generation, missions) : missions.length
+    const remaining = daily ? remainingDailyMissions(daily, generation, missions) : missions.length
     if (daily) {
       this.lastModeNote =
         remaining === 0
@@ -842,6 +847,8 @@ export class Game {
     this.recordTicks = 0
     this.replayRecorded = false
     this.dailyMissionDefs = null
+    this.dailyGeneration = cfg.daily ? cfg.daily.generation : null
+    this.lastDailyHudTick = -1
     this.trackDaily = cfg.trackDaily
     this.trackProfile = cfg.trackProfile
     this.hud.showMissionButton(false)
@@ -879,7 +886,16 @@ export class Game {
     this.hud.setObjective(t('daily.hudRemaining', { n: rows.filter((r) => !r.done).length }))
   }
 
-  async startNet(net: NetClient, msg: MatchStartMessage): Promise<void> {
+  /** Refresh the HUD mission list roughly once per second of sim time, in every mode
+   *  that accepted the daily list (bots, LAN and online). */
+  private tickDailyMissions(world: World): void {
+    if (!this.dailyMissionDefs || this.seekActive || this.paused) return
+    if (world.tick % 30 !== 0 || world.tick === this.lastDailyHudTick) return
+    this.lastDailyHudTick = world.tick
+    this.refreshDailyMissions()
+  }
+
+  async startNet(net: NetClient, msg: MatchStartMessage, opts?: { trackDaily?: boolean; trackProfile?: boolean }): Promise<void> {
     this.mode = 'net'
     this.net = net
     this.localTeam = msg.yourId
@@ -896,8 +912,13 @@ export class Game {
     this.replayRecorded = false
     this.modeCfg = null
     this.dailyMissionDefs = null
-    this.trackDaily = false
-    this.trackProfile = true
+    this.dailyGeneration = null
+    this.lastDailyHudTick = -1
+    // Net/online matches read the same two tracking toggles as the offline panel, now
+    // shown in the shared match-options panel. Callers that omit them (e.g. a spectator
+    // reconnect reboot) keep the historical defaults.
+    this.trackDaily = opts ? opts.trackDaily === true : false
+    this.trackProfile = opts ? opts.trackProfile !== false : true
     this.hud.showMissionButton(false)
     this.hud.setObjective(null)
     this.bots = []
@@ -912,6 +933,15 @@ export class Game {
     this.cinematicOverlay.classList.remove('visible')
     this.cinematicActive = false
     await this.boot(msg)
+    // A net/online match can count toward the daily mission list just like bots mode.
+    // Spectators never bank missions; the profile toggle is handled at match end.
+    if (this.trackDaily && !this.spectator) {
+      const generation = resolveDailyChallenge(window.localStorage).generation
+      this.dailyGeneration = generation
+      this.dailyMissionDefs = generateDailyMissions(generation)
+      this.hud.showMissionButton(true)
+      this.refreshDailyMissions()
+    }
   }
 
   /** Replays a recorded match from the archive: rebuilds the deterministic world
@@ -926,6 +956,7 @@ export class Game {
     this.team = replay.players.find((p) => p.id === 0)?.team ?? -1
     this.modeCfg = null
     this.dailyMissionDefs = null
+    this.dailyGeneration = null
     this.trackDaily = false
     this.trackProfile = true
     this.hud.showMissionButton(false)
@@ -1233,8 +1264,6 @@ export class Game {
       for (const env of envs) this.recordHistory.push({ ...env, tick: world.tick })
       sim.step(envs)
       this.recordTicks = world.tick
-      // The daily mission list updates against the live session every ~1.2 s.
-      if (this.dailyMissionDefs && world.tick % 30 === 0) this.refreshDailyMissions()
       return
     }
     if (this.mode === 'replay') {
@@ -1508,6 +1537,7 @@ export class Game {
     }
     this.announceSmokeLandings(world)
     this.checkLiveAchievements()
+    this.tickDailyMissions(world)
   }
 
   /** Client-only: play a soft poof when a smoke canister lands (no sim event exists). */

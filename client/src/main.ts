@@ -157,6 +157,7 @@ const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder'
   tabArchive.classList.toggle('active', which === 'archive')
   tabMods.classList.toggle('active', which === 'mods')
   if (which === 'online') void refreshOnlineList()
+  if (which === 'match') renderMatchDaily()
   if (which === 'profile') onProfileTabShown()
   if (which === 'archive') void refreshArchive()
   if (which === 'mods') void refreshMods()
@@ -4202,28 +4203,40 @@ const dailyAcceptToggle = document.getElementById('daily-accept-toggle') as HTML
 const dailyAcceptHint = document.getElementById('daily-accept-hint') as HTMLDivElement
 const matchProfileToggle = document.getElementById('match-profile-toggle') as HTMLInputElement
 const matchProfileHint = document.getElementById('match-profile-hint') as HTMLDivElement
+// The same two tracking toggles live in the shared match-options panel (LAN + online).
+const netDailyToggle = document.getElementById('match-daily-toggle') as HTMLInputElement
+const netDailyHint = document.getElementById('match-daily-hint') as HTMLDivElement
+const netProfileToggle = document.getElementById('match-achieve-toggle') as HTMLInputElement
+const netProfileHint = document.getElementById('match-achieve-hint') as HTMLDivElement
 let offlineMode: OfflineMode = 'bots'
 
 /** Keep the match-option toggle hints in sync with their current state and language. */
 const updateTrackingHints = (): void => {
   dailyAcceptHint.textContent = t(dailyAcceptToggle.checked ? 'daily.acceptOn' : 'daily.acceptOff')
   matchProfileHint.textContent = t(matchProfileToggle.checked ? 'daily.profileOn' : 'daily.profileOff')
+  netDailyHint.textContent = t(netDailyToggle.checked ? 'daily.acceptOn' : 'daily.acceptOff')
+  netProfileHint.textContent = t(netProfileToggle.checked ? 'daily.profileOn' : 'daily.profileOff')
 }
 dailyAcceptToggle.addEventListener('change', updateTrackingHints)
 matchProfileToggle.addEventListener('change', updateTrackingHints)
+netDailyToggle.addEventListener('change', updateTrackingHints)
+netProfileToggle.addEventListener('change', updateTrackingHints)
 
-const renderDaily = (): void => {
+interface DailyListIds { day: string; level: string; list: string }
+
+/** Render the active mission list into whichever panel shows it (offline or match). */
+const renderDailyList = ({ day, level, list }: DailyListIds): void => {
   const storage = window.localStorage
   const { missions, doneIds, allDone } = resolveDailyChallenge(storage)
-  const label = document.getElementById('daily-day-label')
-  const levelLabel = document.getElementById('daily-level-label')
-  const list = document.getElementById('daily-missions-list') as HTMLDivElement
+  const label = document.getElementById(day)
+  const levelLabel = document.getElementById(level)
+  const listEl = document.getElementById(list) as HTMLDivElement
   const rec = loadModeRecords(storage).daily
-  const level = dailyLevel(rec)
+  const levelNo = dailyLevel(rec)
   const xp = dailyLevelXp(rec)
   if (label && rec?.challenge) label.textContent = t('daily.challenge', { n: rec.challenge.generation })
-  if (levelLabel) levelLabel.textContent = t('daily.level', { level, xp, required: DAILY_XP_PER_LEVEL })
-  list.innerHTML = ''
+  if (levelLabel) levelLabel.textContent = t('daily.level', { level: levelNo, xp, required: DAILY_XP_PER_LEVEL })
+  listEl.innerHTML = ''
   for (const m of missions) {
     const row = document.createElement('div')
     row.className = 'mission-row'
@@ -4234,13 +4247,28 @@ const renderDaily = (): void => {
     badge.textContent = `+${m.xp} XP`
     row.appendChild(desc)
     row.appendChild(badge)
-    list.appendChild(row)
+    listEl.appendChild(row)
   }
   const note = document.createElement('div')
   note.className = 'hint'
   note.textContent = allDone ? t('daily.allDone') : t('daily.keep', { n: missions.length - doneIds.length })
-  list.appendChild(note)
+  listEl.appendChild(note)
 }
+
+const renderDaily = (): void =>
+  renderDailyList({ day: 'daily-day-label', level: 'daily-level-label', list: 'daily-missions-list' })
+
+/** Mirror the offline daily block into the shared match-options panel (LAN + online). */
+const renderMatchDaily = (): void => {
+  renderDailyList({ day: 'match-daily-day-label', level: 'match-daily-level-label', list: 'match-daily-list' })
+  updateTrackingHints()
+}
+
+/** Tracking choices for the next net/online match, read from the match-options panel. */
+const netTrackingOpts = (): { trackDaily: boolean; trackProfile: boolean } => ({
+  trackDaily: netDailyToggle.checked,
+  trackProfile: netProfileToggle.checked,
+})
 
 const setOfflineMode = (mode: OfflineMode): void => {
   offlineMode = mode
@@ -4992,7 +5020,7 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
       if (!game) game = makeGame()
       hideLobby()
       netJoinedResumed = (msg as { resumed?: boolean }).resumed === true
-      void game.startNet(net!, msg)
+      void game.startNet(net!, msg, netTrackingOpts())
       saveActiveMatch()
       startPing()
     },
@@ -5400,7 +5428,7 @@ const attemptReconnect = async (): Promise<void> => {
         game?.destroy()
         game = makeGame()
         hideLobby()
-        void game.startNet(n, msg)
+        void game.startNet(n, msg, netTrackingOpts())
         if (isOnlineAddr(join.addr)) startPing()
         finishReconnect()
       },
@@ -5996,7 +6024,7 @@ const infoCatalogReady = import('./ui/game-info-catalog.ts').then((mod) => {
 
 const refreshLobbyTexts = (): void => {
   translateStatic()
-  updateTrackingHints()
+  renderMatchDaily()
   if (joinBusy) setJoinBusy(true)
   renderMapSelect()
   renderPlayers()

@@ -884,6 +884,8 @@
       .mode-btn.active { background: var(--color-accent); border-color: var(--color-accent); color: #04070f; font-weight: 700; }
       .mode-extras { margin: 12px 0; padding: 12px; border: 1px dashed var(--color-border); border-radius: 4px; background: rgba(10,14,24,0.6); }
       .hidden-extras { display: none; }
+      .match-tracking { margin: 14px 0; padding: 12px; border: 1px dashed var(--color-border); border-radius: 4px; background: rgba(10,14,24,0.6); }
+      .match-tracking .section-h3 { margin-top: 0; }
       .stat-card, .chapter-card { border: 1px solid var(--color-border); background: rgba(10,14,24,0.7); border-radius: 4px; padding: 10px 12px; margin-top: 8px; }
       .stat-card .stat-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 12px; }
       .stat-card .stat-row b { color: var(--color-accent); }

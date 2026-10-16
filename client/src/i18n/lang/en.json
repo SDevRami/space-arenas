@@ -350,6 +350,7 @@
     "hard": "Hard"
   },
   "daily": {
+    "panelH3": "Progression",
     "challenge": "Mission list #{n}",
     "missionButton": "Mission",
     "missionButtonTitle": "Show the daily mission list",
@@ -358,7 +359,7 @@
     "level": "Level {level} · {xp}/{required} XP",
     "keep": "{n} mission(s) left — the list stays exactly as-is until you finish all of them.",
     "allDone": "Challenge complete — a brand new list is ready!",
-    "hint": "A fixed set of missions tracked from every bots match — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up. Offline modes have no leaderboard.",
+    "hint": "A fixed set of missions tracked from the matches you accept — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up.",
     "mission": {
       "win": "Win a daily match",
       "train": "Train {n} units",

@@ -299,6 +299,25 @@
                 </div>
                 <canvas id="match-map-preview" width="320" height="240"></canvas>
               </div>
+              <div class="match-tracking">
+                <h3 class="section-h3" data-i18n="daily.panelH3">Progression</h3>
+                <div class="daily-header">
+                  <span id="match-daily-day-label"></span>
+                  <span id="match-daily-level-label"></span>
+                </div>
+                <div class="hint" data-i18n="daily.hint">A fixed set of missions tracked from the matches you accept — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up.</div>
+                <label for="match-daily-toggle" class="check-label">
+                  <input type="checkbox" id="match-daily-toggle" checked />
+                  <span data-i18n="daily.acceptLabel">Count this match toward the daily mission list</span>
+                </label>
+                <div class="hint" id="match-daily-hint"></div>
+                <div class="mission-list" id="match-daily-list"></div>
+                <label for="match-achieve-toggle" class="check-label">
+                  <input type="checkbox" id="match-achieve-toggle" checked />
+                  <span data-i18n="daily.profileLabel">Count this match toward my profile and achievements</span>
+                </label>
+                <div class="hint" id="match-achieve-hint"></div>
+              </div>
               <label data-i18n="offline.startingCredits">Starting credits</label>
               <input id="match-credits" type="number" min="100" max="2000" step="100" value="800" class="credits-input" />
               <label data-i18n="offline.weather">Weather (visual only)</label>
