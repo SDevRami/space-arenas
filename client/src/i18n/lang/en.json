@@ -489,6 +489,12 @@
     "note": "Share the room code above, or the address on your network panel, so friends can join.",
     "map": "Map",
     "mapChanging": "Changing map…",
+    "sections": {
+      "settings": "Match settings",
+      "alliance": "Alliance",
+      "players": "Players & win condition",
+      "replay": "Replay"
+    },
     "passLabel": "Match password",
     "passNewPlaceholder": "new password (optional)",
     "passChange": "Change",

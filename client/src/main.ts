@@ -4288,6 +4288,20 @@ offlineModeListEl.addEventListener('click', (e) => {
   if (btn?.dataset.mode) setOfflineMode(btn.dataset.mode as OfflineMode)
 })
 
+// ---------- collapsible option sections (parity with the dev-settings groups) ----------
+
+const collapseSections = (panelId: string): void => {
+  const panel = document.getElementById(panelId)
+  if (!panel) return
+  for (const s of panel.querySelectorAll<HTMLDetailsElement>('details')) s.open = false
+}
+
+const offlineCollapseBtn = document.getElementById('offline-collapse') as HTMLButtonElement | null
+offlineCollapseBtn?.addEventListener('click', () => collapseSections('offline-panel'))
+
+const matchCollapseBtn = document.getElementById('match-collapse') as HTMLButtonElement | null
+matchCollapseBtn?.addEventListener('click', () => collapseSections('match-panel'))
+
 // ---------- countdown ----------
 
 const stopCountdown = (): void => {
@@ -4846,7 +4860,7 @@ const setJoinBusy = (busy: boolean): void => {
 
 // ---------- dev settings sync (embedded in the lan match panel) ----------
 
-const syncPanelEl = document.getElementById('sync-panel') as HTMLDivElement
+const syncPanelEl = document.getElementById('sync-panel') as HTMLElement
 const syncPlayersEl = document.getElementById('sync-players') as HTMLDivElement
 const syncOnceBtn = document.getElementById('sync-once') as HTMLButtonElement
 const syncCopyBtn = document.getElementById('sync-copy') as HTMLButtonElement

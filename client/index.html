@@ -166,79 +166,105 @@
         <div class="panel-side">
           <div id="offline-panel">
             <div class="panel wide">
-              <h1 class="panel-title" data-i18n="offline.h1">Offline Game</h1>
+              <div class="panel-header-row">
+                <h1 class="panel-title" data-i18n="offline.h1">Offline Game</h1>
+                <button class="ghost dev-collapse-btn" id="offline-collapse" data-i18n="dev.collapse">Close all sections</button>
+              </div>
               <p class="hint" data-i18n="offline.modesHint">All modes below are offline and playable alone. Pick a mode — every mode shares the same match options below, plus its own extras.</p>
               <div class="mode-list" id="offline-mode-list" role="tablist">
                 <button class="mode-btn active" data-mode="bots" data-i18n="offline.modes.bots">Bots Match</button>
                 <button class="mode-btn" data-mode="campaign" data-i18n="offline.modes.campaign">Campaign</button>
               </div>
               <div id="offline-options">
-              <div class="map-panel">
-                <div class="map-pick">
-                  <label data-i18n="offline.map">Map</label>
-                  <select id="map-select"></select>
-                  <div class="hint" id="map-desc"></div>
+                <details class="match-section" open>
+                  <summary data-i18n="offline.map">Map</summary>
+                  <div class="match-section-body">
+                    <div class="map-panel">
+                      <div class="map-pick">
+                        <label data-i18n="offline.map">Map</label>
+                        <select id="map-select"></select>
+                        <div class="hint" id="map-desc"></div>
+                      </div>
+                      <canvas id="map-preview" width="320" height="240"></canvas>
+                    </div>
+                  </div>
+                </details>
+                <details class="match-section" open id="offline-daily-extras">
+                  <summary data-i18n="daily.panelH3">Progression</summary>
+                  <div class="match-section-body">
+                    <div class="daily-header">
+                      <span id="daily-day-label"></span>
+                      <span id="daily-level-label"></span>
+                    </div>
+                    <div class="hint" data-i18n="daily.hint">A fixed set of missions tracked from every bots match — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up. Offline modes have no leaderboard.</div>
+                    <label for="daily-accept-toggle" class="check-label">
+                      <input type="checkbox" id="daily-accept-toggle" checked />
+                      <span data-i18n="daily.acceptLabel">Count this match toward the daily mission list</span>
+                    </label>
+                    <div class="hint" id="daily-accept-hint"></div>
+                    <div class="mission-list" id="daily-missions-list"></div>
+                    <label for="match-profile-toggle" class="check-label">
+                      <input type="checkbox" id="match-profile-toggle" checked />
+                      <span data-i18n="daily.profileLabel">Count this match toward my profile and achievements</span>
+                    </label>
+                    <div class="hint" id="match-profile-hint"></div>
+                  </div>
+                </details>
+                <details class="match-section" open>
+                  <summary data-i18n="match.sections.settings">Match settings</summary>
+                  <div class="match-section-body">
+                    <label data-i18n="offline.startingCredits">Starting credits</label>
+                    <input id="start-credits" type="number" min="100" max="2000" step="100" value="800" class="credits-input" />
+                    <label data-i18n="offline.weather">Weather (visual only)</label>
+                    <select id="start-weather" class="weather-select"></select>
+                    <div class="hint" data-i18n="offline.weatherHint">A cosmetic overlay on your screen only. It does not change the game rules.</div>
+                    <label data-i18n="offline.fogMode">Fog of war</label>
+                    <select id="start-fog" class="fog-select">
+                      <option value="memory" data-i18n="offline.fog.memory">Classic (map stays explored)</option>
+                      <option value="classic" data-i18n="offline.fog.classic">Classic+ (no fade — seen areas stay bright)</option>
+                      <option value="hard" data-i18n="offline.fog.hard">Hard (fog always returns)</option>
+                    </select>
+                    <div class="hint" data-i18n="offline.fogHint">How the map remembers what your units explored.</div>
+                    <label for="start-daynight" class="check-label">
+                      <input type="checkbox" id="start-daynight" />
+                      <span data-i18n="offline.dayNight">Day/night cycle</span>
+                    </label>
+                    <div class="hint" data-i18n="offline.dayNightHint">A 5-minute day/night cycle darkens the world at night. Cosmetic.</div>
+                  </div>
+                </details>
+                <details class="match-section" open>
+                  <summary data-i18n="mods.matchTitle">Balance mod</summary>
+                  <div class="mods-picker match-section-body" id="offline-mods-picker">
+                    <label for="offline-mod-toggle" class="check-label">
+                      <input type="checkbox" id="offline-mod-toggle" />
+                      <span data-i18n="mods.enableForMatch">Use a balance mod</span>
+                    </label>
+                    <select id="offline-mod-select" class="fog-select"></select>
+                    <div class="hint" id="offline-mod-hint"></div>
+                    <div class="hint" data-i18n="mods.offlineHint">You need a host running on this machine (Network Play → Create a Match) to manage mods, or open the Mods tab.</div>
+                  </div>
+                </details>
+                <details class="match-section" open>
+                  <summary data-i18n="match.sections.players">Players &amp; win condition</summary>
+                  <div class="match-section-body">
+                    <label data-i18n="offline.winCondition">Win condition</label>
+                    <select id="win-rule" class="win-rule-select">
+                      <option value="standard" data-i18n="offline.win.standard">Standard (base destruction)</option>
+                      <option value="annihilation" data-i18n="offline.win.annihilation">Total Annihilation</option>
+                      <option value="command-center" data-i18n="offline.win.commandCenter">Command Center</option>
+                    </select>
+                    <div class="hint" id="win-rule-desc" data-i18n="offline.winDesc.standard">Lose when your Command Center is destroyed and you cannot rebuild it (all Bulldozers dead, or not enough money to buy a new one).</div>
+                    <div class="players" id="players-list"></div>
+                    <button class="ghost" id="add-bot-btn" data-i18n="offline.addBot">+ Add Bot</button>
+                  </div>
+                </details>
+              </div>
+              <details class="match-section hidden-extras" open id="offline-campaign-extras">
+                <summary data-i18n="offline.modes.campaign">Campaign</summary>
+                <div class="match-section-body">
+                  <div class="hint" data-i18n="campaign.hint">The scripted campaign is planned as a future feature. This mode is a placeholder for now.</div>
                 </div>
-                <canvas id="map-preview" width="320" height="240"></canvas>
-              </div>
-              <label data-i18n="offline.startingCredits">Starting credits</label>
-              <input id="start-credits" type="number" min="100" max="2000" step="100" value="800" class="credits-input" />
-              <label data-i18n="offline.weather">Weather (visual only)</label>
-              <select id="start-weather" class="weather-select"></select>
-              <div class="hint" data-i18n="offline.weatherHint">A cosmetic overlay on your screen only. It does not change the game rules.</div>
-              <label data-i18n="offline.fogMode">Fog of war</label>
-              <select id="start-fog" class="fog-select">
-                <option value="memory" data-i18n="offline.fog.memory">Classic (map stays explored)</option>
-                <option value="classic" data-i18n="offline.fog.classic">Classic+ (no fade — seen areas stay bright)</option>
-                <option value="hard" data-i18n="offline.fog.hard">Hard (fog always returns)</option>
-              </select>
-              <div class="hint" data-i18n="offline.fogHint">How the map remembers what your units explored.</div>
-              <label for="start-daynight" class="check-label">
-                <input type="checkbox" id="start-daynight" />
-                <span data-i18n="offline.dayNight">Day/night cycle</span>
-              </label>
-              <div class="hint" data-i18n="offline.dayNightHint">A 5-minute day/night cycle darkens the world at night. Cosmetic.</div>
-              <label data-i18n="offline.winCondition">Win condition</label>
-              <select id="win-rule" class="win-rule-select">
-                <option value="standard" data-i18n="offline.win.standard">Standard (base destruction)</option>
-                <option value="annihilation" data-i18n="offline.win.annihilation">Total Annihilation</option>
-                <option value="command-center" data-i18n="offline.win.commandCenter">Command Center</option>
-              </select>
-              <div class="hint" id="win-rule-desc" data-i18n="offline.winDesc.standard">Lose when your Command Center is destroyed and you cannot rebuild it (all Bulldozers dead, or not enough money to buy a new one).</div>
-              <div class="players" id="players-list"></div>
-              <button class="ghost" id="add-bot-btn" data-i18n="offline.addBot">+ Add Bot</button>
-              </div>
-              <div class="mods-picker" id="offline-mods-picker">
-                <h3 class="section-h3" data-i18n="mods.offlineTitle">Balance mod</h3>
-                <label for="offline-mod-toggle" class="check-label">
-                  <input type="checkbox" id="offline-mod-toggle" />
-                  <span data-i18n="mods.enableForMatch">Use a balance mod</span>
-                </label>
-                <select id="offline-mod-select" class="fog-select"></select>
-                <div class="hint" id="offline-mod-hint"></div>
-                <div class="hint" data-i18n="mods.offlineHint">You need a host running on this machine (Network Play → Create a Match) to manage mods, or open the Mods tab.</div>
-              </div>
-              <div id="offline-daily-extras" class="mode-extras">
-                <div class="daily-header">
-                  <span id="daily-day-label"></span>
-                  <span id="daily-level-label"></span>
-                </div>
-                <div class="hint" data-i18n="daily.hint">A fixed set of missions tracked from every bots match — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up. Offline modes have no leaderboard.</div>
-                <label for="daily-accept-toggle" class="check-label">
-                  <input type="checkbox" id="daily-accept-toggle" checked />
-                  <span data-i18n="daily.acceptLabel">Count this match toward the daily mission list</span>
-                </label>
-                <div class="hint" id="daily-accept-hint"></div>
-                <div class="mission-list" id="daily-missions-list"></div>
-                <label for="match-profile-toggle" class="check-label">
-                  <input type="checkbox" id="match-profile-toggle" checked />
-                  <span data-i18n="daily.profileLabel">Count this match toward my profile and achievements</span>
-                </label>
-                <div class="hint" id="match-profile-hint"></div>
-              </div>
-              <div id="offline-campaign-extras" class="mode-extras hidden-extras">
-                <div class="hint" data-i18n="campaign.hint">The scripted campaign is planned as a future feature. This mode is a placeholder for now.</div>
-              </div>
+              </details>
               <button class="primary" id="start-btn" data-i18n="offline.start">Start Game</button>
               <button class="ghost danger" id="cancel-btn" style="display:none;" data-i18n="offline.cancel">Cancel</button>
               <div class="status" id="offline-status"></div>
@@ -290,116 +316,148 @@
               <div class="match-head">
                 <h1 class="panel-title-tight" data-i18n="match.h1">Match Options</h1>
                 <div class="match-code"><span data-i18n="match.room">Room </span><b id="match-code">----</b></div>
+                <button class="ghost dev-collapse-btn" id="match-collapse" data-i18n="dev.collapse">Close all sections</button>
               </div>
-              <div class="map-panel">
-                <div class="map-pick">
-                  <label data-i18n="offline.map">Map</label>
-                  <select id="match-map-select"></select>
-                  <div class="hint" id="match-map-desc"></div>
+              <details class="match-section" open>
+                <summary data-i18n="offline.map">Map</summary>
+                <div class="match-section-body">
+                  <div class="map-panel">
+                    <div class="map-pick">
+                      <label data-i18n="offline.map">Map</label>
+                      <select id="match-map-select"></select>
+                      <div class="hint" id="match-map-desc"></div>
+                    </div>
+                    <canvas id="match-map-preview" width="320" height="240"></canvas>
+                  </div>
                 </div>
-                <canvas id="match-map-preview" width="320" height="240"></canvas>
-              </div>
-              <div class="match-tracking">
-                <h3 class="section-h3" data-i18n="daily.panelH3">Progression</h3>
-                <div class="daily-header">
-                  <span id="match-daily-day-label"></span>
-                  <span id="match-daily-level-label"></span>
+              </details>
+              <details class="match-section" open>
+                <summary data-i18n="daily.panelH3">Progression</summary>
+                <div class="match-section-body">
+                  <div class="daily-header">
+                    <span id="match-daily-day-label"></span>
+                    <span id="match-daily-level-label"></span>
+                  </div>
+                  <div class="hint" data-i18n="daily.hint">A fixed set of missions tracked from the matches you accept — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up.</div>
+                  <label for="match-daily-toggle" class="check-label">
+                    <input type="checkbox" id="match-daily-toggle" checked />
+                    <span data-i18n="daily.acceptLabel">Count this match toward the daily mission list</span>
+                  </label>
+                  <div class="hint" id="match-daily-hint"></div>
+                  <div class="mission-list" id="match-daily-list"></div>
+                  <label for="match-achieve-toggle" class="check-label">
+                    <input type="checkbox" id="match-achieve-toggle" checked />
+                    <span data-i18n="daily.profileLabel">Count this match toward my profile and achievements</span>
+                  </label>
+                  <div class="hint" id="match-achieve-hint"></div>
                 </div>
-                <div class="hint" data-i18n="daily.hint">A fixed set of missions tracked from the matches you accept — no date reset, no timer. The list never changes until every mission is done (real time doesn't matter). Complete missions to level up.</div>
-                <label for="match-daily-toggle" class="check-label">
-                  <input type="checkbox" id="match-daily-toggle" checked />
-                  <span data-i18n="daily.acceptLabel">Count this match toward the daily mission list</span>
-                </label>
-                <div class="hint" id="match-daily-hint"></div>
-                <div class="mission-list" id="match-daily-list"></div>
-                <label for="match-achieve-toggle" class="check-label">
-                  <input type="checkbox" id="match-achieve-toggle" checked />
-                  <span data-i18n="daily.profileLabel">Count this match toward my profile and achievements</span>
-                </label>
-                <div class="hint" id="match-achieve-hint"></div>
-              </div>
-              <label data-i18n="offline.startingCredits">Starting credits</label>
-              <input id="match-credits" type="number" min="100" max="2000" step="100" value="800" class="credits-input" />
-              <label data-i18n="offline.weather">Weather (visual only)</label>
-              <select id="match-weather" class="weather-select"></select>
-              <div class="hint" data-i18n="offline.weatherHint">A cosmetic overlay on your screen only. It does not change the game rules.</div>
-              <label data-i18n="offline.fogMode">Fog of war</label>
-              <select id="match-fog" class="fog-select">
-                <option value="memory" data-i18n="offline.fog.memory">Classic (map stays explored)</option>
-                <option value="classic" data-i18n="offline.fog.classic">Classic+ (no fade — seen areas stay bright)</option>
-                <option value="hard" data-i18n="offline.fog.hard">Hard (fog always returns)</option>
-              </select>
-              <div class="hint" data-i18n="offline.fogHint">How the map remembers what your units explored.</div>
-              <label for="match-daynight" class="check-label">
-                <input type="checkbox" id="match-daynight" />
-                <span data-i18n="offline.dayNight">Day/night cycle</span>
-              </label>
-              <div class="hint" data-i18n="offline.dayNightHint">A 5-minute day/night cycle darkens the world at night. Cosmetic.</div>
-              <label data-i18n="match.coopEconomy">Alliance economy</label>
-              <select id="match-coop-economy" class="fog-select">
-                <option value="none" data-i18n="match.coopNone">Off</option>
-                <option value="power" data-i18n="match.coopPower">Power grid</option>
-                <option value="supply" data-i18n="match.coopSupply">Supply bank</option>
-                <option value="both" data-i18n="match.coopBoth">Both</option>
-              </select>
-              <div class="hint" data-i18n="match.coopEconomyHint">Allies share one credit bank and/or one fused power grid.</div>
-              <label data-i18n="match.coopRank">Alliance rank</label>
-              <select id="match-coop-rank" class="fog-select">
-                <option value="none" data-i18n="match.coopNone">Off</option>
-                <option value="score" data-i18n="match.coopScore">Shared score</option>
-                <option value="level" data-i18n="match.coopLevel">Shared rank level</option>
-                <option value="both" data-i18n="match.coopBoth">Both</option>
-              </select>
-              <div class="hint" data-i18n="match.coopRankHint">Allies climb one combined ladder with merged scores.</div>
-              <label data-i18n="match.coopControl">Alliance control</label>
-              <select id="match-coop-control" class="fog-select">
-                <option value="none" data-i18n="match.coopNone">Off</option>
-                <option value="units" data-i18n="match.coopUnits">Units only</option>
-                <option value="all" data-i18n="match.coopAll">All units + buildings</option>
-              </select>
-              <div class="hint" data-i18n="match.coopControlHint">Allies may command each other's units and buildings.</div>
-              <div class="mods-picker" id="match-mods-picker">
-                <h3 class="section-h3" data-i18n="mods.matchTitle">Balance mod</h3>
-                <label for="match-mod-toggle" class="check-label">
-                  <input type="checkbox" id="match-mod-toggle" />
-                  <span data-i18n="mods.enableForMatch">Use a balance mod</span>
-                </label>
-                <select id="match-mod-select" class="fog-select"></select>
-                <div class="hint" id="match-mod-hint"></div>
-                <div class="hint" id="match-mod-sync"></div>
-              </div>
-              <div class="hint" id="match-mod-note"></div>
-              <label data-i18n="offline.winCondition" id="match-win-rule-label">Win condition</label>
-              <select id="match-win-rule" class="win-rule-select">
-                <option value="standard" data-i18n="offline.win.standard">Standard (base destruction)</option>
-                <option value="annihilation" data-i18n="offline.win.annihilation">Total Annihilation</option>
-                <option value="command-center" data-i18n="offline.win.commandCenter">Command Center</option>
-              </select>
-              <div class="hint" id="match-win-rule-desc" data-i18n="offline.winDesc.standard">Lose when your Command Center is destroyed and you cannot rebuild it (all Bulldozers dead, or not enough money to buy a new one).</div>
-              <div class="players" id="match-players-list"></div>
-              <div class="match-add-actions" id="match-add-actions">
-                <select id="match-bot-diff" title="New bot difficulty"></select>
-                <button class="ghost" id="match-add-bot" data-i18n="offline.addBot">+ Add Bot</button>
-                <div class="match-pass-row" id="match-pass-row">
-                  <input id="match-pass-input" type="password" placeholder="password (optional)" data-i18n-placeholder="match.passNewPlaceholder" />
-                  <button class="ghost" id="match-pass-btn" data-i18n="match.passSet">Set</button>
+              </details>
+              <details class="match-section" open>
+                <summary data-i18n="match.sections.settings">Match settings</summary>
+                <div class="match-section-body">
+                  <label data-i18n="offline.startingCredits">Starting credits</label>
+                  <input id="match-credits" type="number" min="100" max="2000" step="100" value="800" class="credits-input" />
+                  <label data-i18n="offline.weather">Weather (visual only)</label>
+                  <select id="match-weather" class="weather-select"></select>
+                  <div class="hint" data-i18n="offline.weatherHint">A cosmetic overlay on your screen only. It does not change the game rules.</div>
+                  <label data-i18n="offline.fogMode">Fog of war</label>
+                  <select id="match-fog" class="fog-select">
+                    <option value="memory" data-i18n="offline.fog.memory">Classic (map stays explored)</option>
+                    <option value="classic" data-i18n="offline.fog.classic">Classic+ (no fade — seen areas stay bright)</option>
+                    <option value="hard" data-i18n="offline.fog.hard">Hard (fog always returns)</option>
+                  </select>
+                  <div class="hint" data-i18n="offline.fogHint">How the map remembers what your units explored.</div>
+                  <label for="match-daynight" class="check-label">
+                    <input type="checkbox" id="match-daynight" />
+                    <span data-i18n="offline.dayNight">Day/night cycle</span>
+                  </label>
+                  <div class="hint" data-i18n="offline.dayNightHint">A 5-minute day/night cycle darkens the world at night. Cosmetic.</div>
                 </div>
-              </div>
+              </details>
+              <details class="match-section" open>
+                <summary data-i18n="match.sections.alliance">Alliance</summary>
+                <div class="match-section-body">
+                  <label data-i18n="match.coopEconomy">Alliance economy</label>
+                  <select id="match-coop-economy" class="fog-select">
+                    <option value="none" data-i18n="match.coopNone">Off</option>
+                    <option value="power" data-i18n="match.coopPower">Power grid</option>
+                    <option value="supply" data-i18n="match.coopSupply">Supply bank</option>
+                    <option value="both" data-i18n="match.coopBoth">Both</option>
+                  </select>
+                  <div class="hint" data-i18n="match.coopEconomyHint">Allies share one credit bank and/or one fused power grid.</div>
+                  <label data-i18n="match.coopRank">Alliance rank</label>
+                  <select id="match-coop-rank" class="fog-select">
+                    <option value="none" data-i18n="match.coopNone">Off</option>
+                    <option value="score" data-i18n="match.coopScore">Shared score</option>
+                    <option value="level" data-i18n="match.coopLevel">Shared rank level</option>
+                    <option value="both" data-i18n="match.coopBoth">Both</option>
+                  </select>
+                  <div class="hint" data-i18n="match.coopRankHint">Allies climb one combined ladder with merged scores.</div>
+                  <label data-i18n="match.coopControl">Alliance control</label>
+                  <select id="match-coop-control" class="fog-select">
+                    <option value="none" data-i18n="match.coopNone">Off</option>
+                    <option value="units" data-i18n="match.coopUnits">Units only</option>
+                    <option value="all" data-i18n="match.coopAll">All units + buildings</option>
+                  </select>
+                  <div class="hint" data-i18n="match.coopControlHint">Allies may command each other's units and buildings.</div>
+                </div>
+              </details>
+              <details class="match-section" open>
+                <summary data-i18n="mods.matchTitle">Balance mod</summary>
+                <div class="mods-picker match-section-body" id="match-mods-picker">
+                  <label for="match-mod-toggle" class="check-label">
+                    <input type="checkbox" id="match-mod-toggle" />
+                    <span data-i18n="mods.enableForMatch">Use a balance mod</span>
+                  </label>
+                  <select id="match-mod-select" class="fog-select"></select>
+                  <div class="hint" id="match-mod-hint"></div>
+                  <div class="hint" id="match-mod-sync"></div>
+                  <div class="hint" id="match-mod-note"></div>
+                </div>
+              </details>
+              <details class="match-section" open>
+                <summary data-i18n="match.sections.players">Players &amp; win condition</summary>
+                <div class="match-section-body">
+                  <label data-i18n="offline.winCondition" id="match-win-rule-label">Win condition</label>
+                  <select id="match-win-rule" class="win-rule-select">
+                    <option value="standard" data-i18n="offline.win.standard">Standard (base destruction)</option>
+                    <option value="annihilation" data-i18n="offline.win.annihilation">Total Annihilation</option>
+                    <option value="command-center" data-i18n="offline.win.commandCenter">Command Center</option>
+                  </select>
+                  <div class="hint" id="match-win-rule-desc" data-i18n="offline.winDesc.standard">Lose when your Command Center is destroyed and you cannot rebuild it (all Bulldozers dead, or not enough money to buy a new one).</div>
+                  <div class="players" id="match-players-list"></div>
+                  <div class="match-add-actions" id="match-add-actions">
+                    <select id="match-bot-diff" title="New bot difficulty"></select>
+                    <button class="ghost" id="match-add-bot" data-i18n="offline.addBot">+ Add Bot</button>
+                    <div class="match-pass-row" id="match-pass-row">
+                      <input id="match-pass-input" type="password" placeholder="password (optional)" data-i18n-placeholder="match.passNewPlaceholder" />
+                      <button class="ghost" id="match-pass-btn" data-i18n="match.passSet">Set</button>
+                    </div>
+                  </div>
+                </div>
+              </details>
               <div class="match-actions" id="match-actions"></div>
-              <div id="sync-panel">
-                <h3 data-i18n="sync.title">Dev settings check</h3>
-                <div class="sync-hint" data-i18n="sync.hint">Tick a player and clone their dev settings — manually, never automatically.</div>
-                <div id="sync-players"></div>
-                <div class="sync-btns">
-                  <button id="sync-once" data-i18n="sync.syncOnce">Sync once</button>
-                  <button id="sync-copy" data-i18n="sync.copySync">Copy &amp; save</button>
+              <details class="match-section" open id="sync-panel">
+                <summary data-i18n="sync.title">Dev settings check</summary>
+                <div class="match-section-body">
+                  <div class="sync-hint" data-i18n="sync.hint">Tick a player and clone their dev settings — manually, never automatically.</div>
+                  <div id="sync-players"></div>
+                  <div class="sync-btns">
+                    <button id="sync-once" data-i18n="sync.syncOnce">Sync once</button>
+                    <button id="sync-copy" data-i18n="sync.copySync">Copy &amp; save</button>
+                  </div>
                 </div>
-              </div>
-              <label for="replay-auto-save" class="check-label">
-                <input type="checkbox" id="replay-auto-save" />
-                <span data-i18n="replay.autoSave">Auto-save replay after the match</span>
-              </label>
-              <div class="hint" data-i18n="replay.autoSaveHint">When on, a local replay file is saved automatically at the end of every match (offline, LAN or online).</div>
+              </details>
+              <details class="match-section" open>
+                <summary data-i18n="match.sections.replay">Replay</summary>
+                <div class="match-section-body">
+                  <label for="replay-auto-save" class="check-label">
+                    <input type="checkbox" id="replay-auto-save" />
+                    <span data-i18n="replay.autoSave">Auto-save replay after the match</span>
+                  </label>
+                  <div class="hint" data-i18n="replay.autoSaveHint">When on, a local replay file is saved automatically at the end of every match (offline, LAN or online).</div>
+                </div>
+              </details>
               <div class="status" id="match-status"></div>
               <div class="match-note" data-i18n="match.note">Share the room code above, or the address on your network panel, so friends can join.</div>
               <div class="match-note" id="match-notes"></div>
