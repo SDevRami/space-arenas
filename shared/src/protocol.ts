@@ -100,6 +100,10 @@ export interface PlayerSlot {
   bot?: boolean
   difficulty?: BotDifficulty
   devSettings?: Partial<MatchSettings>
+  /** Host-side verdict on whether this slot's effective *defaults* (its
+   *  `settings.json` / localStorage layer) match the host's. `undefined` = unknown
+   *  (old client that never published a defaults hash) and never blocks a start. */
+  defaultsOk?: boolean
 }
 
 export const BIN = {
@@ -613,6 +617,11 @@ export interface LobbyMessage {
   passwordRequired: boolean
   winRule?: WinRule
   settings?: Partial<MatchSettings>
+  /** crc32 (hex) of the host's *effective defaults* (settings.json layers over the
+   *  compiled defaults). Guests compare it to their own to detect a base mismatch. */
+  defaultsHash?: string
+  /** The host's effective-defaults layers, so a mismatching guest can adopt them. */
+  defaults?: Partial<MatchSettings>
   map?: MapData
   /** Filename of the balance mod the host applied to this room (''/undefined = none). */
   modId?: string
@@ -733,6 +742,9 @@ export interface SpectateSyncMessage {
 export interface DevSettingsMessage {
   kind: 'C_DEV_SETTINGS'
   settings: Partial<MatchSettings>
+  /** The sender's effective-defaults fingerprint (see `LobbyMessage.defaultsHash`).
+   *  Omitted by older clients, in which case the host never blocks the slot. */
+  defaultsHash?: string
 }
 
 /** Server → clients: a non-spectator changed their match values after the match started.

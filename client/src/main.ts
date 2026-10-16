@@ -1,5 +1,5 @@
 import './styles.css'
-import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, modHash, PROTOCOL_VERSION, DEV_SCALAR_SECTIONS, DEV_OVERRIDE_BUILDING_FIELDS, DEV_OVERRIDE_UNIT_FIELDS, DEV_OVERRIDE_WEAPON_FIELDS, DEV_OVERRIDE_UPGRADE_FIELDS, type DevOverrideFieldDef, type ModFile, type ModMeta, type RoomMod, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, modHash, PROTOCOL_VERSION, fingerprintSettings, resolveSettingsFileLayers, DEV_SCALAR_SECTIONS, DEV_OVERRIDE_BUILDING_FIELDS, DEV_OVERRIDE_UNIT_FIELDS, DEV_OVERRIDE_WEAPON_FIELDS, DEV_OVERRIDE_UPGRADE_FIELDS, type DevOverrideFieldDef, type ModFile, type ModMeta, type RoomMod, type MatchSettingsFile, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, validateMap, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { AudioHooks, AMBIENT_SYNTH } from './audio/hooks.ts'
@@ -2530,9 +2530,52 @@ const settingsFingerprint = (s: Partial<MatchSettings>): string =>
     .toString(16)
     .padStart(8, '0')
 
+/** The effective *defaults* fingerprint (the `builtin`+`user` base, without this
+ *  session's `devOverrides`). Broadcast with our dev settings so the host can tell
+ *  whether our base matches theirs before starting a match. Uses the shared
+ *  canonical-JSON fingerprint so it is byte-identical to the host's. */
+const settingsDefaultsHash = (): string => fingerprintSettings(mergeMatchSettings(savedDefaults))
+
+/** Cached `/api/settings` payload (the `builtin`/`user`/`client` file layers). */
+let settingsFile: MatchSettingsFile = {}
+
+/** Persists the raw settings file via the host (`/api/settings`); false when
+ *  offline / static hosting (where localStorage is the only home). */
+const saveSettingsFile = async (file: MatchSettingsFile): Promise<boolean> => {
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(file),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/** Loads `profile/settings.json` at boot and layers it under the local defaults.
+ *  Existing device data (localStorage) always wins; with no host we simply keep
+ *  the compiled defaults + localStorage (offline fallback). */
+const loadSettingsFile = async (): Promise<void> => {
+  let file: MatchSettingsFile | null = null
+  try {
+    const res = await fetch('/api/settings')
+    if (res.ok) {
+      const json = (await res.json()) as { ok?: boolean; settings?: MatchSettingsFile | null }
+      if (json && json.ok && json.settings) file = json.settings
+    }
+  } catch {
+    /* offline / static hosting: localStorage is the fallback */
+  }
+  settingsFile = file ?? {}
+  savedDefaults = { ...resolveSettingsFileLayers(settingsFile), ...savedDefaults }
+  buildDevForm()
+}
+
 const pushDevSettingsToHost = (): void => {
   if (!net?.connected || !lobbyState) return
-  net.publishDevSettings(resolvedDevSettings())
+  net.publishDevSettings(resolvedDevSettings(), settingsDefaultsHash())
   if (lobbyState.yourId !== lobbyState.hostId) return
   devPushedToRoom = true
   net.updateRoom({ settings: resolvedDevSettings() })
@@ -3758,6 +3801,14 @@ devSaveDefaultBtn.addEventListener('click', () => {
   } catch {
     /* storage unavailable */
   }
+  // Mirror into `profile/settings.json` (`user` layer, preserving the shipped
+  // `builtin` + client-only `client` blocks) so the defaults survive a fresh origin.
+  const file: MatchSettingsFile = { v: 1 }
+  if (settingsFile.builtin) file.builtin = settingsFile.builtin
+  if (settingsFile.client) file.client = settingsFile.client
+  file.user = savedDefaults
+  settingsFile = file
+  void saveSettingsFile(file)
   buildDevForm()
   pushDevSettingsToHost()
   setDevStatus(t('dev.status.defaultsSaved'))
@@ -3823,6 +3874,9 @@ try {
   /* storage unavailable */
 }
 buildDevForm()
+// Fold `profile/settings.json` (host side) under the localStorage layers. Local
+// data always wins; when the endpoint is unavailable we keep compiled + local.
+void loadSettingsFile()
 
 // ---------- offline menu state ----------
 
@@ -4414,21 +4468,42 @@ const renderMatchPanel = (msg: LobbyMessage): void => {
   leaveBtn.textContent = t('match.leave')
   leaveBtn.addEventListener('click', leaveMatch)
 
+  // Base-defaults gate: guests whose dev-settings defaults differ from the host's
+  // would build their match settings on a different base, so the host blocks start
+  // (the server enforces this too) until they adopt the host's defaults.
+  const baseOffenders = nonSpectators.filter((p) => !p.bot && !p.host && p.defaultsOk === false)
+
   if (isHost) {
     const startMatchBtn = document.createElement('button')
     startMatchBtn.className = 'primary'
     startMatchBtn.textContent = allReady
       ? t('match.start')
       : t('match.waitingReady', { r: nonSpectators.filter((p) => p.ready).length, t: nonSpectators.length })
-    startMatchBtn.disabled = !allReady
+    startMatchBtn.disabled = !allReady || baseOffenders.length > 0
     startMatchBtn.addEventListener('click', () => net?.start())
     matchActionsEl.appendChild(startMatchBtn)
+    if (baseOffenders.length > 0) {
+      const note = document.createElement('div')
+      note.className = 'match-note'
+      note.textContent = t('match.defaultsMismatch', { names: baseOffenders.map((p) => p.name).join(', ') })
+      matchActionsEl.appendChild(note)
+    }
   } else if (me && !me.spectator) {
     const readyBtn = document.createElement('button')
     readyBtn.className = 'primary'
     readyBtn.textContent = me.ready ? t('match.notReady') : t('match.readyBtn')
     readyBtn.addEventListener('click', () => net?.ready(!me.ready))
     matchActionsEl.appendChild(readyBtn)
+    if (me.defaultsOk === false) {
+      const adoptBtn = document.createElement('button')
+      adoptBtn.textContent = t('dev.useHostDefaults')
+      adoptBtn.addEventListener('click', adoptHostDefaults)
+      matchActionsEl.appendChild(adoptBtn)
+      const note = document.createElement('div')
+      note.className = 'match-note'
+      note.textContent = t('dev.defaultsMismatch')
+      matchActionsEl.appendChild(note)
+    }
   }
   matchActionsEl.appendChild(leaveBtn)
   renderSyncList()
@@ -4598,11 +4673,33 @@ const cloneDevSettingsFrom = (their: Partial<MatchSettings>, save: boolean): voi
   buildDevForm()
   if (save) saveDevOverrides()
   if (net?.connected && lobbyState) {
-    net.publishDevSettings(resolvedDevSettings())
+    net.publishDevSettings(resolvedDevSettings(), settingsDefaultsHash())
     if (lobbyState.yourId === lobbyState.hostId) net.updateRoom({ settings: resolvedDevSettings() })
   }
   setDevStatus(t(save ? 'dev.status.saved' : 'dev.status.syncedOnce'))
   renderSyncList()
+}
+
+/** Adopt the host's broadcast defaults (`LobbyMessage.defaults`) as ours, so our
+ *  `settingsDefaultsHash()` matches and the base-defaults start gate clears. */
+const adoptHostDefaults = (): void => {
+  const layers = (lobbyState?.defaults ?? {}) as Partial<MatchSettings>
+  savedDefaults = JSON.parse(JSON.stringify(layers)) as Partial<MatchSettings>
+  try {
+    localStorage.setItem(DEV_DEFAULTS_KEY, JSON.stringify(savedDefaults))
+  } catch {
+    /* storage unavailable */
+  }
+  const file: MatchSettingsFile = { v: 1 }
+  if (settingsFile.builtin) file.builtin = settingsFile.builtin
+  if (settingsFile.client) file.client = settingsFile.client
+  file.user = savedDefaults
+  settingsFile = file
+  void saveSettingsFile(file)
+  buildDevForm()
+  pushDevSettingsToHost()
+  setDevStatus(t('dev.status.defaultsSynced'))
+  if (lobbyState) renderMatchPanel(lobbyState)
 }
 
 const renderSyncList = (): void => {
@@ -4710,7 +4807,7 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
       logNetEvent(t('network.diagEventJoined', { code: msg.roomCode }))
       if (!devPublishedConn) {
         devPublishedConn = true
-        net?.publishDevSettings(resolvedDevSettings())
+        net?.publishDevSettings(resolvedDevSettings(), settingsDefaultsHash())
       }
       renderMatchPanel(msg)
       setTab('match')

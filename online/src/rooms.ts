@@ -226,10 +226,12 @@ export class RoomRegistry {
     }
   }
 
-  setDevSettings(room: Room, ws: WebSocket, settings: Partial<MatchSettings>): void {
+  setDevSettings(room: Room, ws: WebSocket, settings: Partial<MatchSettings>, defaultsOk?: boolean): void {
     const p = this.playerFor(room, ws)
     if (!p) return
     p.devSettings = sanitizeSettings(settings)
+    if (defaultsOk === undefined) delete p.defaultsOk
+    else p.defaultsOk = defaultsOk
   }
 
   /** Resolves spawn-point conflicts and rewrites the map spawns to the active player ids. */
@@ -397,7 +399,7 @@ export class RoomRegistry {
     const slots: PlayerSlot[] = []
     const hash = room.mod ? modHash(room.mod) : null
     room.players.forEach((p) => {
-      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, connected: p.connected, difficulty: p.difficulty, modOk: hash === null ? undefined : !p.spectator && (p.host || p.modAck === hash), ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}) })
+      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, connected: p.connected, difficulty: p.difficulty, modOk: hash === null ? undefined : !p.spectator && (p.host || p.modAck === hash), ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}), ...(p.defaultsOk !== undefined ? { defaultsOk: p.defaultsOk } : {}) })
     })
     return slots.sort((a, b) => a.id - b.id)
   }

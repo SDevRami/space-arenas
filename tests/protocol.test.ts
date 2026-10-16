@@ -13,6 +13,9 @@ import {
   encodeRelayChecksum,
   makeMatchStart,
   crc32,
+  fingerprintSettings,
+  resolveSettingsFileLayers,
+  mergeMatchSettings,
   type CommandType,
   type EnvelopeCommand,
 } from '@space-arenas/shared'
@@ -266,5 +269,31 @@ describe('protocol: control message round-trip', () => {
   it('round-trips dev settings', () => {
     const msg = { kind: 'C_DEV_SETTINGS', settings: { startingCredits: 5000, sellRefundFraction: 0.5 } }
     expect(decodeControl(encodeControl(msg))).toEqual(msg)
+  })
+
+  it('round-trips dev settings with an effective-defaults fingerprint', () => {
+    const msg = { kind: 'C_DEV_SETTINGS', settings: {}, defaultsHash: 'deadbeef' }
+    expect(decodeControl(encodeControl(msg))).toEqual(msg)
+  })
+})
+
+describe('settings file layering', () => {
+  it('layers builtin then user over the compiled defaults', () => {
+    expect(resolveSettingsFileLayers(null)).toEqual({})
+    expect(resolveSettingsFileLayers({})).toEqual({})
+    expect(resolveSettingsFileLayers({ builtin: { startingCredits: 4000 }, user: { sellRefundFraction: 0.4 } })).toEqual({
+      startingCredits: 4000,
+      sellRefundFraction: 0.4,
+    })
+    // `user` wins over `builtin`.
+    expect(resolveSettingsFileLayers({ builtin: { startingCredits: 4000 }, user: { startingCredits: 5000 } }).startingCredits).toBe(5000)
+  })
+
+  it('fingerprints the effective defaults deterministically and distinctly', () => {
+    const a = fingerprintSettings(mergeMatchSettings({ startingCredits: 5000 }))
+    const b = fingerprintSettings(mergeMatchSettings({ startingCredits: 5000 }))
+    expect(a).toBe(b)
+    expect(a).toMatch(/^[0-9a-f]{8}$/)
+    expect(a).not.toBe(fingerprintSettings(mergeMatchSettings({})))
   })
 })

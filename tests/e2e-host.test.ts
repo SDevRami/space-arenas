@@ -21,6 +21,7 @@ import {
   PROTOCOL_VERSION,
   type ControlMessage,
   type LobbyMessage,
+  type MatchSettings,
   type ReplayData,
   type ReplayMeta,
   type ModFile,
@@ -154,6 +155,10 @@ class TestClient {
 
   updateRoom(patch: { mapId?: string; password?: string; modId?: string }): void {
     this.send({ kind: 'C_UPDATE_ROOM', ...patch })
+  }
+
+  publishDevSettings(settings: Partial<MatchSettings>, defaultsHash?: string): void {
+    this.send(defaultsHash === undefined ? { kind: 'C_DEV_SETTINGS', settings } : { kind: 'C_DEV_SETTINGS', settings, defaultsHash })
   }
 
   addBot(difficulty: 'easy' | 'medium' | 'hard'): void {
@@ -1076,5 +1081,61 @@ describe('host: lobby flow', () => {
     await rm(modsDir, { recursive: true, force: true })
     hostC.ws.close()
     h2.kill()
+  }, 30000)
+
+  it('settings API: round-trips profile/settings.json and gates guests on effective defaults', async () => {
+    const profileDir = await mkdtemp(join(tmpdir(), 'sa-settings-'))
+    const { host: h3, port: p3 } = await startHost(ROOM_CODE, PASS, { SA_PROFILE_DIR: profileDir })
+    const base = `http://127.0.0.1:${p3}`
+
+    // Fresh profile dir: no file yet, so the effective defaults are the compiled ones.
+    const empty = (await (await fetch(`${base}/api/settings`)).json()) as { ok: boolean; settings: unknown; defaultsHash: string }
+    expect(empty.ok).toBe(true)
+    expect(empty.settings).toBeNull()
+    expect(typeof empty.defaultsHash).toBe('string')
+
+    // Writing a `user` layer changes the effective-defaults hash.
+    const post = await fetch(`${base}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ v: 1, user: { startingCredits: 5000 } }),
+    })
+    const posted = (await post.json()) as { ok: boolean; defaultsHash: string }
+    expect(posted.ok).toBe(true)
+    expect(posted.defaultsHash).not.toBe(empty.defaultsHash)
+
+    const got = (await (await fetch(`${base}/api/settings`)).json()) as {
+      settings: { user?: { startingCredits?: number } } | null
+      defaultsHash: string
+    }
+    expect(got.settings?.user?.startingCredits).toBe(5000)
+    expect(got.defaultsHash).toBe(posted.defaultsHash)
+
+    // The lobby advertises the fingerprint + the layers so a guest can adopt them.
+    const host = new TestClient()
+    await host.connect(p3)
+    host.join('Host')
+    const lobby = (await host.waitFor('H_LOBBY')) as LobbyMessage
+    expect(lobby.defaultsHash).toBe(posted.defaultsHash)
+    expect(lobby.defaults?.startingCredits).toBe(5000)
+
+    // A guest whose published default fingerprint differs is flagged un-synced…
+    const guest = new TestClient()
+    await guest.connect(p3)
+    guest.join('Guest')
+    await guest.waitFor('H_LOBBY')
+    guest.publishDevSettings({}, 'deadbeef')
+    const bad = await guest.waitForLobby((m) => m.players.some((p) => p.name === 'Guest' && p.defaultsOk === false))
+    expect(bad.players.find((p) => p.name === 'Guest')?.defaultsOk).toBe(false)
+
+    // …and clears once it reports the host's fingerprint.
+    guest.publishDevSettings({}, posted.defaultsHash)
+    const ok = await guest.waitForLobby((m) => m.players.some((p) => p.name === 'Guest' && p.defaultsOk === true))
+    expect(ok.players.find((p) => p.name === 'Guest')?.defaultsOk).toBe(true)
+
+    await rm(profileDir, { recursive: true, force: true })
+    guest.ws.close()
+    host.ws.close()
+    h3.kill()
   }, 30000)
 })

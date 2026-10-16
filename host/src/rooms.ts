@@ -230,10 +230,12 @@ export class RoomManager {
     }
   }
 
-  setDevSettings(ws: WebSocket, settings: Partial<MatchSettings>): void {
+  setDevSettings(ws: WebSocket, settings: Partial<MatchSettings>, defaultsOk?: boolean): void {
     const p = this.playerFor(ws)
     if (!p || !this.room || p.bot) return
     p.devSettings = sanitizeSettings(settings)
+    if (defaultsOk === undefined) delete p.defaultsOk
+    else p.defaultsOk = defaultsOk
   }
 
   /** Resolves spawn-point conflicts and rewrites the map spawns to the active player ids. */
@@ -373,7 +375,7 @@ export class RoomManager {
   slots(room: Room): PlayerSlot[] {
     const slots: PlayerSlot[] = []
     room.players.forEach((p) => {
-      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, bot: p.bot, difficulty: p.difficulty, ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}) })
+      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, bot: p.bot, difficulty: p.difficulty, ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}), ...(p.defaultsOk !== undefined ? { defaultsOk: p.defaultsOk } : {}) })
     })
     for (const b of room.bots) {
       slots.push({ id: b.id, name: b.name, ready: b.ready, host: false, team: b.team, spawn: b.spawn, color: b.color, spectator: false, bot: true, difficulty: b.difficulty })

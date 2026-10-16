@@ -100,6 +100,8 @@ export interface PlayerSlot {
   bot?: boolean
   difficulty?: BotDifficulty
   devSettings?: Partial<MatchSettings>
+  /** Guests compare the host's `defaultsHash` to their own; false blocks start. */
+  defaultsOk?: boolean
 }
 
 export const BIN = {
@@ -613,6 +615,9 @@ export interface LobbyMessage {
   passwordRequired: boolean
   winRule?: WinRule
   settings?: Partial<MatchSettings>
+  /** Effective-defaults fingerprint + layers (see `shared/src/protocol.ts`). */
+  defaultsHash?: string
+  defaults?: Partial<MatchSettings>
   map?: MapData
   /** Filename of the balance mod the host applied to this room (''/undefined = none). */
   modId?: string
@@ -733,6 +738,8 @@ export interface SpectateSyncMessage {
 export interface DevSettingsMessage {
   kind: 'C_DEV_SETTINGS'
   settings: Partial<MatchSettings>
+  /** The sender's effective-defaults fingerprint (see `LobbyMessage.defaultsHash`). */
+  defaultsHash?: string
 }
 
 /** Server → clients: a non-spectator changed their match values after the match started.

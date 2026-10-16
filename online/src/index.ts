@@ -259,10 +259,19 @@ const scheduleForfeit = (room: Room, playerId: number): void => {
   timers.set(playerId, t)
 }
 
+/** Shared fields every lobby message carries: the room's effective-defaults
+ *  fingerprint + layers. The online server has no `profile/settings.json`, so its
+ *  effective defaults are always the compiled ones (the offline fallback). */
+const lobbyDefaults = (): { defaultsHash: string; defaults: Record<string, never> } => ({
+  defaultsHash: fingerprintSettingsFor(undefined),
+  defaults: {},
+})
+
 const broadcastLobby = (room: Room): void => {
   if (room.ended) return
   const slots = registry.slots(room)
   const hId = registry.hostId(room)
+  const dflt = lobbyDefaults()
   room.players.forEach((p, ws) => {
     if (!p.connected) return
     send(ws, {
@@ -278,6 +287,7 @@ const broadcastLobby = (room: Room): void => {
       passwordRequired: room.passwordRequired,
       winRule: room.winRule,
       settings: room.settings,
+      ...dflt,
       ...(room.modId ? { modId: room.modId } : {}),
       ...(room.mod ? { mod: registry.roomMod(room) } : {}),
     })
@@ -403,6 +413,7 @@ const handleControl = async (ws: WebSocket, msg: ControlMessage): Promise<void> 
               passwordRequired: room.passwordRequired,
               winRule: room.winRule,
               settings: room.settings,
+              ...lobbyDefaults(),
               ...(room.modId ? { modId: room.modId } : {}),
               ...(room.mod ? { mod: registry.roomMod(room) } : {}),
             })
@@ -454,7 +465,8 @@ const handleControl = async (ws: WebSocket, msg: ControlMessage): Promise<void> 
     case 'C_DEV_SETTINGS': {
       if (!ctx) return
       const { room } = ctx
-      registry.setDevSettings(room, ws, msg.settings ?? {})
+      const defaultsOk = msg.defaultsHash === undefined ? undefined : msg.defaultsHash === lobbyDefaults().defaultsHash
+      registry.setDevSettings(room, ws, msg.settings ?? {}, defaultsOk)
       // Tamper watch: once the match is running, a changed fingerprint means the
       // player edited their match values after start. Alert the offender (warning)
       // and the host (actionable) once per changed fingerprint, honoring "skip".
@@ -557,6 +569,13 @@ const handleControl = async (ws: WebSocket, msg: ControlMessage): Promise<void> 
           ws,
           { kind: 'H_ERROR', message: missing.length > 0 ? `Waiting for ${missing.join(', ')} to install the balance mod` : 'All players must install the balance mod to start' },
         )
+        return
+      }
+      // Base-defaults gate (see the LAN host): a seated guest whose dev-settings
+      // defaults differ from the room's must sync before the match starts.
+      const baseOffender = [...room.players.values()].find((p) => !p.spectator && !p.host && p.defaultsOk === false)
+      if (baseOffender) {
+        send(ws, { kind: 'H_ERROR', message: `Dev-settings defaults differ for ${baseOffender.name} — sync settings before starting` })
         return
       }
       room.started = true

@@ -16,10 +16,15 @@ import {
   encodeControl,
   isValidMod,
   makeMatchStart,
+  mergeMatchSettings,
+  fingerprintSettings,
+  resolveSettingsFileLayers,
   validReplay,
   type ChatRelayMessage,
   type ControlMessage,
   type EnvelopeCommand,
+  type MatchSettings,
+  type MatchSettingsFile,
   type ModFile,
   type ReplayData,
 } from '@space-arenas/shared'
@@ -113,6 +118,57 @@ const readProfileFile = async (): Promise<unknown | null> => {
   } catch {
     return null
   }
+}
+
+// ---------------------------------------------------------------------------
+// Dev-settings defaults (`profile/settings.json`): the panel's "Save as default"
+// writes its `builtin`/`user` layers here (plus the client-only `client` block)
+// via `/api/settings`, so defaults survive a fresh browser origin. The host also
+// uses it to broadcast the room's effective-defaults fingerprint so a guest whose
+// own defaults differ is caught before the match starts.
+// ---------------------------------------------------------------------------
+const SETTINGS_FILE = 'settings.json'
+
+const loadSettingsFile = (): MatchSettingsFile | null => {
+  try {
+    const parsed = JSON.parse(readFileSync(join(PROFILE_DIR, SETTINGS_FILE), 'utf8')) as unknown
+    return typeof parsed === 'object' && parsed !== null ? (parsed as MatchSettingsFile) : null
+  } catch {
+    return null
+  }
+}
+
+let hostSettingsFile: MatchSettingsFile | null = loadSettingsFile()
+
+/** The host's effective-defaults layers only (no compiled fill) — broadcast so a
+ *  mismatching guest can adopt exactly what the host runs. */
+const hostDefaultsLayers = (): Partial<MatchSettings> => resolveSettingsFileLayers(hostSettingsFile)
+
+const hostDefaults = (): MatchSettings => mergeMatchSettings(resolveSettingsFileLayers(hostSettingsFile))
+
+const hostDefaultsHash = (): string => fingerprintSettings(hostDefaults())
+
+const saveSettingsFile = async (file: MatchSettingsFile): Promise<boolean> => {
+  try {
+    await mkdir(PROFILE_DIR, { recursive: true })
+  } catch {
+    return false
+  }
+  const finalPath = join(PROFILE_DIR, SETTINGS_FILE)
+  const tmpPath = join(PROFILE_DIR, '.settings.tmp')
+  try {
+    await writeFile(tmpPath, JSON.stringify(file, null, 2))
+    await rename(tmpPath, finalPath)
+  } catch {
+    try {
+      await rm(tmpPath)
+    } catch {
+      /* ignore */
+    }
+    return false
+  }
+  hostSettingsFile = file
+  return true
 }
 
 // ---------------------------------------------------------------------------
@@ -332,11 +388,20 @@ const winnerFromRemaining = (room: { players: Map<WebSocket, HostPlayer>; bots: 
 
 const discovery = new LanDiscovery(() => currentName, () => PORT, roomInfo)
 
+/** Shared fields every lobby message carries: the host's effective-defaults
+ *  fingerprint + the layers themselves, so a guest can detect (and adopt) a base
+ *  mismatch before the match starts. */
+const lobbyDefaults = (): { defaultsHash: string; defaults: Partial<MatchSettings> } => ({
+  defaultsHash: hostDefaultsHash(),
+  defaults: hostDefaultsLayers(),
+})
+
 const broadcastLobby = (): void => {
   const room = rooms.getRoom()
   if (!room) return
   const slots = rooms.slots(room)
   const hId = hostId()
+  const dflt = lobbyDefaults()
   room.players.forEach((p, ws) => {
     if (!p.connected) return
     send(ws, {
@@ -352,6 +417,7 @@ const broadcastLobby = (): void => {
       passwordRequired: room.passwordRequired,
       winRule: room.winRule,
       settings: room.settings,
+      ...dflt,
       ...(room.modId ? { modId: room.modId } : {}),
     })
   })
@@ -450,7 +516,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
           }
           const p = rooms.playerFor(ws)
           if (p) {
-            send(ws, { kind: 'H_LOBBY', roomCode: room.code, yourId: p.id, hostId: hostId(), players: rooms.slots(room), maxPlayers: room.maxPlayers, mapName: room.map.name, mapId: room.mapId, map: room.map, passwordRequired: room.passwordRequired, winRule: room.winRule, settings: room.settings, ...(room.modId ? { modId: room.modId } : {}) })
+            send(ws, { kind: 'H_LOBBY', roomCode: room.code, yourId: p.id, hostId: hostId(), players: rooms.slots(room), maxPlayers: room.maxPlayers, mapName: room.map.name, mapId: room.mapId, map: room.map, passwordRequired: room.passwordRequired, winRule: room.winRule, settings: room.settings, ...lobbyDefaults(), ...(room.modId ? { modId: room.modId } : {}) })
             send(ws, { ...makeMatchStart(room.map, rooms.matchSlots(room), hostId(), p.id, room.seed, 25, room.settings, room.winRule), spectator: true })
             if (relay) {
               send(ws, { kind: 'S_SPECTATE_SYNC', currentTick: relay.currentTick, log: relay.history })
@@ -495,7 +561,8 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
     }
     case 'C_DEV_SETTINGS': {
       if (!room) return
-      rooms.setDevSettings(ws, msg.settings ?? {})
+      const defaultsOk = msg.defaultsHash === undefined ? undefined : msg.defaultsHash === hostDefaultsHash()
+      rooms.setDevSettings(ws, msg.settings ?? {}, defaultsOk)
       broadcastLobby()
       break
     }
@@ -568,6 +635,14 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
       const allReady = [...room.players.values(), ...room.bots].every((p) => p.ready && !p.spectator)
       if (!allReady) {
         send(ws, { kind: 'H_ERROR', message: 'Not all players are ready' })
+        return
+      }
+      // Base-defaults gate: refuse to start while a seated player's dev-settings
+      // *defaults* differ from ours (they would publish match settings built on a
+      // different base). Undefined (old client / never published) never blocks.
+      const baseOffender = [...room.players.values()].find((p) => !p.spectator && !p.host && p.defaultsOk === false)
+      if (baseOffender) {
+        send(ws, { kind: 'H_ERROR', message: `Dev-settings defaults differ for ${baseOffender.name} — sync settings before starting` })
         return
       }
       room.started = true
@@ -899,6 +974,31 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
     }
     const ok = await saveProfileFile(profile)
     writeJson(res, ok ? 200 : 500, ok ? { ok: true } : { ok: false, error: 'write failed' })
+    return true
+  }
+  // ----- dev-settings defaults (`profile/settings.json`) -----
+  if (req.method === 'GET' && urlPath === '/api/settings') {
+    writeJson(res, 200, { ok: true, settings: hostSettingsFile, defaultsHash: hostDefaultsHash() })
+    return true
+  }
+  if (req.method === 'POST' && urlPath === '/api/settings') {
+    const body = await readJson(req)
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      writeJson(res, 400, { ok: false, error: 'settings must be an object' })
+      return true
+    }
+    const b = body as Record<string, unknown>
+    // Preserve blocks the caller did not send so a partial POST (e.g. only `user`)
+    // can't accidentally drop the shipped `builtin` layer or the client-only block.
+    const file: MatchSettingsFile = { v: 1 }
+    if (hostSettingsFile?.builtin) file.builtin = hostSettingsFile.builtin
+    if (hostSettingsFile?.user) file.user = hostSettingsFile.user
+    if (hostSettingsFile?.client) file.client = hostSettingsFile.client
+    if (b.builtin && typeof b.builtin === 'object' && !Array.isArray(b.builtin)) file.builtin = b.builtin as Partial<MatchSettings>
+    if (b.user && typeof b.user === 'object' && !Array.isArray(b.user)) file.user = b.user as Partial<MatchSettings>
+    if (b.client && typeof b.client === 'object' && !Array.isArray(b.client)) file.client = b.client as MatchSettingsFile['client']
+    const ok = await saveSettingsFile(file)
+    writeJson(res, ok ? 200 : 500, ok ? { ok: true, defaultsHash: hostDefaultsHash() } : { ok: false, error: 'write failed' })
     return true
   }
   return false
