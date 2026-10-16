@@ -874,7 +874,7 @@
       .panel-title-tight { color: var(--color-accent); font-size: 16px; margin: 0; }
       .settings-heading { color: var(--color-accent); font-size: 14px; margin: 0; }
       .dev-header-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-      .dev-collapse-btn { margin-left: auto; padding: 4px 10px; font-size: 11px; }
+      #lobby button.dev-collapse-btn { width: auto; flex: 0 0 auto; margin: 0 0 0 auto; padding: 4px 10px; font-size: 11px; }
       .credits-input { width: 120px; }
       .weather-select { width: 220px; }
       .win-rule-select { width: 260px; }

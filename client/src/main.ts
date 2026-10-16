@@ -13,7 +13,7 @@ import { createPlayerRow } from './ui/player-row.ts'
 import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
 import { initControlsSettings } from './ui/controls-settings.ts'
 import { preloadAllMatchAssets, preloadFxFrames } from './render/building-sprites.ts'
-import { WEATHERS, type WeatherId, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setFieldScale, setObstacleScale, setObstacleOffset, setUnitScale, setUnitOffset, setAssetPath, setFxScale, setFxOffset, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, setSpriteLayerOrder, setProjectileBulletSize, setProjectileRocketSize, setProjectileShellSize, setProjectileShellHeight, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_FIELD_SCALE, DEFAULT_OBSTACLE_SCALE, DEFAULT_OBSTACLE_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_UNIT_OFFSET, DEFAULT_FX_SCALE, DEFAULT_FX_OFFSET, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, DEFAULT_SPRITE_LAYER_ORDER, DEFAULT_PROJECTILE_BULLET_SIZE, DEFAULT_PROJECTILE_ROCKET_SIZE, DEFAULT_PROJECTILE_SHELL_SIZE, DEFAULT_PROJECTILE_SHELL_HEIGHT, SPRITE_LAYER_KINDS, UNIT_ASSET_IDS, HUD_ASSET_IDS, OBSTACLE_ASSET_TYPES, reloadGraphics } from './ui/graphics.ts'
+import { WEATHERS, type WeatherId, type GraphicsSettings, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setFieldScale, setObstacleScale, setObstacleOffset, setUnitScale, setUnitOffset, setAssetPath, setFxScale, setFxOffset, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, setSpriteLayerOrder, setProjectileBulletSize, setProjectileRocketSize, setProjectileShellSize, setProjectileShellHeight, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_FIELD_SCALE, DEFAULT_OBSTACLE_SCALE, DEFAULT_OBSTACLE_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_UNIT_OFFSET, DEFAULT_FX_SCALE, DEFAULT_FX_OFFSET, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, DEFAULT_SPRITE_LAYER_ORDER, DEFAULT_PROJECTILE_BULLET_SIZE, DEFAULT_PROJECTILE_ROCKET_SIZE, DEFAULT_PROJECTILE_SHELL_SIZE, DEFAULT_PROJECTILE_SHELL_HEIGHT, DEFAULT_ASSET_PATHS, SPRITE_LAYER_KINDS, UNIT_ASSET_IDS, HUD_ASSET_IDS, OBSTACLE_ASSET_TYPES, reloadGraphics } from './ui/graphics.ts'
 import { getAudio, setOverride, setTuning, reloadAudio, TUNING_VOL_MAX, TUNING_PITCH_MIN, TUNING_PITCH_MAX, type SoundId } from './audio/settings.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
 import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, saveCustomMap, seedLibraryFromBundledMaps, type MapEntry } from './mapbuilder/library.ts'
@@ -1639,7 +1639,7 @@ const collectPayload = (kind: 'devsettings' | 'profile'): string | null => {
       'space-arenas:graphics': JSON.stringify(getGraphics()),
       'space-arenas:audio': JSON.stringify(getAudio()),
     }
-    for (const k of ['space-arenas:profile:config', 'space-arenas:controls', 'space-arenas:hud-parts', 'space-arenas:custom-maps', 'space-arenas:mods-active', 'space-arenas:offline-mod']) {
+    for (const k of ['space-arenas:profile:config', 'space-arenas:controls', 'space-arenas:hud-parts', 'space-arenas:custom-maps', 'space-arenas:mods-active', 'space-arenas:offline-mod', 'space-arenas:dev-client-defaults']) {
       try {
         const raw = localStorage.getItem(k)
         if (raw !== null) keys[k] = raw
@@ -1732,6 +1732,12 @@ const restoreBackup = async (b: BackupInfo): Promise<void> => {
       try {
         const rawDefaults = localStorage.getItem(DEV_DEFAULTS_KEY)
         savedDefaults = rawDefaults ? (JSON.parse(rawDefaults) as Partial<MatchSettings>) : {}
+      } catch {
+        /* storage unavailable */
+      }
+            try {
+        const rawClient = localStorage.getItem(DEV_CLIENT_KEY)
+        settingsFile.client = rawClient ? sanitizeClientDevSettings(JSON.parse(rawClient) as ClientDevSettings, window.location.origin) : undefined
       } catch {
         /* storage unavailable */
       }
@@ -2468,6 +2474,9 @@ const audioReady = import('./ui/audio-settings.ts').then((mod) => {
 
 const DEV_STORAGE_KEY = 'space-arenas:dev-settings'
 const DEV_DEFAULTS_KEY = 'space-arenas:dev-defaults'
+/** Local mirror of the `settings.json` `client` block (the client-only baseline for
+ *  the panel's "modified" badge) so "Save as default" survives an offline reload. */
+const DEV_CLIENT_KEY = 'space-arenas:dev-client-defaults'
 const devFormEl = document.getElementById('dev-settings-form') as HTMLDivElement
 const devStatusEl = document.getElementById('dev-status') as HTMLDivElement
 const devSaveBtn = document.getElementById('dev-save') as HTMLButtonElement
@@ -2535,7 +2544,24 @@ const saveDevOverrides = (): void => {
   }
 }
 
-const resolvedDevSettings = (): MatchSettings => mergeMatchSettings({ ...savedDefaults, ...devOverrides })
+/** Layers `patch` (this session's `devOverrides`) over `base` (`savedDefaults`),
+ *  deep-merging the four entity override maps per-id/per-field. A plain spread
+ *  would drop every saved entry as soon as the session touched the same map. */
+const layerDevSettings = (base: Partial<MatchSettings>, patch: Partial<MatchSettings>): Partial<MatchSettings> => {
+  const out: Partial<MatchSettings> = { ...base, ...patch }
+  for (const key of ['buildingOverrides', 'unitOverrides', 'weaponOverrides', 'upgradeOverrides'] as const) {
+    const b = base[key] as Record<string, Record<string, number>> | undefined
+    const p = patch[key] as Record<string, Record<string, number>> | undefined
+    if (b === undefined && p === undefined) continue
+    const merged: Record<string, Record<string, number>> = {}
+    for (const [id, fields] of Object.entries(b ?? {})) merged[id] = { ...fields }
+    for (const [id, fields] of Object.entries(p ?? {})) merged[id] = { ...(merged[id] ?? {}), ...fields }
+    ;(out as Record<string, unknown>)[key] = merged
+  }
+  return out
+}
+
+const resolvedDevSettings = (): MatchSettings => mergeMatchSettings(layerDevSettings(savedDefaults, devOverrides))
 
 const stableStringify = (v: unknown): string => {
   if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null'
@@ -2596,11 +2622,29 @@ const loadSettingsFile = async (): Promise<void> => {
   } catch {
     /* offline / static hosting: localStorage is the fallback */
   }
+  const localClient = settingsFile.client
   settingsFile = file ?? {}
+  // Keep the locally-mirrored client block when the host file has none (offline /
+  // fresh profile), so the dev panel's client-only baseline is not lost.
+  if (settingsFile.client === undefined && localClient !== undefined) settingsFile.client = localClient
   savedDefaults = { ...resolveSettingsFileLayers(settingsFile), ...savedDefaults }
   applyClientDevSettings(settingsFile.client, false)
   buildDevForm()
 }
+
+/** The effective synced defaults: the saved `user` layer over the compiled ones.
+ *  The dev panel treats these as "default" — what a row's reset button restores and
+ *  what the "modified" badge compares against. "Save as default" replaces them. */
+const effectiveDefaultSettings = (): MatchSettings => mergeMatchSettings(savedDefaults)
+
+/** The saved client-only baseline (`settings.json`'s `client` block). Empty when the
+ *  file has none, so every client-only override shows as modified until it is saved. */
+const baseGraphics = (): Partial<GraphicsSettings> =>
+  (settingsFile.client?.graphics ?? {}) as unknown as Partial<GraphicsSettings>
+const baseAudioOverrides = (): Record<string, string> =>
+  (settingsFile.client?.audio as { overrides?: Record<string, string> } | undefined)?.overrides ?? {}
+const baseProfileTargets = (): Record<string, number> =>
+  (settingsFile.client?.profile as { achievementTargets?: Record<string, number> } | undefined)?.achievementTargets ?? {}
 
 /** The current client-only ("non-synced") dev values, shaped for `settings.json`'s
  *  `client` block. They never reach the host's match settings; they ride in the
@@ -2928,18 +2972,19 @@ const makeNumberRow = (
 
 const makeTextRow = (
   tbody: HTMLTableSectionElement,
-  o: { label: string; desc: string; value: string; placeholder?: string; onCommit: (v: string) => void },
+  o: { label: string; desc: string; value: string; placeholder?: string; defaultValue?: string; onCommit: (v: string) => void },
 ): void => {
   const input = document.createElement('input')
   input.type = 'text'
   input.value = o.value
   input.placeholder = o.placeholder ?? 'folder/{color}/folder_{frame}.png'
-  const isOverridden = (): boolean => input.value.trim().length > 0
+  const base = (o.defaultValue ?? '').trim()
+  const isOverridden = (): boolean => input.value.trim() !== base
   const row = appendDevRow(tbody, {
     label: o.label,
     desc: o.desc,
     group: 'client',
-    defaultText: '',
+    defaultText: o.defaultValue ?? '',
     isOverridden,
     buildValue: (cell) => cell.appendChild(input),
   })
@@ -2997,7 +3042,7 @@ const makeAudioRow = (tbody: HTMLTableSectionElement, id: SoundId): void => {
   input.type = 'text'
   input.value = getAudio().overrides[id] ?? ''
   input.placeholder = 'sound/{id}/'
-  const isOverridden = (): boolean => (getAudio().overrides[id] ?? '').length > 0
+  const isOverridden = (): boolean => (getAudio().overrides[id] ?? '') !== (baseAudioOverrides()[id] ?? '')
   let audioRowEl: HTMLTableRowElement | null = null
   const commitPath = (): void => {
     setOverride(id, input.value.trim())
@@ -3102,14 +3147,15 @@ const makeAudioRow = (tbody: HTMLTableSectionElement, id: SoundId): void => {
 
 const buildOverrideInputs = (tbody: HTMLTableSectionElement, mapKey: OverrideMapKey, id: string, defs: DevOverrideFieldDef[]): void => {
   const defaults = OVERRIDE_SOURCES[mapKey][id] ?? {}
+  const savedMaps = savedDefaults as Record<string, Record<string, Record<string, number>> | undefined>
   const devMaps = devOverrides as Record<string, Record<string, Record<string, number>> | undefined>
   for (const f of defs) {
     if (f.only && !f.only.includes(id)) continue
-    const defaultRaw = defaults[f.field] ?? 0
+    const baseRaw = savedMaps[mapKey]?.[id]?.[f.field] ?? defaults[f.field] ?? 0
     const overrideRaw = devMaps[mapKey]?.[id]?.[f.field]
-    const current = overrideRaw ?? defaultRaw
+    const current = overrideRaw ?? baseRaw
     const inSeconds = f.seconds === true
-    const displayDefault = inSeconds ? defaultRaw / SIM_TICK_HZ : defaultRaw
+    const displayDefault = inSeconds ? baseRaw / SIM_TICK_HZ : baseRaw
     makeNumberRow(tbody, {
       label: t(`dev.overrides.${f.field}.label`),
       desc: t(`dev.overrides.${f.field}.desc`),
@@ -3142,6 +3188,7 @@ const buildDevForm = (): void => {
   devRows = []
   devFormEl.innerHTML = ''
   const resolved = resolvedDevSettings()
+  const defaults = effectiveDefaultSettings()
   const g = getGraphics()
 
   // ---- Synced: match variables ----
@@ -3149,7 +3196,7 @@ const buildDevForm = (): void => {
     const tbody = makeTable(appendDevSection(t(`dev.sections.${section.title}`), 'synced'))
     for (const def of section.fields) {
       const currentRaw = resolved[def.key] as number
-      const defaultRaw = DEFAULT_MATCH_SETTINGS[def.key] as number
+      const defaultRaw = defaults[def.key] as number
       const inSeconds = def.seconds === true
       const displayCurrent = inSeconds ? currentRaw / SIM_TICK_HZ : currentRaw
       const displayDefault = inSeconds ? defaultRaw / SIM_TICK_HZ : defaultRaw
@@ -3186,13 +3233,13 @@ const buildDevForm = (): void => {
         desc: t('dev.fields.fogMode.desc'),
         value: resolved.fogMode,
         options: FOG_MODES.map((m) => ({ value: m, label: t(`offline.fog.${m}`) })),
-        default: DEFAULT_MATCH_SETTINGS.fogMode,
+        default: defaults.fogMode,
         onCommit: (v) => {
-          if (v === DEFAULT_MATCH_SETTINGS.fogMode) clearDevScalar('fogMode')
+          if (v === defaults.fogMode) clearDevScalar('fogMode')
           else devOverrides = { ...devOverrides, fogMode: v as FogMode }
           setDevStatus(
-            v === DEFAULT_MATCH_SETTINGS.fogMode
-              ? t('dev.status.scalarDefault', { label: t('dev.fields.fogMode.label'), v: t(`offline.fog.${DEFAULT_MATCH_SETTINGS.fogMode}`) })
+            v === defaults.fogMode
+              ? t('dev.status.scalarDefault', { label: t('dev.fields.fogMode.label'), v: t(`offline.fog.${defaults.fogMode}`) })
               : t('dev.status.scalarSet', { label: t('dev.fields.fogMode.label'), v: t(`offline.fog.${v}`) }),
           )
         },
@@ -3238,7 +3285,7 @@ const buildDevForm = (): void => {
       unit: devUnit('0–1'),
       group: 'client',
       value: g.buildingFill.medium,
-      default: DEFAULT_BUILDING_FILL.medium,
+      default: baseGraphics().buildingFill?.medium ?? DEFAULT_BUILDING_FILL.medium,
       min: 0,
       max: 1,
       step: 0.05,
@@ -3247,7 +3294,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.fillSet', { quality: t('settings.graphics.quality.medium'), v }))
       },
       onReset: () => {
-        setBuildingFill('medium', DEFAULT_BUILDING_FILL.medium)
+        setBuildingFill('medium', baseGraphics().buildingFill?.medium ?? DEFAULT_BUILDING_FILL.medium)
         refreshDevForm()
       },
     })
@@ -3257,7 +3304,7 @@ const buildDevForm = (): void => {
       unit: devUnit('0–1'),
       group: 'client',
       value: g.buildingFill.high,
-      default: DEFAULT_BUILDING_FILL.high,
+      default: baseGraphics().buildingFill?.high ?? DEFAULT_BUILDING_FILL.high,
       min: 0,
       max: 1,
       step: 0.05,
@@ -3266,7 +3313,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.fillSet', { quality: t('settings.graphics.quality.high'), v }))
       },
       onReset: () => {
-        setBuildingFill('high', DEFAULT_BUILDING_FILL.high)
+        setBuildingFill('high', baseGraphics().buildingFill?.high ?? DEFAULT_BUILDING_FILL.high)
         refreshDevForm()
       },
     })
@@ -3276,7 +3323,7 @@ const buildDevForm = (): void => {
       unit: devUnit('0–1'),
       group: 'client',
       value: g.buildingOffset.medium,
-      default: DEFAULT_BUILDING_OFFSET.medium,
+      default: baseGraphics().buildingOffset?.medium ?? DEFAULT_BUILDING_OFFSET.medium,
       min: -2,
       max: 2,
       step: 0.05,
@@ -3285,7 +3332,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.offsetSet', { quality: t('settings.graphics.quality.medium'), v }))
       },
       onReset: () => {
-        setBuildingOffset('medium', DEFAULT_BUILDING_OFFSET.medium)
+        setBuildingOffset('medium', baseGraphics().buildingOffset?.medium ?? DEFAULT_BUILDING_OFFSET.medium)
         refreshDevForm()
       },
     })
@@ -3295,7 +3342,7 @@ const buildDevForm = (): void => {
       unit: devUnit('0–1'),
       group: 'client',
       value: g.buildingOffset.high,
-      default: DEFAULT_BUILDING_OFFSET.high,
+      default: baseGraphics().buildingOffset?.high ?? DEFAULT_BUILDING_OFFSET.high,
       min: -2,
       max: 2,
       step: 0.05,
@@ -3304,7 +3351,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.offsetSet', { quality: t('settings.graphics.quality.high'), v }))
       },
       onReset: () => {
-        setBuildingOffset('high', DEFAULT_BUILDING_OFFSET.high)
+        setBuildingOffset('high', baseGraphics().buildingOffset?.high ?? DEFAULT_BUILDING_OFFSET.high)
         refreshDevForm()
       },
     })
@@ -3318,6 +3365,7 @@ const buildDevForm = (): void => {
         label: tn(id, BUILDINGS[id].name),
         desc: t('dev.fields.assetBuilding.desc'),
         value: g.assetPaths[`building:${id}`] ?? '',
+        defaultValue: baseGraphics().assetPaths?.[`building:${id}`] ?? DEFAULT_ASSET_PATHS[`building:${id}`] ?? '',
         onCommit: (v) => {
           setAssetPath(`building:${id}`, v)
           setDevStatus(t('dev.status.assetSaved'))
@@ -3330,6 +3378,7 @@ const buildDevForm = (): void => {
         label: tn(id, UNITS[id]?.name ?? id),
         desc: t('dev.fields.assetUnit.desc'),
         value: g.assetPaths[`unit:${id}`] ?? '',
+        defaultValue: baseGraphics().assetPaths?.[`unit:${id}`] ?? DEFAULT_ASSET_PATHS[`unit:${id}`] ?? '',
         onCommit: (v) => {
           setAssetPath(`unit:${id}`, v)
           setDevStatus(t('dev.status.assetSaved'))
@@ -3342,6 +3391,7 @@ const buildDevForm = (): void => {
         label: tn(id, UNITS[id]?.name ?? BUILDINGS[id]?.name ?? id),
         desc: t('dev.fields.assetHud.desc'),
         value: g.assetPaths[`hud:${id}`] ?? '',
+        defaultValue: baseGraphics().assetPaths?.[`hud:${id}`] ?? DEFAULT_ASSET_PATHS[`hud:${id}`] ?? '',
         placeholder: 'hud/hud_cc.png',
         onCommit: (v) => {
           setAssetPath(`hud:${id}`, v)
@@ -3357,7 +3407,7 @@ const buildDevForm = (): void => {
         unit: devUnit('x'),
         group: 'client',
         value: g.unitScale[cls],
-        default: DEFAULT_UNIT_SCALE[cls],
+        default: baseGraphics().unitScale?.[cls] ?? DEFAULT_UNIT_SCALE[cls],
         min: 0.1,
         max: 5,
         step: 0.05,
@@ -3366,7 +3416,7 @@ const buildDevForm = (): void => {
           setDevStatus(t('dev.status.saved'))
         },
         onReset: () => {
-          setUnitScale(cls, DEFAULT_UNIT_SCALE[cls])
+          setUnitScale(cls, baseGraphics().unitScale?.[cls] ?? DEFAULT_UNIT_SCALE[cls])
           refreshDevForm()
         },
       })
@@ -3378,7 +3428,7 @@ const buildDevForm = (): void => {
         unit: devUnit('0–1'),
         group: 'client',
         value: g.unitOffset[cls],
-        default: DEFAULT_UNIT_OFFSET[cls],
+        default: baseGraphics().unitOffset?.[cls] ?? DEFAULT_UNIT_OFFSET[cls],
         min: -2,
         max: 2,
         step: 0.05,
@@ -3387,7 +3437,7 @@ const buildDevForm = (): void => {
           setDevStatus(t('dev.status.saved'))
         },
         onReset: () => {
-          setUnitOffset(cls, DEFAULT_UNIT_OFFSET[cls])
+          setUnitOffset(cls, baseGraphics().unitOffset?.[cls] ?? DEFAULT_UNIT_OFFSET[cls])
           refreshDevForm()
         },
       })
@@ -3397,6 +3447,7 @@ const buildDevForm = (): void => {
       label: t('dev.assets.supplyField'),
       desc: t('dev.fields.fieldSupply.desc'),
       value: g.assetPaths['field:supply'] ?? '',
+      defaultValue: baseGraphics().assetPaths?.['field:supply'] ?? DEFAULT_ASSET_PATHS['field:supply'] ?? '',
       onCommit: (v) => {
         setAssetPath('field:supply', v)
         setDevStatus(t('dev.status.assetSaved'))
@@ -3406,6 +3457,7 @@ const buildDevForm = (): void => {
       label: t('dev.assets.oilField'),
       desc: t('dev.fields.fieldOil.desc'),
       value: g.assetPaths['field:oil'] ?? '',
+      defaultValue: baseGraphics().assetPaths?.['field:oil'] ?? DEFAULT_ASSET_PATHS['field:oil'] ?? '',
       onCommit: (v) => {
         setAssetPath('field:oil', v)
         setDevStatus(t('dev.status.assetSaved'))
@@ -3417,7 +3469,7 @@ const buildDevForm = (): void => {
       unit: devUnit('0–1'),
       group: 'client',
       value: g.fieldOffset,
-      default: DEFAULT_FIELD_OFFSET,
+      default: baseGraphics().fieldOffset ?? DEFAULT_FIELD_OFFSET,
       min: -2,
       max: 2,
       step: 0.05,
@@ -3426,7 +3478,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setFieldOffset(DEFAULT_FIELD_OFFSET)
+        setFieldOffset(baseGraphics().fieldOffset ?? DEFAULT_FIELD_OFFSET)
         refreshDevForm()
       },
     })
@@ -3436,7 +3488,7 @@ const buildDevForm = (): void => {
       unit: devUnit('x'),
       group: 'client',
       value: g.fieldScale,
-      default: DEFAULT_FIELD_SCALE,
+      default: baseGraphics().fieldScale ?? DEFAULT_FIELD_SCALE,
       min: 0.1,
       max: 5,
       step: 0.05,
@@ -3445,7 +3497,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setFieldScale(DEFAULT_FIELD_SCALE)
+        setFieldScale(baseGraphics().fieldScale ?? DEFAULT_FIELD_SCALE)
         refreshDevForm()
       },
     })
@@ -3455,6 +3507,7 @@ const buildDevForm = (): void => {
         label: k,
         desc: t('dev.fields.assetObstacle.desc'),
         value: g.assetPaths[`obstacle:${k}`] ?? '',
+        defaultValue: baseGraphics().assetPaths?.[`obstacle:${k}`] ?? DEFAULT_ASSET_PATHS[`obstacle:${k}`] ?? '',
         onCommit: (v) => {
           setAssetPath(`obstacle:${k}`, v)
           setDevStatus(t('dev.status.assetSaved'))
@@ -3467,7 +3520,7 @@ const buildDevForm = (): void => {
       unit: devUnit('x'),
       group: 'client',
       value: g.obstacleScale,
-      default: DEFAULT_OBSTACLE_SCALE,
+      default: baseGraphics().obstacleScale ?? DEFAULT_OBSTACLE_SCALE,
       min: 0.1,
       max: 5,
       step: 0.05,
@@ -3476,7 +3529,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setObstacleScale(DEFAULT_OBSTACLE_SCALE)
+        setObstacleScale(baseGraphics().obstacleScale ?? DEFAULT_OBSTACLE_SCALE)
         refreshDevForm()
       },
     })
@@ -3486,7 +3539,7 @@ const buildDevForm = (): void => {
       unit: devUnit('0–1'),
       group: 'client',
       value: g.obstacleOffset,
-      default: DEFAULT_OBSTACLE_OFFSET,
+      default: baseGraphics().obstacleOffset ?? DEFAULT_OBSTACLE_OFFSET,
       min: -2,
       max: 2,
       step: 0.05,
@@ -3495,7 +3548,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setObstacleOffset(DEFAULT_OBSTACLE_OFFSET)
+        setObstacleOffset(baseGraphics().obstacleOffset ?? DEFAULT_OBSTACLE_OFFSET)
         refreshDevForm()
       },
     })
@@ -3504,6 +3557,7 @@ const buildDevForm = (): void => {
       label: t('dev.assets.burn'),
       desc: t('dev.fields.assetBurn.desc'),
       value: g.assetPaths['fx:burn'] ?? '',
+      defaultValue: baseGraphics().assetPaths?.['fx:burn'] ?? DEFAULT_ASSET_PATHS['fx:burn'] ?? '',
       onCommit: (v) => {
         setAssetPath('fx:burn', v)
         setDevStatus(t('dev.status.assetSaved'))
@@ -3516,7 +3570,7 @@ const buildDevForm = (): void => {
       unit: devUnit('x'),
       group: 'client',
       value: g.fxScale,
-      default: DEFAULT_FX_SCALE,
+      default: baseGraphics().fxScale ?? DEFAULT_FX_SCALE,
       min: 0.05,
       max: 3,
       step: 0.05,
@@ -3525,7 +3579,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setFxScale(DEFAULT_FX_SCALE)
+        setFxScale(baseGraphics().fxScale ?? DEFAULT_FX_SCALE)
         refreshDevForm()
       },
     })
@@ -3535,7 +3589,7 @@ const buildDevForm = (): void => {
       unit: devUnit('0–1'),
       group: 'client',
       value: g.fxOffset,
-      default: DEFAULT_FX_OFFSET,
+      default: baseGraphics().fxOffset ?? DEFAULT_FX_OFFSET,
       min: -2,
       max: 2,
       step: 0.05,
@@ -3544,7 +3598,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setFxOffset(DEFAULT_FX_OFFSET)
+        setFxOffset(baseGraphics().fxOffset ?? DEFAULT_FX_OFFSET)
         refreshDevForm()
       },
     })
@@ -3555,7 +3609,7 @@ const buildDevForm = (): void => {
       unit: devUnit('x'),
       group: 'client',
       value: g.minimapScale,
-      default: DEFAULT_MINIMAP_SCALE,
+      default: baseGraphics().minimapScale ?? DEFAULT_MINIMAP_SCALE,
       min: 1.2,
       max: 4,
       step: 0.1,
@@ -3564,7 +3618,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setMinimapScale(DEFAULT_MINIMAP_SCALE)
+        setMinimapScale(baseGraphics().minimapScale ?? DEFAULT_MINIMAP_SCALE)
         refreshDevForm()
       },
     })
@@ -3578,7 +3632,7 @@ const buildDevForm = (): void => {
         desc: t('dev.fields.spriteLayer.desc'),
         group: 'client',
         value: g.spriteLayerOrder[kind],
-        default: DEFAULT_SPRITE_LAYER_ORDER[kind],
+        default: baseGraphics().spriteLayerOrder?.[kind] ?? DEFAULT_SPRITE_LAYER_ORDER[kind],
         min: -50,
         max: 50,
         step: 1,
@@ -3587,7 +3641,7 @@ const buildDevForm = (): void => {
           setDevStatus(t('dev.status.saved'))
         },
         onReset: () => {
-          setSpriteLayerOrder(kind, DEFAULT_SPRITE_LAYER_ORDER[kind])
+          setSpriteLayerOrder(kind, baseGraphics().spriteLayerOrder?.[kind] ?? DEFAULT_SPRITE_LAYER_ORDER[kind])
           refreshDevForm()
         },
       })
@@ -3602,7 +3656,7 @@ const buildDevForm = (): void => {
       unit: devUnit('x'),
       group: 'client',
       value: g.projectileBulletSize,
-      default: DEFAULT_PROJECTILE_BULLET_SIZE,
+      default: baseGraphics().projectileBulletSize ?? DEFAULT_PROJECTILE_BULLET_SIZE,
       min: 0.2,
       max: 4,
       step: 0.1,
@@ -3611,7 +3665,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setProjectileBulletSize(DEFAULT_PROJECTILE_BULLET_SIZE)
+        setProjectileBulletSize(baseGraphics().projectileBulletSize ?? DEFAULT_PROJECTILE_BULLET_SIZE)
         refreshDevForm()
       },
     })
@@ -3621,7 +3675,7 @@ const buildDevForm = (): void => {
       unit: devUnit('x'),
       group: 'client',
       value: g.projectileRocketSize,
-      default: DEFAULT_PROJECTILE_ROCKET_SIZE,
+      default: baseGraphics().projectileRocketSize ?? DEFAULT_PROJECTILE_ROCKET_SIZE,
       min: 0.2,
       max: 4,
       step: 0.1,
@@ -3630,7 +3684,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setProjectileRocketSize(DEFAULT_PROJECTILE_ROCKET_SIZE)
+        setProjectileRocketSize(baseGraphics().projectileRocketSize ?? DEFAULT_PROJECTILE_ROCKET_SIZE)
         refreshDevForm()
       },
     })
@@ -3640,7 +3694,7 @@ const buildDevForm = (): void => {
       unit: devUnit('x'),
       group: 'client',
       value: g.projectileShellSize,
-      default: DEFAULT_PROJECTILE_SHELL_SIZE,
+      default: baseGraphics().projectileShellSize ?? DEFAULT_PROJECTILE_SHELL_SIZE,
       min: 0.2,
       max: 4,
       step: 0.1,
@@ -3649,7 +3703,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setProjectileShellSize(DEFAULT_PROJECTILE_SHELL_SIZE)
+        setProjectileShellSize(baseGraphics().projectileShellSize ?? DEFAULT_PROJECTILE_SHELL_SIZE)
         refreshDevForm()
       },
     })
@@ -3659,7 +3713,7 @@ const buildDevForm = (): void => {
       unit: devUnit('px'),
       group: 'client',
       value: g.projectileShellHeight,
-      default: DEFAULT_PROJECTILE_SHELL_HEIGHT,
+      default: baseGraphics().projectileShellHeight ?? DEFAULT_PROJECTILE_SHELL_HEIGHT,
       min: 0.2,
       max: 4,
       step: 0.1,
@@ -3668,7 +3722,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setProjectileShellHeight(DEFAULT_PROJECTILE_SHELL_HEIGHT)
+        setProjectileShellHeight(baseGraphics().projectileShellHeight ?? DEFAULT_PROJECTILE_SHELL_HEIGHT)
         refreshDevForm()
       },
     })
@@ -3682,7 +3736,7 @@ const buildDevForm = (): void => {
       unit: devUnit('x'),
       group: 'client',
       value: g.zoomMin,
-      default: DEFAULT_ZOOM_MIN,
+      default: baseGraphics().zoomMin ?? DEFAULT_ZOOM_MIN,
       min: 0.05,
       max: 1,
       step: 0.05,
@@ -3691,7 +3745,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setZoomMin(DEFAULT_ZOOM_MIN)
+        setZoomMin(baseGraphics().zoomMin ?? DEFAULT_ZOOM_MIN)
         refreshDevForm()
       },
     })
@@ -3701,7 +3755,7 @@ const buildDevForm = (): void => {
       unit: devUnit('x'),
       group: 'client',
       value: g.zoomMax,
-      default: DEFAULT_ZOOM_MAX,
+      default: baseGraphics().zoomMax ?? DEFAULT_ZOOM_MAX,
       min: 1,
       max: 20,
       step: 0.05,
@@ -3710,7 +3764,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setZoomMax(DEFAULT_ZOOM_MAX)
+        setZoomMax(baseGraphics().zoomMax ?? DEFAULT_ZOOM_MAX)
         refreshDevForm()
       },
     })
@@ -3720,7 +3774,7 @@ const buildDevForm = (): void => {
       unit: devUnit('x'),
       group: 'client',
       value: g.replayZoomMin,
-      default: DEFAULT_REPLAY_ZOOM_MIN,
+      default: baseGraphics().replayZoomMin ?? DEFAULT_REPLAY_ZOOM_MIN,
       min: 0.05,
       max: 1,
       step: 0.05,
@@ -3729,7 +3783,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setReplayZoomMin(DEFAULT_REPLAY_ZOOM_MIN)
+        setReplayZoomMin(baseGraphics().replayZoomMin ?? DEFAULT_REPLAY_ZOOM_MIN)
         refreshDevForm()
       },
     })
@@ -3739,7 +3793,7 @@ const buildDevForm = (): void => {
       unit: devUnit('x'),
       group: 'client',
       value: g.replayZoomMax,
-      default: DEFAULT_REPLAY_ZOOM_MAX,
+      default: baseGraphics().replayZoomMax ?? DEFAULT_REPLAY_ZOOM_MAX,
       min: 1,
       max: 50,
       step: 0.1,
@@ -3748,7 +3802,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setReplayZoomMax(DEFAULT_REPLAY_ZOOM_MAX)
+        setReplayZoomMax(baseGraphics().replayZoomMax ?? DEFAULT_REPLAY_ZOOM_MAX)
         refreshDevForm()
       },
     })
@@ -3762,7 +3816,7 @@ const buildDevForm = (): void => {
       unit: devUnit('sec'),
       group: 'client',
       value: g.victoryCinematicSec,
-      default: DEFAULT_VICTORY_CINEMATIC,
+      default: baseGraphics().victoryCinematicSec ?? DEFAULT_VICTORY_CINEMATIC,
       min: 0,
       max: 30,
       step: 1,
@@ -3771,7 +3825,7 @@ const buildDevForm = (): void => {
         setDevStatus(t('dev.status.saved'))
       },
       onReset: () => {
-        setVictoryCinematicSec(DEFAULT_VICTORY_CINEMATIC)
+        setVictoryCinematicSec(baseGraphics().victoryCinematicSec ?? DEFAULT_VICTORY_CINEMATIC)
         refreshDevForm()
       },
     })
@@ -3823,7 +3877,7 @@ const buildDevForm = (): void => {
         desc: t(`dev.fields.${field.key}.desc`),
         group: 'client',
         value: current,
-        default: field.target,
+        default: baseProfileTargets()[field.key] ?? field.target,
         min: field.min,
         max: field.max,
         step: field.step,
@@ -3879,9 +3933,17 @@ devResetBtn.addEventListener('click', () => {
 })
 
 devSaveDefaultBtn.addEventListener('click', () => {
-  savedDefaults = JSON.parse(JSON.stringify(devOverrides)) as Partial<MatchSettings>
+  if (!window.confirm(t('dev.confirmSaveDefault'))) return
+  // Snapshot the effective values (saved defaults + session edits) as the new
+  // defaults, then drop the session overrides so nothing reads as "modified".
+  const snapshot = JSON.parse(JSON.stringify(resolvedDevSettings())) as Partial<MatchSettings>
+  savedDefaults = snapshot
+  devOverrides = {}
+  saveDevOverrides()
+  const client = clientDevSettings()
   try {
     localStorage.setItem(DEV_DEFAULTS_KEY, JSON.stringify(savedDefaults))
+    localStorage.setItem(DEV_CLIENT_KEY, JSON.stringify(client))
   } catch {
     /* storage unavailable */
   }
@@ -3889,7 +3951,7 @@ devSaveDefaultBtn.addEventListener('click', () => {
   // preserving the shipped `builtin` block) so the defaults survive a fresh origin.
   const file: MatchSettingsFile = { v: 1 }
   if (settingsFile.builtin) file.builtin = settingsFile.builtin
-  file.client = clientDevSettings()
+  file.client = client
   file.user = savedDefaults
   settingsFile = file
   void saveSettingsFile(file)
@@ -3956,6 +4018,12 @@ try {
 try {
   const raw = localStorage.getItem(DEV_STORAGE_KEY)
   if (raw) devOverrides = JSON.parse(raw) as Partial<MatchSettings>
+} catch {
+  /* storage unavailable */
+}
+try {
+  const rawClient = localStorage.getItem(DEV_CLIENT_KEY)
+  if (rawClient) settingsFile.client = sanitizeClientDevSettings(JSON.parse(rawClient) as ClientDevSettings, window.location.origin)
 } catch {
   /* storage unavailable */
 }
@@ -4791,7 +4859,14 @@ const adoptHostDefaults = (): void => {
   if (client) applyClientDevSettings(client, true)
   const file: MatchSettingsFile = { v: 1 }
   if (settingsFile.builtin) file.builtin = settingsFile.builtin
-  if (client) file.client = client
+  if (client) {
+    file.client = client
+    try {
+      localStorage.setItem(DEV_CLIENT_KEY, JSON.stringify(client))
+    } catch {
+      /* storage unavailable */
+    }
+  }
   file.user = savedDefaults
   settingsFile = file
   void saveSettingsFile(file)

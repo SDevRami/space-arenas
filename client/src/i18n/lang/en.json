@@ -950,6 +950,7 @@
     "save": "Save changes",
     "reset": "Reset to defaults",
     "saveAsDefault": "Save as default",
+    "confirmSaveDefault": "Save the current dev settings as your new default values? This replaces your existing defaults and cannot be undone.",
     "collapse": "Close all sections",
     "search": "Search settings…",
     "groupAll": "All",
