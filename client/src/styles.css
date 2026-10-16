@@ -305,11 +305,11 @@
       #lobby .error { color: var(--color-error); }
       #lobby .hidden-panel { display: none; }
       #lobby .check-label { display: inline-flex; align-items: center; gap: 8px; margin: 12px 0 4px; font-size: 12px; color: var(--color-text); cursor: pointer; user-select: none; }
-      #lobby .check-label input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 34px; height: 18px; border-radius: 10px; background: var(--color-border); border: 1px solid var(--color-border-light); position: relative; cursor: pointer; flex: 0 0 auto; transition: background 0.15s ease; padding: 0; margin: 0; }
-      #lobby .check-label input[type="checkbox"]::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--color-text-muted); transition: transform 0.15s ease, background 0.15s ease; }
-      #lobby .check-label input[type="checkbox"]:checked { background: var(--color-primary); border-color: var(--color-primary-hover); }
-      #lobby .check-label input[type="checkbox"]:checked::after { transform: translateX(16px); background: #fff; }
-      #lobby .check-label:hover input[type="checkbox"] { box-shadow: 0 0 0 2px rgba(94, 130, 255, 0.18); }
+      #lobby .check-label input[type="checkbox"], #lobby .dev-modified-toggle input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 34px; height: 18px; border-radius: 10px; background: var(--color-border); border: 1px solid var(--color-border-light); position: relative; cursor: pointer; flex: 0 0 auto; transition: background 0.15s ease; padding: 0; margin: 0; }
+      #lobby .check-label input[type="checkbox"]::after, #lobby .dev-modified-toggle input[type="checkbox"]::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--color-text-muted); transition: transform 0.15s ease, background 0.15s ease; }
+      #lobby .check-label input[type="checkbox"]:checked, #lobby .dev-modified-toggle input[type="checkbox"]:checked { background: var(--color-primary); border-color: var(--color-primary-hover); }
+      #lobby .check-label input[type="checkbox"]:checked::after, #lobby .dev-modified-toggle input[type="checkbox"]:checked::after { transform: translateX(16px); background: #fff; }
+      #lobby .check-label:hover input[type="checkbox"], #lobby .dev-modified-toggle:hover input[type="checkbox"] { box-shadow: 0 0 0 2px rgba(94, 130, 255, 0.18); }
 
       #lobby .net-grid { display: flex; gap: 16px; margin-top: 10px; align-items: flex-start; flex-wrap: wrap; }
       #lobby .net-left { flex: 1 1 280px; min-width: 260px; }
@@ -385,7 +385,7 @@
       #lobby .dev-tab:last-child { border-right-width: 1px; }
       #lobby .dev-tab:hover { background: #141b2e; }
       #lobby .dev-tab.active { background: #17223c; border-color: #3d5a96; color: #cfe0ff; }
-      #lobby .dev-modified-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }
+      #lobby .dev-modified-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-muted); white-space: nowrap; cursor: pointer; user-select: none; }
       #lobby .dev-grid { display: block; margin-top: 12px; }
       #lobby .dev-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
       #lobby .dev-table th { text-align: left; padding: 6px 10px; color: var(--color-text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--color-divider); }
