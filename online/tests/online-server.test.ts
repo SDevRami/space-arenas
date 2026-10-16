@@ -5,7 +5,7 @@ import { createServer } from 'node:net'
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import WebSocket from 'ws'
-import { decodeControl, decodeFrame, encodeControl, encodeCmd, BIN, MIN_PROTOCOL_VERSION, type EnvelopeCommand } from '../shared/src/index.ts'
+import { decodeControl, decodeFrame, encodeControl, encodeCmd, BIN, MIN_PROTOCOL_VERSION, PROTOCOL_VERSION, type EnvelopeCommand } from '../shared/src/index.ts'
 import { hashPassphrase } from '../src/passphrase.ts'
 import { modHash } from '../shared/src/mod.ts'
 import { rateLimit } from '../src/ratelimit.ts'
@@ -404,6 +404,13 @@ describe('online server mod repository', () => {
     assert.equal(clean?.buildingOverrides?.['power-plant']?.cost, 500)
     assert.equal(sanitizeMod({ buildingOverrides: {} }), null, 'empty mod must be rejected')
     assert.equal(sanitizeMod('nope'), null)
+    // The client-only block rides along and foreign-origin paths are stripped.
+    const withClient = sanitizeMod({
+      meta: { requireProtocol: PROTOCOL_VERSION },
+      settings: { startingCredits: 4000 },
+      client: { graphics: { assetPaths: { a: 'hud/x.png', b: 'https://evil.example/y.png' } } },
+    })
+    assert.deepEqual(withClient?.client?.graphics, { assetPaths: { a: 'hud/x.png', b: '' } })
     assert.equal(MOD_MAX_BYTES, 4 * 1024 * 1024)
     assert.equal(modLabel(undefined, 'fallback'), 'fallback')
   })

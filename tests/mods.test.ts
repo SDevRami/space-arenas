@@ -7,6 +7,7 @@ import {
   isValidMod,
   mergeEntityMaps,
   modFromSettings,
+  modHash,
   modSettingsDelta,
 } from '@space-arenas/shared'
 import { createModStore, modFileName, sanitizeMod, type ModStore } from '../host/src/mods.ts'
@@ -69,6 +70,17 @@ describe('isValidMod', () => {
     expect(v.ok).toBe(false)
     expect(v.errors).toContain('mod has no settings or overrides')
   })
+
+  it('accepts and validates an optional client-only block', () => {
+    const withProtocol = { meta: { requireProtocol: PROTOCOL_VERSION }, client: { graphics: { minimapScale: 2 } } }
+    expect(isValidMod(withProtocol, PROTOCOL_VERSION).ok).toBe(true)
+    // A client block without a protocol declaration cannot be reproduced safely.
+    const noProtocol = isValidMod({ client: { graphics: {} } }, PROTOCOL_VERSION)
+    expect(noProtocol.ok).toBe(false)
+    expect(noProtocol.errors).toContain('client block requires meta.requireProtocol')
+    expect(isValidMod({ meta: { requireProtocol: PROTOCOL_VERSION }, client: 5 }, PROTOCOL_VERSION).ok).toBe(false)
+    expect(isValidMod({ meta: { requireProtocol: PROTOCOL_VERSION }, client: [] }, PROTOCOL_VERSION).ok).toBe(false)
+  })
 })
 
 describe('mergeEntityMaps', () => {
@@ -127,6 +139,13 @@ describe('modFromSettings', () => {
     expect(mod.unitOverrides).toBeUndefined()
     expect(isValidMod(mod, PROTOCOL_VERSION).ok).toBe(true)
   })
+
+  it('attaches a non-empty client block to the exported snapshot', () => {
+    const mod = modFromSettings({ startingCredits: 4000 }, { name: 'Snap', requireProtocol: PROTOCOL_VERSION }, { graphics: { minimapScale: 2 } })
+    expect(mod.client).toEqual({ graphics: { minimapScale: 2 } })
+    expect(isValidMod(mod, PROTOCOL_VERSION).ok).toBe(true)
+    expect(modFromSettings({ startingCredits: 4000 }, { name: 'Snap' }).client).toBeUndefined()
+  })
 })
 
 describe('modFileName', () => {
@@ -157,6 +176,19 @@ describe('sanitizeMod', () => {
   it('returns null for protocol mismatches and non-objects', () => {
     expect(sanitizeMod({ meta: { requireProtocol: PROTOCOL_VERSION + 1 }, settings: { startingCredits: 1 } })).toBeNull()
     expect(sanitizeMod('nope')).toBeNull()
+  })
+
+  it('carries the client block and strips foreign-origin paths (hash folds it in)', () => {
+    const clean = sanitizeMod({
+      meta: { requireProtocol: PROTOCOL_VERSION },
+      settings: { startingCredits: 4000 },
+      client: { graphics: { assetPaths: { a: 'hud/x.png', b: 'https://evil.example/y.png' } } },
+    })
+    expect(clean?.client?.graphics).toEqual({ assetPaths: { a: 'hud/x.png', b: '' } })
+    // The client block is part of the content identity, so it gates the room mod.
+    expect(modHash({ settings: { startingCredits: 4000 }, client: { graphics: {} } })).not.toBe(
+      modHash({ settings: { startingCredits: 4000 }, client: { graphics: { a: 'hud/x.png' } } }),
+    )
   })
 
   it('keeps sanitization of the newer scalar group (laser/max-power/rank-up)', () => {

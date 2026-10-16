@@ -1,6 +1,7 @@
 import {
   PROTOCOL_VERSION,
   isValidMod,
+  sanitizeClientDevSettings,
   type ModFile,
   type ModMetaData,
 } from '@space-arenas/shared'
@@ -43,6 +44,12 @@ export const sanitizeMod = (json: unknown): ModFile | null => {
   if (mod.settings !== undefined) out.settings = cleanSettings
   for (const [key, map] of Object.entries(cleanMaps) as [keyof typeof cleanMaps, Record<string, Record<string, number>>][]) {
     if (map && Object.keys(map).length > 0) (out as Record<string, unknown>)[key] = map
+  }
+  // Client-only dev values ride along in a full-snapshot mod; sanitize foreign
+  // asset/audio origins so the file can never point another machine off-site.
+  if (mod.client !== undefined && typeof mod.client === 'object') {
+    const client = sanitizeClientDevSettings(mod.client)
+    if (client) out.client = client
   }
   return out
 }

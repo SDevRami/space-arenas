@@ -809,6 +809,7 @@ const installOnlineRoomMod = async (info: RoomMod): Promise<boolean> => {
     if (!up.ok) return false
     await refreshMods()
     setModActive(info.name, true)
+    applyModClientBlock(data.mod)
     net?.ackMod(data.hash)
     return true
   } catch {
@@ -2643,6 +2644,13 @@ const applyClientDevSettings = (client: ClientDevSettings | undefined, force: bo
 const wireClientDevSettings = (): ClientDevSettings =>
   sanitizeClientDevSettings(clientDevSettings(), window.location.origin) as ClientDevSettings
 
+/** Applies a balance mod's client-only snapshot (sanitized against our origin),
+ *  so "export full snapshot" mods reproduce graphics/audio/profile elsewhere. */
+const applyModClientBlock = (mod: ModFile | undefined): void => {
+  if (!mod?.client) return
+  applyClientDevSettings(sanitizeClientDevSettings(mod.client, window.location.origin), true)
+}
+
 const pushDevSettingsToHost = (): void => {
   if (!net?.connected || !lobbyState) return
   net.publishDevSettings(resolvedDevSettings(), settingsDefaultsHash(), wireClientDevSettings())
@@ -3909,7 +3917,9 @@ devExportBtn.addEventListener('click', () => {
   const raw = window.prompt(t('mods.exportNamePrompt'), 'My Balance Mod')
   if (raw === null) return
   const name = (raw.trim() || 'My Balance Mod').slice(0, 60)
-  const mod = modFromSettings(devOverrides, { name, requireProtocol: PROTOCOL_VERSION })
+  // Full snapshot: every effective scalar + the merged override maps + the
+  // client-only block, so importing the mod reproduces this machine exactly.
+  const mod = modFromSettings(resolvedDevSettings(), { name, requireProtocol: PROTOCOL_VERSION }, wireClientDevSettings())
   const blob = new Blob([JSON.stringify(mod, null, 2)], { type: 'application/json' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
@@ -4268,8 +4278,12 @@ startBtn.addEventListener('click', () => {
   }
   void (async () => {
     const mod = await fetchModByName(offlineModName)
-    if (mod) start(makeCfg(mergeMatchSettings({ ...baseSettings, ...modSettingsDelta(baseSettings, mod) })))
-    else start(makeCfg(baseSettings))
+    if (mod) {
+      applyModClientBlock(mod)
+      start(makeCfg(mergeMatchSettings({ ...baseSettings, ...modSettingsDelta(baseSettings, mod) })))
+    } else {
+      start(makeCfg(baseSettings))
+    }
   })()
 })
 

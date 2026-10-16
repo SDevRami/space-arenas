@@ -1,5 +1,6 @@
 import { crc32 } from './protocol.ts'
 import type { BuildingOverrides, UnitOverrides, WeaponOverrides, UpgradeOverrides, MatchSettings } from './constants.ts'
+import type { ClientDevSettings } from './settings-file.ts'
 
 /**
  * A "balance mod" is a JSON file of *deltas* that rides the same override-aware
@@ -34,6 +35,9 @@ export interface ModFile {
   unitOverrides?: Record<string, UnitOverrides>
   weaponOverrides?: Record<string, WeaponOverrides>
   upgradeOverrides?: Record<string, UpgradeOverrides>
+  /** Non-synced dev values (graphics/audio/profile) carried by a full-snapshot
+   *  export. Part of the mod hash, so it participates in the room mod gate. */
+  client?: ClientDevSettings
 }
 
 export interface ModMeta {
@@ -81,6 +85,15 @@ export const isValidMod = (json: unknown, protocolVersion: number): ModValidatio
   if (json.settings !== undefined && !isRecord(json.settings)) {
     errors.push('settings must be an object')
   }
+  if (json.client !== undefined && !isRecord(json.client)) {
+    errors.push('client must be an object')
+  } else if (json.client !== undefined) {
+    // A client-only block can only be reproduced by a client that speaks the
+    // current wire format, so a client-block mod must declare its protocol
+    // (the exporter always sets `requireProtocol`).
+    const requireProtocol = isRecord(json.meta) ? json.meta.requireProtocol : undefined
+    if (requireProtocol === undefined) errors.push('client block requires meta.requireProtocol')
+  }
   for (const key of OVERRIDE_MAP_KEYS) {
     const map = json[key]
     if (map === undefined) continue
@@ -102,6 +115,7 @@ export const isValidMod = (json: unknown, protocolVersion: number): ModValidatio
   }
   const hasContent =
     json.settings !== undefined ||
+    json.client !== undefined ||
     OVERRIDE_MAP_KEYS.some((k) => isRecord(json[k]) && Object.keys(json[k] as Record<string, unknown>).length > 0)
   if (!hasContent) errors.push('mod has no settings or overrides')
   return { ok: errors.length === 0, errors }
@@ -147,8 +161,13 @@ export const modSettingsDelta = (base: OverrideBase, mod: ModFile): Partial<Matc
   }) as Partial<MatchSettings>
 
 /** Builds a mod file from a settings patch (used by the dev-panel "Export Mod"
- *  button — only the deviated scalar keys + the four override maps are emitted). */
-export const modFromSettings = (patch: Partial<MatchSettings>, meta: ModMetaData): ModFile => {
+ *  button — every defined scalar + non-empty override map is emitted, plus the
+ *  optional client-only snapshot). */
+export const modFromSettings = (
+  patch: Partial<MatchSettings>,
+  meta: ModMetaData,
+  client?: ClientDevSettings,
+): ModFile => {
   const { buildingOverrides, unitOverrides, weaponOverrides, upgradeOverrides, ...scalars } = patch
   const settings: Partial<MatchSettings> = {}
   for (const [key, value] of Object.entries(scalars)) {
@@ -161,6 +180,7 @@ export const modFromSettings = (patch: Partial<MatchSettings>, meta: ModMetaData
     ...(unitOverrides && Object.keys(unitOverrides).length > 0 ? { unitOverrides } : {}),
     ...(weaponOverrides && Object.keys(weaponOverrides).length > 0 ? { weaponOverrides } : {}),
     ...(upgradeOverrides && Object.keys(upgradeOverrides).length > 0 ? { upgradeOverrides } : {}),
+    ...(client && Object.keys(client).length > 0 ? { client } : {}),
   }
 }
 
