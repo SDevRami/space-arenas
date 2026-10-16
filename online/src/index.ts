@@ -466,7 +466,7 @@ const handleControl = async (ws: WebSocket, msg: ControlMessage): Promise<void> 
       if (!ctx) return
       const { room } = ctx
       const defaultsOk = msg.defaultsHash === undefined ? undefined : msg.defaultsHash === lobbyDefaults().defaultsHash
-      registry.setDevSettings(room, ws, msg.settings ?? {}, defaultsOk)
+      registry.setDevSettings(room, ws, msg.settings ?? {}, defaultsOk, msg.client)
       // Tamper watch: once the match is running, a changed fingerprint means the
       // player edited their match values after start. Alert the offender (warning)
       // and the host (actionable) once per changed fingerprint, honoring "skip".

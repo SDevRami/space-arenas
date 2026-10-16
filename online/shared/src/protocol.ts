@@ -2,6 +2,7 @@ import type { MapData } from './maps.ts'
 import { PROTOCOL_VERSION } from './constants.ts'
 import type { MatchSettings, WinRule } from './constants.ts'
 import type { ModFile } from './mod.ts'
+import type { ClientDevSettings } from './settings-file.ts'
 
 export type CommandType =
   | 'move'
@@ -100,6 +101,9 @@ export interface PlayerSlot {
   bot?: boolean
   difficulty?: BotDifficulty
   devSettings?: Partial<MatchSettings>
+  /** The slot's non-synced dev values (graphics/audio/profile), so the dev sync
+   *  panel can clone client-only settings to another machine. */
+  clientSettings?: ClientDevSettings
   /** Guests compare the host's `defaultsHash` to their own; false blocks start. */
   defaultsOk?: boolean
 }
@@ -618,6 +622,8 @@ export interface LobbyMessage {
   /** Effective-defaults fingerprint + layers (see `shared/src/protocol.ts`). */
   defaultsHash?: string
   defaults?: Partial<MatchSettings>
+  /** The host's non-synced dev values, adopted along with `defaults`. */
+  defaultsClient?: ClientDevSettings
   map?: MapData
   /** Filename of the balance mod the host applied to this room (''/undefined = none). */
   modId?: string
@@ -740,6 +746,9 @@ export interface DevSettingsMessage {
   settings: Partial<MatchSettings>
   /** The sender's effective-defaults fingerprint (see `LobbyMessage.defaultsHash`). */
   defaultsHash?: string
+  /** The sender's non-synced dev values (graphics/audio/profile); host/online
+   *  store them per slot and rebroadcast in the lobby. Omitted by older clients. */
+  client?: ClientDevSettings
 }
 
 /** Server → clients: a non-spectator changed their match values after the match started.

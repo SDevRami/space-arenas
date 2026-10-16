@@ -9,6 +9,7 @@ import {
   encodeCmd,
   encodeControl,
   type ChatRelayMessage,
+  type ClientDevSettings,
   type ControlMessage,
   type EnvelopeCommand,
   type LobbyMessage,
@@ -157,8 +158,13 @@ export class NetClient {
     this.send({ kind: 'C_UPDATE_SLOT', ...patch })
   }
 
-  publishDevSettings(settings: Partial<MatchSettings>, defaultsHash?: string): void {
-    this.send(defaultsHash === undefined ? { kind: 'C_DEV_SETTINGS', settings } : { kind: 'C_DEV_SETTINGS', settings, defaultsHash })
+  publishDevSettings(settings: Partial<MatchSettings>, defaultsHash?: string, client?: ClientDevSettings): void {
+    this.send({
+      kind: 'C_DEV_SETTINGS',
+      settings,
+      ...(defaultsHash === undefined ? {} : { defaultsHash }),
+      ...(client === undefined ? {} : { client }),
+    })
   }
 
   /** Host verdict after an H_SETTINGS_ALERT: kick the offender or skip for now. */

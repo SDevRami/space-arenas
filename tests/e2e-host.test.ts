@@ -157,8 +157,13 @@ class TestClient {
     this.send({ kind: 'C_UPDATE_ROOM', ...patch })
   }
 
-  publishDevSettings(settings: Partial<MatchSettings>, defaultsHash?: string): void {
-    this.send(defaultsHash === undefined ? { kind: 'C_DEV_SETTINGS', settings } : { kind: 'C_DEV_SETTINGS', settings, defaultsHash })
+  publishDevSettings(settings: Partial<MatchSettings>, defaultsHash?: string, client?: Record<string, unknown>): void {
+    this.send({
+      kind: 'C_DEV_SETTINGS',
+      settings,
+      ...(defaultsHash === undefined ? {} : { defaultsHash }),
+      ...(client === undefined ? {} : { client }),
+    })
   }
 
   addBot(difficulty: 'easy' | 'medium' | 'hard'): void {
@@ -1094,22 +1099,29 @@ describe('host: lobby flow', () => {
     expect(empty.settings).toBeNull()
     expect(typeof empty.defaultsHash).toBe('string')
 
-    // Writing a `user` layer changes the effective-defaults hash.
+    // Writing a `user` layer changes the effective-defaults hash. The client-only
+    // block rides along in the same file.
     const post = await fetch(`${base}/api/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ v: 1, user: { startingCredits: 5000 } }),
+      body: JSON.stringify({
+        v: 1,
+        user: { startingCredits: 5000 },
+        client: { graphics: { assetPaths: { a: 'hud/x.png', b: 'https://evil.example/y.png' } } },
+      }),
     })
     const posted = (await post.json()) as { ok: boolean; defaultsHash: string }
     expect(posted.ok).toBe(true)
     expect(posted.defaultsHash).not.toBe(empty.defaultsHash)
 
     const got = (await (await fetch(`${base}/api/settings`)).json()) as {
-      settings: { user?: { startingCredits?: number } } | null
+      settings: { user?: { startingCredits?: number }; client?: { graphics?: Record<string, unknown> } } | null
       defaultsHash: string
     }
     expect(got.settings?.user?.startingCredits).toBe(5000)
     expect(got.defaultsHash).toBe(posted.defaultsHash)
+    // The file is stored verbatim; only the wire broadcast is sanitized.
+    expect(got.settings?.client?.graphics).toEqual({ assetPaths: { a: 'hud/x.png', b: 'https://evil.example/y.png' } })
 
     // The lobby advertises the fingerprint + the layers so a guest can adopt them.
     const host = new TestClient()
@@ -1118,6 +1130,8 @@ describe('host: lobby flow', () => {
     const lobby = (await host.waitFor('H_LOBBY')) as LobbyMessage
     expect(lobby.defaultsHash).toBe(posted.defaultsHash)
     expect(lobby.defaults?.startingCredits).toBe(5000)
+    // …including the host's client-only block, with foreign-origin paths stripped.
+    expect(lobby.defaultsClient?.graphics).toEqual({ assetPaths: { a: 'hud/x.png', b: '' } })
 
     // A guest whose published default fingerprint differs is flagged un-synced…
     const guest = new TestClient()
@@ -1128,10 +1142,16 @@ describe('host: lobby flow', () => {
     const bad = await guest.waitForLobby((m) => m.players.some((p) => p.name === 'Guest' && p.defaultsOk === false))
     expect(bad.players.find((p) => p.name === 'Guest')?.defaultsOk).toBe(false)
 
-    // …and clears once it reports the host's fingerprint.
-    guest.publishDevSettings({}, posted.defaultsHash)
+    // …and clears once it reports the host's fingerprint. The guest's client-only
+    // blob is rebroadcast in the lobby with foreign-origin paths stripped.
+    guest.publishDevSettings({}, posted.defaultsHash, {
+      graphics: { assetPaths: { a: 'hud/g.png', b: 'https://evil.example/g.png' } },
+    })
     const ok = await guest.waitForLobby((m) => m.players.some((p) => p.name === 'Guest' && p.defaultsOk === true))
     expect(ok.players.find((p) => p.name === 'Guest')?.defaultsOk).toBe(true)
+    expect(ok.players.find((p) => p.name === 'Guest')?.clientSettings?.graphics).toEqual({
+      assetPaths: { a: 'hud/g.png', b: '' },
+    })
 
     await rm(profileDir, { recursive: true, force: true })
     guest.ws.close()

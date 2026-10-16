@@ -1,5 +1,5 @@
 import './styles.css'
-import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, modHash, PROTOCOL_VERSION, fingerprintSettings, resolveSettingsFileLayers, DEV_SCALAR_SECTIONS, DEV_OVERRIDE_BUILDING_FIELDS, DEV_OVERRIDE_UNIT_FIELDS, DEV_OVERRIDE_WEAPON_FIELDS, DEV_OVERRIDE_UPGRADE_FIELDS, type DevOverrideFieldDef, type ModFile, type ModMeta, type RoomMod, type ClientDevSettings, type MatchSettingsFile, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
+import { BUILDINGS, UNITS, UPGRADES, WEAPONS, SIM_TICK_HZ, SECONDS_TO_TICKS, crc32, mergeMatchSettings, DEFAULT_MATCH_SETTINGS, DEFAULT_CREDITS, PLAYER_COLORS, FOG_MODES, COOP_ECONOMY_OPTIONS, COOP_RANK_OPTIONS, COOP_CONTROL_OPTIONS, validReplay, replayDateLabel, modFromSettings, modSettingsDelta, modHash, PROTOCOL_VERSION, fingerprintSettings, resolveSettingsFileLayers, sanitizeClientDevSettings, DEV_SCALAR_SECTIONS, DEV_OVERRIDE_BUILDING_FIELDS, DEV_OVERRIDE_UNIT_FIELDS, DEV_OVERRIDE_WEAPON_FIELDS, DEV_OVERRIDE_UPGRADE_FIELDS, type DevOverrideFieldDef, type ModFile, type ModMeta, type RoomMod, type ClientDevSettings, type MatchSettingsFile, type MatchSettings, type WinRule, type FogMode, type ReplayData, type ReplayMeta } from '@space-arenas/shared'
 import { MAP_PRESETS, mapForPreset, validateMap, type MapData } from '@space-arenas/shared'
 import { Game } from './game/Game.ts'
 import { AudioHooks, AMBIENT_SYNTH } from './audio/hooks.ts'
@@ -1736,6 +1736,9 @@ const restoreBackup = async (b: BackupInfo): Promise<void> => {
       }
       reloadGraphics()
       reloadAudio()
+      // Import sanitize: drop any foreign-origin absolute asset/audio paths that
+      // rode in on the backup (keeps relative + same-origin values).
+      applyClientDevSettings(sanitizeClientDevSettings(clientDevSettings(), window.location.origin), true)
       renderProfilePanel()
       buildDevForm()
     }
@@ -2547,6 +2550,13 @@ const settingsFingerprint = (s: Partial<MatchSettings>): string =>
     .toString(16)
     .padStart(8, '0')
 
+/** Panel "Same / Different" fingerprint: synced match values *plus* the client-only
+ *  values, so two players who agree on match settings but differ on graphics/audio
+ *  are still flagged as different. `client` is normalised to `{}` when absent so
+ *  the comparison is stable. */
+const syncFingerprint = (settings: Partial<MatchSettings>, client?: ClientDevSettings): string =>
+  settingsFingerprint({ ...settings, client: client ?? {} } as Partial<MatchSettings>)
+
 /** The effective *defaults* fingerprint (the `builtin`+`user` base, without this
  *  session's `devOverrides`). Broadcast with our dev settings so the host can tell
  *  whether our base matches theirs before starting a match. Uses the shared
@@ -2628,9 +2638,14 @@ const applyClientDevSettings = (client: ClientDevSettings | undefined, force: bo
   }
 }
 
+/** The subset of `clientDevSettings()` safe to send to another machine: foreign
+ *  absolute asset/audio URLs are stripped (relative + same-origin kept). */
+const wireClientDevSettings = (): ClientDevSettings =>
+  sanitizeClientDevSettings(clientDevSettings(), window.location.origin) as ClientDevSettings
+
 const pushDevSettingsToHost = (): void => {
   if (!net?.connected || !lobbyState) return
-  net.publishDevSettings(resolvedDevSettings(), settingsDefaultsHash())
+  net.publishDevSettings(resolvedDevSettings(), settingsDefaultsHash(), wireClientDevSettings())
   if (lobbyState.yourId !== lobbyState.hostId) return
   devPushedToRoom = true
   net.updateRoom({ settings: resolvedDevSettings() })
@@ -4729,12 +4744,17 @@ const syncCopyBtn = document.getElementById('sync-copy') as HTMLButtonElement
 let devPublishedConn = false
 let syncSelectedId: number | null = null
 
-const cloneDevSettingsFrom = (their: Partial<MatchSettings>, save: boolean): void => {
+const cloneDevSettingsFrom = (their: Partial<MatchSettings>, client: ClientDevSettings | undefined, save: boolean): void => {
   devOverrides = JSON.parse(JSON.stringify(their)) as Partial<MatchSettings>
+  // Clone the peer's non-synced values too, sanitizing path overrides against OUR
+  // origin so a foreign-absolute URL from their machine can never load here.
+  if (client !== undefined) {
+    applyClientDevSettings(sanitizeClientDevSettings(client, window.location.origin), true)
+  }
   buildDevForm()
   if (save) saveDevOverrides()
   if (net?.connected && lobbyState) {
-    net.publishDevSettings(resolvedDevSettings(), settingsDefaultsHash())
+    net.publishDevSettings(resolvedDevSettings(), settingsDefaultsHash(), wireClientDevSettings())
     if (lobbyState.yourId === lobbyState.hostId) net.updateRoom({ settings: resolvedDevSettings() })
   }
   setDevStatus(t(save ? 'dev.status.saved' : 'dev.status.syncedOnce'))
@@ -4742,7 +4762,8 @@ const cloneDevSettingsFrom = (their: Partial<MatchSettings>, save: boolean): voi
 }
 
 /** Adopt the host's broadcast defaults (`LobbyMessage.defaults`) as ours, so our
- *  `settingsDefaultsHash()` matches and the base-defaults start gate clears. */
+ *  `settingsDefaultsHash()` matches and the base-defaults start gate clears. The
+ *  host's client-only block (`defaultsClient`) is adopted too. */
 const adoptHostDefaults = (): void => {
   const layers = (lobbyState?.defaults ?? {}) as Partial<MatchSettings>
   savedDefaults = JSON.parse(JSON.stringify(layers)) as Partial<MatchSettings>
@@ -4751,9 +4772,12 @@ const adoptHostDefaults = (): void => {
   } catch {
     /* storage unavailable */
   }
+  const incoming = lobbyState?.defaultsClient
+  const client = incoming ? (sanitizeClientDevSettings(incoming, window.location.origin) as ClientDevSettings) : undefined
+  if (client) applyClientDevSettings(client, true)
   const file: MatchSettingsFile = { v: 1 }
   if (settingsFile.builtin) file.builtin = settingsFile.builtin
-  if (settingsFile.client) file.client = settingsFile.client
+  if (client) file.client = client
   file.user = savedDefaults
   settingsFile = file
   void saveSettingsFile(file)
@@ -4765,7 +4789,7 @@ const adoptHostDefaults = (): void => {
 
 const renderSyncList = (): void => {
   if (!lobbyState || !syncPanelEl) return
-  const myFp = settingsFingerprint(resolvedDevSettings())
+  const myFp = syncFingerprint(resolvedDevSettings(), wireClientDevSettings())
   const matchFp = settingsFingerprint(mergeMatchSettings(lobbyState.settings ?? {}))
   syncPlayersEl.innerHTML = ''
   let selectable = 0
@@ -4773,7 +4797,7 @@ const renderSyncList = (): void => {
     if (p.bot) continue
     const isMe = p.id === lobbyState.yourId
     const their = p.devSettings !== undefined ? mergeMatchSettings(p.devSettings) : null
-    const same = isMe || (their !== null && settingsFingerprint(their) === myFp)
+    const same = isMe || (their !== null && syncFingerprint(their, p.clientSettings) === myFp)
     const matchSame = their !== null && settingsFingerprint(their) === matchFp
 
     const row = document.createElement('div')
@@ -4828,10 +4852,10 @@ const renderSyncList = (): void => {
   syncOnceBtn.disabled = !sel
   syncCopyBtn.disabled = !sel
   syncOnceBtn.onclick = () => {
-    if (sel?.devSettings) cloneDevSettingsFrom(sel.devSettings, false)
+    if (sel?.devSettings) cloneDevSettingsFrom(sel.devSettings, sel.clientSettings, false)
   }
   syncCopyBtn.onclick = () => {
-    if (sel?.devSettings) cloneDevSettingsFrom(sel.devSettings, true)
+    if (sel?.devSettings) cloneDevSettingsFrom(sel.devSettings, sel.clientSettings, true)
   }
   void selectable
 }
@@ -4868,7 +4892,7 @@ const connectJoin = async (addr: string, code: string, pass: string, name: strin
       logNetEvent(t('network.diagEventJoined', { code: msg.roomCode }))
       if (!devPublishedConn) {
         devPublishedConn = true
-        net?.publishDevSettings(resolvedDevSettings(), settingsDefaultsHash())
+        net?.publishDevSettings(resolvedDevSettings(), settingsDefaultsHash(), wireClientDevSettings())
       }
       renderMatchPanel(msg)
       setTab('match')

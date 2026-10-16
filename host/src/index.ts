@@ -19,8 +19,10 @@ import {
   mergeMatchSettings,
   fingerprintSettings,
   resolveSettingsFileLayers,
+  sanitizeClientDevSettings,
   validReplay,
   type ChatRelayMessage,
+  type ClientDevSettings,
   type ControlMessage,
   type EnvelopeCommand,
   type MatchSettings,
@@ -391,9 +393,10 @@ const discovery = new LanDiscovery(() => currentName, () => PORT, roomInfo)
 /** Shared fields every lobby message carries: the host's effective-defaults
  *  fingerprint + the layers themselves, so a guest can detect (and adopt) a base
  *  mismatch before the match starts. */
-const lobbyDefaults = (): { defaultsHash: string; defaults: Partial<MatchSettings> } => ({
+const lobbyDefaults = (): { defaultsHash: string; defaults: Partial<MatchSettings>; defaultsClient?: ClientDevSettings } => ({
   defaultsHash: hostDefaultsHash(),
   defaults: hostDefaultsLayers(),
+  ...(hostSettingsFile?.client ? { defaultsClient: sanitizeClientDevSettings(hostSettingsFile.client) } : {}),
 })
 
 const broadcastLobby = (): void => {
@@ -562,7 +565,7 @@ const handleControl = (ws: WebSocket, msg: ControlMessage): void => {
     case 'C_DEV_SETTINGS': {
       if (!room) return
       const defaultsOk = msg.defaultsHash === undefined ? undefined : msg.defaultsHash === hostDefaultsHash()
-      rooms.setDevSettings(ws, msg.settings ?? {}, defaultsOk)
+      rooms.setDevSettings(ws, msg.settings ?? {}, defaultsOk, msg.client)
       broadcastLobby()
       break
     }

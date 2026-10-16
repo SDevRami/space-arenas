@@ -15,6 +15,7 @@ import {
   crc32,
   fingerprintSettings,
   resolveSettingsFileLayers,
+  sanitizeClientDevSettings,
   mergeMatchSettings,
   type CommandType,
   type EnvelopeCommand,
@@ -275,6 +276,16 @@ describe('protocol: control message round-trip', () => {
     const msg = { kind: 'C_DEV_SETTINGS', settings: {}, defaultsHash: 'deadbeef' }
     expect(decodeControl(encodeControl(msg))).toEqual(msg)
   })
+
+  it('round-trips dev settings with a client-only blob', () => {
+    const msg = {
+      kind: 'C_DEV_SETTINGS',
+      settings: {},
+      defaultsHash: 'deadbeef',
+      client: { graphics: { minimapScale: 1.5 }, audio: { volume: 0.5 }, profile: { historyCap: 30 } },
+    }
+    expect(decodeControl(encodeControl(msg))).toEqual(msg)
+  })
 })
 
 describe('settings file layering', () => {
@@ -295,5 +306,37 @@ describe('settings file layering', () => {
     expect(a).toBe(b)
     expect(a).toMatch(/^[0-9a-f]{8}$/)
     expect(a).not.toBe(fingerprintSettings(mergeMatchSettings({})))
+  })
+})
+
+describe('client dev settings sanitizer', () => {
+  it('keeps relative and root-relative paths, drops foreign absolute URLs', () => {
+    const client = {
+      graphics: { assetPaths: { 'building:power': 'pw/{color}/pw_{frame}.png', 'unit:rifleman': '/hud/rifle.png' } },
+      audio: { overrides: { shot: 'sound/shot.wav', boom: 'https://evil.example/boom.wav' } },
+      profile: { historyCap: 25 },
+    }
+    const out = sanitizeClientDevSettings(client, 'http://192.168.0.5:8080')
+    expect(out?.graphics).toEqual({ assetPaths: { 'building:power': 'pw/{color}/pw_{frame}.png', 'unit:rifleman': '/hud/rifle.png' } })
+    expect(out?.audio).toEqual({ overrides: { shot: 'sound/shot.wav', boom: '' } })
+    expect(out?.profile).toEqual({ historyCap: 25 })
+  })
+
+  it('keeps an absolute URL that matches the base origin', () => {
+    const client = { graphics: { assetPaths: { x: 'http://192.168.0.5:8080/hud/x.png' } } }
+    expect(sanitizeClientDevSettings(client, 'http://192.168.0.5:8080')?.graphics).toEqual({
+      assetPaths: { x: 'http://192.168.0.5:8080/hud/x.png' },
+    })
+  })
+
+  it('drops protocol-relative URLs and leaves non-strings untouched', () => {
+    const client = { graphics: { a: '//cdn.example/x.png', n: 3, b: true, list: ['ok.png', '//x/x.png'] } }
+    expect(sanitizeClientDevSettings(client, 'https://game.example')).toEqual({
+      graphics: { a: '', n: 3, b: true, list: ['ok.png', ''] },
+    })
+  })
+
+  it('returns undefined for an absent client block', () => {
+    expect(sanitizeClientDevSettings(undefined, 'http://x')).toBeUndefined()
   })
 })

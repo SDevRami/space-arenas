@@ -6,8 +6,10 @@ import {
   mergeMatchSettings,
   modHash,
   modSettingsDelta,
+  sanitizeClientDevSettings,
   validateMap,
   WIN_RULE_DEFAULT,
+  type ClientDevSettings,
   type MapData,
   type MatchSettings,
   type ModFile,
@@ -23,6 +25,8 @@ export interface HostPlayer extends PlayerSlot {
   connected: boolean
   spectator: boolean
   devSettings?: Partial<MatchSettings>
+  /** Non-synced dev values (graphics/audio/profile), rebroadcast in the lobby. */
+  clientSettings?: ClientDevSettings
   /** Balance-mod hash this slot acked (C_MOD_ACK) once it has the room's mod locally. */
   modAck?: string
   /** Persistent per-browser id used to reclaim this slot on reconnect. */
@@ -226,12 +230,16 @@ export class RoomRegistry {
     }
   }
 
-  setDevSettings(room: Room, ws: WebSocket, settings: Partial<MatchSettings>, defaultsOk?: boolean): void {
+  setDevSettings(room: Room, ws: WebSocket, settings: Partial<MatchSettings>, defaultsOk?: boolean, client?: ClientDevSettings): void {
     const p = this.playerFor(room, ws)
     if (!p) return
     p.devSettings = sanitizeSettings(settings)
     if (defaultsOk === undefined) delete p.defaultsOk
     else p.defaultsOk = defaultsOk
+    // Sanitize foreign-origin asset/audio paths before they can be rebroadcast to
+    // other machines for cloning (the server has no page origin → drops absolute).
+    if (client === undefined) delete p.clientSettings
+    else p.clientSettings = sanitizeClientDevSettings(client)
   }
 
   /** Resolves spawn-point conflicts and rewrites the map spawns to the active player ids. */
@@ -399,7 +407,7 @@ export class RoomRegistry {
     const slots: PlayerSlot[] = []
     const hash = room.mod ? modHash(room.mod) : null
     room.players.forEach((p) => {
-      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, connected: p.connected, difficulty: p.difficulty, modOk: hash === null ? undefined : !p.spectator && (p.host || p.modAck === hash), ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}), ...(p.defaultsOk !== undefined ? { defaultsOk: p.defaultsOk } : {}) })
+      slots.push({ id: p.id, name: p.name, ready: p.ready, host: p.host, team: p.team, spawn: p.spawn, color: p.color, spectator: p.spectator, connected: p.connected, difficulty: p.difficulty, modOk: hash === null ? undefined : !p.spectator && (p.host || p.modAck === hash), ...(p.devSettings !== undefined ? { devSettings: p.devSettings } : {}), ...(p.clientSettings !== undefined ? { clientSettings: p.clientSettings } : {}), ...(p.defaultsOk !== undefined ? { defaultsOk: p.defaultsOk } : {}) })
     })
     return slots.sort((a, b) => a.id - b.id)
   }

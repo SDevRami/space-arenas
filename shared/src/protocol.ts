@@ -2,6 +2,7 @@ import type { MapData } from './maps.ts'
 import { PROTOCOL_VERSION } from './constants.ts'
 import type { MatchSettings, WinRule } from './constants.ts'
 import type { ModFile } from './mod.ts'
+import type { ClientDevSettings } from './settings-file.ts'
 
 export type CommandType =
   | 'move'
@@ -100,6 +101,9 @@ export interface PlayerSlot {
   bot?: boolean
   difficulty?: BotDifficulty
   devSettings?: Partial<MatchSettings>
+  /** The slot's non-synced dev values (graphics/audio/profile), so the dev sync
+   *  panel can clone client-only settings to another machine. */
+  clientSettings?: ClientDevSettings
   /** Host-side verdict on whether this slot's effective *defaults* (its
    *  `settings.json` / localStorage layer) match the host's. `undefined` = unknown
    *  (old client that never published a defaults hash) and never blocks a start. */
@@ -622,6 +626,8 @@ export interface LobbyMessage {
   defaultsHash?: string
   /** The host's effective-defaults layers, so a mismatching guest can adopt them. */
   defaults?: Partial<MatchSettings>
+  /** The host's client-only dev values, adopted alongside `defaults` on resolution. */
+  defaultsClient?: ClientDevSettings
   map?: MapData
   /** Filename of the balance mod the host applied to this room (''/undefined = none). */
   modId?: string
@@ -745,6 +751,10 @@ export interface DevSettingsMessage {
   /** The sender's effective-defaults fingerprint (see `LobbyMessage.defaultsHash`).
    *  Omitted by older clients, in which case the host never blocks the slot. */
   defaultsHash?: string
+  /** The sender's non-synced dev values (graphics/audio/profile). Host/online
+   *  store this per slot and rebroadcast it in the lobby so any client can clone
+   *  the full dev state. Omitted by older clients. */
+  client?: ClientDevSettings
 }
 
 /** Server → clients: a non-spectator changed their match values after the match started.
