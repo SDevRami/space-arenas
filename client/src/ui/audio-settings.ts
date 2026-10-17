@@ -4,12 +4,15 @@ import {
   setMaster,
   setEffects,
   setAmbient,
+  setMusic,
   setMuted,
+  setMusicMuted,
   setAmbientEnabled,
   setHaptics,
   effectsVolume,
   ambientVolume,
   ambientInMatchVolume,
+  musicVolume,
   setAmbientInMatch,
 } from '../audio/settings.ts'
 
@@ -24,7 +27,7 @@ const setAudioStatus = (text: string): void => {
 }
 
 const refreshEffective = (): void => {
-  if (summaryEl) summaryEl.textContent = t('settings.audio.effective', { e: pct(effectsVolume()), a: pct(ambientVolume()), i: pct(ambientInMatchVolume()) })
+  if (summaryEl) summaryEl.textContent = t('settings.audio.effective', { e: pct(effectsVolume()), a: pct(ambientVolume()), i: pct(ambientInMatchVolume()), m: pct(musicVolume()) })
 }
 
 const pct = (v: number): number => Math.round(v * 100)
@@ -112,10 +115,16 @@ const renderAudioList = (): void => {
     renderSliderRow('settings.audio.ambient', 'settings.audio.ambientDesc', a.ambient, (v) => setAmbient(v)),
   )
   audioListEl.appendChild(
+    renderSliderRow('settings.audio.music', 'settings.audio.musicDesc', a.music, (v) => setMusic(v)),
+  )
+  audioListEl.appendChild(
     renderSliderRow('settings.audio.ambientInMatch', 'settings.audio.ambientInMatchDesc', a.ambientInMatch, (v) => setAmbientInMatch(v)),
   )
   audioListEl.appendChild(
     renderToggleRow('settings.audio.muted', 'settings.audio.mutedDesc', () => getAudio().muted, (v) => setMuted(v)),
+  )
+  audioListEl.appendChild(
+    renderToggleRow('settings.audio.musicMuted', 'settings.audio.musicMutedDesc', () => getAudio().musicMuted, (v) => setMusicMuted(v)),
   )
   audioListEl.appendChild(
     renderToggleRow('settings.audio.ambientOn', 'settings.audio.ambientOnDesc', () => getAudio().ambientEnabled, (v) => setAmbientEnabled(v)),

@@ -14,7 +14,8 @@ import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
 import { initControlsSettings } from './ui/controls-settings.ts'
 import { preloadAllMatchAssets, preloadFxFrames } from './render/building-sprites.ts'
 import { WEATHERS, type WeatherId, type GraphicsSettings, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setFieldScale, setObstacleScale, setObstacleOffset, setUnitScale, setUnitOffset, setAssetPath, setFxScale, setFxOffset, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, setSpriteLayerOrder, setProjectileBulletSize, setProjectileRocketSize, setProjectileShellSize, setProjectileShellHeight, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_FIELD_SCALE, DEFAULT_OBSTACLE_SCALE, DEFAULT_OBSTACLE_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_UNIT_OFFSET, DEFAULT_FX_SCALE, DEFAULT_FX_OFFSET, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, DEFAULT_SPRITE_LAYER_ORDER, DEFAULT_PROJECTILE_BULLET_SIZE, DEFAULT_PROJECTILE_ROCKET_SIZE, DEFAULT_PROJECTILE_SHELL_SIZE, DEFAULT_PROJECTILE_SHELL_HEIGHT, DEFAULT_ASSET_PATHS, SPRITE_LAYER_KINDS, UNIT_ASSET_IDS, HUD_ASSET_IDS, OBSTACLE_ASSET_TYPES, reloadGraphics } from './ui/graphics.ts'
-import { getAudio, setOverride, setTuning, reloadAudio, TUNING_VOL_MAX, TUNING_PITCH_MIN, TUNING_PITCH_MAX, type SoundId } from './audio/settings.ts'
+import { getAudio, setOverride, setTuning, reloadAudio, setMuted, onChangeAudio, TUNING_VOL_MAX, TUNING_PITCH_MIN, TUNING_PITCH_MAX, type SoundId } from './audio/settings.ts'
+import { startLobbyMusic, stopLobbyMusic } from './audio/lobby-music.ts'
 import { initLang, setLang, getLang, t, tn, translateStatic, onLangChange, type Lang } from './i18n/index.ts'
 import { allMapEntries, entryToMap, findMapEntry, migrateLegacyLibrary, saveCustomMap, seedLibraryFromBundledMaps, type MapEntry } from './mapbuilder/library.ts'
 import { initProfilePanel, renderProfilePanel, onProfileTabShown } from './profile/ui.ts'
@@ -72,6 +73,7 @@ const unlockLobbyAudio = (): void => {
   if (lobbyAmbientUnlocked) return
   lobbyAudio.unlock()
   lobbyAudio.startLobbyAmbient()
+  startLobbyMusic()
   lobbyAmbientUnlocked = true
   window.removeEventListener('pointerdown', unlockLobbyAudio, true)
   window.removeEventListener('keydown', unlockLobbyAudio, true)
@@ -80,6 +82,8 @@ window.addEventListener('pointerdown', unlockLobbyAudio, true)
 window.addEventListener('keydown', unlockLobbyAudio, true)
 
 const hideLobby = (): void => {
+  stopLobbyMusic()
+  stopLobbySlideshow()
   ;(document.getElementById('lobby') as HTMLDivElement).style.display = 'none'
 }
 
@@ -94,6 +98,8 @@ const showLobby = (): void => {
   stopPing()
   clearActiveMatch()
   ;(document.getElementById('lobby') as HTMLDivElement).style.display = 'flex'
+  if (lobbyAmbientUnlocked) startLobbyMusic()
+  startLobbySlideshow()
   if (wasNet) {
     setTab(wasOnline ? 'online' : 'network')
     if (wasOnline) void refreshOnlineList(true)
@@ -123,6 +129,7 @@ const devPanel = document.getElementById('dev-panel') as HTMLDivElement
 const profilePanel = document.getElementById('profile-panel') as HTMLDivElement
 const archivePanel = document.getElementById('archive-panel') as HTMLDivElement
 const modsPanel = document.getElementById('mods-panel') as HTMLDivElement
+const creditsPanel = document.getElementById('credits-panel') as HTMLDivElement
 const tabOffline = document.getElementById('tab-offline') as HTMLButtonElement
 const tabNetwork = document.getElementById('tab-network') as HTMLButtonElement
 const tabOnline = document.getElementById('tab-online') as HTMLButtonElement
@@ -134,7 +141,7 @@ const tabProfile = document.getElementById('tab-profile') as HTMLButtonElement
 const tabArchive = document.getElementById('tab-archive') as HTMLButtonElement
 const tabMods = document.getElementById('tab-mods') as HTMLButtonElement
 
-const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder' | 'info' | 'settings' | 'dev' | 'profile' | 'archive' | 'mods'): void => {
+const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder' | 'info' | 'settings' | 'dev' | 'profile' | 'archive' | 'mods' | 'credits'): void => {
   offlinePanel.classList.toggle('hidden-panel', which !== 'offline')
   networkPanel.classList.toggle('hidden-panel', which !== 'network')
   matchPanel.classList.toggle('hidden-panel', which !== 'match')
@@ -146,6 +153,7 @@ const setTab = (which: 'offline' | 'network' | 'match' | 'online' | 'mapbuilder'
   profilePanel.classList.toggle('hidden-panel', which !== 'profile')
   archivePanel.classList.toggle('hidden-panel', which !== 'archive')
   modsPanel.classList.toggle('hidden-panel', which !== 'mods')
+  creditsPanel.classList.toggle('hidden-panel', which !== 'credits')
   tabOffline.classList.toggle('active', which === 'offline')
   tabNetwork.classList.toggle('active', which === 'network')
   tabOnline.classList.toggle('active', which === 'online')
@@ -176,6 +184,118 @@ tabDev.addEventListener('click', () => setTab('dev'))
 tabProfile.addEventListener('click', () => setTab('profile'))
 tabArchive.addEventListener('click', () => setTab('archive'))
 tabMods.addEventListener('click', () => setTab('mods'))
+
+// ---------- lobby shell: landing page, side-menu toggle, background slideshow ----------
+
+const lobbyRoot = document.getElementById('lobby') as HTMLDivElement
+const lobbyBgEl = document.getElementById('lobby-bg') as HTMLDivElement
+const lobbyMenuToggle = document.getElementById('lobby-menu-toggle') as HTMLButtonElement
+const lobbyCloseMenu = document.getElementById('lobby-close-menu') as HTMLButtonElement
+const lobbyOpenMenu = document.getElementById('lobby-open-menu') as HTMLButtonElement
+const lobbyLandingCredits = document.getElementById('lobby-landing-credits') as HTMLButtonElement
+const creditsCloseBtn = document.getElementById('credits-close') as HTMLButtonElement
+const lobbyLogo = document.getElementById('lobby-logo') as HTMLImageElement
+
+/** Open the side menu (the classic lobby tabs + panel) — always lands on Offline. */
+const openLobbyMenu = (): void => {
+  lobbyRoot.classList.remove('menu-closed')
+  setTab('offline')
+}
+/** Close the side menu and return to the game landing page. */
+const closeLobbyMenu = (): void => {
+  lobbyRoot.classList.add('menu-closed')
+}
+
+lobbyMenuToggle.addEventListener('click', openLobbyMenu)
+lobbyOpenMenu.addEventListener('click', openLobbyMenu)
+lobbyCloseMenu.addEventListener('click', closeLobbyMenu)
+creditsCloseBtn.addEventListener('click', closeLobbyMenu)
+lobbyLandingCredits.addEventListener('click', () => {
+  lobbyRoot.classList.remove('menu-closed')
+  setTab('credits')
+})
+// The logo is a placeholder the author replaces later; hide it when missing.
+lobbyLogo.addEventListener('error', () => {
+  lobbyLogo.style.display = 'none'
+})
+
+// Background slideshow: placeholder images (bg_1.png …), random start order, cross-fade,
+// each slide slowly zoom-pans (Ken Burns) in a random direction.
+const LOBBY_BG_COUNT = 5
+const LOBBY_BG_SLIDE_MS = 8000
+const LOBBY_BG_FADE_MS = 1500
+let lobbySlideTimer: number | null = null
+let lobbySlideIdx = 0
+const lobbySlides: HTMLDivElement[] = []
+let lobbySlideOrder: number[] = []
+
+const randRange = (min: number, max: number): number => min + Math.random() * (max - min)
+
+const buildLobbySlides = (): void => {
+  if (lobbySlides.length) return
+  for (let i = 1; i <= LOBBY_BG_COUNT; i++) {
+    const slide = document.createElement('div')
+    slide.className = 'lobby-slide'
+    slide.style.backgroundImage = `url("${import.meta.env.BASE_URL}background/bg_${i}.png")`
+    lobbyBgEl.appendChild(slide)
+    lobbySlides.push(slide)
+  }
+  // Shuffle so the first image is random each session.
+  lobbySlideOrder = lobbySlides.map((_, i) => i)
+  for (let i = lobbySlideOrder.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = lobbySlideOrder[i]
+    lobbySlideOrder[i] = lobbySlideOrder[j]
+    lobbySlideOrder[j] = tmp
+  }
+}
+
+const activateLobbySlide = (n: number): void => {
+  const slide = lobbySlides[lobbySlideOrder[n]]
+  if (!slide) return
+  slide.style.setProperty('--kb-dur', `${LOBBY_BG_SLIDE_MS + LOBBY_BG_FADE_MS}ms`)
+  slide.style.setProperty('--kb-fade', `${LOBBY_BG_FADE_MS}ms`)
+  slide.style.setProperty('--kb-x', `${randRange(-6, 6)}%`)
+  slide.style.setProperty('--kb-y', `${randRange(-6, 6)}%`)
+  slide.style.setProperty('--kb-scale', `${randRange(1.12, 1.24)}`)
+  for (const s of lobbySlides) s.classList.remove('active')
+  // Force a reflow so the pan/zoom animation restarts from the beginning.
+  void slide.offsetWidth
+  slide.classList.add('active')
+}
+
+const startLobbySlideshow = (): void => {
+  buildLobbySlides()
+  if (!lobbySlides.length || lobbySlideTimer !== null) return
+  lobbySlideIdx = 0
+  activateLobbySlide(0)
+  lobbySlideTimer = window.setInterval(() => {
+    lobbySlideIdx = (lobbySlideIdx + 1) % lobbySlideOrder.length
+    activateLobbySlide(lobbySlideIdx)
+  }, LOBBY_BG_SLIDE_MS)
+}
+
+const stopLobbySlideshow = (): void => {
+  if (lobbySlideTimer !== null) {
+    clearInterval(lobbySlideTimer)
+    lobbySlideTimer = null
+  }
+}
+
+startLobbySlideshow()
+
+// Quick mute shortcut (floating icon in the lobby) — toggles the global "mute all".
+const quickMuteBtn = document.getElementById('lobby-quick-mute') as HTMLButtonElement
+const renderQuickMute = (): void => {
+  const m = getAudio().muted
+  quickMuteBtn.textContent = m ? '🔇' : '🔊'
+  quickMuteBtn.title = t(m ? 'lobby.unmuteAll' : 'lobby.muteAll')
+  quickMuteBtn.classList.toggle('muted', m)
+}
+quickMuteBtn.addEventListener('click', () => setMuted(!getAudio().muted))
+renderQuickMute()
+onChangeAudio(renderQuickMute)
+onLangChange(() => renderQuickMute())
 
 initProfilePanel(applyProfileName)
 

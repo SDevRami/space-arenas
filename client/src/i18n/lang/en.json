@@ -4,6 +4,12 @@
   },
   "lobby": {
     "brand": "Space Arenas",
+    "openMenu": "Open Menu",
+    "closeMenu": "Close Menu",
+    "credits": "Credits",
+    "landingHint": "A real-time strategy game in your browser.",
+    "muteAll": "Mute all sound",
+    "unmuteAll": "Unmute all sound",
     "tab": {
       "offline": "Offline Game",
       "network": "Network Play",
@@ -27,6 +33,13 @@
     "inviteCopyFail": "Could not copy the link",
     "inviteNone": "Host a network match first — there is no invite yet.",
     "inviteGone": "That room no longer exists. Ask the host to send a fresh invite link."
+  },
+  "credits": {
+    "h1": "Credits",
+    "intro": "Space Arenas is a real-time strategy game that runs entirely in your browser.",
+    "author": "Created and designed by SDevRami.",
+    "builtWith": "Built with the OpenCode AI coding agent, using the Big Pickle free AI model.",
+    "thanks": "Thanks for playing!"
   },
   "settings": {
     "h1": "Settings",
@@ -97,8 +110,12 @@
       "ambientDesc": "Menu drone/wind while in the lobby.",
       "ambientInMatch": "In-match ambient",
       "ambientInMatchDesc": "Field hum while a match is running.",
+      "music": "Lobby music",
+      "musicDesc": "Background song on the lobby screen only — never plays during a match.",
       "muted": "Mute all",
-      "mutedDesc": "Silences every sound and both ambient layers at once.",
+      "mutedDesc": "Silences every sound, including both ambient layers and the lobby music.",
+      "musicMuted": "Mute lobby music",
+      "musicMutedDesc": "Silences only the lobby background song.",
       "ambientOn": "Ambient layer",
       "ambientOnDesc": "Master toggle for both the lobby and in-match ambient layers.",
       "haptics": "Mobile vibration",
@@ -106,7 +123,7 @@
       "on": "ON",
       "off": "OFF",
       "saved": "Audio settings saved.",
-      "effective": "Effective levels — effects {e}% · lobby {a}% · match {i}%"
+      "effective": "Effective levels — effects {e}% · lobby ambient {a}% · match ambient {i}% · music {m}%"
     }
   },
   "online": {

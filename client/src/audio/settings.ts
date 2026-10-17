@@ -20,10 +20,14 @@ export interface AudioSettings {
   ambient: number
   /** In-match ambient (field hum / battle bed) volume 0..1. */
   ambientInMatch: number
+  /** Lobby music track volume 0..1 (the lobby background song; lobby only). */
+  music: number
   /** Master mute. */
   muted: boolean
   /** Ambient layer on/off. */
   ambientEnabled: boolean
+  /** Lobby music mute (separate from the ambient layer and from master mute). */
+  musicMuted: boolean
   /** Mobile vibration on/off. */
   haptics: boolean
   /** user-provided override URL for a sound type; empty = synth fallback. */
@@ -37,8 +41,10 @@ const DEFAULTS: AudioSettings = {
   effects: 0.8,
   ambient: 0.35,
   ambientInMatch: 0.35,
+  music: 0.6,
   muted: false,
   ambientEnabled: false,
+  musicMuted: false,
   haptics: true,
   overrides: {},
   tuning: {},
@@ -124,8 +130,10 @@ const load = (): AudioSettings => {
       if (typeof parsed.effects === 'number' && Number.isFinite(parsed.effects)) base.effects = clamp01(parsed.effects)
       if (typeof parsed.ambient === 'number' && Number.isFinite(parsed.ambient)) base.ambient = clamp01(parsed.ambient)
       if (typeof parsed.ambientInMatch === 'number' && Number.isFinite(parsed.ambientInMatch)) base.ambientInMatch = clamp01(parsed.ambientInMatch)
+      if (typeof parsed.music === 'number' && Number.isFinite(parsed.music)) base.music = clamp01(parsed.music)
       if (typeof parsed.muted === 'boolean') base.muted = parsed.muted
       if (typeof parsed.ambientEnabled === 'boolean') base.ambientEnabled = parsed.ambientEnabled
+      if (typeof parsed.musicMuted === 'boolean') base.musicMuted = parsed.musicMuted
       if (typeof parsed.haptics === 'boolean') base.haptics = parsed.haptics
       if (parsed.overrides && typeof parsed.overrides === 'object') {
         for (const [k, v] of Object.entries(parsed.overrides)) {
@@ -198,6 +206,12 @@ export const ambientInMatchVolume = (): number => {
   return state.master * state.ambientInMatch
 }
 
+/** Effective lobby-music volume: master * music (0 when muted or music-muted). */
+export const musicVolume = (): number => {
+  if (state.muted || state.musicMuted) return 0
+  return state.master * state.music
+}
+
 export const isMuted = (): boolean => state.muted
 
 export const setMaster = (v: number): void => {
@@ -224,8 +238,20 @@ export const setAmbientInMatch = (v: number): void => {
   notify()
 }
 
+export const setMusic = (v: number): void => {
+  state.music = clamp01(v)
+  save(state)
+  notify()
+}
+
 export const setMuted = (on: boolean): void => {
   state.muted = on
+  save(state)
+  notify()
+}
+
+export const setMusicMuted = (on: boolean): void => {
+  state.musicMuted = on
   save(state)
   notify()
 }

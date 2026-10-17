@@ -148,9 +148,25 @@
         </div>
       </div>
 
-      <div id="lobby">
+      <div id="lobby" class="menu-closed">
+        <div id="lobby-bg" aria-hidden="true"></div>
+        <div id="lobby-landing">
+          <div class="lobby-landing-inner">
+            <img id="lobby-logo" class="lobby-logo" src="logo.png" alt="" />
+            <h1 class="lobby-landing-title" data-i18n="lobby.brand">Space Arenas</h1>
+            <div class="lobby-landing-hint" data-i18n="lobby.landingHint">A real-time strategy game in your browser.</div>
+            <div class="lobby-landing-actions">
+              <button id="lobby-open-menu" class="lobby-landing-btn" data-i18n="lobby.openMenu">Open Menu</button>
+              <button id="lobby-landing-credits" class="lobby-landing-btn ghost" data-i18n="lobby.credits">Credits</button>
+            </div>
+          </div>
+        </div>
+        <button id="lobby-menu-toggle" class="lobby-menu-toggle" data-i18n-title="lobby.openMenu" aria-label="Open menu">☰</button>
         <div class="menu-side">
-          <h1 data-i18n="lobby.brand">Space Arenas</h1>
+          <div class="menu-side-top">
+            <h1 data-i18n="lobby.brand">Space Arenas</h1>
+            <button id="lobby-close-menu" class="menu-close-btn" data-i18n-title="lobby.closeMenu" aria-label="Close menu">✕</button>
+          </div>
           <button id="tab-offline" class="active" data-i18n="lobby.tab.offline">Offline Game</button>
           <button id="tab-network" data-i18n="lobby.tab.network">Network Play</button>
           <button id="tab-online" data-i18n="lobby.tab.online">Online Server</button>
@@ -857,7 +873,20 @@
               </div>
             </div>
           </div>
+          <div id="credits-panel" class="hidden-panel">
+            <div class="panel wide">
+              <h1 class="panel-title" data-i18n="credits.h1">Credits</h1>
+              <div class="info-content credits-content">
+                <p data-i18n="credits.intro">Space Arenas is a real-time strategy game that runs entirely in your browser.</p>
+                <p data-i18n="credits.author">Created and designed by SDevRami.</p>
+                <p data-i18n="credits.builtWith">Built with the OpenCode AI coding agent, using the Big Pickle free AI model.</p>
+                <p data-i18n="credits.thanks">Thanks for playing!</p>
+              </div>
+              <button class="ghost" id="credits-close" data-i18n="lobby.closeMenu">Close Menu</button>
+            </div>
+          </div>
         </div>
+        <button id="lobby-quick-mute" class="lobby-quick-mute" data-i18n-title="lobby.muteAll" aria-label="Mute"></button>
       </div>
 
       <div id="countdown-overlay">
