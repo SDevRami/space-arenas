@@ -44,7 +44,12 @@ mods/
 # --- Internal dev process (not part of the game) ---
 done_list.md
 AI-INSTRUCTIONS.md
-docs/
+# docs/ IS tracked (see docs/README.md) so anyone can read the game's systems.
+# Only these internal helper files stay untracked (their knowledge is captured in
+# docs/18-DEV-TOOLING.md instead).
+docs/check-i18n.cjs
+docs/check-registry-i18n.cjs
+docs/dev-form-block.txt
 # Anchored so client/src/mapbuilder (or any src maps.ts) is never matched.
 /maps/
 /tools/

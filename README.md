@@ -57,6 +57,7 @@ Space Arenas - RTS game - 2.0/
 │   │                           #   maps, RNG, fixed-point math, balance data tables)
 ├── tests/                      # Vitest suite (400+ tests: determinism, balance, protocol, …)
 ├── scripts/                    # Build/validation scripts (asset validator, sound synth)
+├── docs/                       # Tracked documentation — start at docs/README.md (the index)
 ├── render.yaml                 # Render Blueprint for the online service
 └── package.json                # Root monorepo orchestration (npm workspaces)
 ```
@@ -108,7 +109,22 @@ npm run typecheck # Type-check all workspaces (shared/client/host)
 cd online && npm test  # Online API suite (31 tests) + build/typecheck
 ```
 
-Current state: **428 Vitest tests, 19 protocol round-trip tests, 31 online API tests** all green; the client and online services build and typecheck clean.
+Current state: **443 Vitest tests, 27 protocol round-trip tests, 31 online API tests** all green; the client and online services build and typecheck clean.
+
+---
+
+## Documentation
+
+The [`docs/`](docs/) folder is tracked in this repository and is the complete reference
+for how the game works. Open **[`docs/README.md`](docs/README.md)** for the index and a
+reading guide by role (design, client, networking, data, testing).
+
+Highlights: the simulation ruleset (`docs/02-MECHANICS-SPECIFICATION.md`), the tick
+pipeline and determinism invariants (`docs/04-ARCHITECTURE.md`), the full wire protocol
+and server architecture (`docs/16-NETCODE-AND-ONLINE.md`), every saved-data key
+(`docs/06-DATA-AND-SAVE-SYSTEM.md`), the rosters and progression
+(`docs/15-CONTENT-AND-PROGRESSION.md`), and how to run and gate tests
+(`docs/09-TESTING-AND-QA.md`).
 
 ---
 
