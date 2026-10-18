@@ -72,6 +72,13 @@ const startStubSupabase = async (): Promise<{ url: string; close: () => Promise<
         send(500, { msg: 'stub db is down' })
         return
       }
+      // The public availability pre-check excludes a nil uuid ("self"); treat that as a fresh
+      // lookup where only `takenname` is held by someone else.
+      if ((url.searchParams.get('user_id') ?? '').startsWith('neq.00000000-')) {
+        const name = url.searchParams.get('username') ?? ''
+        send(200, /takenname/i.test(name) ? [{ user_id: TEST_USER_ID }] : [])
+        return
+      }
       if (url.searchParams.get('select')?.includes('username')) {
         send(200, [
           { username: 'TesterOne', games: 3, wins: 1, high_score: 4200 },
@@ -1508,6 +1515,32 @@ describe('online server feature gates (Phase 6)', () => {
   it('the Google entry point rejects a redirect with no origin', async () => {
     const r = await fetch(`${base}/api/auth/google?redirect_to=not-a-url`, { redirect: 'manual' })
     assert.equal(r.status, 400)
+  })
+
+  it('the public username pre-check reports available / taken / invalid / reserved', async () => {
+    const guarded = await spawnOnline({
+      SUPABASE_URL: stub.url,
+      SUPABASE_ANON_KEY: 'stub-anon',
+      SUPABASE_SERVICE_ROLE_KEY: 'stub-service',
+      SA_FORBIDDEN_USERNAME: 'admin,owner',
+    })
+    try {
+      const check = async (name: string): Promise<{ status: number; body: { ok: boolean; data?: { available: boolean; reason?: string } } }> => {
+        const r = await fetch(`${guarded.base}/api/auth/username-available?username=${encodeURIComponent(name)}`)
+        return { status: r.status, body: (await r.json()) as { ok: boolean; data?: { available: boolean; reason?: string } } }
+      }
+      assert.deepEqual(await check('FreshName'), { status: 200, body: { ok: true, data: { username: 'FreshName', available: true } } })
+      assert.deepEqual(await check('TakenName'), {
+        status: 200,
+        body: { ok: true, data: { username: 'TakenName', available: false, reason: 'taken' } },
+      })
+      // Reserved names and bad lengths are rejected without ever hitting the DB.
+      assert.equal((await check('Admin2')).body.data?.reason, 'not allowed')
+      assert.equal((await check('')).body.data?.reason, 'invalid')
+      assert.equal((await check('x'.repeat(25))).body.data?.reason, 'invalid')
+    } finally {
+      guarded.child.kill()
+    }
   })
 
   it('setting a username requires a session', async () => {

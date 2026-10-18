@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { BACKUPS_MAX_PER_USER, BACKUPS_MAX_PAYLOAD_BYTES, BACKUPS_TTL_MS, MATCHES_MAX_ROWS, isForbiddenUsername, registrationAllowed } from './config.ts'
+import { BACKUPS_MAX_PER_USER, BACKUPS_MAX_PAYLOAD_BYTES, BACKUPS_TTL_MS, MATCHES_MAX_ROWS, USERNAME_MAX_CHARS, isForbiddenUsername, registrationAllowed } from './config.ts'
 import { MODS_MAX_PER_USER } from './mods.ts'
 import { MAPS_MAX_PER_USER } from './maps.ts'
 
@@ -51,7 +51,9 @@ export const authRegister = async (email: string, password: string, username: st
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'invalid email' }
   if (password.length < 6) return { ok: false, error: 'password must be at least 6 characters' }
   const name = username.trim()
-  if (name.length < 1 || name.length > 24) return { ok: false, error: 'username must be 1-24 characters' }
+  if (name.length < 1 || name.length > USERNAME_MAX_CHARS) {
+    return { ok: false, error: `username must be 1-${USERNAME_MAX_CHARS} characters` }
+  }
   if (isForbiddenUsername(name)) return { ok: false, error: 'username not allowed' }
   try {
     const taken = await timedFetch(
@@ -205,6 +207,33 @@ const dbUsernameClash = async (
 }
 
 /**
+ * Public pre-flight check behind the game's sign-in form, for a player who has not signed in
+ * yet. Mirrors `setProfileUsername`'s rules so the check never reports a name as available that
+ * setting would then reject. Never authoritative — the name can still be lost in the gap before
+ * the Google round-trip completes, which the set call reports normally.
+ */
+export const usernameAvailability = async (
+  username: string,
+): Promise<SupabaseResult<{ username: string; available: boolean; reason?: 'taken' | 'not allowed' | 'invalid' }>> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  const name = username.trim()
+  if (name.length < 1 || name.length > USERNAME_MAX_CHARS) {
+    return { ok: true, data: { username: name, available: false, reason: 'invalid' } }
+  }
+  if (isForbiddenUsername(name)) return { ok: true, data: { username: name, available: false, reason: 'not allowed' } }
+  try {
+    // The nil uuid can never equal a real `user_id`, so this matches *any* account holding the
+    // name (the "exclude self" argument only exists for the signed-in set/rename path).
+    const clash = await dbUsernameClash('00000000-0000-0000-0000-000000000000', name)
+    return clash === null
+      ? { ok: true, data: { username: name, available: true } }
+      : { ok: true, data: { username: name, available: false, reason: 'taken' } }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+/**
  * Sets (or creates) the caller's profile username. Vanity is the point here, so the name is
  * checked for uniqueness first; the DB's `lower(username)` index is the hard backstop and a
  * unique violation comes back as a 409 which we translate to the same message.
@@ -222,7 +251,9 @@ export const setProfileUsername = async (
 ): Promise<SupabaseResult<{ username: string }>> => {
   if (!dbConfigured()) return { ok: false, error: 'database not configured' }
   const name = username.trim()
-  if (name.length < 1 || name.length > 24) return { ok: false, error: 'username must be 1-24 characters' }
+  if (name.length < 1 || name.length > USERNAME_MAX_CHARS) {
+    return { ok: false, error: `username must be 1-${USERNAME_MAX_CHARS} characters` }
+  }
   if (isForbiddenUsername(name)) return { ok: false, error: 'username not allowed' }
   try {
     // Creating the profile is what turns a first-time Google sign-in into an account, so the

@@ -68,6 +68,10 @@ export const TESTER_EMAILS: string[] = (process.env.SA_TESTER_EMAILS ?? '')
 export const registrationAllowed = (email: string): boolean =>
   !TESTERS_ONLY || TESTER_EMAILS.includes(email.trim().toLowerCase())
 
+// Accounts.
+/** Username length bound, enforced on set/register and mirrored by both client UIs. */
+export const USERNAME_MAX_CHARS = 24
+
 /** Reserved usernames nobody may take (comma-separated, trimmed, case-insensitive). Staff /
  *  official-looking handles live here so a player cannot impersonate them. Set on Render, e.g.
  *  `SA_FORBIDDEN_USERNAME=sdevrami,developer,owner`. */

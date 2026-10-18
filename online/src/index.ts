@@ -76,6 +76,7 @@ import {
   dbTrimMatches,
   googleAuthorizeUrl,
   setProfileUsername,
+  usernameAvailability,
   usernameNeedsChange,
 } from './supabase.ts'
 import { MOD_MAX_BYTES, modLabel, sanitizeMod } from './mods.ts'
@@ -1411,6 +1412,16 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
     }
     res.writeHead(302, { Location: authorize })
     res.end()
+    return true
+  }
+  // Public availability pre-check for the game's sign-in form (the player has no session yet).
+  // Mirrors the rules enforced when the name is finally set, so the UI can flip the button from
+  // "Check user name" to "Sign in with Google" once the name is free.
+  if (req.method === 'GET' && urlPath === '/api/auth/username-available') {
+    if (limited(res, 'read', RATE_READ_PER_MIN, clientIp(req))) return true
+    const url = new URL(req.url ?? urlPath, 'http://localhost')
+    const result = await usernameAvailability(url.searchParams.get('username') ?? '')
+    writeJson(res, result.ok ? 200 : 503, result)
     return true
   }
   // Sets the profile username for the signed-in account (first-time setup and forced rename

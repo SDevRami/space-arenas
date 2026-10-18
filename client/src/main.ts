@@ -1049,6 +1049,8 @@ const onlineSearchEl = document.getElementById('online-search') as HTMLInputElem
 const accountOverlay = document.getElementById('account-overlay') as HTMLDivElement
 const accountUsernameEl = document.getElementById('account-username') as HTMLInputElement
 const accountGoogleBtn = document.getElementById('account-google') as HTMLButtonElement
+const accountAnonUsernameEl = document.getElementById('account-anon-username') as HTMLInputElement
+const accountAnonHintEl = document.getElementById('account-anon-hint') as HTMLParagraphElement
 const accountSetUsernameBtn = document.getElementById('account-setusername') as HTMLButtonElement
 const accountUsernameSetupEl = document.getElementById('account-username-setup') as HTMLDivElement
 const accountUsernameHintEl = document.getElementById('account-username-hint') as HTMLParagraphElement
@@ -1282,6 +1284,7 @@ const openAccountPopup = (): void => {
     accountUsernameEl.value = authSession?.username || onlineNameEl.value
   }
   accountOverlay.classList.add('visible')
+  renderAnonAction()
   // Re-sync games/wins/best from the server every time the popup opens (matches update them).
   if (authSession) void adoptToken(authSession.token)
 }
@@ -1349,6 +1352,13 @@ let usernameSetupRequired = false
  *  'forbidden' = the name is on the server's reserved list (staff/impersonation guard). */
 let usernameSetupReason: 'required' | 'conflict' | 'forbidden' = 'required'
 
+/** The name typed on the sign-in form once "Check user name" has confirmed it is free. It is
+ *  stashed in sessionStorage for the Google round-trip (the tab navigates away and back) and
+ *  claimed automatically the moment a fresh account lands. */
+const PENDING_USERNAME_KEY = 'space-arenas:pending-username'
+let anonNameChecked: string | null = null
+let anonNameChecking = false
+
 const authToken = (): string | undefined => authSession?.token
 
 const setAccountStatus = (text: string, isError = false): void => {
@@ -1411,6 +1421,8 @@ const updateAccountUI = (): void => {
       )
       if (accountUsernameEl.value.trim() === '') accountUsernameEl.value = s.username || onlineNameEl.value
     }
+  } else {
+    renderAnonAction()
   }
 }
 
@@ -1459,11 +1471,132 @@ const adoptToken = async (token: string): Promise<boolean> => {
   }
 }
 
+const readPendingUsername = (): string | null => {
+  try {
+    return sessionStorage.getItem(PENDING_USERNAME_KEY)
+  } catch {
+    return null
+  }
+}
+
+const clearPendingUsername = (): void => {
+  try {
+    sessionStorage.removeItem(PENDING_USERNAME_KEY)
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+const setAnonHint = (text: string, isError = false): void => {
+  accountAnonHintEl.textContent = text
+  accountAnonHintEl.classList.toggle('error', isError)
+}
+
+/** One button drives the whole signed-out flow: with an unchecked name typed it reads
+ *  "Check user name"; once the name is verified free (or the field is left empty) it reads
+ *  "Sign in with Google" — so returning players just click straight through. */
+const renderAnonAction = (): void => {
+  if (anonNameChecking) {
+    accountGoogleBtn.disabled = true
+    accountGoogleBtn.dataset.mode = 'check'
+    accountGoogleBtn.textContent = t('online.checkingUsername')
+    return
+  }
+  const name = accountAnonUsernameEl.value.trim()
+  const needsCheck = name !== '' && name !== anonNameChecked
+  accountGoogleBtn.disabled = false
+  accountGoogleBtn.dataset.mode = needsCheck ? 'check' : 'signin'
+  accountGoogleBtn.textContent = needsCheck ? t('online.checkUsername') : t('online.signInGoogle')
+}
+
+/** Asks the public pre-check endpoint whether the typed name is still free. The name can be
+ *  lost in the gap before Google returns, which the claim step reports normally. */
+const checkAnonUsername = async (): Promise<void> => {
+  const name = accountAnonUsernameEl.value.trim()
+  if (name === '') {
+    renderAnonAction()
+    return
+  }
+  anonNameChecking = true
+  renderAnonAction()
+  setAnonHint(t('online.checkingUsername'))
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/auth/username-available?username=${encodeURIComponent(name)}`)
+    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: { available?: boolean; reason?: string } }
+    if (!res.ok || j.ok !== true) {
+      anonNameChecked = null
+      setAnonHint(t('online.usernameCheckFailed'), true)
+      return
+    }
+    if (j.data?.available === true) {
+      anonNameChecked = name
+      setAnonHint(t('online.usernameAvailable'))
+      return
+    }
+    anonNameChecked = null
+    setAnonHint(
+      j.data?.reason === 'taken'
+        ? t('online.usernameTaken')
+        : j.data?.reason === 'not allowed'
+          ? t('online.usernameForbidden')
+          : t('online.usernameInvalid'),
+      true,
+    )
+  } catch {
+    anonNameChecked = null
+    setAnonHint(t('online.usernameCheckFailed'), true)
+  } finally {
+    anonNameChecking = false
+    renderAnonAction()
+  }
+}
+
 /** Sends the browser to the server's Google OAuth entry point. The server 302s to Supabase,
- *  which returns the player here with the token in the URL fragment. */
+ *  which returns the player here with the token in the URL fragment. A name already checked
+ *  free travels along in sessionStorage so the fresh account can be renamed to it. */
 const signInWithGoogle = (): void => {
+  try {
+    if (anonNameChecked) sessionStorage.setItem(PENDING_USERNAME_KEY, anonNameChecked)
+    else sessionStorage.removeItem(PENDING_USERNAME_KEY)
+  } catch {
+    /* storage unavailable */
+  }
   const here = window.location.href.split('#')[0]
   window.location.href = `${ONLINE_URL}/api/auth/google?redirect_to=${encodeURIComponent(here)}`
+}
+
+/** Claims `name` for the signed-in account — used for first-time setup and for the auto-claim
+ *  right after a Google round-trip. Returns whether the server accepted it. */
+const claimUsername = async (name: string): Promise<boolean> => {
+  setAccountStatus(t('online.working'))
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/auth/username`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken() ?? ''}` },
+      body: JSON.stringify({ username: name }),
+    })
+    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
+    if (!res.ok || j.ok !== true) {
+      setAccountStatus(
+        j.error === 'username already taken'
+          ? t('online.usernameTaken')
+          : j.error === 'username not allowed'
+            ? t('online.usernameForbidden')
+            : (j.error ?? t('online.unknownError')),
+        true,
+      )
+      return false
+    }
+    usernameSetupRequired = false
+    applyAuthUsername(name)
+    if (authSession) saveAuth({ ...authSession, username: name })
+    updateAccountUI()
+    setAccountStatus(t('online.usernameSaved'))
+    return true
+  } catch {
+    setAccountStatus(t('online.serverDown'), true)
+    return false
+  }
 }
 
 const showAccountAuthError = (message: string): void => {
@@ -1492,51 +1625,50 @@ const handleOAuthRedirect = (): boolean => {
   void adoptToken(token).then((ok) => {
     if (!ok) {
       showAccountAuthError(t('online.loginFailed'))
-    } else if (usernameSetupRequired) {
+      return
+    }
+    // A fresh account can be renamed straight away when the player checked a name before
+    // starting the Google round-trip; otherwise fall back to the rename prompt.
+    if (usernameSetupRequired) {
+      const wanted = readPendingUsername()
+      clearPendingUsername()
+      if (wanted) {
+        void claimUsername(wanted).then((claimed) => {
+          if (!claimed) {
+            openAccountPopup()
+            setAccountStatus(t('online.usernameRequired'))
+          }
+        })
+        return
+      }
       openAccountPopup()
       setAccountStatus(t('online.usernameRequired'))
-    } else {
-      setAccountStatus(t('online.loginOk', { name: authSession?.username ?? '' }))
+      return
     }
+    clearPendingUsername()
+    setAccountStatus(t('online.loginOk', { name: authSession?.username ?? '' }))
   })
   return true
 }
 
-accountGoogleBtn.addEventListener('click', signInWithGoogle)
+accountGoogleBtn.addEventListener('click', () => {
+  if (accountGoogleBtn.dataset.mode === 'check') void checkAnonUsername()
+  else signInWithGoogle()
+})
 
-accountSetUsernameBtn.addEventListener('click', async () => {
+accountAnonUsernameEl.addEventListener('input', () => {
+  anonNameChecked = null
+  setAnonHint(t('online.anonNameHint'))
+  renderAnonAction()
+})
+
+accountSetUsernameBtn.addEventListener('click', () => {
   const name = accountUsernameEl.value.trim()
   if (name === '') {
     setAccountStatus(t('online.fillAll'), true)
     return
   }
-  setAccountStatus(t('online.working'))
-  try {
-    const res = await fetch(`${ONLINE_URL}/api/auth/username`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken() ?? ''}` },
-      body: JSON.stringify({ username: name }),
-    })
-    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
-    if (!res.ok || j.ok !== true) {
-      setAccountStatus(
-        j.error === 'username already taken'
-          ? t('online.usernameTaken')
-          : j.error === 'username not allowed'
-            ? t('online.usernameForbidden')
-            : (j.error ?? t('online.unknownError')),
-        true,
-      )
-      return
-    }
-    usernameSetupRequired = false
-    applyAuthUsername(name)
-    if (authSession) saveAuth({ ...authSession, username: name })
-    updateAccountUI()
-    setAccountStatus(t('online.usernameSaved'))
-  } catch {
-    setAccountStatus(t('online.serverDown'), true)
-  }
+  void claimUsername(name)
 })
 
 accountLogoutBtn.addEventListener('click', () => {

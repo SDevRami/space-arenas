@@ -1,7 +1,7 @@
 /* Space Arenas — landing page (GitHub Pages).
- * i18n EN/AR toggle (localStorage + ?lang=), account login/register, and a
- * login-gated community section: browse / rate / download / publish balance mods
- * against the Render API. Short TTL cache for the mod list keeps API traffic low.
+ * i18n EN/AR toggle (localStorage + ?lang=) and a public, read-only community section:
+ * browse community mods and maps against the Render API. Downloading, rating and publishing
+ * all live inside the game client. Short TTL cache keeps API traffic low.
  */
 
 // The public Render API. Set this to your deployed service origin.
@@ -9,7 +9,6 @@ const SA_ONLINE_URL = 'https://space-arenas-online.onrender.com'
 
 const CACHE_KEY = 'sa-modlist-cache-v1'
 const MAPS_CACHE_KEY = 'sa-maplist-cache-v1'
-const AUTH_KEY = 'sa-auth'
 const LANG_KEY = 'sa-lang'
 const MODS_TTL_MS = 5 * 60 * 1000
 
@@ -43,8 +42,8 @@ const EN = {
   'howto.st3.title': 'Play & share',
   'howto.st3.text': 'Create or join a room, pick a balance mod, and carry your progress anywhere with encrypted backups.',
   'community.title': 'Community',
-  'community.subtitle': 'Browse, rate and download mods and maps. Publishing happens inside the game.',
-  'community.needLogin': 'Sign in to browse, rate and download community mods and maps.',
+  'community.subtitle': 'Browse community mods and maps. Downloading, rating and publishing happen inside the game.',
+  'community.gameOnly': 'Download, rating and publishing happen inside the game.',
   'community.by': 'by @{name}',
   'community.downloads': '{n} downloads',
   'community.players': '{n} players',
@@ -53,65 +52,10 @@ const EN = {
   'community.loading': 'Loading…',
   'community.tab.mods': 'Mods',
   'community.tab.maps': 'Maps',
-  'community.tab.mine': 'My published',
   'community.empty': 'No mods published yet — be the first!',
   'community.maps.empty': 'No maps published yet — be the first!',
   'community.error': 'Could not load the mod repository.',
   'community.maps.error': 'Could not load the map repository.',
-  'community.download': 'Download',
-  'community.downloading': 'Downloading…',
-  'community.downloadLimit': 'Download limit reached — try again in a minute.',
-  'community.downloadError': 'Download failed. Please try again.',
-  'community.rateOk': 'Thanks — rated {n} / 5.',
-  'community.rateFail': 'Could not save the rating. Please try again.',
-  'community.upload.title': 'Share a mod',
-  'community.upload.hint': 'Pick a balance mod file you exported, write a short description and publish it for everyone. Only you can delete your own mods.',
-  'community.upload.descPlaceholder': 'Short description… (up to 160 characters)',
-  'community.upload.button': 'Publish',
-  'community.upload.working': 'Publishing…',
-  'community.upload.ok': 'Mod published to the repository.',
-  'community.upload.needDesc': 'Write a short description first.',
-  'community.upload.needFile': 'Choose a mod file first.',
-  'community.upload.fail': 'Could not publish the mod.',
-  'community.mapsUpload.title': 'Share a map',
-  'community.mapsUpload.hint': 'Pick a map file you exported from the Map Builder, write a short description and publish it for everyone. Only you can delete your own maps.',
-  'community.mapsUpload.descPlaceholder': 'Short description… (up to 160 characters)',
-  'community.mapsUpload.button': 'Publish',
-  'community.mapsUpload.working': 'Publishing…',
-  'community.mapsUpload.ok': 'Map published to the community.',
-  'community.mapsUpload.needDesc': 'Write a short description first.',
-  'community.mapsUpload.needFile': 'Choose a map file first.',
-  'community.mapsUpload.fail': 'Could not publish the map.',
-  'community.mine.modsTitle': 'My mods',
-  'community.mine.mapsTitle': 'My maps',
-  'community.mine.empty': 'You haven\u2019t published anything yet.',
-  'community.mine.error': 'Could not load your published items.',
-  'community.mine.delete': 'Delete',
-  'community.mine.deleting': 'Deleting\u2026',
-  'community.mine.deleted': 'Deleted from the repository.',
-  'community.mine.deleteFail': 'Could not delete it.',
-  'auth.signin': 'Sign in',
-  'auth.signout': 'Sign out',
-  'auth.email': 'Email',
-  'auth.password': 'Password',
-  'auth.username': 'Username',
-  'auth.toRegister': 'Create an account',
-  'auth.toLogin': 'Already have an account? Sign in',
-  'auth.working': 'Please wait…',
-  'auth.invalid': 'Fill in the email, password and username.',
-  'auth.loginFail': 'Wrong email or password.',
-  'auth.registerFail': 'Could not create the account — maybe that username or email is taken.',
-  'auth.network': 'Could not reach the server.',
-  'auth.google': 'Sign in with Google',
-  'auth.googleHint': 'Sign in with your Google account. A new account is created automatically the first time you sign in.',
-  'auth.chooseUsername': 'Choose a unique username before you continue.',
-  'auth.chooseUsernameForbidden': 'That username is reserved. Choose a different one.',
-  'auth.saveUsername': 'Save username',
-  'auth.usernameTaken': 'That username is already taken. Try another.',
-  'auth.usernameNotAllowed': 'That username is reserved. Try another.',
-  'auth.usernameFail': 'Could not save the username.',
-  'auth.registrationClosed': 'Registration is currently limited to testers.',
-  'publish.notice': 'Publishing mods and maps only from game',
   'media.title': 'Seen in action',
   'media.battle': 'Skirmish view',
   'media.mod': 'Mod tuning',
@@ -359,8 +303,8 @@ const AR = {
   'howto.st3.title': 'العب وشارك',
   'howto.st3.text': 'أنشئ قاعة أو انضم إليها، اختر تعديل توازن، وانقل تقدمك أينما كنت بنسخ احتياطية مشفرة.',
   'community.title': 'مجتمع اللاعبين',
-  'community.subtitle': 'تصفّح وقيّم وحمّل التعديلات والخرائط. النشر يتم من داخل اللعبة.',
-  'community.needLogin': 'سجّل الدخول لتصفّح وقيّم وتنزّل تعديلات وخرائط المجتمع.',
+  'community.subtitle': 'تصفّح تعديلات وخرائط المجتمع. التنزيل والتقييم والنشر تتم من داخل اللعبة.',
+  'community.gameOnly': 'التنزيل والتقييم والنشر تتم من داخل اللعبة.',
   'community.by': 'بواسطة @{name}',
   'community.downloads': '{n} تنزيل',
   'community.players': '{n} لاعبي',
@@ -369,65 +313,10 @@ const AR = {
   'community.loading': 'جارٍ التحميل…',
   'community.tab.mods': 'التعديلات',
   'community.tab.maps': 'الخرائط',
-  'community.tab.mine': 'منشوراتي',
   'community.empty': 'لا توجد تعديلات بعد — كن أول من ينشر!',
   'community.maps.empty': 'لا توجد خرائط بعد — كن أول من ينشر!',
   'community.error': 'تعذّر تحميل مستودع التعديلات.',
   'community.maps.error': 'تعذّر تحميل مستودع الخرائط.',
-  'community.download': 'تنزيل',
-  'community.downloading': 'جارٍ التنزيل…',
-  'community.downloadLimit': 'وصلت لحد التنزيل — حاول مرة أخرى بعد دقيقة.',
-  'community.downloadError': 'فشل التنزيل. حاول مرة أخرى.',
-  'community.rateOk': 'شكراً — تم التقييم {n} / 5.',
-  'community.rateFail': 'تعذّر حفظ التقييم. حاول مرة أخرى.',
-  'community.upload.title': 'شارك تعديلاً',
-  'community.upload.hint': 'اختر ملف تعديل صدرته من اللعبة، اكتب وصفاً قصيراً وانشره للجميع. لا يمكنك حذف تعديلاتك إلا أنت.',
-  'community.upload.descPlaceholder': 'وصف قصير… (حتى 160 حرفاً)',
-  'community.upload.button': 'نشر',
-  'community.upload.working': 'جارٍ النشر…',
-  'community.upload.ok': 'تم نشر التعديل في المستودع.',
-  'community.upload.needDesc': 'اكتب وصفاً قصيراً أولاً.',
-  'community.upload.needFile': 'اختر ملف تعديل أولاً.',
-  'community.upload.fail': 'تعذّر نشر التعديل.',
-  'community.mapsUpload.title': 'شارك خريطة',
-  'community.mapsUpload.hint': 'اختر ملف خريطة صدرته من محرر الخرائط داخل اللعبة، اكتب وصفاً قصيراً وانشره للجميع. لا يمكنك حذف خرائطك إلا أنت.',
-  'community.mapsUpload.descPlaceholder': 'وصف قصير… (حتى 160 حرفاً)',
-  'community.mapsUpload.button': 'نشر',
-  'community.mapsUpload.working': 'جارٍ النشر…',
-  'community.mapsUpload.ok': 'تم نشر الخريطة في المجتمع.',
-  'community.mapsUpload.needDesc': 'اكتب وصفاً قصيراً أولاً.',
-  'community.mapsUpload.needFile': 'اختر ملف خريطة أولاً.',
-  'community.mapsUpload.fail': 'تعذّر نشر الخريطة.',
-  'community.mine.modsTitle': 'تعديلاتي المنشورة',
-  'community.mine.mapsTitle': 'خرائطي المنشورة',
-  'community.mine.empty': 'لم تنشر شيئاً بعد.',
-  'community.mine.error': 'تعذّر تحميل منشوراتك.',
-  'community.mine.delete': 'حذف',
-  'community.mine.deleting': 'جارٍ الحذف…',
-  'community.mine.deleted': 'تمت إزالته من المستودع.',
-  'community.mine.deleteFail': 'تعذّر الحذف.',
-  'auth.signin': 'تسجيل الدخول',
-  'auth.signout': 'تسجيل الخروج',
-  'auth.email': 'البريد الإلكتروني',
-  'auth.password': 'كلمة المرور',
-  'auth.username': 'اسم المستخدم',
-  'auth.toRegister': 'إنشاء حساب',
-  'auth.toLogin': 'لديك حساب بالفعل؟ سجّل الدخول',
-  'auth.working': 'الرجاء الانتظار…',
-  'auth.invalid': 'املأ البريد الإلكتروني وكلمة المرور واسم المستخدم.',
-  'auth.loginFail': 'بريد إلكتروني أو كلمة مرور خاطئة.',
-  'auth.registerFail': 'تعذّر إنشاء الحساب — ربما اسم المستخدم أو البريد موجود بالفعل.',
-  'auth.network': 'تعذّر الوصول إلى الخادم.',
-  'auth.google': 'تسجيل الدخول باستخدام Google',
-  'auth.googleHint': 'سجّل الدخول بحساب Google. يتم إنشاء حساب جديد تلقائياً عند أول تسجيل دخول.',
-  'auth.chooseUsername': 'اختر اسم مستخدم فريداً للمتابعة.',
-  'auth.chooseUsernameForbidden': 'اسم المستخدم هذا محجوز. اختر اسماً مختلفاً.',
-  'auth.saveUsername': 'حفظ اسم المستخدم',
-  'auth.usernameTaken': 'اسم المستخدم مأخوذ بالفعل. جرّب اسماً آخر.',
-  'auth.usernameNotAllowed': 'اسم المستخدم هذا محجوز. جرّب اسماً آخر.',
-  'auth.usernameFail': 'تعذّر حفظ اسم المستخدم.',
-  'auth.registrationClosed': 'التسجيل مقتصر حالياً على المختبِرين.',
-  'publish.notice': 'نشر التعديلات والخرائط من داخل اللعبة فقط',
   'media.title': 'شاهدها أثناء اللعب',
   'media.battle': 'منظر المعركة',
   'media.mod': 'ضبط التعديلات',
@@ -984,282 +873,12 @@ const setLang = (next) => {
   }
   reloadRepoViews()
 }
-
-/* ---------------- account / session ---------------- */
-
-const state = { token: null, username: '', email: '', userId: '', needsUsername: false, usernameForbidden: false, registrationBlocked: false }
-
-const saveAuth = () => {
-  try {
-    localStorage.setItem(
-      AUTH_KEY,
-      JSON.stringify({ token: state.token, username: state.username, email: state.email, userId: state.userId }),
-    )
-  } catch {
-    /* private mode */
-  }
-}
-
-const clearAuth = () => {
-  try {
-    localStorage.removeItem(AUTH_KEY)
-  } catch {
-    /* private mode */
-  }
-}
-
-const api = async (path, { method = 'GET', body, token } = {}) => {
-  const headers = { Accept: 'application/json' }
-  const options = { method, headers }
-  if (body !== undefined) {
-    headers['Content-Type'] = 'application/json'
-    options.body = body
-  }
-  if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(`${SA_ONLINE_URL}${path}`, options)
-  let j = null
-  try {
-    j = await res.json()
-  } catch {
-    /* empty body */
-  }
-  return { ok: res.ok, status: res.status, body: j }
-}
-
-/** Copies the `/api/auth/me` payload into `state` and persists the durable parts. */
-const adoptFromMe = (data) => {
-  state.username = data.username ?? state.username
-  state.userId = data.userId ?? state.userId
-  state.email = data.email ?? state.email
-  // The server asks for a username on first sign-in (needsUsername) and whenever the current
-  // one must change — a collision with another account, or a reserved (staff) name.
-  state.needsUsername = data.needsUsername === true || data.needsUsernameChange === true
-  state.usernameForbidden = data.usernameForbidden === true
-  state.registrationBlocked = data.registrationBlocked === true
-  saveAuth()
-}
-
-const restoreSession = async () => {
-  try {
-    const raw = localStorage.getItem(AUTH_KEY)
-    if (!raw) return
-    const s = JSON.parse(raw)
-    if (!s.token) return
-    state.token = s.token
-    state.username = s.username ?? ''
-    state.email = s.email ?? ''
-    state.userId = s.userId ?? ''
-    try {
-      const me = await api('/api/auth/me', { token: s.token })
-      if (me.ok && me.body?.ok && me.body?.data) {
-        adoptFromMe(me.body.data)
-      } else {
-        clearAuth()
-        state.token = null
-      }
-    } catch {
-      /* offline — keep the stored session for now */
-    }
-  } catch {
-    clearAuth()
-    state.token = null
-  }
-  updateAuthUI()
-  if (state.token && !maybePromptUsername()) void reloadRepoViews(true)
-}
-
-const signOut = () => {
-  clearAuth()
-  state.token = null
-  state.username = ''
-  state.email = ''
-  state.userId = ''
-  state.needsUsername = false
-  state.usernameForbidden = false
-  state.registrationBlocked = false
-  updateAuthUI()
-}
-
-/* ---------------- UI wiring ---------------- */
-
-const updateAuthUI = () => {
-  const loggedIn = Boolean(state.token)
-  const flash = (id, show) => {
-    const el = document.getElementById(id)
-    if (el) el.hidden = !show
-  }
-  flash('auth-user', loggedIn)
-  flash('btn-signout', loggedIn)
-  flash('btn-signin', !loggedIn)
-  flash('hero-login', !loggedIn)
-  flash('community-login-prompt', !loggedIn)
-  flash('community-content', loggedIn)
-  const userEl = document.getElementById('auth-user')
-  if (userEl && loggedIn) {
-    userEl.textContent = state.username ? t(lang, 'community.by', { name: state.username }).replace(/^by\s+|^بواسطة\s+/, '') : ''
-  }
-}
-
-/** Shows only the relevant auth controls: the Google button when signed out, the username
- *  form when the account still needs a unique name. */
-const syncAuthPanel = () => {
-  const googleBtn = document.getElementById('auth-google')
-  const block = document.getElementById('auth-username-block')
-  const needsUsernamePanel = Boolean(state.token) && state.needsUsername && !state.registrationBlocked
-  if (googleBtn) googleBtn.hidden = Boolean(state.token)
-  if (block) block.hidden = !needsUsernamePanel
-  if (needsUsernamePanel) {
-    const hint = document.getElementById('auth-username-hint')
-    if (hint) {
-      const key = state.usernameForbidden ? 'auth.chooseUsernameForbidden' : 'auth.chooseUsername'
-      hint.setAttribute('data-i18n', key)
-      hint.textContent = t(lang, key)
-    }
-    const input = document.getElementById('auth-username')
-    if (input && !input.value) input.value = state.username ?? ''
-  }
-}
-
-const maybePromptUsername = () => {
-  if (state.registrationBlocked) {
-    openAuth()
-    authError(t(lang, 'auth.registrationClosed'))
-    return true
-  }
-  if (state.needsUsername) {
-    openAuth()
-    return true
-  }
-  return false
-}
-
-const openAuth = (focus) => {
-  const overlay = document.getElementById('auth-overlay')
-  const error = document.getElementById('auth-error')
-  syncAuthPanel()
-  if (overlay) overlay.hidden = false
-  if (error) error.hidden = true
-  if (focus && typeof focus.focus === 'function') focus.focus()
-}
-
-const closeAuth = () => {
-  document.getElementById('auth-overlay').hidden = true
-}
-
-const authError = (text) => {
-  const el = document.getElementById('auth-error')
-  if (!el) return
-  el.textContent = text
-  el.hidden = false
-}
-
-const startGoogleAuth = () => {
-  const here = window.location.href.split('#')[0]
-  window.location.href = `${SA_ONLINE_URL}/api/auth/google?redirect_to=${encodeURIComponent(here)}`
-}
-
-const saveUsername = async () => {
-  const input = document.getElementById('auth-username')
-  const btn = document.getElementById('auth-username-save')
-  const name = (input?.value ?? '').trim()
-  if (!name) {
-    authError(t(lang, 'auth.invalid'))
-    return
-  }
-  const prev = btn?.textContent ?? ''
-  if (btn) {
-    btn.textContent = t(lang, 'auth.working')
-    btn.disabled = true
-  }
-  try {
-    const res = await api('/api/auth/username', { method: 'POST', token: state.token, body: JSON.stringify({ username: name }) })
-    if (!res.ok || !res.body?.ok) {
-      const err = res.body?.error ?? ''
-      authError(
-        err === 'username already taken'
-          ? t(lang, 'auth.usernameTaken')
-          : err === 'username not allowed'
-            ? t(lang, 'auth.usernameNotAllowed')
-            : err === 'registration is currently restricted to testers'
-              ? t(lang, 'auth.registrationClosed')
-              : t(lang, 'auth.usernameFail'),
-      )
-      return
-    }
-    state.username = name
-    state.needsUsername = false
-    state.usernameForbidden = false
-    saveAuth()
-    updateAuthUI()
-    closeAuth()
-    void reloadRepoViews(true)
-  } catch {
-    authError(t(lang, 'auth.network'))
-  } finally {
-    if (btn) {
-      btn.textContent = prev
-      btn.disabled = false
-    }
-  }
-}
-
-/** Consumes the `#access_token=…` (or `#error=…`) Supabase returns to the redirect target. */
-const handleAuthRedirect = () => {
-  const hash = window.location.hash
-  if (!hash || (!hash.includes('access_token=') && !hash.includes('error='))) return false
-  const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
-  const token = params.get('access_token')
-  const errorText = params.get('error_description') ?? params.get('error')
-  try {
-    window.history.replaceState(null, '', window.location.pathname + window.location.search)
-  } catch {
-    /* history unavailable */
-  }
-  if (!token) {
-    if (errorText) {
-      openAuth()
-      authError(errorText)
-    }
-    return true
-  }
-  void (async () => {
-    state.token = token
-    try {
-      const me = await api('/api/auth/me', { token })
-      if (!me.ok || !me.body?.ok || !me.body?.data) {
-        clearAuth()
-        state.token = null
-        updateAuthUI()
-        openAuth()
-        authError(t(lang, 'auth.loginFail'))
-        return
-      }
-      adoptFromMe(me.body.data)
-      updateAuthUI()
-      if (!maybePromptUsername()) {
-        closeAuth()
-        void reloadRepoViews(true)
-      }
-    } catch {
-      clearAuth()
-      state.token = null
-      updateAuthUI()
-      openAuth()
-      authError(t(lang, 'auth.network'))
-    }
-  })()
-  return true
-}
-
-/* ---------------- community hub: mods / maps / my published ---------------- */
+/* ---------------- community hub: mods / maps (read-only) ---------------- */
 
 const modsEl = () => document.getElementById('community-grid')
 const mapsEl = () => document.getElementById('community-maps-grid')
-const mineModsEl = () => document.getElementById('community-mine-mods')
-const mineMapsEl = () => document.getElementById('community-mine-maps')
 const statusEl = () => document.getElementById('community-status')
 const mapsStatusEl = () => document.getElementById('community-maps-status')
-const mineStatusEl = () => document.getElementById('community-mine-status')
 
 const starsFor = (avg) => {
   if (avg === null || avg === undefined) return null
@@ -1272,16 +891,14 @@ const fmt = (n) => (Number.isFinite(n) ? n.toLocaleString(lang === 'ar' ? 'ar-EG
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
-const safeFileName = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || 'item'
-
 const setStatus = (text, isError = false, el = statusEl()) => {
   if (!el) return
   el.textContent = text
   el.classList.toggle('error', isError)
 }
 
-const fetchRepo = async (kind, sort = 'rating', extra = '') => {
-  const res = await fetch(`${SA_ONLINE_URL}/api/${kind}/repo?sort=${sort}&limit=250${extra}`, {
+const fetchRepo = async (kind, sort = 'rating') => {
+  const res = await fetch(`${SA_ONLINE_URL}/api/${kind}/repo?sort=${sort}&limit=250`, {
     headers: { Accept: 'application/json' },
   })
   const body = await res.json()
@@ -1301,8 +918,6 @@ const renderRepoGrid = (grid, data, kind, errText, emptyText) => {
 }
 
 const loadMods = async (force = false) => {
-  updateAuthUI()
-  if (!state.token) return
   const grid = modsEl()
   if (!grid) return
   grid.innerHTML = `<p class="mods-empty">${t(lang, 'community.loading')}</p>`
@@ -1316,7 +931,7 @@ const loadMods = async (force = false) => {
     }
   }
   if (data === null) {
-    data = await fetchRepo('mods', 'rating')
+    data = await fetchRepo('mods')
     if (data) {
       try {
         localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), data }))
@@ -1329,8 +944,6 @@ const loadMods = async (force = false) => {
 }
 
 const loadMaps = async (force = false) => {
-  updateAuthUI()
-  if (!state.token) return
   const grid = mapsEl()
   if (!grid) return
   grid.innerHTML = `<p class="mods-empty">${t(lang, 'community.loading')}</p>`
@@ -1344,7 +957,7 @@ const loadMaps = async (force = false) => {
     }
   }
   if (data === null) {
-    data = await fetchRepo('maps', 'rating')
+    data = await fetchRepo('maps')
     if (data) {
       try {
         localStorage.setItem(MAPS_CACHE_KEY, JSON.stringify({ at: Date.now(), data }))
@@ -1356,160 +969,39 @@ const loadMaps = async (force = false) => {
   renderRepoGrid(grid, data, 'map', t(lang, 'community.maps.error'), t(lang, 'community.maps.empty'))
 }
 
-const loadMine = async () => {
-  updateAuthUI()
-  if (!state.token) return
-  const status = mineStatusEl()
-  const modsGrid = mineModsEl()
-  const mapsGrid = mineMapsEl()
-  if (!status || !modsGrid || !mapsGrid) return
-  status.textContent = ''
-  status.classList.remove('error')
-  const owner = encodeURIComponent(state.userId || '')
-  const [mods, maps] = await Promise.all([
-    fetchRepo('mods', 'newest', `&owner=${owner}`),
-    fetchRepo('maps', 'newest', `&owner=${owner}`),
-  ])
-  if (mods === null && maps === null) {
-    status.textContent = t(lang, 'community.mine.error')
-    status.classList.add('error')
-    return
-  }
-  modsGrid.innerHTML =
-    mods && mods.length ? mods.map((m) => fmtCard(m, 'mod', true)).join('') : `<p class="mods-empty">${t(lang, 'community.mine.empty')}</p>`
-  mapsGrid.innerHTML =
-    maps && maps.length ? maps.map((m) => fmtCard(m, 'map', true)).join('') : `<p class="mods-empty">${t(lang, 'community.mine.empty')}</p>`
-}
-
 const reloadRepoViews = (force = false) => {
   void loadMods(force)
   void loadMaps(force)
-  void loadMine()
 }
 
-const fmtCard = (m, kind = 'mod', mine = false) => {
+/** Read-only catalog card. Downloading, rating and publishing all live inside the game
+ *  client, so the landing shows the numbers but offers no interactive controls. */
+const fmtCard = (m, kind) => {
   const stars = starsFor(m.ratingAvg)
-  const ratingLine =
-    stars !== null
-      ? `<span class="stars" title="${m.ratingAvg} / 5">${stars}</span> <span>${t(lang, 'community.rating', { avg: m.ratingAvg, c: m.ratingCount })}</span>`
-      : `<span class="mod-meta">${t(lang, 'community.noRating')}</span>`
-  const rateRow =
-    `<span class="rate-row">` +
-    [1, 2, 3, 4, 5]
-      .map((n) => `<button type="button" class="rate-star" data-id="${escapeHtml(m.id)}" data-n="${n}" aria-label="${n}">\u2605</button>`)
-      .join('') +
-    `</span>`
+  const ratingLine = stars
+    ? `<span class="stars">${stars}</span> <span>${t(lang, 'community.rating', { avg: m.ratingAvg, c: m.ratingCount })}</span>`
+    : `<span class="mod-meta">${t(lang, 'community.noRating')}</span>`
   const byName = m.ownerName ? m.ownerName : m.author ? m.author : '?'
   const metaLine =
     kind === 'map'
       ? `<div class="mod-meta">${m.width}\u00d7${m.height} \u00b7 ${t(lang, 'community.players', { n: m.players })} \u00b7 ${t(lang, 'community.by', { name: escapeHtml(byName) })}</div>`
       : `<div class="mod-meta">${t(lang, 'community.by', { name: escapeHtml(byName) })}</div>`
-  const deleteBtn = mine
-    ? `<button class="mod-delete" type="button" data-kind="${kind}" data-id="${escapeHtml(m.id)}">\uD83D\uDDD1 ${t(lang, 'community.mine.delete')}</button>`
-    : ''
   return (
     `<article class="card mod-card">` +
     `<h3>${escapeHtml(m.name)}</h3>` +
     metaLine +
     (m.description ? `<div class="mod-desc">${escapeHtml(m.description)}</div>` : '') +
     `<div class="mod-line">${ratingLine}<span class="mod-downloads">\u2B07 ${t(lang, 'community.downloads', { n: fmt(m.downloads) })}</span></div>` +
-    `<div class="mod-actions">` +
-    `<button class="mod-download" type="button" data-id="${escapeHtml(m.id)}" data-name="${escapeHtml(m.name)}">\u2B07 ${t(lang, 'community.download')}</button>` +
-    rateRow +
-    deleteBtn +
-    `</div>` +
     `</article>`
   )
 }
 
-/** Fetches an item's JSON from the Render API and saves it as `<name>.json`.
- *  Downloads bump the server counter and are rate-limited server-side (429 → hint). */
-const downloadItem = async (btn, kind) => {
-  const id = btn.dataset.id
-  const name = btn.dataset.name
-  if (!id) return
-  btn.disabled = true
-  const prev = btn.textContent
-  btn.textContent = t(lang, 'community.downloading')
-  try {
-    const res = await fetch(`${SA_ONLINE_URL}/api/${kind}/${encodeURIComponent(id)}`)
-    if (res.status === 429) {
-      setStatus(t(lang, 'community.downloadLimit'), true)
-      return
-    }
-    if (!res.ok) throw new Error(String(res.status))
-    const blob = new Blob([await res.text()], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${safeFileName(name)}.json`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-  } catch {
-    setStatus(t(lang, 'community.downloadError'), true)
-  } finally {
-    btn.disabled = false
-    btn.textContent = prev
-  }
-}
-
-const rateItem = async (id, n, kind) => {
-  if (!state.token) return
-  const res = await api(`/api/${kind}/${encodeURIComponent(id)}/rate`, {
-    method: 'POST',
-    token: state.token,
-    body: JSON.stringify({ rating: n }),
-  })
-  if (!res.ok || !res.body?.ok) {
-    setStatus(t(lang, 'community.rateFail'), true)
-    return
-  }
-  setStatus(t(lang, 'community.rateOk', { n }))
-  try {
-    localStorage.removeItem(kind === 'mod' ? CACHE_KEY : MAPS_CACHE_KEY)
-  } catch {
-    /* private mode */
-  }
-  reloadRepoViews(true)
-}
-
-const deleteItem = async (btn) => {
-  const id = btn.dataset.id
-  const kind = btn.dataset.kind
-  if (!id || !state.token) return
-  btn.disabled = true
-  const prev = btn.textContent
-  btn.textContent = t(lang, 'community.mine.deleting')
-  const res = await api(`/api/${kind}/${encodeURIComponent(id)}`, { method: 'DELETE', token: state.token })
-  if (!res.ok || !res.body?.ok) {
-    btn.disabled = false
-    btn.textContent = prev
-    setStatus(res.body?.error ?? t(lang, 'community.mine.deleteFail'), true, mineStatusEl())
-    return
-  }
-  try {
-    localStorage.removeItem(kind === 'mod' ? CACHE_KEY : MAPS_CACHE_KEY)
-  } catch {
-    /* private mode */
-  }
-  setStatus(t(lang, 'community.mine.deleted'), false, mineStatusEl())
-  void loadMine()
-  if (kind === 'mod') void loadMods(true)
-  else void loadMaps(true)
-}
-
-let communityTab = 'mods'
-
 const switchCommunityTab = (tab) => {
-  communityTab = tab
   document.querySelectorAll('.community-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab))
   document.querySelectorAll('.community-panel').forEach((p) => {
     p.hidden = p.dataset.panel !== tab
   })
   if (tab === 'maps') void loadMaps(false)
-  else if (tab === 'mine') void loadMine()
   else void loadMods(false)
 }
 
@@ -1520,48 +1012,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (a.getAttribute('data-page') === currentPage) a.classList.add('active')
   }
 
+  // No sign-in here any more: the catalog is public and read-only, and the language toggle
+  // re-renders it. Downloading / rating / publishing live in the game client.
   setLang(lang)
-  // A Google sign-in returns to this page with the token in the URL fragment; adopt that first
-  // and only fall back to any stored session when there is no sign-in in flight.
-  if (!handleAuthRedirect()) void restoreSession()
 
   document.getElementById('lang-toggle')?.addEventListener('click', () => setLang(lang === 'en' ? 'ar' : 'en'))
-  document.getElementById('btn-signin')?.addEventListener('click', () => openAuth())
-  document.getElementById('btn-signout')?.addEventListener('click', signOut)
-  document.getElementById('hero-login')?.addEventListener('click', () => openAuth())
-  document.getElementById('community-login-cta')?.addEventListener('click', () => openAuth())
-  document.getElementById('auth-close')?.addEventListener('click', closeAuth)
-  document.getElementById('auth-overlay')?.addEventListener('click', (ev) => {
-    if (ev.target === ev.currentTarget) closeAuth()
-  })
-  document.getElementById('auth-google')?.addEventListener('click', startGoogleAuth)
-  document.getElementById('auth-username-save')?.addEventListener('click', () => void saveUsername())
-  document.getElementById('auth-username')?.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') void saveUsername()
-  })
-
-  document.querySelectorAll('.community-tab').forEach((b) => {
-    b.addEventListener('click', () => switchCommunityTab(b.dataset.tab))
-  })
-
-  renderDynamic()
-
-  const wireGrid = (grid, kind) => {
-    if (!grid) return
-    grid.addEventListener('click', (ev) => {
-      const btn = ev.target?.closest?.(`button[data-n]`)
-      if (btn && grid.contains(btn)) {
-        void rateItem(btn.dataset.id, Number(btn.dataset.n), kind)
-        return
-      }
-      const dl = ev.target?.closest?.('.mod-download')
-      if (dl && grid.contains(dl)) void downloadItem(dl, kind)
-      const del = ev.target?.closest?.('.mod-delete')
-      if (del && grid.contains(del)) void deleteItem(del)
-    })
-  }
-  wireGrid(document.getElementById('community-grid'), 'mod')
-  wireGrid(document.getElementById('community-maps-grid'), 'map')
-  wireGrid(document.getElementById('community-mine-mods'), 'mod')
-  wireGrid(document.getElementById('community-mine-maps'), 'map')
+  document.querySelectorAll('.community-tab').forEach((b) => b.addEventListener('click', () => switchCommunityTab(b.dataset.tab)))
 })

@@ -917,6 +917,9 @@
           <div class="status" id="account-status"></div>
           <div id="account-anon">
             <p class="hint" data-i18n="online.signInHint">Sign in with your Google account to play online. A new account is created automatically the first time you sign in.</p>
+            <label for="account-anon-username" data-i18n="online.name">User name</label>
+            <input id="account-anon-username" maxlength="24" autocomplete="nickname" placeholder="Commander" />
+            <p class="hint" id="account-anon-hint" data-i18n="online.anonNameHint">Optional: type a user name and check it is free to claim it, or just sign in if you already have an account.</p>
             <div class="row">
               <button class="primary" id="account-google" data-i18n="online.signInGoogle">Sign in with Google</button>
             </div>
