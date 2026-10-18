@@ -105,8 +105,10 @@ const EN = {
   'auth.google': 'Sign in with Google',
   'auth.googleHint': 'Sign in with your Google account. A new account is created automatically the first time you sign in.',
   'auth.chooseUsername': 'Choose a unique username before you continue.',
+  'auth.chooseUsernameForbidden': 'That username is reserved. Choose a different one.',
   'auth.saveUsername': 'Save username',
   'auth.usernameTaken': 'That username is already taken. Try another.',
+  'auth.usernameNotAllowed': 'That username is reserved. Try another.',
   'auth.usernameFail': 'Could not save the username.',
   'auth.registrationClosed': 'Registration is currently limited to testers.',
   'publish.notice': 'Publishing mods and maps only from game',
@@ -419,8 +421,10 @@ const AR = {
   'auth.google': 'تسجيل الدخول باستخدام Google',
   'auth.googleHint': 'سجّل الدخول بحساب Google. يتم إنشاء حساب جديد تلقائياً عند أول تسجيل دخول.',
   'auth.chooseUsername': 'اختر اسم مستخدم فريداً للمتابعة.',
+  'auth.chooseUsernameForbidden': 'اسم المستخدم هذا محجوز. اختر اسماً مختلفاً.',
   'auth.saveUsername': 'حفظ اسم المستخدم',
   'auth.usernameTaken': 'اسم المستخدم مأخوذ بالفعل. جرّب اسماً آخر.',
+  'auth.usernameNotAllowed': 'اسم المستخدم هذا محجوز. جرّب اسماً آخر.',
   'auth.usernameFail': 'تعذّر حفظ اسم المستخدم.',
   'auth.registrationClosed': 'التسجيل مقتصر حالياً على المختبِرين.',
   'publish.notice': 'نشر التعديلات والخرائط من داخل اللعبة فقط',
@@ -983,7 +987,7 @@ const setLang = (next) => {
 
 /* ---------------- account / session ---------------- */
 
-const state = { token: null, username: '', email: '', userId: '', needsUsername: false, registrationBlocked: false }
+const state = { token: null, username: '', email: '', userId: '', needsUsername: false, usernameForbidden: false, registrationBlocked: false }
 
 const saveAuth = () => {
   try {
@@ -1027,7 +1031,10 @@ const adoptFromMe = (data) => {
   state.username = data.username ?? state.username
   state.userId = data.userId ?? state.userId
   state.email = data.email ?? state.email
-  state.needsUsername = data.needsUsername === true
+  // The server asks for a username on first sign-in (needsUsername) and whenever the current
+  // one must change — a collision with another account, or a reserved (staff) name.
+  state.needsUsername = data.needsUsername === true || data.needsUsernameChange === true
+  state.usernameForbidden = data.usernameForbidden === true
   state.registrationBlocked = data.registrationBlocked === true
   saveAuth()
 }
@@ -1068,6 +1075,7 @@ const signOut = () => {
   state.email = ''
   state.userId = ''
   state.needsUsername = false
+  state.usernameForbidden = false
   state.registrationBlocked = false
   updateAuthUI()
 }
@@ -1101,6 +1109,12 @@ const syncAuthPanel = () => {
   if (googleBtn) googleBtn.hidden = Boolean(state.token)
   if (block) block.hidden = !needsUsernamePanel
   if (needsUsernamePanel) {
+    const hint = document.getElementById('auth-username-hint')
+    if (hint) {
+      const key = state.usernameForbidden ? 'auth.chooseUsernameForbidden' : 'auth.chooseUsername'
+      hint.setAttribute('data-i18n', key)
+      hint.textContent = t(lang, key)
+    }
     const input = document.getElementById('auth-username')
     if (input && !input.value) input.value = state.username ?? ''
   }
@@ -1164,14 +1178,17 @@ const saveUsername = async () => {
       authError(
         err === 'username already taken'
           ? t(lang, 'auth.usernameTaken')
-          : err === 'registration is currently restricted to testers'
-            ? t(lang, 'auth.registrationClosed')
-            : t(lang, 'auth.usernameFail'),
+          : err === 'username not allowed'
+            ? t(lang, 'auth.usernameNotAllowed')
+            : err === 'registration is currently restricted to testers'
+              ? t(lang, 'auth.registrationClosed')
+              : t(lang, 'auth.usernameFail'),
       )
       return
     }
     state.username = name
     state.needsUsername = false
+    state.usernameForbidden = false
     saveAuth()
     updateAuthUI()
     closeAuth()

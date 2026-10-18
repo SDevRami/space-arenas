@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { BACKUPS_MAX_PER_USER, BACKUPS_MAX_PAYLOAD_BYTES, BACKUPS_TTL_MS, registrationAllowed } from './config.ts'
+import { BACKUPS_MAX_PER_USER, BACKUPS_MAX_PAYLOAD_BYTES, BACKUPS_TTL_MS, isForbiddenUsername, registrationAllowed } from './config.ts'
 import { MODS_MAX_PER_USER } from './mods.ts'
 import { MAPS_MAX_PER_USER } from './maps.ts'
 
@@ -52,6 +52,7 @@ export const authRegister = async (email: string, password: string, username: st
   if (password.length < 6) return { ok: false, error: 'password must be at least 6 characters' }
   const name = username.trim()
   if (name.length < 1 || name.length > 24) return { ok: false, error: 'username must be 1-24 characters' }
+  if (isForbiddenUsername(name)) return { ok: false, error: 'username not allowed' }
   try {
     const taken = await timedFetch(
       `/rest/v1/profiles?username=eq.${encodeURIComponent(name)}&select=user_id&limit=1`,
@@ -210,6 +211,9 @@ const dbUsernameClash = async (
  *
  * Only `user_id` + `username` are sent, so `resolution=merge-duplicates` never wipes the
  * caller's games/wins/high_score on an existing profile row.
+ *
+ * Names on `SA_FORBIDDEN_USERNAME` (staff/impersonation guard) are rejected up front, so both
+ * first-time setup and a forced rename refuse them.
  */
 export const setProfileUsername = async (
   userId: string,
@@ -219,6 +223,7 @@ export const setProfileUsername = async (
   if (!dbConfigured()) return { ok: false, error: 'database not configured' }
   const name = username.trim()
   if (name.length < 1 || name.length > 24) return { ok: false, error: 'username must be 1-24 characters' }
+  if (isForbiddenUsername(name)) return { ok: false, error: 'username not allowed' }
   try {
     // Creating the profile is what turns a first-time Google sign-in into an account, so the
     // tester-only gate is enforced here (Supabase governs the OAuth sign-in itself).

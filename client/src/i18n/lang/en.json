@@ -196,8 +196,10 @@
     "setUsername": "Save user name",
     "usernameSetupHint": "Pick a user name other players will see. It must be unique.",
     "usernameConflictHint": "This user name belongs to another account. Choose a different one.",
+    "usernameForbiddenHint": "This user name is reserved. Choose a different one.",
     "usernameRequired": "Choose your user name to continue.",
     "usernameTaken": "That user name is already taken. Try another.",
+    "usernameForbidden": "That user name is reserved. Try another.",
     "usernameSaved": "User name saved.",
     "publishingDisabled": "Publishing mods and maps is currently disabled.",
     "signInTo": {

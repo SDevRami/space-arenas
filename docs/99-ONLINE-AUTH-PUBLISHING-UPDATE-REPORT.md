@@ -127,3 +127,44 @@
 ## Next steps
 
 Answer the questions above. Then I'll implement in order: (1) publishing gate + tester-only registration (server + client), (3) landing UI changes (for the specified landing page), (2) OAuth + username enforcement/conflict resolution. All changes will be code-grounded and minimal.
+
+---
+
+## Addendum: reserved usernames (`SA_FORBIDDEN_USERNAME`)
+
+**Goal:** block a configurable list of usernames (staff/official handles) so nobody can impersonate
+them.
+
+**Behavior**
+- Env var `SA_FORBIDDEN_USERNAME` = comma-separated list, trimmed and compared **case-insensitively**
+  (exact match). Example: `sdevrami,developer,owner,admin,moderator,support,system,staff,official,root`.
+- Enforced in `setProfileUsername` (first-time setup **and** forced rename) and in the legacy
+  `authRegister`, so every write path refuses a reserved name → `400 { ok:false, error:'username not allowed' }`.
+- Existing accounts that already hold a reserved name are treated like a username conflict: `GET /api/auth/me`
+  returns `needsUsernameChange:true` + `usernameForbidden:true`, and both clients prompt for a new name
+  (distinct hint: "That username is reserved.").
+- Exact match only. If you later want to block names that merely *contain* a token (e.g. `admin2`),
+  switch `isForbiddenUsername` in `online/src/config.ts` from `includes(...)` to a substring test — but
+  that also blocks innocuous names containing the token, so it is opt-in.
+
+**Where:** `online/src/config.ts` (`FORBIDDEN_USERNAMES`, `isForbiddenUsername`), `online/src/supabase.ts`,
+`online/src/index.ts` (`/api/auth/me`), `client/src/main.ts`, `online/public/app.js`,
+`client/src/i18n/lang/{en,ar}.json`, `online/.env.example`, `render.yaml`.
+
+**Render:** add key `SA_FORBIDDEN_USERNAME` = `sdevrami,developer,owner,...` (comma-separated, no spaces needed).
+
+## Addendum: the `matches` table — purpose and retention
+
+- **Purpose:** `public.matches` is an append-only match log. Each finished online match inserts one row
+  with `map`, `winner`, `started_at`, and (migration 002) `participants` (JSONB per-player id/username/
+  team/score) and `score` (JSONB id→score). `dbRecordMatch` (`online/src/supabase.ts`) writes it
+  best-effort and then bumps each bound profile's `games`/`wins`/`high_score` and the `leaderboard` mirror.
+- **No expiry:** unlike `public.backups` (7-day TTL + `dbPurgeExpiredBackups`), `matches` has **no TTL,
+  no `expires_at` column, and no purge job** — rows accumulate forever. It is also never read back:
+  there is no `/api/matches` endpoint and no client code that queries it, so today it is a write-only
+  audit trail (raw data for future stats/history/replay features).
+- **Storage note:** the JSONB columns make rows much larger than the leaderboard, so this is the table
+  that will grow fastest. Options if you want to bound it: (a) a retention purge mirroring backups
+  (delete `started_at < now() - interval`), (b) cap by count, or (c) leave it and let Supabase's free-tier
+  limits be the backstop. Pick one before public launch if storage matters.
+

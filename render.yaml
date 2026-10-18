@@ -31,3 +31,5 @@ services:
         sync: false
       - key: SA_TESTER_EMAILS
         sync: false
+      - key: SA_FORBIDDEN_USERNAME
+        sync: false

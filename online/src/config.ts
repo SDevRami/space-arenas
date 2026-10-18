@@ -67,3 +67,16 @@ export const TESTER_EMAILS: string[] = (process.env.SA_TESTER_EMAILS ?? '')
 /** Whether a brand-new account may be created for `email` right now. */
 export const registrationAllowed = (email: string): boolean =>
   !TESTERS_ONLY || TESTER_EMAILS.includes(email.trim().toLowerCase())
+
+/** Reserved usernames nobody may take (comma-separated, trimmed, case-insensitive). Staff /
+ *  official-looking handles live here so a player cannot impersonate them. Set on Render, e.g.
+ *  `SA_FORBIDDEN_USERNAME=sdevrami,developer,owner`. */
+export const FORBIDDEN_USERNAMES: string[] = (process.env.SA_FORBIDDEN_USERNAME ?? '')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter((s) => s !== '')
+
+/** True when `username` is on the reserved list (case-insensitive, surrounding space ignored).
+ *  Exact match — see the docs note before switching to substring matching. */
+export const isForbiddenUsername = (username: string): boolean =>
+  FORBIDDEN_USERNAMES.includes(username.trim().toLowerCase())

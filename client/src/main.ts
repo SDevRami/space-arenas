@@ -1345,8 +1345,9 @@ let authSession: AuthSession | null = null
  *  held until the player picks one; the server is the source of truth for both flags. */
 let usernameSetupRequired = false
 /** Why a rename is being asked for: 'required' = first-time setup, 'conflict' = the name is
- *  already held by an older account (the newer account is the one asked to change). */
-let usernameSetupReason: 'required' | 'conflict' = 'required'
+ *  already held by an older account (the newer account is the one asked to change),
+ *  'forbidden' = the name is on the server's reserved list (staff/impersonation guard). */
+let usernameSetupReason: 'required' | 'conflict' | 'forbidden' = 'required'
 
 const authToken = (): string | undefined => authSession?.token
 
@@ -1401,7 +1402,13 @@ const updateAccountUI = (): void => {
     const s = authSession!
     accountProfileSummaryEl.textContent = t('online.accountSummary', { name: s.username || '—', games: s.games, wins: s.wins, score: s.highScore })
     if (usernameSetupRequired) {
-      accountUsernameHintEl.textContent = t(usernameSetupReason === 'conflict' ? 'online.usernameConflictHint' : 'online.usernameSetupHint')
+      accountUsernameHintEl.textContent = t(
+        usernameSetupReason === 'forbidden'
+          ? 'online.usernameForbiddenHint'
+          : usernameSetupReason === 'conflict'
+            ? 'online.usernameConflictHint'
+            : 'online.usernameSetupHint',
+      )
       if (accountUsernameEl.value.trim() === '') accountUsernameEl.value = s.username || onlineNameEl.value
     }
   }
@@ -1434,14 +1441,16 @@ const adoptToken = async (token: string): Promise<boolean> => {
         highScore: number
         needsUsername?: boolean
         needsUsernameChange?: boolean
+        usernameForbidden?: boolean
       }
     }
     if (!j.ok || !j.data) return false
     const d = j.data
     // The server decides whether a username is still needed; the newer account is the one
-    // asked to change when two accounts somehow share a name.
+    // asked to change when two accounts somehow share a name, and a reserved name is a forced
+    // rename as well.
     usernameSetupRequired = d.needsUsername === true || d.needsUsernameChange === true
-    usernameSetupReason = d.needsUsernameChange === true ? 'conflict' : 'required'
+    usernameSetupReason = d.usernameForbidden === true ? 'forbidden' : d.needsUsernameChange === true ? 'conflict' : 'required'
     if (d.username) applyAuthUsername(d.username)
     saveAuth({ token, userId: d.userId, email: d.email, username: d.username, games: d.games, wins: d.wins, highScore: d.highScore })
     return true
@@ -1510,7 +1519,14 @@ accountSetUsernameBtn.addEventListener('click', async () => {
     })
     const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
     if (!res.ok || j.ok !== true) {
-      setAccountStatus(j.error === 'username already taken' ? t('online.usernameTaken') : (j.error ?? t('online.unknownError')), true)
+      setAccountStatus(
+        j.error === 'username already taken'
+          ? t('online.usernameTaken')
+          : j.error === 'username not allowed'
+            ? t('online.usernameForbidden')
+            : (j.error ?? t('online.unknownError')),
+        true,
+      )
       return
     }
     usernameSetupRequired = false

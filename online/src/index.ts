@@ -39,6 +39,7 @@ import {
   RATE_ROOM_WRITE_PER_MIN,
   RATE_WS_HANDSHAKE_PER_MIN,
   TESTERS_ONLY,
+  isForbiddenUsername,
   registrationAllowed,
 } from './config.ts'
 import { clientIp, rateLimit, sweepRateLimits } from './ratelimit.ts'
@@ -1461,11 +1462,14 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       // newer account to choose another one.
       const username = result.data.username ?? ''
       const needsUsername = username.trim() === ''
-      const needsUsernameChange = needsUsername ? false : await usernameNeedsChange(result.data.userId, username)
+      // A reserved (staff/impersonation) name is treated as a forced rename too, so an account
+      // that somehow holds one gets asked to pick another — the server stays authoritative.
+      const usernameForbidden = !needsUsername && isForbiddenUsername(username)
+      const needsUsernameChange = usernameForbidden || (needsUsername ? false : await usernameNeedsChange(result.data.userId, username))
       // First Google sign-in with no profile yet: the tester-only gate decides whether the
       // account may be completed. Existing accounts (hasProfile) are never affected.
       const registrationBlocked = !result.data.hasProfile && !registrationAllowed(result.data.email ?? '')
-      writeJson(res, 200, { ok: true, data: { ...result.data, needsUsername, needsUsernameChange, registrationBlocked } })
+      writeJson(res, 200, { ok: true, data: { ...result.data, needsUsername, needsUsernameChange, usernameForbidden, registrationBlocked } })
       return true
     }
     writeJson(res, 401, result)

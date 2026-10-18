@@ -1518,4 +1518,42 @@ describe('online server feature gates (Phase 6)', () => {
     })
     assert.equal(status, 401)
   })
+
+  it('refuses reserved usernames on set + register, and flags an existing one for rename', async () => {
+    // SA_FORBIDDEN_USERNAME is trimmed + lower-cased at startup, and the match is case-insensitive.
+    // `SA_TESTERS=false` lets the legacy register path reach the reserved-name check.
+    const guarded = await spawnOnline({
+      SUPABASE_URL: stub.url,
+      SUPABASE_ANON_KEY: 'stub-anon',
+      SUPABASE_SERVICE_ROLE_KEY: 'stub-service',
+      SA_TESTERS: 'false',
+      // TesterOne is the stub account's current name, used for the /api/auth/me assertion.
+      SA_FORBIDDEN_USERNAME: ' admin , Owner,sdevrami,TesterOne ',
+    })
+    try {
+      for (const name of ['admin', 'ADMIN', 'Owner', 'sdevrami']) {
+        const r = await fetch(`${guarded.base}/api/auth/username`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${TEST_TOKEN}` },
+          body: JSON.stringify({ username: name }),
+        })
+        assert.equal(r.status, 400, `${name} must be refused`)
+        assert.equal(((await r.json()) as { error: string }).error, 'username not allowed')
+      }
+      const reg = await fetch(`${guarded.base}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: 'Owner', email: 'new@example.test', password: '123456' }),
+      })
+      assert.equal(reg.status, 400)
+      assert.equal(((await reg.json()) as { error: string }).error, 'username not allowed')
+      // An account that already holds a now-reserved name is told to change it.
+      const me = await fetch(`${guarded.base}/api/auth/me`, { headers: { authorization: `Bearer ${TEST_TOKEN}` } })
+      const meBody = (await me.json()) as { data: { usernameForbidden?: boolean; needsUsernameChange?: boolean } }
+      assert.equal(meBody.data.usernameForbidden, true)
+      assert.equal(meBody.data.needsUsernameChange, true)
+    } finally {
+      guarded.child.kill()
+    }
+  })
 })
