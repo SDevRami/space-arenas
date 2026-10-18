@@ -33,3 +33,5 @@ services:
         sync: false
       - key: SA_FORBIDDEN_USERNAME
         sync: false
+      - key: SA_MATCHES_MAX_ROWS
+        sync: false

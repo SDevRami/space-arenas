@@ -136,16 +136,16 @@ Answer the questions above. Then I'll implement in order: (1) publishing gate + 
 them.
 
 **Behavior**
-- Env var `SA_FORBIDDEN_USERNAME` = comma-separated list, trimmed and compared **case-insensitively**
-  (exact match). Example: `sdevrami,developer,owner,admin,moderator,support,system,staff,official,root`.
+- Env var `SA_FORBIDDEN_USERNAME` = comma-separated list, trimmed and compared **case-insensitively**.
+  Example: `sdevrami,developer,owner,admin,moderator,support,system,staff,official,root`.
+- Matching is **substring** (which includes the prefix case): a reserved token anywhere in the name
+  blocks it, so `admin` also blocks `admin2`, `the_admin` and `superadmin`. Keep tokens distinctive —
+  a short token like `mod` would also block `Commander`-style names.
 - Enforced in `setProfileUsername` (first-time setup **and** forced rename) and in the legacy
   `authRegister`, so every write path refuses a reserved name → `400 { ok:false, error:'username not allowed' }`.
 - Existing accounts that already hold a reserved name are treated like a username conflict: `GET /api/auth/me`
   returns `needsUsernameChange:true` + `usernameForbidden:true`, and both clients prompt for a new name
   (distinct hint: "That username is reserved.").
-- Exact match only. If you later want to block names that merely *contain* a token (e.g. `admin2`),
-  switch `isForbiddenUsername` in `online/src/config.ts` from `includes(...)` to a substring test — but
-  that also blocks innocuous names containing the token, so it is opt-in.
 
 **Where:** `online/src/config.ts` (`FORBIDDEN_USERNAMES`, `isForbiddenUsername`), `online/src/supabase.ts`,
 `online/src/index.ts` (`/api/auth/me`), `client/src/main.ts`, `online/public/app.js`,
@@ -159,12 +159,13 @@ them.
   with `map`, `winner`, `started_at`, and (migration 002) `participants` (JSONB per-player id/username/
   team/score) and `score` (JSONB id→score). `dbRecordMatch` (`online/src/supabase.ts`) writes it
   best-effort and then bumps each bound profile's `games`/`wins`/`high_score` and the `leaderboard` mirror.
-- **No expiry:** unlike `public.backups` (7-day TTL + `dbPurgeExpiredBackups`), `matches` has **no TTL,
-  no `expires_at` column, and no purge job** — rows accumulate forever. It is also never read back:
-  there is no `/api/matches` endpoint and no client code that queries it, so today it is a write-only
-  audit trail (raw data for future stats/history/replay features).
+- **No expiry by default, but bounded by count (implemented):** `public.matches` has no TTL/`expires_at`.
+  Instead `dbTrimMatches()` keeps only the **newest `SA_MATCHES_MAX_ROWS` (default 100)** rows and
+  deletes the rest — after every successful insert, on the 10-minute retention interval, and once at
+  boot so a deploy clears any backlog. Set `SA_MATCHES_MAX_ROWS=0` to keep everything forever.
 - **Storage note:** the JSONB columns make rows much larger than the leaderboard, so this is the table
-  that will grow fastest. Options if you want to bound it: (a) a retention purge mirroring backups
-  (delete `started_at < now() - interval`), (b) cap by count, or (c) leave it and let Supabase's free-tier
-  limits be the backstop. Pick one before public launch if storage matters.
+  that grows fastest. The 100-row cap bounds it; the leaderboard/profiles still hold the durable stats,
+  so trimming old match detail loses nothing player-visible today (there is no history endpoint yet).
+
+**Render:** optional key `SA_MATCHES_MAX_ROWS` (default `100`, `0` = keep forever). No migration needed.
 

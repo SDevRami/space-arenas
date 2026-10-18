@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { BACKUPS_MAX_PER_USER, BACKUPS_MAX_PAYLOAD_BYTES, BACKUPS_TTL_MS, isForbiddenUsername, registrationAllowed } from './config.ts'
+import { BACKUPS_MAX_PER_USER, BACKUPS_MAX_PAYLOAD_BYTES, BACKUPS_TTL_MS, MATCHES_MAX_ROWS, isForbiddenUsername, registrationAllowed } from './config.ts'
 import { MODS_MAX_PER_USER } from './mods.ts'
 import { MAPS_MAX_PER_USER } from './maps.ts'
 
@@ -277,6 +277,30 @@ export interface MatchRecord {
   participants: Array<{ id: number; username: string; team: number; score: number; userId?: string }>
 }
 
+/**
+ * Retention for `public.matches`: keeps the newest `max` rows and deletes everything older, so
+ * the JSONB-heavy log cannot grow without bound. Deleting by "not in the newest ids" sidesteps
+ * `started_at` ties; `max <= 0` disables trimming. Best effort — never throws.
+ */
+export const dbTrimMatches = async (max: number = MATCHES_MAX_ROWS): Promise<void> => {
+  if (!dbConfigured() || max <= 0) return
+  try {
+    const keep = await timedFetch(
+      `/rest/v1/matches?select=id&order=started_at.desc,id.desc&limit=${max}`,
+      { headers: restServiceHeaders() },
+    )
+    if (!keep.ok) return
+    const rows = (await keep.json()) as Array<{ id: string }>
+    if (rows.length < max) return // the table is already within the cap
+    await timedFetch(`/rest/v1/matches?id=not.in.(${rows.map((r) => r.id).join(',')})`, {
+      method: 'DELETE',
+      headers: restServiceHeaders(),
+    }).catch(() => undefined)
+  } catch {
+    /* best effort */
+  }
+}
+
 /** Persists a finished match and updates the bound profiles + leaderboard mirror.
  *  Best effort: never fails the match flow when the DB is down. */
 export const dbRecordMatch = async (rec: MatchRecord): Promise<void> => {
@@ -295,6 +319,8 @@ export const dbRecordMatch = async (rec: MatchRecord): Promise<void> => {
       ]),
     }).catch(() => undefined)
     if (!matchesRes || !matchesRes.ok) logFail('matches insert', matchesRes)
+    // Bound the log right after a successful insert (a no-op until it exceeds the cap).
+    else await dbTrimMatches()
     for (const p of rec.participants) {
       if (!p.userId) continue
       const row = await dbProfile(p.userId)

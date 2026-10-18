@@ -12,7 +12,7 @@ export const BACKUPS_PURGE_INTERVAL_MS = 10 * 60 * 1000
 
 // Rate limits (per minute, sliding window). Keyed by client IP (and account for login).
 // Overridable via SA_RATE_* so the test harness can raise them without touching prod defaults.
-export const RATE_AUTH_PER_MIN = 5 // register / login / change-password
+export const RATE_AUTH_PER_MIN = Number(process.env.SA_RATE_AUTH_PER_MIN ?? 5) // register / login / change-password
 export const RATE_LOGIN_PER_ACCOUNT_MIN = 10 // brute-force / password-spray guard
 export const RATE_ROOM_WRITE_PER_MIN = Number(process.env.SA_RATE_ROOM_WRITE_PER_MIN ?? 10) // create room + join pre-check (per IP)
 /** Same room-write budget keyed on the verified account, so one account cannot spam rooms
@@ -76,7 +76,19 @@ export const FORBIDDEN_USERNAMES: string[] = (process.env.SA_FORBIDDEN_USERNAME 
   .map((s) => s.trim().toLowerCase())
   .filter((s) => s !== '')
 
-/** True when `username` is on the reserved list (case-insensitive, surrounding space ignored).
- *  Exact match — see the docs note before switching to substring matching. */
-export const isForbiddenUsername = (username: string): boolean =>
-  FORBIDDEN_USERNAMES.includes(username.trim().toLowerCase())
+/** True when `username` *contains* a reserved token (case-insensitive, surrounding space ignored).
+ *  Substring match (which includes the prefix case), so `admin` blocks `admin2`, `the_admin` and
+ *  `superadmin`. Keep the tokens distinctive — a short token like `mod` also blocks `Commander`. */
+export const isForbiddenUsername = (username: string): boolean => {
+  const name = username.trim().toLowerCase()
+  return name !== '' && FORBIDDEN_USERNAMES.some((token) => name.includes(token))
+}
+
+/** Retention for `public.matches` (the JSONB-heavy raw match log): keep only the newest N rows.
+ *  Overridable via `SA_MATCHES_MAX_ROWS`; `0` disables trimming (keep forever). Default 100. */
+export const MATCHES_MAX_ROWS: number = (() => {
+  const raw = process.env.SA_MATCHES_MAX_ROWS
+  if (raw === undefined || raw.trim() === '') return 100
+  const n = Number(raw)
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 100
+})()

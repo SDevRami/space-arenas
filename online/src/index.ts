@@ -23,6 +23,7 @@ import {
   BACKUPS_PURGE_INTERVAL_MS,
   CORS_ALLOW_SOURCES,
   MAP_COMMENT_MAX_CHARS,
+  MATCHES_MAX_ROWS,
   MOD_COMMENT_MAX_CHARS,
   PUBLISHING_ENABLED,
   RATE_AUTH_PER_MIN,
@@ -72,6 +73,7 @@ import {
   dbRateMap,
   dbRateMod,
   dbRecordMatch,
+  dbTrimMatches,
   googleAuthorizeUrl,
   setProfileUsername,
   usernameNeedsChange,
@@ -1672,10 +1674,15 @@ setInterval(() => {
   }
 }, SWEEP_INTERVAL_MS)
 
-/** Phase 3: periodically drop backups past their 7-day TTL. */
+/** Phase 3: periodically drop backups past their 7-day TTL. Phase 2: keep the match log bounded
+ *  to its newest rows. */
 setInterval(() => {
   void dbPurgeExpiredBackups()
+  void dbTrimMatches(MATCHES_MAX_ROWS)
 }, BACKUPS_PURGE_INTERVAL_MS)
+
+// Also trim once at boot so a deploy clears any backlog without waiting for the first interval.
+void dbTrimMatches(MATCHES_MAX_ROWS)
 
 server.listen(PORT, () => {
   console.log(`[space-arenas-online] listening on http://0.0.0.0:${PORT} (mode=${MODE}, protocol=${PROTOCOL_VERSION})`)
