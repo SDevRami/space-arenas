@@ -24,6 +24,7 @@ import {
   CORS_ALLOW_SOURCES,
   MAP_COMMENT_MAX_CHARS,
   MOD_COMMENT_MAX_CHARS,
+  PUBLISHING_ENABLED,
   RATE_AUTH_PER_MIN,
   RATE_BACKUP_POST_PER_MIN,
   RATE_LOGIN_PER_ACCOUNT_MIN,
@@ -37,6 +38,8 @@ import {
   RATE_ROOM_WRITE_PER_ACCOUNT_MIN,
   RATE_ROOM_WRITE_PER_MIN,
   RATE_WS_HANDSHAKE_PER_MIN,
+  TESTERS_ONLY,
+  registrationAllowed,
 } from './config.ts'
 import { clientIp, rateLimit, sweepRateLimits } from './ratelimit.ts'
 import {
@@ -46,6 +49,7 @@ import {
   authRegister,
   dbAddComment,
   dbAddMapComment,
+  dbConfigured,
   dbCreateBackup,
   dbCreateMap,
   dbCreateMod,
@@ -67,6 +71,9 @@ import {
   dbRateMap,
   dbRateMod,
   dbRecordMatch,
+  googleAuthorizeUrl,
+  setProfileUsername,
+  usernameNeedsChange,
 } from './supabase.ts'
 import { MOD_MAX_BYTES, modLabel, sanitizeMod } from './mods.ts'
 import { MAP_MAX_BYTES, mapLabel, mapMetrics, sanitizeMap } from './maps.ts'
@@ -707,7 +714,7 @@ const bearerToken = (req: IncomingMessage): string => {
 
 /** Why a session check failed. `unavailable` is a 503 (retry later); the rest are 401. */
 export type SessionResult =
-  | { ok: true; userId: string }
+  | { ok: true; userId: string; email: string }
   | { ok: false; status: number; error: 'unauthorized' | 'invalid session' | 'auth-unavailable' }
 
 /**
@@ -721,7 +728,7 @@ export type SessionResult =
 const verifySession = async (token: string): Promise<SessionResult> => {
   if (token === '') return { ok: false, status: 401, error: 'unauthorized' }
   const me = await authMe(token)
-  if (me.ok && me.data?.userId) return { ok: true, userId: me.data.userId }
+  if (me.ok && me.data?.userId) return { ok: true, userId: me.data.userId, email: me.data.email ?? '' }
   const reason = me.error ?? ''
   if (reason === 'database not configured' || reason === 'database unreachable') {
     return { ok: false, status: 503, error: 'auth-unavailable' }
@@ -890,6 +897,12 @@ const handleBackups = async (req: IncomingMessage, res: ServerResponse, urlPath:
 
 /** Phase 4: community mod repository (browse / download / publish / rate / comment). */
 const handleMods = async (req: IncomingMessage, res: ServerResponse, urlPath: string): Promise<boolean> => {
+  // Feature gate: reads stay public, every write (publish/delete/rate/comment) is off while
+  // SA_ENABLE_PUBLISHING is false — the first public release ships with publishing disabled.
+  if (!PUBLISHING_ENABLED && req.method !== 'GET') {
+    writeJson(res, 403, { ok: false, error: 'publishing disabled' })
+    return true
+  }
   const idPath = urlPath.match(/^\/api\/mods\/([^/]+)\/(rate|comments)$/)
   const downloadPath = urlPath.match(/^\/api\/mods\/([^/]+)$/)
 
@@ -1057,6 +1070,11 @@ const handleMods = async (req: IncomingMessage, res: ServerResponse, urlPath: st
 /** Phase 5: community map repository (browse / download / publish / rate / comment).
  *  Mirrors the Phase 4 mods pipeline so the client + landing reuse the same shaped payloads. */
 const handleMaps = async (req: IncomingMessage, res: ServerResponse, urlPath: string): Promise<boolean> => {
+  // Same feature gate as mods: browse/download always work, publish/delete/rate/comment do not.
+  if (!PUBLISHING_ENABLED && req.method !== 'GET') {
+    writeJson(res, 403, { ok: false, error: 'publishing disabled' })
+    return true
+  }
   const idPath = urlPath.match(/^\/api\/maps\/([^/]+)\/(rate|comments)$/)
   const downloadPath = urlPath.match(/^\/api\/maps\/([^/]+)$/)
 
@@ -1236,6 +1254,9 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       players: registry.list().reduce((n, r) => n + registry.matchSlots(r).length, 0),
       registered: stats.registered,
       db: stats.db,
+      // Feature flags the client + landing read to shade their own UI (no redeploy needed).
+      publishingEnabled: PUBLISHING_ENABLED,
+      testersOnly: TESTERS_ONLY,
     })
     return true
   }
@@ -1346,12 +1367,73 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
   if (req.method === 'POST' && urlPath === '/api/auth/register') {
     if (limited(res, 'auth', RATE_AUTH_PER_MIN, clientIp(req))) return true
     const body = await readJson(req)
-    const result = await authRegister(
-      String(body.email ?? '').trim(),
-      String(body.password ?? ''),
-      String(body.username ?? '').trim(),
-    )
+    const email = String(body.email ?? '').trim()
+    // Tester phase: reject *new* accounts from emails that are not on the allow-list. Only
+    // checked when the DB is configured so a misconfigured server still answers the real
+    // "database not configured" (503) instead of masking it with a 403.
+    if (dbConfigured() && !registrationAllowed(email)) {
+      writeJson(res, 403, { ok: false, error: 'registration is currently restricted to testers' })
+      return true
+    }
+    const result = await authRegister(email, String(body.password ?? ''), String(body.username ?? '').trim())
     writeJson(res, result.ok ? 201 : result.error === 'database not configured' ? 503 : 400, result)
+    return true
+  }
+  // Google OAuth entry point. The client navigates here; we 302 to Supabase, which handles the
+  // Google consent screen and sends the browser back to `redirect_to` with the tokens in the
+  // URL fragment (implicit flow). `redirect_to` must be an allow-listed origin so this cannot
+  // be abused as an open redirect.
+  if (req.method === 'GET' && urlPath === '/api/auth/google') {
+    if (limited(res, 'auth', RATE_AUTH_PER_MIN, clientIp(req))) return true
+    if (!dbConfigured()) {
+      writeJson(res, 503, { ok: false, error: 'database not configured' })
+      return true
+    }
+    const url = new URL(req.url ?? urlPath, 'http://localhost')
+    const redirectTo = url.searchParams.get('redirect_to') ?? ''
+    let origin = ''
+    try {
+      origin = new URL(redirectTo).origin
+    } catch {
+      origin = ''
+    }
+    if (origin === '' || (CORS_ALLOW_SOURCES.length > 0 && !CORS_ALLOW_SOURCES.includes(origin))) {
+      writeJson(res, 400, { ok: false, error: 'redirect_to not allowed' })
+      return true
+    }
+    const authorize = googleAuthorizeUrl(redirectTo)
+    if (authorize === null) {
+      writeJson(res, 503, { ok: false, error: 'oauth not configured' })
+      return true
+    }
+    res.writeHead(302, { Location: authorize })
+    res.end()
+    return true
+  }
+  // Sets the profile username for the signed-in account (first-time setup and forced rename
+  // both land here). Rejects a name another account already holds.
+  if (req.method === 'POST' && urlPath === '/api/auth/username') {
+    if (limited(res, 'auth', RATE_AUTH_PER_MIN, clientIp(req))) return true
+    const sess = await requireSession(req)
+    if (!sess.ok) {
+      writeJson(res, sess.status, { ok: false, error: sess.error }, sess.status === 401 ? { 'WWW-Authenticate': 'Bearer' } : {})
+      return true
+    }
+    const body = await readJson(req)
+    const result = await setProfileUsername(sess.userId, String(body.username ?? ''), sess.email)
+    writeJson(
+      res,
+      result.ok
+        ? 200
+        : result.error === 'database not configured'
+          ? 503
+          : result.error === 'username already taken'
+            ? 409
+            : result.error === 'registration is currently restricted to testers'
+              ? 403
+              : 400,
+      result,
+    )
     return true
   }
   if (req.method === 'POST' && urlPath === '/api/auth/login') {
@@ -1373,7 +1455,20 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
   if (req.method === 'GET' && urlPath === '/api/auth/me') {
     if (limited(res, 'read', RATE_READ_PER_MIN, clientIp(req))) return true
     const result = await authMe(bearerToken(req))
-    writeJson(res, result.ok ? 200 : 401, result)
+    if (result.ok && result.data) {
+      // The client uses these to decide whether to prompt for a username: a fresh Google
+      // account has no profile name yet, and a (theoretical) cross-account clash asks the
+      // newer account to choose another one.
+      const username = result.data.username ?? ''
+      const needsUsername = username.trim() === ''
+      const needsUsernameChange = needsUsername ? false : await usernameNeedsChange(result.data.userId, username)
+      // First Google sign-in with no profile yet: the tester-only gate decides whether the
+      // account may be completed. Existing accounts (hasProfile) are never affected.
+      const registrationBlocked = !result.data.hasProfile && !registrationAllowed(result.data.email ?? '')
+      writeJson(res, 200, { ok: true, data: { ...result.data, needsUsername, needsUsernameChange, registrationBlocked } })
+      return true
+    }
+    writeJson(res, 401, result)
     return true
   }
   if (req.method === 'GET' && urlPath === '/api/leaderboard') {

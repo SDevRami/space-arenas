@@ -39,12 +39,12 @@ const EN = {
   'howto.st1.title': 'Get the game',
   'howto.st1.text': 'Clone the repository and run run-game.bat — no install required, it runs straight in your browser.',
   'howto.st2.title': 'Make an account',
-  'howto.st2.text': 'Sign up in the online lobby to unlock the leaderboard, data backups and the mod repository.',
+  'howto.st2.text': 'Sign in with Google in the online lobby to unlock the leaderboard, data backups and the community repository.',
   'howto.st3.title': 'Play & share',
   'howto.st3.text': 'Create or join a room, pick a balance mod, and carry your progress anywhere with encrypted backups.',
   'community.title': 'Community',
-  'community.subtitle': 'Browse, rate and download mods and maps — or publish your own.',
-  'community.needLogin': 'Sign in to browse, rate, download and share community mods and maps.',
+  'community.subtitle': 'Browse, rate and download mods and maps. Publishing happens inside the game.',
+  'community.needLogin': 'Sign in to browse, rate and download community mods and maps.',
   'community.by': 'by @{name}',
   'community.downloads': '{n} downloads',
   'community.players': '{n} players',
@@ -102,6 +102,14 @@ const EN = {
   'auth.loginFail': 'Wrong email or password.',
   'auth.registerFail': 'Could not create the account — maybe that username or email is taken.',
   'auth.network': 'Could not reach the server.',
+  'auth.google': 'Sign in with Google',
+  'auth.googleHint': 'Sign in with your Google account. A new account is created automatically the first time you sign in.',
+  'auth.chooseUsername': 'Choose a unique username before you continue.',
+  'auth.saveUsername': 'Save username',
+  'auth.usernameTaken': 'That username is already taken. Try another.',
+  'auth.usernameFail': 'Could not save the username.',
+  'auth.registrationClosed': 'Registration is currently limited to testers.',
+  'publish.notice': 'Publishing mods and maps only from game',
   'media.title': 'Seen in action',
   'media.battle': 'Skirmish view',
   'media.mod': 'Mod tuning',
@@ -345,12 +353,12 @@ const AR = {
   'howto.st1.title': 'حمّل اللعبة',
   'howto.st1.text': 'انسخ المستودع وشغّل run-game.bat — لا حاجة لأي تثبيت، تعمل مباشرة في متصفحك.',
   'howto.st2.title': 'أنشئ حساباً',
-  'howto.st2.text': 'سجّل في قاعة اللعب لفتح لوحة المتصدرين والنسخ الاحتياطية ومستودع التعديلات.',
+  'howto.st2.text': 'سجّل الدخول باستخدام Google في قاعة اللعب لفتح لوحة المتصدرين والنسخ الاحتياطية ومستودع المجتمع.',
   'howto.st3.title': 'العب وشارك',
   'howto.st3.text': 'أنشئ قاعة أو انضم إليها، اختر تعديل توازن، وانقل تقدمك أينما كنت بنسخ احتياطية مشفرة.',
   'community.title': 'مجتمع اللاعبين',
-  'community.subtitle': 'تصفّح وقيّم وحمّل التعديلات والخرائط — أو انشر ما تصنعه.',
-  'community.needLogin': 'سجّل الدخول لتصفّح وقيّم وتنزّل وتشارك تعديلات وخرائط المجتمع.',
+  'community.subtitle': 'تصفّح وقيّم وحمّل التعديلات والخرائط. النشر يتم من داخل اللعبة.',
+  'community.needLogin': 'سجّل الدخول لتصفّح وقيّم وتنزّل تعديلات وخرائط المجتمع.',
   'community.by': 'بواسطة @{name}',
   'community.downloads': '{n} تنزيل',
   'community.players': '{n} لاعبي',
@@ -408,6 +416,14 @@ const AR = {
   'auth.loginFail': 'بريد إلكتروني أو كلمة مرور خاطئة.',
   'auth.registerFail': 'تعذّر إنشاء الحساب — ربما اسم المستخدم أو البريد موجود بالفعل.',
   'auth.network': 'تعذّر الوصول إلى الخادم.',
+  'auth.google': 'تسجيل الدخول باستخدام Google',
+  'auth.googleHint': 'سجّل الدخول بحساب Google. يتم إنشاء حساب جديد تلقائياً عند أول تسجيل دخول.',
+  'auth.chooseUsername': 'اختر اسم مستخدم فريداً للمتابعة.',
+  'auth.saveUsername': 'حفظ اسم المستخدم',
+  'auth.usernameTaken': 'اسم المستخدم مأخوذ بالفعل. جرّب اسماً آخر.',
+  'auth.usernameFail': 'تعذّر حفظ اسم المستخدم.',
+  'auth.registrationClosed': 'التسجيل مقتصر حالياً على المختبِرين.',
+  'publish.notice': 'نشر التعديلات والخرائط من داخل اللعبة فقط',
   'media.title': 'شاهدها أثناء اللعب',
   'media.battle': 'منظر المعركة',
   'media.mod': 'ضبط التعديلات',
@@ -967,9 +983,7 @@ const setLang = (next) => {
 
 /* ---------------- account / session ---------------- */
 
-const state = { token: null, username: '', email: '', userId: '' }
-
-let authMode = 'login' // 'login' | 'register'
+const state = { token: null, username: '', email: '', userId: '', needsUsername: false, registrationBlocked: false }
 
 const saveAuth = () => {
   try {
@@ -1008,6 +1022,16 @@ const api = async (path, { method = 'GET', body, token } = {}) => {
   return { ok: res.ok, status: res.status, body: j }
 }
 
+/** Copies the `/api/auth/me` payload into `state` and persists the durable parts. */
+const adoptFromMe = (data) => {
+  state.username = data.username ?? state.username
+  state.userId = data.userId ?? state.userId
+  state.email = data.email ?? state.email
+  state.needsUsername = data.needsUsername === true
+  state.registrationBlocked = data.registrationBlocked === true
+  saveAuth()
+}
+
 const restoreSession = async () => {
   try {
     const raw = localStorage.getItem(AUTH_KEY)
@@ -1021,10 +1045,7 @@ const restoreSession = async () => {
     try {
       const me = await api('/api/auth/me', { token: s.token })
       if (me.ok && me.body?.ok && me.body?.data) {
-        state.username = me.body.data.username ?? state.username
-        state.userId = me.body.data.userId ?? state.userId
-        state.email = me.body.data.email ?? state.email
-        saveAuth()
+        adoptFromMe(me.body.data)
       } else {
         clearAuth()
         state.token = null
@@ -1037,7 +1058,7 @@ const restoreSession = async () => {
     state.token = null
   }
   updateAuthUI()
-  if (state.token) void reloadRepoViews(true)
+  if (state.token && !maybePromptUsername()) void reloadRepoViews(true)
 }
 
 const signOut = () => {
@@ -1046,6 +1067,8 @@ const signOut = () => {
   state.username = ''
   state.email = ''
   state.userId = ''
+  state.needsUsername = false
+  state.registrationBlocked = false
   updateAuthUI()
 }
 
@@ -1057,7 +1080,6 @@ const updateAuthUI = () => {
     const el = document.getElementById(id)
     if (el) el.hidden = !show
   }
-  flash('nav-community', loggedIn)
   flash('auth-user', loggedIn)
   flash('btn-signout', loggedIn)
   flash('btn-signin', !loggedIn)
@@ -1070,21 +1092,40 @@ const updateAuthUI = () => {
   }
 }
 
-const openAuth = (mode, focus) => {
-  authMode = mode
+/** Shows only the relevant auth controls: the Google button when signed out, the username
+ *  form when the account still needs a unique name. */
+const syncAuthPanel = () => {
+  const googleBtn = document.getElementById('auth-google')
+  const block = document.getElementById('auth-username-block')
+  const needsUsernamePanel = Boolean(state.token) && state.needsUsername && !state.registrationBlocked
+  if (googleBtn) googleBtn.hidden = Boolean(state.token)
+  if (block) block.hidden = !needsUsernamePanel
+  if (needsUsernamePanel) {
+    const input = document.getElementById('auth-username')
+    if (input && !input.value) input.value = state.username ?? ''
+  }
+}
+
+const maybePromptUsername = () => {
+  if (state.registrationBlocked) {
+    openAuth()
+    authError(t(lang, 'auth.registrationClosed'))
+    return true
+  }
+  if (state.needsUsername) {
+    openAuth()
+    return true
+  }
+  return false
+}
+
+const openAuth = (focus) => {
   const overlay = document.getElementById('auth-overlay')
-  const title = document.getElementById('auth-title')
-  const usernameEl = document.getElementById('auth-username')
-  const submit = document.getElementById('auth-submit')
-  const toggle = document.getElementById('auth-toggle-mode')
   const error = document.getElementById('auth-error')
-  overlay.hidden = false
-  title.textContent = t(lang, mode === 'login' ? 'auth.signin' : 'auth.toRegister')
-  usernameEl.hidden = mode !== 'register'
-  submit.textContent = t(lang, mode === 'login' ? 'auth.signin' : 'auth.toRegister')
-  toggle.textContent = t(lang, mode === 'login' ? 'auth.toRegister' : 'auth.toLogin')
-  error.hidden = true
-  if (focus) focus.focus()
+  syncAuthPanel()
+  if (overlay) overlay.hidden = false
+  if (error) error.hidden = true
+  if (focus && typeof focus.focus === 'function') focus.focus()
 }
 
 const closeAuth = () => {
@@ -1093,60 +1134,104 @@ const closeAuth = () => {
 
 const authError = (text) => {
   const el = document.getElementById('auth-error')
+  if (!el) return
   el.textContent = text
   el.hidden = false
 }
 
-const submitAuth = async (ev) => {
-  ev.preventDefault()
-  const email = document.getElementById('auth-email').value.trim()
-  const password = document.getElementById('auth-password').value
-  const username = document.getElementById('auth-username').value.trim()
-  const submit = document.getElementById('auth-submit')
-  if (authMode === 'login' && (!email || !password)) {
-    authError(t(lang, 'auth.loginFail'))
-    return
-  }
-  if (authMode === 'register' && (!email || !password || !username)) {
+const startGoogleAuth = () => {
+  const here = window.location.href.split('#')[0]
+  window.location.href = `${SA_ONLINE_URL}/api/auth/google?redirect_to=${encodeURIComponent(here)}`
+}
+
+const saveUsername = async () => {
+  const input = document.getElementById('auth-username')
+  const btn = document.getElementById('auth-username-save')
+  const name = (input?.value ?? '').trim()
+  if (!name) {
     authError(t(lang, 'auth.invalid'))
     return
   }
-  const prev = submit.textContent
-  submit.textContent = t(lang, 'auth.working')
-  submit.disabled = true
+  const prev = btn?.textContent ?? ''
+  if (btn) {
+    btn.textContent = t(lang, 'auth.working')
+    btn.disabled = true
+  }
   try {
-    if (authMode === 'register') {
-      const reg = await api('/api/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ email, password, username }),
-      })
-      if (!reg.ok) {
-        authError(t(lang, 'auth.registerFail'))
-        return
-      }
-    }
-    const login = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
-    if (!login.ok || !login.body?.data?.token) {
-      authError(t(lang, authMode === 'login' ? 'auth.loginFail' : 'auth.registerFail'))
+    const res = await api('/api/auth/username', { method: 'POST', token: state.token, body: JSON.stringify({ username: name }) })
+    if (!res.ok || !res.body?.ok) {
+      const err = res.body?.error ?? ''
+      authError(
+        err === 'username already taken'
+          ? t(lang, 'auth.usernameTaken')
+          : err === 'registration is currently restricted to testers'
+            ? t(lang, 'auth.registrationClosed')
+            : t(lang, 'auth.usernameFail'),
+      )
       return
     }
-    const d = login.body.data
-    state.token = d.token
-    state.username = d.username ?? username
-    state.email = d.email ?? email
-    state.userId = d.userId ?? ''
+    state.username = name
+    state.needsUsername = false
     saveAuth()
-    closeAuth()
-    document.getElementById('auth-password').value = ''
-    document.getElementById('auth-username').value = ''
     updateAuthUI()
+    closeAuth()
     void reloadRepoViews(true)
   } catch {
     authError(t(lang, 'auth.network'))
   } finally {
-    submit.textContent = prev
-    submit.disabled = false
+    if (btn) {
+      btn.textContent = prev
+      btn.disabled = false
+    }
   }
+}
+
+/** Consumes the `#access_token=…` (or `#error=…`) Supabase returns to the redirect target. */
+const handleAuthRedirect = () => {
+  const hash = window.location.hash
+  if (!hash || (!hash.includes('access_token=') && !hash.includes('error='))) return false
+  const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
+  const token = params.get('access_token')
+  const errorText = params.get('error_description') ?? params.get('error')
+  try {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  } catch {
+    /* history unavailable */
+  }
+  if (!token) {
+    if (errorText) {
+      openAuth()
+      authError(errorText)
+    }
+    return true
+  }
+  void (async () => {
+    state.token = token
+    try {
+      const me = await api('/api/auth/me', { token })
+      if (!me.ok || !me.body?.ok || !me.body?.data) {
+        clearAuth()
+        state.token = null
+        updateAuthUI()
+        openAuth()
+        authError(t(lang, 'auth.loginFail'))
+        return
+      }
+      adoptFromMe(me.body.data)
+      updateAuthUI()
+      if (!maybePromptUsername()) {
+        closeAuth()
+        void reloadRepoViews(true)
+      }
+    } catch {
+      clearAuth()
+      state.token = null
+      updateAuthUI()
+      openAuth()
+      authError(t(lang, 'auth.network'))
+    }
+  })()
+  return true
 }
 
 /* ---------------- community hub: mods / maps / my published ---------------- */
@@ -1398,117 +1483,6 @@ const deleteItem = async (btn) => {
   else void loadMaps(true)
 }
 
-const uploadMod = async () => {
-  const fileEl = document.getElementById('community-file')
-  const descEl = document.getElementById('community-desc')
-  const file = fileEl.files?.[0]
-  const desc = descEl.value.trim()
-  if (!file) {
-    setStatus(t(lang, 'community.upload.needFile'), true)
-    return
-  }
-  if (!desc) {
-    setStatus(t(lang, 'community.upload.needDesc'), true)
-    return
-  }
-  const uploadBtn = document.getElementById('community-upload')
-  const prev = uploadBtn.textContent
-  uploadBtn.textContent = t(lang, 'community.upload.working')
-  uploadBtn.disabled = true
-  try {
-    const text = await file.text()
-    let payload
-    try {
-      payload = JSON.parse(text)
-    } catch {
-      setStatus(t(lang, 'community.upload.fail'), true)
-      return
-    }
-    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-      payload.meta = { ...(payload.meta ?? {}), description: desc }
-    }
-    const res = await api('/api/mods', {
-      method: 'POST',
-      token: state.token,
-      body: JSON.stringify(payload),
-    })
-    if (!res.ok || !res.body?.ok) {
-      setStatus(res.body?.error ?? t(lang, 'community.upload.fail'), true)
-      return
-    }
-    fileEl.value = ''
-    descEl.value = ''
-    setStatus(t(lang, 'community.upload.ok'))
-    try {
-      localStorage.removeItem(CACHE_KEY)
-    } catch {
-      /* private mode */
-    }
-    void loadMods(true)
-    void loadMine()
-  } catch {
-    setStatus(t(lang, 'community.upload.fail'), true)
-  } finally {
-    uploadBtn.textContent = prev
-    uploadBtn.disabled = false
-  }
-}
-
-const uploadMap = async () => {
-  const fileEl = document.getElementById('community-map-file')
-  const descEl = document.getElementById('community-map-desc')
-  const status = mapsStatusEl()
-  const file = fileEl.files?.[0]
-  const desc = descEl.value.trim()
-  if (!file) {
-    setStatus(t(lang, 'community.mapsUpload.needFile'), true, status)
-    return
-  }
-  if (!desc) {
-    setStatus(t(lang, 'community.mapsUpload.needDesc'), true, status)
-    return
-  }
-  const uploadBtn = document.getElementById('community-map-upload')
-  const prev = uploadBtn.textContent
-  uploadBtn.textContent = t(lang, 'community.mapsUpload.working')
-  uploadBtn.disabled = true
-  try {
-    const text = await file.text()
-    let payload
-    try {
-      payload = JSON.parse(text)
-    } catch {
-      setStatus(t(lang, 'community.mapsUpload.fail'), true, status)
-      return
-    }
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-      setStatus(t(lang, 'community.mapsUpload.fail'), true, status)
-      return
-    }
-    payload.description = desc.slice(0, 160)
-    const res = await api('/api/maps', { method: 'POST', token: state.token, body: JSON.stringify(payload) })
-    if (!res.ok || !res.body?.ok) {
-      setStatus(res.body?.error ?? t(lang, 'community.mapsUpload.fail'), true, status)
-      return
-    }
-    fileEl.value = ''
-    descEl.value = ''
-    setStatus(t(lang, 'community.mapsUpload.ok'), false, status)
-    try {
-      localStorage.removeItem(MAPS_CACHE_KEY)
-    } catch {
-      /* private mode */
-    }
-    void loadMaps(true)
-    void loadMine()
-  } catch {
-    setStatus(t(lang, 'community.mapsUpload.fail'), true, status)
-  } finally {
-    uploadBtn.textContent = prev
-    uploadBtn.disabled = false
-  }
-}
-
 let communityTab = 'mods'
 
 const switchCommunityTab = (tab) => {
@@ -1523,28 +1497,31 @@ const switchCommunityTab = (tab) => {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const currentPage = (window.location.pathname.split('/').pop() || 'index.html').split('?')[0]
+  let currentPage = (window.location.pathname.split('/').pop() || 'index.html').split('?')[0]
   if (!currentPage.endsWith('.html')) currentPage = 'index.html'
   for (const a of document.querySelectorAll('.nav a[data-page]')) {
     if (a.getAttribute('data-page') === currentPage) a.classList.add('active')
   }
 
   setLang(lang)
-  void restoreSession()
+  // A Google sign-in returns to this page with the token in the URL fragment; adopt that first
+  // and only fall back to any stored session when there is no sign-in in flight.
+  if (!handleAuthRedirect()) void restoreSession()
 
   document.getElementById('lang-toggle')?.addEventListener('click', () => setLang(lang === 'en' ? 'ar' : 'en'))
-  document.getElementById('btn-signin')?.addEventListener('click', () => openAuth('login'))
+  document.getElementById('btn-signin')?.addEventListener('click', () => openAuth())
   document.getElementById('btn-signout')?.addEventListener('click', signOut)
-  document.getElementById('hero-login')?.addEventListener('click', () => openAuth('login'))
-  document.getElementById('community-login-cta')?.addEventListener('click', () => openAuth('login'))
+  document.getElementById('hero-login')?.addEventListener('click', () => openAuth())
+  document.getElementById('community-login-cta')?.addEventListener('click', () => openAuth())
   document.getElementById('auth-close')?.addEventListener('click', closeAuth)
   document.getElementById('auth-overlay')?.addEventListener('click', (ev) => {
     if (ev.target === ev.currentTarget) closeAuth()
   })
-  document.getElementById('auth-toggle-mode')?.addEventListener('click', () => {
-    openAuth(authMode === 'login' ? 'register' : 'login')
+  document.getElementById('auth-google')?.addEventListener('click', startGoogleAuth)
+  document.getElementById('auth-username-save')?.addEventListener('click', () => void saveUsername())
+  document.getElementById('auth-username')?.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') void saveUsername()
   })
-  document.getElementById('auth-form')?.addEventListener('submit', (ev) => void submitAuth(ev))
 
   document.querySelectorAll('.community-tab').forEach((b) => {
     b.addEventListener('click', () => switchCommunityTab(b.dataset.tab))
@@ -1570,7 +1547,4 @@ document.addEventListener('DOMContentLoaded', () => {
   wireGrid(document.getElementById('community-maps-grid'), 'map')
   wireGrid(document.getElementById('community-mine-mods'), 'mod')
   wireGrid(document.getElementById('community-mine-maps'), 'map')
-
-  document.getElementById('community-upload')?.addEventListener('click', () => void uploadMod())
-  document.getElementById('community-map-upload')?.addEventListener('click', () => void uploadMap())
 })

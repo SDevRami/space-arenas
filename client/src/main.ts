@@ -1048,20 +1048,18 @@ const onlineNameEl = document.getElementById('online-name') as HTMLInputElement
 const onlineSearchEl = document.getElementById('online-search') as HTMLInputElement
 const accountOverlay = document.getElementById('account-overlay') as HTMLDivElement
 const accountUsernameEl = document.getElementById('account-username') as HTMLInputElement
-const accountRegisterBtn = document.getElementById('account-register') as HTMLButtonElement
-const accountLoginBtn = document.getElementById('account-login') as HTMLButtonElement
+const accountGoogleBtn = document.getElementById('account-google') as HTMLButtonElement
+const accountSetUsernameBtn = document.getElementById('account-setusername') as HTMLButtonElement
+const accountUsernameSetupEl = document.getElementById('account-username-setup') as HTMLDivElement
+const accountUsernameHintEl = document.getElementById('account-username-hint') as HTMLParagraphElement
 const serverOverlay = document.getElementById('server-overlay') as HTMLDivElement
 const serverAddressEl = document.getElementById('server-address') as HTMLInputElement
 const serverIndEl = document.getElementById('server-ind') as HTMLDivElement
 const dbIndEl = document.getElementById('db-ind') as HTMLDivElement
 const accountStatusEl = document.getElementById('account-status') as HTMLDivElement
-const accountEmailEl = document.getElementById('account-email') as HTMLInputElement
-const accountPassEl = document.getElementById('account-pass') as HTMLInputElement
-const accountNewPassEl = document.getElementById('account-newpass') as HTMLInputElement
 const accountAnonEl = document.getElementById('account-anon') as HTMLDivElement
 const accountAuthedEl = document.getElementById('account-authed') as HTMLDivElement
 const accountProfileSummaryEl = document.getElementById('account-profilesummary') as HTMLDivElement
-const accountChangeBtn = document.getElementById('account-change') as HTMLButtonElement
 const accountLogoutBtn = document.getElementById('account-logout') as HTMLButtonElement
 const leaderboardStatusEl = document.getElementById('leaderboard-status') as HTMLDivElement
 const leaderboardBody = document.getElementById('leaderboard-table')!.querySelector('tbody')
@@ -1072,6 +1070,7 @@ const onlineTabLeaderboardBtn = document.getElementById('online-tab-leaderboard'
 const onlineTabDataBtn = document.getElementById('online-tab-data') as HTMLButtonElement
 const onlineTabModsBtn = document.getElementById('online-tab-mods') as HTMLButtonElement
 const onlineTabMapsBtn = document.getElementById('online-tab-maps') as HTMLButtonElement
+const onlinePublishingNoticeEl = document.getElementById('online-publishing-notice') as HTMLParagraphElement
 const onlineDataSection = document.getElementById('online-data-section') as HTMLDivElement
 const onlineModsSection = document.getElementById('online-mods-section') as HTMLDivElement
 const onlineMapsSection = document.getElementById('online-maps-section') as HTMLDivElement
@@ -1200,6 +1199,7 @@ const fetchOnlineStats = async (roomsCount: number): Promise<{ rooms: number; pl
 }
 
 const refreshOnlineList = async (silent = false): Promise<void> => {
+  void refreshFeatureFlags()
   try {
     const headers: Record<string, string> = {}
     if (onlineRoomsEtag) headers['If-None-Match'] = onlineRoomsEtag
@@ -1278,7 +1278,9 @@ const onlineJoinSelected = (): void => {
 /** Opens the existing My Account popup. Online actions funnel through here instead of
  *  building a second login dialog, so there is exactly one sign-in surface in the game. */
 const openAccountPopup = (): void => {
-  accountUsernameEl.value = onlineNameEl.value
+  if (usernameSetupRequired && accountUsernameEl.value.trim() === '') {
+    accountUsernameEl.value = authSession?.username || onlineNameEl.value
+  }
   accountOverlay.classList.add('visible')
   // Re-sync games/wins/best from the server every time the popup opens (matches update them).
   if (authSession) void adoptToken(authSession.token)
@@ -1309,15 +1311,6 @@ for (const [id, close] of [['account-close', accountOverlay], ['server-close', s
   document.getElementById(id)!.addEventListener('click', () => close.classList.remove('visible'))
 }
 joinpassOkBtn.addEventListener('click', () => onlineJoinSelected())
-accountUsernameEl.addEventListener('input', () => {
-  onlineNameEl.value = accountUsernameEl.value
-  netNameEl.value = accountUsernameEl.value
-  try {
-    localStorage.setItem('space-arenas:name', accountUsernameEl.value.trim() || 'Commander')
-  } catch {
-    /* storage unavailable */
-  }
-})
 
 document.getElementById('online-create')!.addEventListener('click', () => {
   if (!requireLogin('create')) return
@@ -1347,6 +1340,13 @@ interface AuthSession {
 
 const AUTH_KEY = 'space-arenas:auth'
 let authSession: AuthSession | null = null
+/** True while the signed-in account still needs a unique username — a fresh Google account
+ *  with no profile name, or a name that collided with an older account. Online actions are
+ *  held until the player picks one; the server is the source of truth for both flags. */
+let usernameSetupRequired = false
+/** Why a rename is being asked for: 'required' = first-time setup, 'conflict' = the name is
+ *  already held by an older account (the newer account is the one asked to change). */
+let usernameSetupReason: 'required' | 'conflict' = 'required'
 
 const authToken = (): string | undefined => authSession?.token
 
@@ -1370,7 +1370,15 @@ const saveAuth = (s: AuthSession | null): void => {
  *  client asks for one up front instead of letting the request fail. Returns true when a
  *  session is present; otherwise shows the prompt, opens My Account and returns false. */
 const requireLogin = (action: 'create' | 'join' | 'spectate' | 'publish'): boolean => {
-  if (authSession !== null) return true
+  if (authSession !== null) {
+    // A signed-in account without a unique username is not usable yet — finish setup first.
+    if (usernameSetupRequired) {
+      lobbyToast(t('online.usernameRequired'))
+      openAccountPopup()
+      return false
+    }
+    return true
+  }
   lobbyToast(t(`online.signInTo.${action}`))
   openAccountPopup()
   return false
@@ -1388,9 +1396,14 @@ const updateAccountUI = (): void => {
   const signedIn = authSession !== null
   accountAnonEl.classList.toggle('hidden-el', signedIn)
   accountAuthedEl.classList.toggle('hidden-el', !signedIn)
+  accountUsernameSetupEl.classList.toggle('hidden-el', !(signedIn && usernameSetupRequired))
   if (signedIn) {
     const s = authSession!
-    accountProfileSummaryEl.textContent = t('online.accountSummary', { name: s.username, games: s.games, wins: s.wins, score: s.highScore })
+    accountProfileSummaryEl.textContent = t('online.accountSummary', { name: s.username || '—', games: s.games, wins: s.wins, score: s.highScore })
+    if (usernameSetupRequired) {
+      accountUsernameHintEl.textContent = t(usernameSetupReason === 'conflict' ? 'online.usernameConflictHint' : 'online.usernameSetupHint')
+      if (accountUsernameEl.value.trim() === '') accountUsernameEl.value = s.username || onlineNameEl.value
+    }
   }
 }
 
@@ -1406,133 +1419,162 @@ const applyAuthUsername = (name: string): void => {
   }
 }
 
-const authPost = async (path: string, body: unknown): Promise<{ ok: boolean; error?: string; data?: Record<string, unknown> }> => {
-  try {
-    const res = await fetch(`${ONLINE_URL}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; data?: unknown }
-    if (res.ok) {
-      // The server answers auth routes with { ok, data: { ... } } — unwrap so callers can
-      // read `data.token` directly.
-      const payload = j && typeof j === 'object' && j.ok === true ? j.data : j
-      return { ok: true, data: (payload ?? {}) as Record<string, unknown> }
-    }
-    return { ok: false, error: String(j.error ?? `HTTP ${res.status}`) }
-  } catch {
-    return { ok: false, error: t('online.serverDown') }
-  }
-}
-
 const adoptToken = async (token: string): Promise<boolean> => {
   try {
     const res = await fetch(`${ONLINE_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) return false
     const j = (await res.json()) as {
       ok: boolean
-      data?: { userId: string; email: string; username: string; games: number; wins: number; highScore: number }
+      data?: {
+        userId: string
+        email: string
+        username: string
+        games: number
+        wins: number
+        highScore: number
+        needsUsername?: boolean
+        needsUsernameChange?: boolean
+      }
     }
     if (!j.ok || !j.data) return false
     const d = j.data
+    // The server decides whether a username is still needed; the newer account is the one
+    // asked to change when two accounts somehow share a name.
+    usernameSetupRequired = d.needsUsername === true || d.needsUsernameChange === true
+    usernameSetupReason = d.needsUsernameChange === true ? 'conflict' : 'required'
+    if (d.username) applyAuthUsername(d.username)
     saveAuth({ token, userId: d.userId, email: d.email, username: d.username, games: d.games, wins: d.wins, highScore: d.highScore })
-    applyAuthUsername(d.username)
     return true
   } catch {
     return false
   }
 }
 
-accountRegisterBtn.addEventListener('click', async () => {
-  const username = accountUsernameEl.value.trim()
-  const email = accountEmailEl.value.trim()
-  const password = accountPassEl.value
-  if (!username || !email || !password) {
+/** Sends the browser to the server's Google OAuth entry point. The server 302s to Supabase,
+ *  which returns the player here with the token in the URL fragment. */
+const signInWithGoogle = (): void => {
+  const here = window.location.href.split('#')[0]
+  window.location.href = `${ONLINE_URL}/api/auth/google?redirect_to=${encodeURIComponent(here)}`
+}
+
+const showAccountAuthError = (message: string): void => {
+  openAccountPopup()
+  setAccountStatus(message, true)
+}
+
+/** Consumes the `#access_token=…` (or `#error=…`) Supabase appends to the redirect target.
+ *  Returns true when a sign-in attempt was found, so the caller can skip restoring an old
+ *  session from storage. */
+const handleOAuthRedirect = (): boolean => {
+  const hash = window.location.hash
+  if (hash === '' || (!hash.includes('access_token=') && !hash.includes('error='))) return false
+  const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
+  const token = params.get('access_token')
+  const errorText = params.get('error_description') ?? params.get('error')
+  try {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  } catch {
+    /* history unavailable */
+  }
+  if (token === null || token === '') {
+    if (errorText) showAccountAuthError(errorText)
+    return true
+  }
+  void adoptToken(token).then((ok) => {
+    if (!ok) {
+      showAccountAuthError(t('online.loginFailed'))
+    } else if (usernameSetupRequired) {
+      openAccountPopup()
+      setAccountStatus(t('online.usernameRequired'))
+    } else {
+      setAccountStatus(t('online.loginOk', { name: authSession?.username ?? '' }))
+    }
+  })
+  return true
+}
+
+accountGoogleBtn.addEventListener('click', signInWithGoogle)
+
+accountSetUsernameBtn.addEventListener('click', async () => {
+  const name = accountUsernameEl.value.trim()
+  if (name === '') {
     setAccountStatus(t('online.fillAll'), true)
     return
   }
-  if (password.length < 6) {
-    setAccountStatus(t('online.pwShort'), true)
-    return
-  }
   setAccountStatus(t('online.working'))
-  const r = await authPost('/api/auth/register', { username, email, password })
-  if (!r.ok) {
-    setAccountStatus(r.error ?? t('online.unknownError'), true)
-    return
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/auth/username`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken() ?? ''}` },
+      body: JSON.stringify({ username: name }),
+    })
+    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
+    if (!res.ok || j.ok !== true) {
+      setAccountStatus(j.error === 'username already taken' ? t('online.usernameTaken') : (j.error ?? t('online.unknownError')), true)
+      return
+    }
+    usernameSetupRequired = false
+    applyAuthUsername(name)
+    if (authSession) saveAuth({ ...authSession, username: name })
+    updateAccountUI()
+    setAccountStatus(t('online.usernameSaved'))
+  } catch {
+    setAccountStatus(t('online.serverDown'), true)
   }
-  const l = await authPost('/api/auth/login', { email, password })
-  if (l.ok && typeof l.data?.token === 'string') {
-    await adoptToken(l.data.token)
-    setAccountStatus(t('online.registerOk', { name: authSession?.username ?? username }))
-  } else {
-    setAccountStatus(t('online.registeredLoginFellBack'))
-  }
-})
-
-accountLoginBtn.addEventListener('click', async () => {
-  const email = accountEmailEl.value.trim()
-  const password = accountPassEl.value
-  if (!email || !password) {
-    setAccountStatus(t('online.fillAll'), true)
-    return
-  }
-  setAccountStatus(t('online.working'))
-  const l = await authPost('/api/auth/login', { email, password })
-  if (!l.ok) {
-    setAccountStatus(l.error ?? t('online.unknownError'), true)
-    return
-  }
-  if (typeof l.data?.token === 'string') {
-    await adoptToken(l.data.token)
-    setAccountStatus(t('online.loginOk', { name: authSession?.username ?? '' }))
-  }
-})
-
-accountChangeBtn.addEventListener('click', async () => {
-  if (!authSession) return
-  const newPassword = accountNewPassEl.value
-  if (newPassword.length < 6) {
-    setAccountStatus(t('online.pwShort'), true)
-    return
-  }
-  setAccountStatus(t('online.working'))
-  const r = await authPost('/api/auth/change-password', { token: authSession.token, newPassword })
-  if (!r.ok) {
-    setAccountStatus(r.error ?? t('online.unknownError'), true)
-    return
-  }
-  const l = await authPost('/api/auth/login', { email: authSession.email, password: newPassword })
-  if (l.ok && typeof l.data?.token === 'string') await adoptToken(l.data.token)
-  accountNewPassEl.value = ''
-  setAccountStatus(t('online.passwordChanged'))
 })
 
 accountLogoutBtn.addEventListener('click', () => {
+  usernameSetupRequired = false
   saveAuth(null)
   setAccountStatus(t('online.loggedOut'))
 })
 
-try {
-  const raw = sessionStorage.getItem(AUTH_KEY)
-  if (raw) {
-    const s = JSON.parse(raw) as AuthSession
-    if (s.token) {
-      authSession = s
-      updateAccountUI()
-      void adoptToken(s.token).then((ok) => {
-        if (!ok) saveAuth(null)
-      })
+// A returning Google sign-in lands with the token in the URL fragment; prefer it over any
+// stored session so a fresh login always wins.
+if (!handleOAuthRedirect()) {
+  try {
+    const raw = sessionStorage.getItem(AUTH_KEY)
+    if (raw) {
+      const s = JSON.parse(raw) as AuthSession
+      if (s.token) {
+        authSession = s
+        updateAccountUI()
+        void adoptToken(s.token).then((ok) => {
+          if (!ok) saveAuth(null)
+        })
+      }
     }
+  } catch {
+    /* ignore malformed session */
   }
-} catch {
-  /* ignore malformed session */
 }
 
 // ---------- leaderboard (Phase 2) ----------
 
+/** Server feature flags. Publishing starts enabled client-side so a server that predates the
+ *  flag (which omits it from /api/status) keeps its Mods/Maps tabs working. */
+let publishingEnabled = true
+let flagsFetchedAt = 0
+
+/** Re-reads /api/status at most once a minute so a dashboard flip is picked up without a
+ *  reload. Failures keep the current state — never gate the UI on a flaky status call. */
+const refreshFeatureFlags = async (): Promise<void> => {
+  if (Date.now() - flagsFetchedAt < 60_000) return
+  flagsFetchedAt = Date.now()
+  try {
+    const res = await fetch(`${ONLINE_URL}/api/status`)
+    if (!res.ok) return
+    const j = (await res.json()) as { publishingEnabled?: boolean }
+    if (typeof j.publishingEnabled === 'boolean') applyPublishingGate(j.publishingEnabled)
+  } catch {
+    /* keep the current state */
+  }
+}
+
 const setOnlineTab = (tab: 'matches' | 'leaderboard' | 'data' | 'mods' | 'maps'): void => {
+  // Mods/Maps stay readable when publishing is on, but while it is disabled the tabs are
+  // disabled too — refuse to switch into them even if a click slips through.
+  if ((tab === 'mods' || tab === 'maps') && !publishingEnabled) return
   onlineMatchesSection.classList.toggle('hidden-el', tab !== 'matches')
   onlineLeaderboardSection.classList.toggle('hidden-el', tab !== 'leaderboard')
   onlineDataSection.classList.toggle('hidden-el', tab !== 'data')
@@ -2257,6 +2299,25 @@ const mapsRepoSortEl = document.getElementById('maps-repo-sort') as HTMLSelectEl
 const mapsRepoPublishSelectEl = document.getElementById('maps-repo-publish-select') as HTMLSelectElement
 const mapsRepoPublishDescEl = document.getElementById('maps-repo-publish-desc') as HTMLInputElement
 const mapsRepoPublishBtn = document.getElementById('maps-repo-publish') as HTMLButtonElement
+
+/** Shades the Online panel for the publishing feature flag: Mods/Maps stay on screen but are
+ *  disabled (not hidden), publish controls are locked, and a short notice explains why. */
+const applyPublishingGate = (enabled: boolean): void => {
+  publishingEnabled = enabled
+  for (const tab of [onlineTabModsBtn, onlineTabMapsBtn]) {
+    tab.disabled = !enabled
+    tab.setAttribute('aria-disabled', String(!enabled))
+    tab.classList.toggle('disabled', !enabled)
+  }
+  onlinePublishingNoticeEl.hidden = enabled
+  if (enabled) return
+  for (const el of [modsRepoPublishSelectEl, modsRepoPublishDescEl, modsRepoPublishBtn, mapsRepoPublishSelectEl, mapsRepoPublishDescEl, mapsRepoPublishBtn]) {
+    el.disabled = true
+  }
+  if (onlineModsSection.classList.contains('hidden-el') === false || onlineMapsSection.classList.contains('hidden-el') === false) {
+    setOnlineTab('matches')
+  }
+}
 
 let repoMaps: RepoMap[] = []
 let mapRepoSort = 'newest'

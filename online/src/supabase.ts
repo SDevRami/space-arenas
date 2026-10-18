@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { BACKUPS_MAX_PER_USER, BACKUPS_MAX_PAYLOAD_BYTES, BACKUPS_TTL_MS } from './config.ts'
+import { BACKUPS_MAX_PER_USER, BACKUPS_MAX_PAYLOAD_BYTES, BACKUPS_TTL_MS, registrationAllowed } from './config.ts'
 import { MODS_MAX_PER_USER } from './mods.ts'
 import { MAPS_MAX_PER_USER } from './maps.ts'
 
@@ -103,7 +103,11 @@ export const authLogin = async (email: string, password: string): Promise<Supaba
 }
 
 /** Verifies a session token and returns the profile. Used to reload the account popup. */
-export const authMe = async (token: string): Promise<SupabaseResult<{ userId: string; email: string; username: string; games: number; wins: number; highScore: number }>> => {
+export const authMe = async (
+  token: string,
+): Promise<
+  SupabaseResult<{ userId: string; email: string; username: string; games: number; wins: number; highScore: number; hasProfile: boolean }>
+> => {
   if (!dbConfigured()) return { ok: false, error: 'database not configured' }
   try {
     const res = await timedFetch('/auth/v1/user', { headers: authUserHeaders(token) })
@@ -124,6 +128,9 @@ export const authMe = async (token: string): Promise<SupabaseResult<{ userId: st
         games: prof.ok ? prof.data?.games ?? 0 : 0,
         wins: prof.ok ? prof.data?.wins ?? 0 : 0,
         highScore: prof.ok ? prof.data?.high_score ?? 0 : 0,
+        // A first-time Google sign-in has an auth user but no `profiles` row yet — that is the
+        // moment the tester-only registration gate applies.
+        hasProfile: prof.ok,
       },
     }
   } catch {
@@ -166,6 +173,96 @@ export const upsertProfile = async (userId: string, username: string): Promise<S
     body: JSON.stringify([{ user_id: userId, username, games: 0, wins: 0, high_score: 0 }]),
   })
   return res.ok || res.status === 201 ? { ok: true } : { ok: false, error: `profile create failed (${res.status})` }
+}
+
+/** Supabase Google OAuth authorize URL. The browser navigates here and Supabase redirects
+ *  back to `redirectTo` (implicit flow) with `#access_token=...`. `null` when unconfigured. */
+export const googleAuthorizeUrl = (redirectTo: string): string | null => {
+  if (URL === '') return null
+  // `URL` above is the Supabase base string, so the global URL class needs the explicit name.
+  const u = new globalThis.URL(`${URL.replace(/\/+$/, '')}/auth/v1/authorize`)
+  u.searchParams.set('provider', 'google')
+  u.searchParams.set('redirect_to', redirectTo)
+  return u.toString()
+}
+
+/** Escapes LIKE metacharacters so an `ilike` filter behaves as a case-insensitive equality. */
+const likeEscape = (s: string): string => s.replace(/([\\%_])/g, '\\$1')
+
+/** Case-insensitive lookup for another profile already holding `username` (self excluded). */
+const dbUsernameClash = async (
+  userId: string,
+  username: string,
+): Promise<{ user_id: string; created_at?: string } | null> => {
+  const res = await timedFetch(
+    `/rest/v1/profiles?username=ilike.${encodeURIComponent(likeEscape(username))}&user_id=neq.${userId}&select=user_id,created_at&limit=1`,
+    { headers: restServiceHeaders() },
+  )
+  if (!res.ok) return null
+  const rows = (await res.json()) as Array<{ user_id: string; created_at?: string }>
+  return rows[0] ?? null
+}
+
+/**
+ * Sets (or creates) the caller's profile username. Vanity is the point here, so the name is
+ * checked for uniqueness first; the DB's `lower(username)` index is the hard backstop and a
+ * unique violation comes back as a 409 which we translate to the same message.
+ *
+ * Only `user_id` + `username` are sent, so `resolution=merge-duplicates` never wipes the
+ * caller's games/wins/high_score on an existing profile row.
+ */
+export const setProfileUsername = async (
+  userId: string,
+  username: string,
+  email = '',
+): Promise<SupabaseResult<{ username: string }>> => {
+  if (!dbConfigured()) return { ok: false, error: 'database not configured' }
+  const name = username.trim()
+  if (name.length < 1 || name.length > 24) return { ok: false, error: 'username must be 1-24 characters' }
+  try {
+    // Creating the profile is what turns a first-time Google sign-in into an account, so the
+    // tester-only gate is enforced here (Supabase governs the OAuth sign-in itself).
+    const existing = await dbProfile(userId)
+    if (!existing.ok && existing.error === 'no profile' && !registrationAllowed(email)) {
+      return { ok: false, error: 'registration is currently restricted to testers' }
+    }
+    if (await dbUsernameClash(userId, name)) return { ok: false, error: 'username already taken' }
+    const res = await timedFetch('/rest/v1/profiles', {
+      method: 'POST',
+      headers: restServiceHeaders(),
+      body: JSON.stringify([{ user_id: userId, username: name }]),
+    })
+    if (res.status === 409) return { ok: false, error: 'username already taken' }
+    if (!res.ok && res.status !== 201) return { ok: false, error: `profile update failed (${res.status})` }
+    return { ok: true, data: { username: name } }
+  } catch {
+    return { ok: false, error: 'database unreachable' }
+  }
+}
+
+/**
+ * Conflict resolution for a username that somehow collides with another account (the case-
+ * insensitive unique index normally prevents this at creation time). The **newer** account
+ * loses the name — it is the one asked to pick another. Returns false whenever the dates are
+ * missing, so an unreadable profile never forces a rename.
+ */
+export const usernameNeedsChange = async (userId: string, username: string): Promise<boolean> => {
+  const name = username.trim()
+  if (name === '') return false
+  try {
+    const mine = await timedFetch(`/rest/v1/profiles?user_id=eq.${userId}&select=created_at&limit=1`, {
+      headers: restServiceHeaders(),
+    })
+    if (!mine.ok) return false
+    const mineRows = (await mine.json()) as Array<{ created_at?: string }>
+    const mineAt = typeof mineRows[0]?.created_at === 'string' ? mineRows[0].created_at : ''
+    if (mineAt === '') return false
+    const clash = await dbUsernameClash(userId, name)
+    const otherAt = typeof clash?.created_at === 'string' ? clash.created_at : ''
+    return otherAt !== '' && mineAt > otherAt
+  } catch {
+    return false
+  }
 }
 
 export interface MatchRecord {

@@ -41,3 +41,29 @@ export const CORS_ALLOW_SOURCES: string[] = (process.env.SA_CORS_ALLOW ?? '')
   .split(',')
   .map((s) => s.trim())
   .filter((s) => s !== '')
+
+// --- Feature flags (Phase 6). Dashboard-set so the values change without a redeploy. ---
+
+/** Parses a boolean env var; empty/undefined falls back to `fallback`. */
+const boolEnv = (raw: string | undefined, fallback: boolean): boolean => {
+  if (raw === undefined || raw.trim() === '') return fallback
+  return /^(1|true|yes|on)$/i.test(raw.trim())
+}
+
+/** Community publishing (mods + maps). Off for the first public release; flip on later. */
+export const PUBLISHING_ENABLED = boolEnv(process.env.SA_ENABLE_PUBLISHING, false)
+
+/** Tester phase: while true, only allow-listed emails may create a new account.
+ *  Login is never affected — existing accounts keep working. */
+export const TESTERS_ONLY = boolEnv(process.env.SA_TESTERS, true)
+
+/** Emails allowed to register while `TESTERS_ONLY` is on (comma-separated, case-insensitive).
+ *  Empty + `TESTERS_ONLY` means registration is closed until the flag is flipped. */
+export const TESTER_EMAILS: string[] = (process.env.SA_TESTER_EMAILS ?? '')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter((s) => s !== '')
+
+/** Whether a brand-new account may be created for `email` right now. */
+export const registrationAllowed = (email: string): boolean =>
+  !TESTERS_ONLY || TESTER_EMAILS.includes(email.trim().toLowerCase())

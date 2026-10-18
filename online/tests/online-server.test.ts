@@ -125,6 +125,9 @@ const spawnOnline = async (extraEnv: Record<string, string>): Promise<Online> =>
       SA_RATE_ROOM_WRITE_PER_MIN: '200',
       SA_RATE_WS_HANDSHAKE_PER_MIN: '200',
       SA_RATE_ROOM_WRITE_PER_ACCOUNT_MIN: '200',
+      // The publish/rate/comment tests below exercise the write paths, so this spawn runs with
+      // publishing on. A separate spawn covers the disabled (first-release) default.
+      SA_ENABLE_PUBLISHING: 'true',
       ...extraEnv,
     },
     stdio: 'ignore',
@@ -1418,5 +1421,101 @@ describe('online server room auth gate', () => {
       ws.on('error', reject)
     })
     assert.equal(joined.name, 'UserB')
+  })
+})
+
+describe('online server feature gates (Phase 6)', () => {
+  it('status exposes the publishing + tester flags', async () => {
+    const { status, body } = await json('/api/status')
+    assert.equal(status, 200)
+    const b = body as { publishingEnabled: boolean; testersOnly: boolean }
+    assert.equal(b.publishingEnabled, true, 'the shared spawn runs with publishing enabled for the write tests')
+    assert.equal(b.testersOnly, true)
+  })
+
+  it('publishing disabled keeps reads open and refuses every write', async () => {
+    const off = await spawnOnline({
+      SUPABASE_URL: stub.url,
+      SUPABASE_ANON_KEY: 'stub-anon',
+      SUPABASE_SERVICE_ROLE_KEY: 'stub-service',
+      SA_ENABLE_PUBLISHING: 'false',
+    })
+    try {
+      const stats = (await fetch(`${off.base}/api/status`).then((r) => r.json())) as { publishingEnabled: boolean }
+      assert.equal(stats.publishingEnabled, false)
+      const post = await fetch(`${off.base}/api/mods`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ meta: { name: 'x' } }),
+      })
+      assert.equal(post.status, 403)
+      assert.equal(((await post.json()) as { error: string }).error, 'publishing disabled')
+      const del = await fetch(`${off.base}/api/maps/00000000-0000-0000-0000-000000000000`, { method: 'DELETE' })
+      assert.equal(del.status, 403)
+      const rate = await fetch(`${off.base}/api/mods/00000000-0000-0000-0000-000000000000/rate`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ rating: 5 }),
+      })
+      assert.equal(rate.status, 403)
+      const repo = await fetch(`${off.base}/api/mods/repo`)
+      assert.notEqual(repo.status, 403, 'reads stay available while publishing is disabled')
+    } finally {
+      off.child.kill()
+    }
+  })
+
+  it('registration is closed to non-tester emails while SA_TESTERS is on', async () => {
+    const { status, body } = await json('/api/auth/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'NewGuy', email: 'stranger@example.test', password: '123456' }),
+    })
+    assert.equal(status, 403)
+    assert.equal((body as { error: string }).error, 'registration is currently restricted to testers')
+  })
+
+  it('an allow-listed email passes the tester gate', async () => {
+    const open = await spawnOnline({
+      SUPABASE_URL: stub.url,
+      SUPABASE_ANON_KEY: 'stub-anon',
+      SUPABASE_SERVICE_ROLE_KEY: 'stub-service',
+      SA_TESTERS: 'true',
+      SA_TESTER_EMAILS: 'vip@example.test',
+    })
+    try {
+      const r = await fetch(`${open.base}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: 'Vip', email: 'vip@example.test', password: '123456' }),
+      })
+      assert.notEqual(r.status, 403, 'an allow-listed email must not be blocked by the tester gate')
+    } finally {
+      open.child.kill()
+    }
+  })
+
+  it('the Google entry point 302s to Supabase for an allowed redirect', async () => {
+    const r = await fetch(`${base}/api/auth/google?redirect_to=${encodeURIComponent('https://example.test/')}`, {
+      redirect: 'manual',
+    })
+    assert.equal(r.status, 302)
+    const loc = r.headers.get('location') ?? ''
+    assert.match(loc, /\/auth\/v1\/authorize/)
+    assert.match(loc, /provider=google/)
+  })
+
+  it('the Google entry point rejects a redirect with no origin', async () => {
+    const r = await fetch(`${base}/api/auth/google?redirect_to=not-a-url`, { redirect: 'manual' })
+    assert.equal(r.status, 400)
+  })
+
+  it('setting a username requires a session', async () => {
+    const { status } = await json('/api/auth/username', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'Nope' }),
+    })
+    assert.equal(status, 401)
   })
 })

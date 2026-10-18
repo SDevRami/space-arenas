@@ -785,6 +785,27 @@ code {
   margin: 0 0 12px;
 }
 
+.auth-hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin: 0 0 14px;
+}
+
+#auth-username-block {
+  margin-top: 14px;
+}
+
+.notice {
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .media-card {
   text-align: center;
 }

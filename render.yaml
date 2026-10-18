@@ -25,3 +25,9 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: SA_ENABLE_PUBLISHING
+        sync: false
+      - key: SA_TESTERS
+        sync: false
+      - key: SA_TESTER_EMAILS
+        sync: false
