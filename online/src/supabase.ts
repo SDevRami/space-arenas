@@ -425,6 +425,74 @@ export const dbProfileCount = async (): Promise<number | null> => {
   }
 }
 
+// ---- Admin dashboard: PostgREST row counts ------------------------------------------------
+
+export interface DbCounts {
+  profiles: number | null
+  matches: number | null
+  mods: number | null
+  modRatings: number | null
+  modComments: number | null
+  maps: number | null
+  mapRatings: number | null
+  mapComments: number | null
+  backups: number | null
+}
+
+export interface DbStats {
+  configured: boolean
+  reachable: boolean
+  counts: DbCounts
+}
+
+/** Exact row count for one PostgREST table via the `content-range` header (null when the DB
+ *  is unconfigured or the query fails). `limit=0` keeps the response body empty. */
+const countRows = async (table: string, col: string): Promise<number | null> => {
+  if (!dbConfigured()) return null
+  try {
+    const res = await timedFetch(
+      `/rest/v1/${table}?select=${col}&limit=0`,
+      { headers: headers(SERVICE, { Prefer: 'count=exact' }) },
+      2500,
+    )
+    if (!res.ok) return null
+    const total = Number(res.headers.get('content-range')?.split('/')[1] ?? NaN)
+    return Number.isFinite(total) ? total : null
+  } catch {
+    return null
+  }
+}
+
+/** Short cache so the dashboard's 5s poll does not fan out into 9 Supabase queries every 5s. */
+const DB_STATS_TTL_MS = 15_000
+let dbStatsCache: { at: number; value: DbStats } | null = null
+
+/** Read-only snapshot for the admin dashboard: connectivity + countable platform totals.
+ *  Only numbers PostgREST can count are included — no Management API, no Render API. */
+export const dbStats = async (): Promise<DbStats> => {
+  const now = Date.now()
+  if (dbStatsCache && now - dbStatsCache.at < DB_STATS_TTL_MS) return dbStatsCache.value
+  const [reachable, profiles, matches, mods, modRatings, modComments, maps, mapRatings, mapComments, backups] = await Promise.all([
+    dbProbe(),
+    countRows('profiles', 'user_id'),
+    countRows('matches', 'id'),
+    countRows('mods', 'id'),
+    countRows('mod_ratings', 'mod_id'),
+    countRows('mod_comments', 'id'),
+    countRows('maps', 'id'),
+    countRows('map_ratings', 'map_id'),
+    countRows('map_comments', 'id'),
+    countRows('backups', 'id'),
+  ])
+  const value: DbStats = {
+    configured: dbConfigured(),
+    reachable,
+    counts: { profiles, matches, mods, modRatings, modComments, maps, mapRatings, mapComments, backups },
+  }
+  dbStatsCache = { at: now, value }
+  return value
+}
+
 // ---- Phase 3: expiring backups -----------------------------------------------------------
 
 export interface BackupListRow {

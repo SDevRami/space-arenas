@@ -18,14 +18,19 @@ import { RoomRegistry, type HostPlayer, type Room } from './rooms.ts'
 import { TickRelay } from './relay.ts'
 import { newSeed } from './passphrase.ts'
 import { fingerprintSettingsFor } from './sanitize.ts'
+import { adminEnabled, adminPageHtml, adminPasswordOk, issueAdminToken, verifyAdminToken } from './admin.ts'
 import {
   BACKUPS_MAX_PAYLOAD_BYTES,
+  BACKUPS_MAX_PER_USER,
   BACKUPS_PURGE_INTERVAL_MS,
+  BACKUPS_TTL_DAYS,
   CORS_ALLOW_SOURCES,
   MAP_COMMENT_MAX_CHARS,
   MATCHES_MAX_ROWS,
   MOD_COMMENT_MAX_CHARS,
   PUBLISHING_ENABLED,
+  RATE_ADMIN_LOGIN_PER_MIN,
+  RATE_ADMIN_STATS_PER_MIN,
   RATE_AUTH_PER_MIN,
   RATE_BACKUP_POST_PER_MIN,
   RATE_LOGIN_PER_ACCOUNT_MIN,
@@ -40,6 +45,7 @@ import {
   RATE_ROOM_WRITE_PER_MIN,
   RATE_WS_HANDSHAKE_PER_MIN,
   TESTERS_ONLY,
+  USERNAME_MAX_CHARS,
   isForbiddenUsername,
   registrationAllowed,
 } from './config.ts'
@@ -73,14 +79,15 @@ import {
   dbRateMap,
   dbRateMod,
   dbRecordMatch,
+  dbStats,
   dbTrimMatches,
   googleAuthorizeUrl,
   setProfileUsername,
   usernameAvailability,
   usernameNeedsChange,
 } from './supabase.ts'
-import { MOD_MAX_BYTES, modLabel, sanitizeMod } from './mods.ts'
-import { MAP_MAX_BYTES, mapLabel, mapMetrics, sanitizeMap } from './maps.ts'
+import { MOD_MAX_BYTES, MODS_MAX_PER_USER, modLabel, sanitizeMod } from './mods.ts'
+import { MAP_MAX_BYTES, MAPS_MAX_PER_USER, mapLabel, mapMetrics, sanitizeMap } from './maps.ts'
 
 /** How long a REST-created room may sit empty before it is reclaimed. */
 const IDLE_ROOM_TTL_MS = 30_000
@@ -105,6 +112,19 @@ const reconnectTimers = new Map<string, Map<number, NodeJS.Timeout>>()
 /** Socket → room code binding (set on join, cleared on close). */
 const socketRooms = new Map<WebSocket, string>()
 
+// --- Admin dashboard counters (Phase 7). In-process, no persistence, no Render API. ---
+/** Wall-clock start, used for the uptime readout. */
+const startedAt = Date.now()
+const httpStats = { requests: 0, errors4xx: 0, errors5xx: 0 }
+/** Rolling window of the most recent request durations (ms) for the avg/p95 readout. */
+const LATENCY_SAMPLES = 200
+const latency: number[] = []
+const recordLatency = (ms: number): void => {
+  latency.push(ms)
+  if (latency.length > LATENCY_SAMPLES) latency.shift()
+}
+const wsStats = { total: 0, messagesIn: 0, protocolViolations: 0 }
+
 /** How many malformed frames a socket may send before it is closed (4002). */
 const PROTOCOL_VIOLATIONS_MAX = 10
 
@@ -113,6 +133,7 @@ const PROTOCOL_VIOLATIONS_MAX = 10
  *  kicks the socket so a patched/malicious client cannot feed garbage forever. */
 const protocolViolations = new Map<WebSocket, number>()
 const noteProtocolViolation = (ws: WebSocket): void => {
+  wsStats.protocolViolations++
   const n = (protocolViolations.get(ws) ?? 0) + 1
   protocolViolations.set(ws, n)
   if (n >= PROTOCOL_VIOLATIONS_MAX) {
@@ -1246,6 +1267,55 @@ const handleMaps = async (req: IncomingMessage, res: ServerResponse, urlPath: st
 }
 
 const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: string): Promise<boolean> => {
+  // Admin dashboard API (Phase 7). Same-origin only, password-gated, read-only, and entirely
+  // absent unless SA_ADMIN_PASSWORD is set. Never linked from README/docs/landing/game.
+  if (urlPath === '/api/admin/login' || urlPath === '/api/admin/stats') {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow')
+    res.setHeader('Cache-Control', 'no-store')
+    if (!adminEnabled()) {
+      writeJson(res, 404, { ok: false, error: 'not found' })
+      return true
+    }
+    if (urlPath === '/api/admin/login' && req.method === 'POST') {
+      if (limited(res, 'adminLogin', RATE_ADMIN_LOGIN_PER_MIN, clientIp(req))) return true
+      const body = await readJson(req)
+      if (!adminPasswordOk(String(body.password ?? ''))) {
+        // Small constant delay: scripted guessing is slower than the rate limit alone implies.
+        await new Promise((resolve) => setTimeout(resolve, 250))
+        writeJson(res, 401, { ok: false, error: 'invalid password' })
+        return true
+      }
+      writeJson(res, 200, { ok: true, data: issueAdminToken() })
+      return true
+    }
+    if (urlPath === '/api/admin/stats' && req.method === 'GET') {
+      if (limited(res, 'adminStats', RATE_ADMIN_STATS_PER_MIN, clientIp(req))) return true
+      if (!verifyAdminToken(bearerToken(req))) {
+        writeJson(res, 401, { ok: false, error: 'unauthorized' })
+        return true
+      }
+      const rooms = registry.list()
+      writeJson(res, 200, {
+        ok: true,
+        data: {
+          now: Date.now(),
+          server: adminServerStats(),
+          lobby: {
+            rooms: rooms.length,
+            players: rooms.reduce((n, r) => n + registry.matchSlots(r).length, 0),
+            started: rooms.filter((r) => r.started).length,
+            list: rooms.map(roomSummary),
+          },
+          db: await dbStats(),
+          flags: { publishingEnabled: PUBLISHING_ENABLED, testersOnly: TESTERS_ONLY },
+          limits: adminLimits(),
+        },
+      })
+      return true
+    }
+    writeJson(res, 405, { ok: false, error: 'method not allowed' })
+    return true
+  }
   if (req.method === 'GET' && urlPath === '/api/status') {
     const stats = await lobbyStats()
     writeJson(res, 200, {
@@ -1506,15 +1576,83 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
   return false
 }
 
+/** The server's own caps/quotas/rate limits — read-only display for the dashboard. */
+const adminLimits = (): Array<{ label: string; value: string }> => [
+  { label: 'Username', value: `1-${USERNAME_MAX_CHARS} chars` },
+  { label: 'Backups per user', value: String(BACKUPS_MAX_PER_USER) },
+  { label: 'Backup payload', value: `${Math.round(BACKUPS_MAX_PAYLOAD_BYTES / 1024)} KB` },
+  { label: 'Backup TTL', value: `${BACKUPS_TTL_DAYS} days` },
+  { label: 'Mods per user', value: String(MODS_MAX_PER_USER) },
+  { label: 'Maps per user', value: String(MAPS_MAX_PER_USER) },
+  { label: 'Mod file size', value: `${Math.round(MOD_MAX_BYTES / (1024 * 1024))} MB` },
+  { label: 'Map file size', value: `${Math.round(MAP_MAX_BYTES / (1024 * 1024))} MB` },
+  { label: 'Match log rows', value: MATCHES_MAX_ROWS === 0 ? 'unlimited' : `newest ${MATCHES_MAX_ROWS}` },
+  { label: 'Comments', value: `${MOD_COMMENT_MAX_CHARS} / ${MAP_COMMENT_MAX_CHARS} chars` },
+  { label: 'Rate: auth', value: `${RATE_AUTH_PER_MIN}/min` },
+  { label: 'Rate: reads', value: `${RATE_READ_PER_MIN}/min` },
+  { label: 'Rate: room writes', value: `${RATE_ROOM_WRITE_PER_MIN}/min` },
+  { label: 'Rate: repo reads', value: `${RATE_MOD_REPO_PER_MIN}/min` },
+  { label: 'Rate: downloads', value: `${RATE_MOD_DOWNLOAD_PER_MIN}/min` },
+  { label: 'Rate: content writes', value: `${RATE_MOD_WRITE_PER_MIN}/min` },
+  { label: 'Rate: backups', value: `${RATE_BACKUP_POST_PER_MIN}/min` },
+  { label: 'Rate: ws handshakes', value: `${RATE_WS_HANDSHAKE_PER_MIN}/min` },
+  { label: 'Rate: admin logins', value: `${RATE_ADMIN_LOGIN_PER_MIN}/min` },
+]
+
+/** Live process readout for the dashboard. Registry + `wss` are read here only. */
+const adminServerStats = (): Record<string, unknown> => {
+  const sorted = [...latency].sort((a, b) => a - b)
+  const avg = sorted.length > 0 ? Math.round(sorted.reduce((a, b) => a + b, 0) / sorted.length) : 0
+  const p95 = sorted.length > 0 ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] : 0
+  const mem = process.memoryUsage()
+  return {
+    uptimeMs: Date.now() - startedAt,
+    startedAt,
+    mode: MODE,
+    protocol: PROTOCOL_VERSION,
+    minProtocol: MIN_PROTOCOL_VERSION,
+    node: process.version,
+    memory: { rss: mem.rss, heapUsed: mem.heapUsed, heapTotal: mem.heapTotal, external: mem.external },
+    http: { ...httpStats, latencyMs: { avg, p95, samples: sorted.length } },
+    ws: { ...wsStats, active: wss.clients.size, relays: relays.size },
+  }
+}
+
 const server = createServer(async (req, res) => {
-  // CORS is per-request: with an allow-list, only permitted origins get an ACAO echo.
-  for (const [k, v] of Object.entries(corsHeaders(req))) res.setHeader(k, v)
+  const urlPath = (req.url ?? '/').split('?')[0]
+  // Request/latency accounting for the admin dashboard (recorded once the response finishes).
+  const reqStartedAt = Date.now()
+  httpStats.requests++
+  res.on('finish', () => {
+    if (res.statusCode >= 500) httpStats.errors5xx++
+    else if (res.statusCode >= 400) httpStats.errors4xx++
+    recordLatency(Date.now() - reqStartedAt)
+  })
+  // CORS is per-request: with an allow-list, only permitted origins get an ACAO echo. The admin
+  // surface is same-origin only, so it never advertises a cross-origin allowance.
+  const isAdminPath = urlPath === '/admin' || urlPath === '/admin/' || urlPath.startsWith('/api/admin/')
+  if (!isAdminPath) {
+    for (const [k, v] of Object.entries(corsHeaders(req))) res.setHeader(k, v)
+  }
   if (req.method === 'OPTIONS') {
     res.writeHead(204)
     res.end()
     return
   }
-  const urlPath = (req.url ?? '/').split('?')[0]
+  // Admin dashboard page (Phase 7). Absent unless SA_ADMIN_PASSWORD is set.
+  if (urlPath === '/admin' || urlPath === '/admin/') {
+    if (!adminEnabled()) {
+      writeJson(res, 404, { ok: false, error: 'not found' })
+      return
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+    })
+    res.end(adminPageHtml())
+    return
+  }
   if (urlPath === '/') {
     writeJson(res, 200, { service: 'space-arenas-online', mode: MODE, protocol: PROTOCOL_VERSION, minProtocol: MIN_PROTOCOL_VERSION, health: '/api/status' })
     return
@@ -1538,11 +1676,13 @@ wss.on('connection', (ws, request) => {
     ws.close(4403, 'too many requests')
     return
   }
+  wsStats.total++
   /** Serialises this socket's control handling. C_JOIN verifies the session, so handling is
    *  async; without this queue a C_READY arriving right behind a C_JOIN would be processed
    *  while the join is still awaiting the auth round-trip. */
   let controlQueue: Promise<void> = Promise.resolve()
   ws.on('message', (data) => {
+    wsStats.messagesIn++
     const buf = data as Buffer
     if (buf[0] === BIN.CMD) {
       const ctx = roomForSocket(ws)

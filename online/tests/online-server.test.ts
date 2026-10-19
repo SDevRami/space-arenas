@@ -1599,3 +1599,121 @@ describe('online server feature gates (Phase 6)', () => {
     }
   })
 })
+
+describe('admin dashboard (read-only, password-gated)', () => {
+  it('serves the page, issues a token, reports stats, and 404s when disabled', async () => {
+    const guarded = await spawnOnline({
+      SUPABASE_URL: stub.url,
+      SUPABASE_ANON_KEY: 'stub-anon',
+      SUPABASE_SERVICE_ROLE_KEY: 'stub-service',
+      SA_ADMIN_PASSWORD: 'test-admin-pass',
+      SA_RATE_ADMIN_LOGIN_PER_MIN: '3',
+      SA_RATE_ADMIN_STATS_PER_MIN: '200',
+    })
+    const disabled = await spawnOnline({ SA_ADMIN_PASSWORD: '' })
+    try {
+      // The page is served (login form only) and marked noindex.
+      const page = await fetch(`${guarded.base}/admin`)
+      assert.equal(page.status, 200)
+      assert.match(page.headers.get('content-type') ?? '', /^text\/html/)
+      assert.match(page.headers.get('x-robots-tag') ?? '', /noindex/)
+      assert.match(await page.text(), /admin-login/)
+
+      // The admin surface is same-origin only: never advertises a cross-origin allowance.
+      assert.equal(page.headers.get('access-control-allow-origin'), null)
+
+      // Wrong password -> 401; right password -> a token.
+      const bad = await fetch(`${guarded.base}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password: 'nope' }),
+      })
+      assert.equal(bad.status, 401)
+
+      const good = await fetch(`${guarded.base}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password: 'test-admin-pass' }),
+      })
+      assert.equal(good.status, 200)
+      const goodBody = (await good.json()) as { ok: boolean; data: { token: string; expiresAt: number } }
+      assert.equal(goodBody.ok, true)
+      assert.ok(goodBody.data.token.length > 0, 'a token is issued')
+      assert.ok(goodBody.data.expiresAt > Date.now(), 'the token is not already expired')
+
+      // Stats require a valid token.
+      assert.equal((await fetch(`${guarded.base}/api/admin/stats`)).status, 401)
+      assert.equal(
+        (
+          await fetch(`${guarded.base}/api/admin/stats`, { headers: { authorization: 'Bearer for.ged' } })
+        ).status,
+        401,
+        'a tampered token is rejected',
+      )
+
+      const stats = await fetch(`${guarded.base}/api/admin/stats`, {
+        headers: { authorization: `Bearer ${goodBody.data.token}` },
+      })
+      assert.equal(stats.status, 200)
+      const sb = (await stats.json()) as {
+        ok: boolean
+        data: {
+          server: { http: { requests: number; latencyMs: { samples: number } }; ws: { active: number } }
+          lobby: { rooms: number; players: number; list: unknown[] }
+          db: { configured: boolean; reachable: boolean; counts: { profiles: number | null } }
+          flags: { publishingEnabled: boolean; testersOnly: boolean }
+          limits: Array<{ label: string; value: string }>
+        }
+      }
+      assert.equal(sb.ok, true)
+      assert.equal(sb.data.db.configured, true)
+      assert.equal(sb.data.db.reachable, true)
+      // PostgREST count of the stub's two profile rows.
+      assert.equal(sb.data.db.counts.profiles, 2)
+      assert.equal(typeof sb.data.server.http.requests, 'number')
+      assert.ok(sb.data.server.http.latencyMs.samples >= 1)
+      assert.equal(typeof sb.data.lobby.rooms, 'number')
+      assert.ok(Array.isArray(sb.data.lobby.list))
+      assert.equal(typeof sb.data.flags.publishingEnabled, 'boolean')
+      assert.ok(Array.isArray(sb.data.limits) && sb.data.limits.length > 0)
+
+      // Disabled (no SA_ADMIN_PASSWORD): the whole surface is absent.
+      assert.equal((await fetch(`${disabled.base}/admin`)).status, 404)
+      assert.equal(
+        (
+          await fetch(`${disabled.base}/api/admin/login`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ password: 'test-admin-pass' }),
+          })
+        ).status,
+        404,
+      )
+      assert.equal((await fetch(`${disabled.base}/api/admin/stats`)).status, 404)
+    } finally {
+      guarded.child.kill()
+      disabled.child.kill()
+    }
+  })
+
+  it('rate-limits admin login attempts per IP', async () => {
+    const srv = await spawnOnline({ SA_ADMIN_PASSWORD: 'test-admin-pass', SA_RATE_ADMIN_LOGIN_PER_MIN: '3' })
+    try {
+      let last = 0
+      let retryAfter = ''
+      for (let i = 0; i < 4; i++) {
+        const r = await fetch(`${srv.base}/api/admin/login`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ password: 'wrong' }),
+        })
+        last = r.status
+        retryAfter = r.headers.get('retry-after') ?? ''
+      }
+      assert.equal(last, 429, 'the 4th attempt in the window is refused')
+      assert.ok(retryAfter !== '', '429 must carry Retry-After')
+    } finally {
+      srv.child.kill()
+    }
+  })
+})

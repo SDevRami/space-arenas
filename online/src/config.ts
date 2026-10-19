@@ -96,3 +96,14 @@ export const MATCHES_MAX_ROWS: number = (() => {
   const n = Number(raw)
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 100
 })()
+
+// --- Admin dashboard (Phase 7: read-only ops view served at /admin). ---
+/** Dashboard password. Empty (the default) disables the whole admin surface, so a
+ *  deployment that never sets it exposes nothing. Set this on Render to switch it on. */
+export const ADMIN_PASSWORD = process.env.SA_ADMIN_PASSWORD ?? ''
+export const ADMIN_ENABLED = ADMIN_PASSWORD.trim() !== ''
+/** Admin session lifetime (12h). Deliberately not env-tunable — rotate the password to revoke. */
+export const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000
+// Per-IP rate limits for the admin endpoints; overridable so the test harness can raise them.
+export const RATE_ADMIN_LOGIN_PER_MIN = Number(process.env.SA_RATE_ADMIN_LOGIN_PER_MIN ?? 5)
+export const RATE_ADMIN_STATS_PER_MIN = Number(process.env.SA_RATE_ADMIN_STATS_PER_MIN ?? 60)

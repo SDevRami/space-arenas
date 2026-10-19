@@ -214,6 +214,9 @@ lobbyLandingCredits.addEventListener('click', () => {
   lobbyRoot.classList.remove('menu-closed')
   setTab('credits')
 })
+document.getElementById('lobby-landing-website')?.addEventListener('click', () => {
+  window.open('https://sdevrami.github.io/space-arenas', '_blank', 'noopener')
+})
 // The logo is a placeholder the author replaces later; hide it when missing.
 lobbyLogo.addEventListener('error', () => {
   lobbyLogo.style.display = 'none'

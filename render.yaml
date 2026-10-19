@@ -35,3 +35,9 @@ services:
         sync: false
       - key: SA_MATCHES_MAX_ROWS
         sync: false
+      - key: SA_ADMIN_PASSWORD
+        sync: false
+      - key: SA_RATE_ADMIN_LOGIN_PER_MIN
+        sync: false
+      - key: SA_RATE_ADMIN_STATS_PER_MIN
+        sync: false
