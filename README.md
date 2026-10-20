@@ -134,6 +134,27 @@ Open an issue or PR. Keep the core invariants intact: server-authoritative locks
 
 ---
 
+## License
+
+Space Arenas is **free to play, free to change and free to share — and it must stay that way**.
+It ships under the **Space Arenas License 1.0** — see [`LICENSE`](LICENSE) — a source-available,
+non-commercial license:
+
+- **Do anything:** play it, study it, modify any part of it, fork it and publish your own
+  version — free of charge, for personal and non-commercial use.
+- **Keep it free:** no selling, no paid access, no subscriptions, no donation walls and no ads —
+  and versions derived from it must stay free too.
+- **Keep the credit:** every copy carries the copyright notice and the `LICENSE` file, and a
+  modified version must say that it is modified and not the official release.
+- **Name, logo, sprites and music stay with the author:** reuse them with credit in the game,
+  in free versions and in your own non-commercial projects — never sell them, and never pass
+  the name or logo off as your own.
+
+This is deliberately **not** an OSI-approved open-source license, because commercial use is not
+permitted.
+
+---
+
 ## Status
 
 **Released.** Core game, LAN + online multiplayer, accounts/leaderboard, backups, replays, anti-cheat verification, balance-mod community and the bilingual landing page are all implemented, deployed and verified. Local-only dev, community growth and future balance passes can continue from here.

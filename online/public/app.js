@@ -268,7 +268,7 @@ const EN = {
   'cat.upgrades.airstrike-level.desc': 'More and stronger airstrike bombers.',
   'cat.upgrades.emp-level.name': 'EMP Overcharge',
   'cat.upgrades.emp-level.desc': 'Overcharges the EMP radius and effect.',
-  'footer.desc': 'Open-source real-time strategy game. Report issues on GitHub.',
+  'footer.desc': 'Free, source-available real-time strategy game. Report issues on GitHub.',
   'footer.rights': 'Made with ♥ — play, mod, share.',
   'footer.terms': 'Terms of Use',
   'footer.privacy': 'Privacy Policy',
@@ -279,7 +279,7 @@ const EN = {
   'terms.docTitle': 'Terms of Use · Space Arenas',
   'terms.title': 'Terms of Use',
   'terms.intro':
-    'Space Arenas is an open-source real-time strategy game. These Terms cover the game, the website at https://sdevrami.github.io/space-arenas (the “Site”) and the online service behind it — lobbies, leaderboards, the community repository (the “Service”). Please read them before you play online.',
+    'Space Arenas is a free, source-available real-time strategy game. These Terms cover the game, the website at https://sdevrami.github.io/space-arenas (the “Site”) and the online service behind it — lobbies, leaderboards, the community repository (the “Service”). Please read them before you play online.',
   'terms.s1.title': '1. Acceptance',
   'terms.s1.text':
     'By using the Site, creating an account or playing online, you agree to these Terms. If you do not agree, do not use the Service — the offline game and its source code stay available under the repository’s licence.',
@@ -309,7 +309,7 @@ const EN = {
     'The Service is free and provided on a best-effort basis. Features may change, break or be discontinued at any time, including permanent removal of online features, leaderboard resets or data loss. We try to announce significant changes in the repository, but we cannot promise uninterrupted availability.',
   'terms.s10.title': '10. Intellectual property',
   'terms.s10.text':
-    'The game’s source code, artwork, sounds and website are released under the licence stated in the project repository. The “Space Arenas” name and logos belong to the project maintainer. Third-party parts (for example Google sign-in, Supabase, GitHub Pages) stay under their own terms.',
+    'The game’s source code, artwork, sounds and website are free to use under the Space Arenas License (see the LICENSE file in the repository). The “Space Arenas” name, logo, sprites and music stay with the project maintainer and may be reused only as that license allows. Third-party parts (for example Google sign-in, Supabase, GitHub Pages) stay under their own terms.',
   'terms.s11.title': '11. Disclaimer of warranties',
   'terms.s11.text':
     'The Site, the Service and all community content are provided “as is” and “as available”, without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose and non-infringement. We do not warrant that the Service will be error-free, secure or uninterrupted, or that data — backups, statistics or published content — will never be lost.',
@@ -333,7 +333,7 @@ const EN = {
     'We collect as little as possible. To play online you sign in with Google, and we store the email address Google returns, the username you choose, your match statistics, and anything you deliberately publish (mods, maps, ratings, comments) or save (encrypted backups). We do not sell your data, we run no advertising and no third-party analytics, and the website works with no account at all.',
   'privacy.s2.title': '2. Who we are and what this covers',
   'privacy.s2.text':
-    'Space Arenas is an open-source, non-commercial game project. This policy explains how the website (the “Site”) and the online service behind it (the “Service”) handle personal data. The offline game needs no account and sends your data nowhere. The project maintainer (see Contact) is the controller for the Service.',
+    'Space Arenas is a free, source-available, non-commercial game project. This policy explains how the website (the “Site”) and the online service behind it (the “Service”) handle personal data. The offline game needs no account and sends your data nowhere. The project maintainer (see Contact) is the controller for the Service.',
   'privacy.s3.title': '3. Information you give us',
   'privacy.s3.text':
     'Account: when you sign in with Google we receive your Google account identifier, your email address and the basic profile Google shares (name and profile picture) — used to create your account and confirm it is yours. We never receive your Google password. You then choose a public username. Content: balance mods and maps you publish, ratings and comments you post, and — if you use them — encrypted backups of your game settings and profile. Support messages: whatever you include when you contact us, for example in a GitHub issue.',
@@ -635,7 +635,7 @@ const AR = {
   'cat.upgrades.airstrike-level.desc': 'قاذفات غارة أكثر وأقوى.',
   'cat.upgrades.emp-level.name': 'شحن النبضة الكهرومغناطيسية',
   'cat.upgrades.emp-level.desc': 'يزيد نصف قطر وأثر النبضة الكهرومغناطيسية.',
-  'footer.desc': 'لعبة استراتيجية مفتوحة المصدر. أبلغ عن المشاكل على GitHub.',
+  'footer.desc': 'لعبة استراتيجية مجانية ومتاحة الشيفرة. أبلغ عن المشاكل على GitHub.',
   'footer.rights': 'صُنعت بحب ♥ — العب، عدّل، شارك.',
   'footer.terms': 'شروط الاستخدام',
   'footer.privacy': 'سياسة الخصوصية',
@@ -646,7 +646,7 @@ const AR = {
   'terms.docTitle': 'شروط الاستخدام · ساحات الفضاء',
   'terms.title': 'شروط الاستخدام',
   'terms.intro':
-    'ساحات الفضاء لعبة استراتيجية مفتوحة المصدر في الزمن الحقيقي. تغطي هذه الشروط اللعبة، والموقع على https://sdevrami.github.io/space-arenas («الموقع»)، والخدمة على الإنترنت التي تدعمها — القاعات، ولوحة المتصدرين، ومستودع المجتمع («الخدمة»). يُرجى قراءتها قبل اللعب عبر الإنترنت.',
+    'ساحات الفضاء لعبة استراتيجية مجانية ومتاحة الشيفرة في الزمن الحقيقي. تغطي هذه الشروط اللعبة، والموقع على https://sdevrami.github.io/space-arenas («الموقع»)، والخدمة على الإنترنت التي تدعمها — القاعات، ولوحة المتصدرين، ومستودع المجتمع («الخدمة»). يُرجى قراءتها قبل اللعب عبر الإنترنت.',
   'terms.s1.title': '1. الموافقة',
   'terms.s1.text':
     'باستخدامك الموقع، أو إنشاء حساب، أو اللعب عبر الإنترنت، فإنك توافق على هذه الشروط. وإذا لم توافق، فلا تستخدم الخدمة — تظل اللعبة دون اتصال وشيفرتها المصدرية متاحة وفق ترخيص المستودع.',
@@ -676,7 +676,7 @@ const AR = {
     'الخدمة مجانية وتُقدَّم على أساس أفضل جهد. وقد تتغير الميزات أو تتعطل أو تتوقف في أي وقت، بما في ذلك الإزالة الدائمة لميزات الإنترنت أو إعادة ضبط لوحة المتصدرين أو فقدان البيانات. ونحاول الإعلان عن التغييرات المهمة في المستودع، لكننا لا نضمن توفّراً متواصلاً.',
   'terms.s10.title': '10. الملكية الفكرية',
   'terms.s10.text':
-    'تُنشر شيفرة اللعبة ورسوماتها وأصواتها وموقعها وفق الترخيص المذكور في مستودع المشروع. أما اسم «ساحات الفضاء» وشعاراتها فتملُكها جهة صيانة المشروع. وتبقى الأجزاء الخارجية (مثل تسجيل الدخول عبر Google وSupabase وGitHub Pages) تحت شروطها الخاصة.',
+    'يمكن استخدام شيفرة اللعبة ورسوماتها وأصواتها وموقعها مجاناً وفق «ترخيص ساحات الفضاء» (انظر ملف LICENSE في المستودع). أما اسم «ساحات الفضاء» وشعارها ورسوماتها وموسيقاها فتبقى لجهة صيانة المشروع، ولا يُعاد استخدامها إلا بما يسمح به ذلك الترخيص. وتبقى الأجزاء الخارجية (مثل تسجيل الدخول عبر Google وSupabase وGitHub Pages) تحت شروطها الخاصة.',
   'terms.s11.title': '11. إخلاء المسؤولية عن الضمانات',
   'terms.s11.text':
     'يُقدَّم الموقع والخدمة وكل محتوى المجتمع «كما هي» و«حسب التوفّر»، دون أي ضمانات صريحة أو ضمنية، بما في ذلك القابلية للتسويق والملاءمة لغرض معين وعدم الانتهاك. ولا نضمن أن تكون الخدمة خالية من الأخطاء أو آمنة أو متواصلة، ولا أن البيانات — النسخ الاحتياطية أو الإحصاءات أو المحتوى المنشور — لن تُفقد أبداً.',
@@ -700,7 +700,7 @@ const AR = {
     'نجمع أقل قدر ممكن. للعب عبر الإنترنت تسجّل الدخول عبر Google، ونحتفظ ببريدك الإلكتروني الذي يعيده Google، واسم المستخدم الذي تختاره، وإحصاءات مبارياتك، وكل ما تنشره عمداً (تعديلات، خرائط، تقييمات، تعليقات) أو تحفظه (نسخ احتياطية مشفّرة). ولا نبيع بياناتك، ولا نشغّل إعلانات ولا تحليلات من أطراف ثالثة، ويعمل الموقع دون أي حساب على الإطلاق.',
   'privacy.s2.title': '2. من نحن وما الذي تشمله هذه السياسة',
   'privacy.s2.text':
-    'ساحات الفضاء مشروع لعبة مفتوح المصدر وغير تجاري. توضّح هذه السياسة كيف يتعامل الموقع («الموقع») والخدمة على الإنترنت التي تدعمه («الخدمة») مع البيانات الشخصية. أما اللعبة دون اتصال فلا تحتاج إلى حساب ولا ترسل بياناتك إلى أي مكان. وجهة صيانة المشروع (انظر التواصل) هي المتحكّم بالخدمة.',
+    'ساحات الفضاء مشروع لعبة مجانية ومتاحة الشيفرة وغير تجاري. توضّح هذه السياسة كيف يتعامل الموقع («الموقع») والخدمة على الإنترنت التي تدعمه («الخدمة») مع البيانات الشخصية. أما اللعبة دون اتصال فلا تحتاج إلى حساب ولا ترسل بياناتك إلى أي مكان. وجهة صيانة المشروع (انظر التواصل) هي المتحكّم بالخدمة.',
   'privacy.s3.title': '3. معلومات تقدّمها لنا',
   'privacy.s3.text':
     'الحساب: عند تسجيل الدخول عبر Google نتلقى معرّف حساب Google وبريدك الإلكتروني والملف الأساسي الذي يشاركه Google (الاسم والصورة) — ويُستخدم لإنشاء حسابك والتأكد من أنه لك. ولا نتلقى كلمة مرور Google أبداً. ثم تختار اسم مستخدم عاماً. المحتوى: تعديلات التوازن والخرائط التي تنشرها، والتقييمات والتعليقات التي تضعها، وأيضاً — إن استخدمتها — نسخ احتياطية مشفّرة لإعدادات لعبتك وملفك. رسائل الدعم: أي شيء تضمّنه عند تواصلك معنا، مثل بلاغ على GitHub.',

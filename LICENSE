@@ -1,0 +1,134 @@
+Space Arenas License 1.0
+Copyright (c) 2026 SDevRami (https://github.com/SDevRami) and the Space Arenas contributors.
+All rights reserved except as expressly granted below.
+
+Space Arenas is free to play, free to change and free to share — and it must stay that
+way. You may do anything with this game, including publishing your own modified version,
+as long as nothing is ever sold and the credits and this license stay in place.
+
+This is a source-available, non-commercial license. It is deliberately NOT an OSI-approved
+open-source license, because it forbids commercial use.
+
+In short (this summary is not part of the terms — the terms below govern):
+  * Play it, study it, change anything, share it with anyone.
+  * Every version stays free: no price, no paid access, no ads, no donations required.
+  * Keep the copyright notice and this LICENSE file with every copy.
+  * The name, logo, sprites and music stay with the author. Use them in the game, in your
+    free versions, and in your own non-commercial projects with credit — never sell them,
+    and never pass the name or logo off as your own.
+  * Say it is a modified version, and let your users keep the same freedoms.
+
+1. Definitions
+
+   "Game" means the Space Arenas software in this repository: the source code, the built
+   client and LAN host, the shared libraries, the game data, the map builder, the website,
+   and the documentation.
+
+   "Assets" means the Space Arenas name and logo, all sprite and artwork files (including
+   the .png sprite sheets and HUD art), all sound and music files (including the lobby
+   track SPACE.ARENAS_by_SDEVRAMI.mp3 and the .wav effects), and any other graphics, audio
+   or branding shipped with the Game.
+
+   "Modified Version" means any work based on or derived from the Game, including forks,
+   patches, ports, translations, rebalances, asset edits and re-uploads.
+
+   "Distribute" means to give, send, upload, host, publish, mirror or otherwise make
+   available to anyone else.
+
+   "Free of Charge" means no money changes hands for access: no price, licence fee,
+   subscription, in-app purchase, donation requirement, paywalled download, advertising,
+   or any other monetisation attached to using or getting the Game.
+
+   "You" means the person or group exercising the rights below.
+
+2. What you may do
+
+   You may use, copy, run, modify, merge, combine, translate, rebalance, port and
+   Distribute the Game and Modified Versions, Free of Charge, for personal and
+   non-commercial purposes, provided you meet the conditions in sections 3 and 4.
+
+   This includes the normal reasons people fork a game: fixing bugs, adding units, maps,
+   modes, languages, graphics, tools, servers and quality-of-life changes, and publishing
+   those changes for everyone.
+
+3. Conditions — every version stays free
+
+   a) Free of Charge. You may not sell, rent, sublicense for payment, or otherwise charge
+      for the Game or for a Modified Version, and you may not require payment, a
+      subscription, a donation or watching ads to download, access or play it.
+
+   b) Keep the notice and this license. Every copy and every Modified Version you
+      Distribute must include this LICENSE file unmodified and the copyright notice above.
+      If you distribute source code, these must be kept in the source too.
+
+   c) Say that you changed it. A Modified Version must clearly state that it is modified
+      and is not the official Space Arenas release, and must not imply that it was made or
+      endorsed by the original author.
+
+   d) Pass on the same terms. Everyone who receives the Game or a Modified Version from
+      you receives the same rights and the same limits under this license. You may not
+      relicense a Modified Version on terms that would allow charging money for it.
+
+4. Assets and the project name
+
+   a) Ownership. The Assets remain the property of the copyright holder. This license
+      grants you permission to use them inside the Game — it does not transfer ownership
+      of them to you.
+
+   b) Inside the game. You may use and modify the Assets as part of the Game and as part
+      of a Modified Version that stays Free of Charge under section 3. Editing sprites,
+      remixing the music or replacing art in your own version is allowed.
+
+   c) In your own projects. You may also use the Assets in an unrelated project of your
+      own, as long as that project is Free of Charge in the sense of section 3 and you
+      credit the original author where a user can reasonably find it (an about screen, a
+      credits list or a readme) — for example "Sprites and music from Space Arenas by
+      SDevRami". You may not sell the Assets, charge for access to a project that uses
+      them, or ship them in a paid product, a paid asset pack, a paid store listing or
+      merchandise.
+
+   d) The name and logo. You may not use the "Space Arenas" name or logo as the name of
+      your own project or version, or in any way that suggests it is the official release
+      or is endorsed by the original author. A credit such as
+      "«Your Title» — based on Space Arenas" is welcome and encouraged.
+
+   e) Contributions. By submitting a change to this repository you agree that your
+      contribution is licensed under this license, and you confirm you have the right to
+      submit it — including any code, artwork, sound or music you add.
+
+5. What is not permitted
+
+   Commercial use of the Game, of a Modified Version, or of the Assets is not permitted.
+   That includes selling the game or its code, bundling it into a paid product, charging
+   for hosting or access, distributing it with advertising or sponsorships, and running it
+   as a paid service. If you want to use Space Arenas commercially, contact the copyright
+   holder for separate written permission.
+
+6. No warranty
+
+   The Game is provided "as is", without warranty of any kind, express or implied,
+   including but not limited to the warranties of merchantability, fitness for a
+   particular purpose, title and non-infringement. The copyright holder does not warrant
+   that the Game will work correctly, be free of bugs or be fit for any purpose. You use
+   it at your own risk.
+
+7. Limitation of liability
+
+   To the maximum extent permitted by law, the copyright holder and contributors are not
+   liable for any claim, damage or other liability — including lost data, lost saves or
+   lost time — whether in an action of contract, tort or otherwise, arising from, out of
+   or in connection with the Game or its use. Because the Game is provided free of charge,
+   this liability is limited to the amount you paid for it, which is zero.
+
+8. Termination
+
+   Your rights under this license end automatically if you break any of its terms, for
+   example by selling the Game or by removing the credits. They are restored if you stop
+   breaking them and come back into compliance. Sections 6 and 7 survive termination.
+
+9. Contact
+
+   Questions about this license, or a request for commercial permission:
+   https://github.com/SDevRami/space-arenas/issues
+
+Space Arenas License 1.0 — last updated October 20, 2026.
