@@ -270,6 +270,112 @@ const EN = {
   'cat.upgrades.emp-level.desc': 'Overcharges the EMP radius and effect.',
   'footer.desc': 'Open-source real-time strategy game. Report issues on GitHub.',
   'footer.rights': 'Made with ♪ — play, mod, share.',
+  'footer.terms': 'Terms of Use',
+  'footer.privacy': 'Privacy Policy',
+  'footer.contact': 'Contact',
+  'legal.updated': 'Last updated: October 20, 2026',
+
+  // ---- Terms of Use (terms.html) ----
+  'terms.docTitle': 'Terms of Use · Space Arenas',
+  'terms.title': 'Terms of Use',
+  'terms.intro':
+    'Space Arenas is an open-source real-time strategy game. These Terms cover the game, the website at https://sdevrami.github.io/space-arenas (the “Site”) and the online service behind it — lobbies, leaderboards, the community repository (the “Service”). Please read them before you play online.',
+  'terms.s1.title': '1. Acceptance',
+  'terms.s1.text':
+    'By using the Site, creating an account or playing online, you agree to these Terms. If you do not agree, do not use the Service — the offline game and its source code stay available under the repository’s licence.',
+  'terms.s2.title': '2. About the Service',
+  'terms.s2.text':
+    'The Service is a free, non-commercial, volunteer-run project. It is not required to play: single-player and local games run in your browser without an account. An account is only needed for online lobbies, the leaderboard, encrypted backups and publishing to the community repository.',
+  'terms.s3.title': '3. Eligibility and your account',
+  'terms.s3.text':
+    'You must be at least 13 years old (or the minimum age of digital consent in your country) to create an account. Accounts are created by signing in with Google inside the game — we never see or store your Google password. Keep your Google account secure: anyone who can sign in with it can use your Space Arenas account. Use one account per person; do not share, buy, sell or transfer accounts, and do not create accounts automatically or in bulk.',
+  'terms.s4.title': '4. Acceptable use',
+  'terms.s4.text':
+    'You agree not to: cheat, modify the client for an advantage, or exploit bugs in ranked or verified matches; tamper with the online protocol, the server or other players’ clients; publish content that is unlawful, hateful, harassing, sexually explicit, or that infringes someone else’s rights; impersonate the developers or other players, or take a reserved username; attack, overload, scrape or otherwise abuse the Service or its API, or try to reach data or accounts that are not yours; distribute malware or anything that harms other players.',
+  'terms.s5.title': '5. Usernames and profiles',
+  'terms.s5.text':
+    'Your username is your public handle in lobbies, on the leaderboard and on everything you publish. It must be 1–24 characters and is unique regardless of letter case. We may reserve, refuse, rename or reclaim usernames that are misleading, offensive, impersonating, or that infringe rights. Profiles show your username and gameplay statistics only.',
+  'terms.s6.title': '6. Content you publish',
+  'terms.s6.text':
+    'When you publish a balance mod or map, or post a rating or comment, you keep ownership of it. You grant the project a worldwide, non-exclusive, royalty-free licence to store, display, distribute and let other players download that content as part of the Service. You confirm you own it or have the rights to share it, and that it breaks no law or third-party licence (including the licences of any assets you used).',
+  'terms.s7.title': '7. Downloads and third-party content',
+  'terms.s7.text':
+    'Community mods and maps are made by other players and are provided “as is”, without review or warranty. Downloading and using them is at your own risk — they can change game balance in unexpected ways. Download only from this Site or through the in-game repository, and report anything harmful.',
+  'terms.s8.title': '8. Fair play',
+  'terms.s8.text':
+    'Ranked matches record settings and results, and clients that tamper with these values are flagged. If we reasonably believe a result came from cheating, exploiting or tampering, we may reject or void the result, adjust statistics, remove published content, or restrict access to online features. This is a manual human decision, not an automatic punishment system.',
+  'terms.s9.title': '9. Availability and changes',
+  'terms.s9.text':
+    'The Service is free and provided on a best-effort basis. Features may change, break or be discontinued at any time, including permanent removal of online features, leaderboard resets or data loss. We try to announce significant changes in the repository, but we cannot promise uninterrupted availability.',
+  'terms.s10.title': '10. Intellectual property',
+  'terms.s10.text':
+    'The game’s source code, artwork, sounds and website are released under the licence stated in the project repository. The “Space Arenas” name and logos belong to the project maintainer. Third-party parts (for example Google sign-in, Supabase, GitHub Pages) stay under their own terms.',
+  'terms.s11.title': '11. Disclaimer of warranties',
+  'terms.s11.text':
+    'The Site, the Service and all community content are provided “as is” and “as available”, without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose and non-infringement. We do not warrant that the Service will be error-free, secure or uninterrupted, or that data — backups, statistics or published content — will never be lost.',
+  'terms.s12.title': '12. Limitation of liability',
+  'terms.s12.text':
+    'To the maximum extent permitted by law, the maintainer and contributors are not liable for indirect, incidental, special, consequential or punitive damages, or for lost data, progress or profits, arising from your use of the Service — even if advised of the possibility. Because the Service is free, our total liability for any claim is limited to what you paid us: zero. Nothing here limits rights you have under mandatory consumer law in your country.',
+  'terms.s13.title': '13. Suspension and termination',
+  'terms.s13.text':
+    'You may stop using the Service at any time. We may suspend or end access to online features if these Terms are broken, or to protect the Service and its players. To have your account and related data deleted, use the contact channel below.',
+  'terms.s14.title': '14. Changes to these Terms',
+  'terms.s14.text':
+    'We may update these Terms as the Service evolves. The new version appears on this page with a new “last updated” date, and material changes are noted in the repository. Continuing to use the Service after a change means you accept the updated Terms.',
+  'terms.s15.title': '15. Contact',
+  'terms.s15.text': 'Questions about these Terms: open an issue at https://github.com/SDevRami/space-arenas/issues.',
+
+  // ---- Privacy Policy (privacy.html) ----
+  'privacy.docTitle': 'Privacy Policy · Space Arenas',
+  'privacy.title': 'Privacy Policy',
+  'privacy.s1.title': '1. Privacy at a glance',
+  'privacy.s1.text':
+    'We collect as little as possible. To play online you sign in with Google, and we store the email address Google returns, the username you choose, your match statistics, and anything you deliberately publish (mods, maps, ratings, comments) or save (encrypted backups). We do not sell your data, we run no advertising and no third-party analytics, and the website works with no account at all.',
+  'privacy.s2.title': '2. Who we are and what this covers',
+  'privacy.s2.text':
+    'Space Arenas is an open-source, non-commercial game project. This policy explains how the website (the “Site”) and the online service behind it (the “Service”) handle personal data. The offline game needs no account and sends your data nowhere. The project maintainer (see Contact) is the controller for the Service.',
+  'privacy.s3.title': '3. Information you give us',
+  'privacy.s3.text':
+    'Account: when you sign in with Google we receive your Google account identifier, your email address and the basic profile Google shares (name and profile picture) — used to create your account and confirm it is yours. We never receive your Google password. You then choose a public username. Content: balance mods and maps you publish, ratings and comments you post, and — if you use them — encrypted backups of your game settings and profile. Support messages: whatever you include when you contact us, for example in a GitHub issue.',
+  'privacy.s4.title': '4. Information created by playing',
+  'privacy.s4.text':
+    'Match records (map, winner, participants, scores), your profile counters (matches played, wins, high score) and leaderboard entries. These make the leaderboard and match history work, and are visible to other players together with your username.',
+  'privacy.s5.title': '5. Technical information',
+  'privacy.s5.text':
+    'Like any web service, the server sees the IP address and basic request details of connections (path, time, browser), used to enforce rate limits and prevent abuse. WebSocket connections are counted for capacity. Traffic inside a live match is relayed between players and is not stored. Server logs are short-lived and are not used to profile you.',
+  'privacy.s6.title': '6. Storage in your browser',
+  'privacy.s6.text':
+    'The Site and the game keep small amounts of data in your browser’s local storage: your chosen language, a short-lived cache of the public mod/map list, and (in the game) your session token and settings. This is functional storage, not tracking. We use no advertising cookies, no cross-site trackers and no third-party analytics.',
+  'privacy.s7.title': '7. What we do not do',
+  'privacy.s7.text':
+    'We do not sell or rent personal data; we run no ads or email marketing; we do not track you across other websites; we do not collect passwords (sign-in goes through Google); and we do not build advertising profiles.',
+  'privacy.s8.title': '8. Google sign-in and third-party services',
+  'privacy.s8.text':
+    'Sign-in is handled by Google (OAuth) through Supabase Auth. Data is stored and processed by: Supabase (authentication and database hosting), Render (hosting the online API — lobbies, leaderboards, repositories), GitHub Pages / GitHub (hosting the Site and the source repository) and Google (sign-in and consent screen). Each has its own terms and privacy policy. We share data with them only to run the Service, and we do not permit them to use it for their own advertising.',
+  'privacy.s9.title': '9. How we use your information',
+  'privacy.s9.text':
+    'To create and secure your account; run lobbies, rankings and backups; show and distribute community content; prevent cheating and abuse; answer your requests; and comply with the law. Where the GDPR applies we rely on performance of a contract (running the Service you signed up for), legitimate interests (security, abuse prevention) and, where required, your consent — which you can withdraw at any time simply by using the game without an account.',
+  'privacy.s10.title': '10. How long we keep it',
+  'privacy.s10.text':
+    'Profile, statistics and published content stay while your account exists. Match records are kept for leaderboard history, but the match table is capped to a limited number of the newest rows. Backups expire automatically. Transient request logs are kept only as long as needed for security. Deleting your account deletes the rows linked to it (profile, statistics, leaderboard entry, backups).',
+  'privacy.s11.title': '11. Your rights and deleting your data',
+  'privacy.s11.text':
+    'You can see your statistics in the game, change your username in the game lobby, and ask for access, correction, export or deletion through the contact channel below. In the EEA/UK you may also object, ask us to restrict processing, and complain to your local data protection authority. We carry out deletion requests by removing your profile and the rows linked to it, and removing your username from retained match history on request. As a free, volunteer-run service, please allow reasonable time.',
+  'privacy.s12.title': '12. Children',
+  'privacy.s12.text':
+    'The Service is not directed at children under 13 (or the minimum age of digital consent in your country). We do not knowingly create accounts for them; if you believe a child has an account, contact us and we will delete it.',
+  'privacy.s13.title': '13. Security',
+  'privacy.s13.text':
+    'Data travels over HTTPS, server-side secrets (database service keys) never reach your browser, backups are encrypted with a passphrase that never leaves your device (we store only a hash so a wrong passphrase is rejected), room passwords are compared as hashes, and database access is restricted. No system is perfectly secure.',
+  'privacy.s14.title': '14. International transfers',
+  'privacy.s14.text':
+    'Our providers (Supabase, Render, GitHub, Google) may process and store data outside your country, including in the United States and the European Union, under standard contractual or equivalent safeguards.',
+  'privacy.s15.title': '15. Changes to this policy',
+  'privacy.s15.text':
+    'We may update this policy when the Service changes. The new version is posted here with a new date; material changes are noted in the repository.',
+  'privacy.s16.title': '16. Contact',
+  'privacy.s16.text': 'Privacy questions and data requests: open an issue at https://github.com/SDevRami/space-arenas/issues.',
+
   'lang.other': 'العربية',
 }
 
@@ -531,6 +637,111 @@ const AR = {
   'cat.upgrades.emp-level.desc': 'يزيد نصف قطر وأثر النبضة الكهرومغناطيسية.',
   'footer.desc': 'لعبة استراتيجية مفتوحة المصدر. أبلغ عن المشاكل على GitHub.',
   'footer.rights': 'صُنعت بحب ♪ — العب، عدّل، شارك.',
+  'footer.terms': 'شروط الاستخدام',
+  'footer.privacy': 'سياسة الخصوصية',
+  'footer.contact': 'تواصل',
+  'legal.updated': 'آخر تحديث: 20 أكتوبر 2026',
+
+  // ---- شروط الاستخدام (terms.html) ----
+  'terms.docTitle': 'شروط الاستخدام · ساحات الفضاء',
+  'terms.title': 'شروط الاستخدام',
+  'terms.intro':
+    'ساحات الفضاء لعبة استراتيجية مفتوحة المصدر في الزمن الحقيقي. تغطي هذه الشروط اللعبة، والموقع على https://sdevrami.github.io/space-arenas («الموقع»)، والخدمة على الإنترنت التي تدعمها — القاعات، ولوحة المتصدرين، ومستودع المجتمع («الخدمة»). يُرجى قراءتها قبل اللعب عبر الإنترنت.',
+  'terms.s1.title': '1. الموافقة',
+  'terms.s1.text':
+    'باستخدامك الموقع، أو إنشاء حساب، أو اللعب عبر الإنترنت، فإنك توافق على هذه الشروط. وإذا لم توافق، فلا تستخدم الخدمة — تظل اللعبة دون اتصال وشيفرتها المصدرية متاحة وفق ترخيص المستودع.',
+  'terms.s2.title': '2. عن الخدمة',
+  'terms.s2.text':
+    'الخدمة مشروع مجاني غير تجاري يديره متطوعون. وهي ليست ضرورية للعب: فاللعب الفردي والمحلي يعمل في متصفحك دون حساب. ولا يلزم الحساب إلا للقاعات عبر الإنترنت، ولوحة المتصدرين، والنسخ الاحتياطية المشفّرة، والنشر في مستودع المجتمع.',
+  'terms.s3.title': '3. الأهلية وحسابك',
+  'terms.s3.text':
+    'يجب أن يكون عمرك 13 عاماً على الأقل (أو الحد الأدنى لعمر الموافقة الرقمية في بلدك) لإنشاء حساب. تُنشأ الحسابات بتسجيل الدخول عبر Google داخل اللعبة — ولا نرى كلمة مرور Google أو نخزّنها أبداً. حافظ على أمان حساب Google الخاص بك: فمن يستطيع تسجيل الدخول به يستطيع استخدام حسابك في ساحات الفضاء. استخدم حساباً واحداً لكل شخص؛ ولا تشارك الحسابات أو تبيعها أو تشتريها أو تنقلها، ولا تنشئ حسابات تلقائياً أو بالجملة.',
+  'terms.s4.title': '4. الاستخدام المقبول',
+  'terms.s4.text':
+    'أنت توافق على ألا تقوم بـ: الغش، أو تعديل العميل للحصول على ميزة، أو استغلال الأخطاء في المباريات المصنّفة أو المتحقَّق منها؛ أو العبث بالبروتوكول أو الخادم أو عملاء اللاعبين الآخرين؛ أو نشر محتوى غير قانوني أو كراهية أو تحرّش أو جنسي صريح أو ينتهك حقوق الآخرين؛ أو انتحال شخصية المطوّرين أو اللاعبين الآخرين، أو استخدام اسم محجوز؛ أو مهاجمة الخدمة أو واجهتها أو إثقالها أو كشطها أو إساءة استخدامها بأي شكل، أو محاولة الوصول إلى بيانات أو حسابات لا تخصّك؛ أو توزيع برمجيات خبيثة أو أي شيء يضر اللاعبين الآخرين.',
+  'terms.s5.title': '5. أسماء المستخدمين والملفات الشخصية',
+  'terms.s5.text':
+    'اسم المستخدم هو معرّفك العام في القاعات وعلى لوحة المتصدرين وعلى كل ما تنشره. يجب أن يكون من 1 إلى 24 حرفاً، وهو فريد بصرف النظر عن حالة الأحرف. ويحق لنا حجز أو رفض أو تغيير أو استعادة الأسماء المضلّلة أو المسيئة أو المنتحِلة أو المنتهِكة للحقوق. وتعرض الملفات الشخصية اسم المستخدم وإحصاءات اللعب فقط.',
+  'terms.s6.title': '6. المحتوى الذي تنشره',
+  'terms.s6.text':
+    'عند نشرك تعديل توازن أو خريطة، أو إضافة تقييم أو تعليق، تظل مالكاً له. وتمنح المشروع ترخيصاً عالمياً غير حصري وبلا مقابل لتخزين ذلك المحتوى وعرضه وتوزيعه والسماح للاعبين الآخرين بتنزيله كجزء من الخدمة. وأنت تؤكد أنك تملكه أو لديك حقوق مشاركته، وأنه لا يخالف أي قانون أو ترخيص طرف ثالث (بما في ذلك تراخيص أي أصول استخدمتها).',
+  'terms.s7.title': '7. التنزيلات ومحتوى الغير',
+  'terms.s7.text':
+    'تعديلات وخرائط المجتمع من صنع لاعبين آخرين، وتُقدَّم «كما هي» دون مراجعة أو ضمان. وتنزيلها واستخدامها على مسؤوليتك — فقد تغيّر توازن اللعبة بطرق غير متوقعة. نزّل فقط من هذا الموقع أو من خلال المستودع داخل اللعبة، وأبلغ عن أي شيء ضار.',
+  'terms.s8.title': '8. اللعب النزيه',
+  'terms.s8.text':
+    'تسجّل المباريات المصنّفة الإعدادات والنتائج، وتُوسَم العملاء التي تتلاعب بهذه القيم. وإذا اعتقدنا بشكل معقول أن نتيجة ما جاءت بالغش أو الاستغلال أو التلاعب، فقد نرفض النتيجة أو نبطلها، أو نعدّل الإحصاءات، أو نحذف المحتوى المنشور، أو نقيّد الوصول إلى الميزات عبر الإنترنت. وهذا قرار بشري يدوي، وليس نظام عقوبات تلقائياً.',
+  'terms.s9.title': '9. التوفّر والتغييرات',
+  'terms.s9.text':
+    'الخدمة مجانية وتُقدَّم على أساس أفضل جهد. وقد تتغير الميزات أو تتعطل أو تتوقف في أي وقت، بما في ذلك الإزالة الدائمة لميزات الإنترنت أو إعادة ضبط لوحة المتصدرين أو فقدان البيانات. ونحاول الإعلان عن التغييرات المهمة في المستودع، لكننا لا نضمن توفّراً متواصلاً.',
+  'terms.s10.title': '10. الملكية الفكرية',
+  'terms.s10.text':
+    'تُنشر شيفرة اللعبة ورسوماتها وأصواتها وموقعها وفق الترخيص المذكور في مستودع المشروع. أما اسم «ساحات الفضاء» وشعاراتها فتملُكها جهة صيانة المشروع. وتبقى الأجزاء الخارجية (مثل تسجيل الدخول عبر Google وSupabase وGitHub Pages) تحت شروطها الخاصة.',
+  'terms.s11.title': '11. إخلاء المسؤولية عن الضمانات',
+  'terms.s11.text':
+    'يُقدَّم الموقع والخدمة وكل محتوى المجتمع «كما هي» و«حسب التوفّر»، دون أي ضمانات صريحة أو ضمنية، بما في ذلك القابلية للتسويق والملاءمة لغرض معين وعدم الانتهاك. ولا نضمن أن تكون الخدمة خالية من الأخطاء أو آمنة أو متواصلة، ولا أن البيانات — النسخ الاحتياطية أو الإحصاءات أو المحتوى المنشور — لن تُفقد أبداً.',
+  'terms.s12.title': '12. حدود المسؤولية',
+  'terms.s12.text':
+    'إلى الحد الأقصى الذي يسمح به القانون، لا تتحمل جهة الصيانة والمساهمون مسؤولية أي أضرار غير مباشرة أو عرضية أو خاصة أو تبعية أو تأديبية، ولا فقدان البيانات أو التقدم أو الأرباح، الناتجة عن استخدامك للخدمة — حتى مع إبلاغهم بإمكان حدوث ذلك. ولأن الخدمة مجانية، فإن مسؤوليتنا الإجمالية عن أي مطالبة تقتصر على ما دفعتَه لنا: صفر. ولا يحد أي شيء هنا من حقوقك بموجب قوانين حماية المستهلك الإلزامية في بلدك.',
+  'terms.s13.title': '13. التعليق والإنهاء',
+  'terms.s13.text':
+    'يمكنك التوقف عن استخدام الخدمة في أي وقت. ويحق لنا تعليق أو إنهاء الوصول إلى الميزات عبر الإنترنت إذا خُرقت هذه الشروط، أو لحماية الخدمة ولاعبيها. ولحذف حسابك وبياناتك المرتبطة به، استخدم قناة التواصل أدناه.',
+  'terms.s14.title': '14. تغييرات هذه الشروط',
+  'terms.s14.text':
+    'قد نحدّث هذه الشروط مع تطور الخدمة. وتظهر النسخة الجديدة على هذه الصفحة بتاريخ «آخر تحديث» جديد، وتُذكر التغييرات الجوهرية في المستودع. واستمرارك في استخدام الخدمة بعد التغيير يعني قبولك للشروط المحدَّثة.',
+  'terms.s15.title': '15. التواصل',
+  'terms.s15.text': 'للأسئلة حول هذه الشروط: افتح بلاغاً على https://github.com/SDevRami/space-arenas/issues.',
+
+  // ---- سياسة الخصوصية (privacy.html) ----
+  'privacy.docTitle': 'سياسة الخصوصية · ساحات الفضاء',
+  'privacy.title': 'سياسة الخصوصية',
+  'privacy.s1.title': '1. الخصوصية باختصار',
+  'privacy.s1.text':
+    'نجمع أقل قدر ممكن. للعب عبر الإنترنت تسجّل الدخول عبر Google، ونحتفظ ببريدك الإلكتروني الذي يعيده Google، واسم المستخدم الذي تختاره، وإحصاءات مبارياتك، وكل ما تنشره عمداً (تعديلات، خرائط، تقييمات، تعليقات) أو تحفظه (نسخ احتياطية مشفّرة). ولا نبيع بياناتك، ولا نشغّل إعلانات ولا تحليلات من أطراف ثالثة، ويعمل الموقع دون أي حساب على الإطلاق.',
+  'privacy.s2.title': '2. من نحن وما الذي تشمله هذه السياسة',
+  'privacy.s2.text':
+    'ساحات الفضاء مشروع لعبة مفتوح المصدر وغير تجاري. توضّح هذه السياسة كيف يتعامل الموقع («الموقع») والخدمة على الإنترنت التي تدعمه («الخدمة») مع البيانات الشخصية. أما اللعبة دون اتصال فلا تحتاج إلى حساب ولا ترسل بياناتك إلى أي مكان. وجهة صيانة المشروع (انظر التواصل) هي المتحكّم بالخدمة.',
+  'privacy.s3.title': '3. معلومات تقدّمها لنا',
+  'privacy.s3.text':
+    'الحساب: عند تسجيل الدخول عبر Google نتلقى معرّف حساب Google وبريدك الإلكتروني والملف الأساسي الذي يشاركه Google (الاسم والصورة) — ويُستخدم لإنشاء حسابك والتأكد من أنه لك. ولا نتلقى كلمة مرور Google أبداً. ثم تختار اسم مستخدم عاماً. المحتوى: تعديلات التوازن والخرائط التي تنشرها، والتقييمات والتعليقات التي تضعها، وأيضاً — إن استخدمتها — نسخ احتياطية مشفّرة لإعدادات لعبتك وملفك. رسائل الدعم: أي شيء تضمّنه عند تواصلك معنا، مثل بلاغ على GitHub.',
+  'privacy.s4.title': '4. معلومات تُنشأ باللعب',
+  'privacy.s4.text':
+    'سجلات المباريات (الخريطة، الفائز، المشاركون، النتائج)، وعدّادات ملفك (المباريات، الانتصارات، أعلى نتيجة)، ومدخلات لوحة المتصدرين. وتُستخدم لجعل لوحة المتصدرين وسجل المباريات يعملان، وتظهر للاعبين الآخرين مع اسم المستخدم الخاص بك.',
+  'privacy.s5.title': '5. معلومات تقنية',
+  'privacy.s5.text':
+    'مثل أي خدمة ويب، يرى الخادم عنوان IP وتفاصيل الطلب الأساسية للاتصالات (المسار، الوقت، المتصفح)، وتُستخدم لفرض حدود المعدل ومنع الإساءة. وتُعدّ اتصالات WebSocket لأغراض السعة. أما حركة المرور داخل المباراة الجارية فتُمرَّر بين اللاعبين ولا تُخزَّن. وسجلات الخادم مؤقتة ولا تُستخدم لبناء ملف عنك.',
+  'privacy.s6.title': '6. التخزين في متصفحك',
+  'privacy.s6.text':
+    'يحفظ الموقع واللعبة كميات صغيرة من البيانات في التخزين المحلي لمتصفحك: لغتك المختارة، وذاكرة مؤقتة قصيرة لقائمة التعديلات والخرائط العامة، و(في اللعبة) رمز جلستك وإعداداتك. وهذا تخزين وظيفي لا تتبّع. ولا نستخدم أي ملفات تعريف إعلانية أو أدوات تتبّع عبر المواقع أو تحليلات من أطراف ثالثة.',
+  'privacy.s7.title': '7. ما لا نقوم به',
+  'privacy.s7.text':
+    'لا نبيع البيانات الشخصية أو نؤجّرها؛ ولا نشغّل إعلانات أو تسويقاً بالبريد؛ ولا نتتبّعك عبر مواقع أخرى؛ ولا نجمع كلمات المرور (فالتسجيل يتم عبر Google)؛ ولا نبني ملفات إعلانية.',
+  'privacy.s8.title': '8. تسجيل الدخول عبر Google والخدمات الخارجية',
+  'privacy.s8.text':
+    'يُدار تسجيل الدخول بواسطة Google (OAuth) عبر Supabase Auth. ويجري تخزين البيانات ومعالجتها لدى: Supabase (المصادقة واستضافة قاعدة البيانات)، وRender (استضافة واجهة الإنترنت — القاعات، لوحة المتصدرين، المستودعات)، وGitHub Pages / GitHub (استضافة الموقع والمستودع المصدري)، وGoogle (تسجيل الدخول وشاشة الموافقة). ولكل منهم شروطه وسياسة خصوصيته. ولا نشارك البيانات معهم إلا لتشغيل الخدمة، ولا نمنحهم إذناً باستخدامها في إعلاناتهم الخاصة.',
+  'privacy.s9.title': '9. كيف نستخدم معلوماتك',
+  'privacy.s9.text':
+    'لإنشاء حسابك وتأمينه؛ وتشغيل القاعات والترتيب والنسخ الاحتياطية؛ وعرض محتوى المجتمع وتوزيعه؛ ومنع الغش والإساءة؛ والرد على طلباتك؛ والامتثال للقانون. وحيثما ينطبق النظام الأوروبي (GDPR) نعتمد على تنفيذ العقد (تشغيل الخدمة التي سجّلت فيها)، والمصالح المشروعة (الأمان ومنع الإساءة)، وعند الاقتضاء موافقتك — ويمكنك سحبها في أي وقت بمجرد استخدام اللعبة دون حساب.',
+  'privacy.s10.title': '10. مدة الاحتفاظ',
+  'privacy.s10.text':
+    'تبقى الملفات والإحصاءات والمحتوى المنشور ما دام حسابك قائماً. وتُحفظ سجلات المباريات لتاريخ لوحة المتصدرين، ولكن جدول المباريات محدود بعدد معيّن من أحدث الصفوف. وتنتهي النسخ الاحتياطية تلقائياً. وتُحفظ سجلات الطلبات المؤقتة للمدة اللازمة للأمان فقط. وحذف حسابك يحذف الصفوف المرتبطة به (الملف، الإحصاءات، مدخل لوحة المتصدرين، النسخ الاحتياطية).',
+  'privacy.s11.title': '11. حقوقك وحذف بياناتك',
+  'privacy.s11.text':
+    'يمكنك رؤية إحصاءاتك في اللعبة، وتغيير اسم المستخدم في قاعة اللعب، وطلب الوصول إلى بياناتك أو تصحيحها أو تصديرها أو حذفها عبر قناة التواصل أدناه. وفي المنطقة الاقتصادية الأوروبية والمملكة المتحدة يمكنك أيضاً الاعتراض وطلب تقييد المعالجة والشكوى إلى سلطة حماية البيانات المحلية. وننفّذ طلبات الحذف بإزالة ملفك والصفوف المرتبطة به، وبإزالة اسم المستخدم من سجل المباريات المحفوظ عند الطلب. ولأن الخدمة مجانية ويديرها متطوعون، يُرجى منحنا وقتاً معقولاً.',
+  'privacy.s12.title': '12. الأطفال',
+  'privacy.s12.text':
+    'الخدمة غير موجّهة للأطفال دون 13 عاماً (أو الحد الأدنى لعمر الموافقة الرقمية في بلدك). ولا ننشئ حسابات لهم عن علم؛ وإذا كنت تعتقد أن طفلاً لديه حساب، فتواصل معنا وسنحذفه.',
+  'privacy.s13.title': '13. الأمان',
+  'privacy.s13.text':
+    'تنتقل البيانات عبر HTTPS، ولا تصل أسرار الخادم (مفاتيح خدمة قاعدة البيانات) إلى متصفحك أبداً، وتُشفَّر النسخ الاحتياطية بعبارة مرور لا تغادر جهازك أبداً (ولا نخزّن سوى بصمة للتحقق لرفض عبارة المرور الخاطئة)، وتُقارن كلمات مرور الغرف كبصمات، والوصول إلى قاعدة البيانات مقيّد. ولا يوجد نظام آمن تماماً.',
+  'privacy.s14.title': '14. النقل الدولي',
+  'privacy.s14.text':
+    'قد يعالج مزوّدونا (Supabase وRender وGitHub وGoogle) البيانات ويخزّنونها خارج بلدك، بما في ذلك في الولايات المتحدة والاتحاد الأوروبي، وفق ضمانات تعاقدية قياسية أو مكافئة.',
+  'privacy.s15.title': '15. تغييرات هذه السياسة',
+  'privacy.s15.text':
+    'قد نحدّث هذه السياسة عند تغيّر الخدمة. وتُنشر النسخة الجديدة هنا بتاريخ جديد؛ وتُذكر التغييرات الجوهرية في المستودع.',
+  'privacy.s16.title': '16. التواصل',
+  'privacy.s16.text': 'أسئلة الخصوصية وطلبات البيانات: افتح بلاغاً على https://github.com/SDevRami/space-arenas/issues.',
   'lang.other': 'English',
 }
 

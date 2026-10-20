@@ -846,6 +846,58 @@ code {
   margin: 6px 0 0;
 }
 
+.footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+  margin-top: 12px;
+}
+
+.footer-nav a {
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.footer-nav a:hover,
+.footer-nav a:focus-visible {
+  color: var(--accent);
+  border-bottom-color: currentColor;
+}
+
+/* Long-form legal pages (Terms of Use, Privacy Policy). */
+.legal {
+  max-width: 800px;
+}
+
+.legal-updated {
+  margin: 4px 0 22px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.legal-lede {
+  margin: 0 0 28px;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.legal h2 {
+  margin: 30px 0 10px;
+  font-size: 1.12rem;
+  color: var(--text);
+}
+
+.legal p {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.legal a {
+  color: var(--accent);
+}
+
 @media (max-width: 640px) {
   .hero-title {
     font-size: 1.9rem;
