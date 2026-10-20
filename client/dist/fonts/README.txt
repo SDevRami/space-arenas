@@ -39,6 +39,10 @@ that allows redistribution. With a licence of your own:
      under both fonts folders — committing them would redistribute the font and
      breach its licence.
 
+Tip: the same `README.txt` and `OFL-*.txt` files are copied to
+`online/public/fonts` for the website. If you add a font here for the game, copy
+it there too — the site's `online/public/styles.css` uses the same two stacks.
+
 Free alternatives to Klapt Arabic, if you would rather not license it: Kufam
 (already bundled), Reem Kufi, Noto Kufi Arabic, Cairo, Tajawal, Almarai — all on
 Google Fonts under the SIL Open Font License.
