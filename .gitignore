@@ -41,6 +41,13 @@ mods/
 # real source dir client/src/profile/ (which main.ts imports).
 /profile/
 
+# --- Licensed commercial webfonts (never committed) ---
+# "Klapt Arabic" (SevenType) is a paid typeface. If you own a web licence you may
+# drop it into the fonts folders locally; committing it would redistribute it.
+# See client/public/fonts/README.txt.
+client/public/fonts/*[Kk]lapt*
+client/dist/fonts/*[Kk]lapt*
+
 # --- Internal dev process (not part of the game) ---
 done_list.md
 AI-INSTRUCTIONS.md

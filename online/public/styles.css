@@ -1,3 +1,59 @@
+/* ------------------------------------------------------------------ fonts --
+   The same two families the game bundles, served from this folder so the site
+   needs no third-party font request. Audiowide for English, Kufam for Arabic —
+   a free Kufic-flavoured stand-in for the commercial "Klapt Arabic" typeface,
+   which is named first in the Arabic stack and is used automatically if a
+   licensed copy ("Klapt Arabic") happens to be installed on the device.        */
+@font-face {
+  font-family: "Audiowide";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/Audiowide-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Audiowide";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/Audiowide-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Kufam";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./fonts/Kufam-arabic.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF,
+    U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: "Kufam";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./fonts/Kufam-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Kufam";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./fonts/Kufam-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
   --bg: #0b1020;
   --bg-alt: #101731;
@@ -9,6 +65,17 @@
   --star: #ffc857;
   --radius: 14px;
   --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  /* UI font, picked per language below. */
+  --font-ui: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+html[lang="en"] {
+  --font-ui: "Audiowide", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial,
+    sans-serif;
+}
+
+html[lang="ar"] {
+  --font-ui: "Klapt Arabic", "Kufam", "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
 }
 
 * {
@@ -25,7 +92,7 @@ html {
 
 body {
   margin: 0;
-  font-family: "Segoe UI", system-ui, -apple-system, "Noto Sans Arabic", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-ui);
   color: var(--text);
   background:
     radial-gradient(1200px 600px at 80% -10%, rgba(77, 208, 255, 0.14), transparent 60%),
@@ -36,7 +103,7 @@ body {
 }
 
 [dir="rtl"] body {
-  font-family: "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-ui);
 }
 
 .wrap {
