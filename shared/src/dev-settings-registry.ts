@@ -156,6 +156,15 @@ export const DEV_SCALAR_SECTIONS: DevScalarSectionDef[] = [
     ],
   },
   {
+    title: 'rank',
+    fields: [
+      { key: 'rankFloor1', unit: 'score', min: 0, max: 100000, step: 100 },
+      { key: 'rankFloor2', unit: 'score', min: 0, max: 100000, step: 100 },
+      { key: 'rankFloor3', unit: 'score', min: 0, max: 100000, step: 100 },
+      { key: 'rankUpPrizeCredits', unit: 'credits', min: 0, max: 100000, step: 100 },
+    ],
+  },
+  {
     title: 'worldFields',
     fields: [
       { key: 'supplyFieldRadius', unit: 'cells', min: 0, max: 30, step: 1 },
@@ -258,6 +267,7 @@ export const DEV_OVERRIDE_WEAPON_FIELDS: DevOverrideFieldDef[] = [
 export const DEV_OVERRIDE_UPGRADE_FIELDS: DevOverrideFieldDef[] = [
   { field: 'cost', unit: 'credits', min: 0, max: 1000000, step: 50 },
   { field: 'researchTimeTicks', unit: 'sec', min: 0.1, max: 600, step: 0.5, seconds: true },
+  { field: 'requiredRank', unit: 'levels', min: 0, max: 3, step: 1 },
 ]
 
 /** Host-side clamp table for every numeric `MatchSettings` scalar the host
@@ -290,6 +300,9 @@ export const DEV_SANITIZE: Record<string, { min: number; max: number }> = {
   laserDelayTicksLv1: { min: 0, max: 100000 },
   laserDelayTicksLv2: { min: 0, max: 100000 },
   maxPowerTicks: { min: 1, max: 100000 },
+  rankFloor1: { min: 0, max: 100000 },
+  rankFloor2: { min: 0, max: 100000 },
+  rankFloor3: { min: 0, max: 100000 },
   rankUpPrizeCredits: { min: 0, max: 100000 },
   fogFadeDistance: { min: 0, max: 30 },
   dayNightCycleTicks: { min: 300, max: 36000 },

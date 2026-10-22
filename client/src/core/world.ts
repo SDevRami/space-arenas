@@ -1038,7 +1038,11 @@ export class World {
 
   /** Score threshold needed for the given rank-up (1-based star). */
   rankFloor(rank: number): number {
-    return rank > 0 && rank <= RANK_FLOORS.length ? RANK_FLOORS[rank - 1] : Number.POSITIVE_INFINITY
+    const fromSettings = rank === 1 ? this.settings.rankFloor1
+      : rank === 2 ? this.settings.rankFloor2
+      : rank === 3 ? this.settings.rankFloor3
+      : undefined
+    return fromSettings ?? (rank > 0 && rank <= RANK_FLOORS.length ? RANK_FLOORS[rank - 1] : Number.POSITIVE_INFINITY)
   }
 
   /** Whether the team has scored enough to reach the next star (and isn't maxed). */

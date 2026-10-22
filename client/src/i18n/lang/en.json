@@ -353,6 +353,10 @@
       "annihilation": "Lose when all of your buildings and units are destroyed.",
       "commandCenter": "Lose when your Command Center is destroyed, no matter what."
     },
+    "generalRank": "General rank system",
+    "rankOn": "On (rank-gated upgrades)",
+    "rankOff": "Off (all upgrades available)",
+    "generalRankDesc": "When on, higher-tier research requires the team's general rank (★). When off, every upgrade is available from the start.",
     "addBot": "+ Add Bot",
     "start": "Start Game",
     "cancel": "Cancel",
@@ -572,6 +576,7 @@
     "creditsUpdating": "Updating starting credits…",
     "winChanging": "Changing win condition to {n}…",
     "fogChanging": "Changing fog of war to {n}…",
+    "generalRankChanging": "General rank system {n}…",
     "dayNightOn": "Day/night cycle ON",
     "dayNightOff": "Day/night cycle OFF",
     "coopEconomy": "Alliance economy",

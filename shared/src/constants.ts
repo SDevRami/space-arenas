@@ -359,6 +359,14 @@ export interface MatchSettings {
   coopRank: CoopRank
   /** Day 16: how much allied control is allowed (never overrides a mid-match vote). */
   coopControl: CoopControl
+  /** Whether the general 3-star rank ladder is active in this match. When off,
+   *  every rank-gated upgrade is available regardless of requiredRank. */
+  generalRank: boolean
+  /** Score floor to reach for each rank-up (rank 1★, 2★, 3★). Dev-overridable so
+   *  the host can tune how fast each star unlocks. */
+  rankFloor1: number
+  rankFloor2: number
+  rankFloor3: number
   buildingOverrides: Record<string, BuildingOverrides>
   unitOverrides: Record<string, UnitOverrides>
   weaponOverrides: Record<string, WeaponOverrides>
@@ -475,6 +483,10 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   coopEconomy: 'none',
   coopRank: 'none',
   coopControl: 'none',
+  generalRank: true,
+  rankFloor1: RANK_FLOORS[0],
+  rankFloor2: RANK_FLOORS[1],
+  rankFloor3: RANK_FLOORS[2],
   buildingOverrides: {},
   unitOverrides: {},
   weaponOverrides: {},

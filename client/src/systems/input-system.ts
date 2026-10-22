@@ -1301,7 +1301,7 @@ export const InputSystem = {
             break
           }
           const cost = up.id === 'space-laser' ? world.laserUpgradeCost(player, up.cost) : up.id === 'weapon-upgrade' ? world.weaponUpgradeCost(player, up.cost) : up.id === 'airstrike-level' ? world.airstrikeLevel(player) * 1000 + up.cost : up.id === 'emp-level' ? world.empLevel(player) * 1000 + up.cost : up.cost
-          if (world.rankOf(player) < up.requiredRank) {
+          if (world.settings.generalRank && world.rankOf(player) < up.requiredRank) {
             world.emit({ type: 'command-rejected', player, reason: up.requiredRank + ' star rank required' })
             break
           }

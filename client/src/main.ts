@@ -4796,6 +4796,7 @@ const matchMapPreviewCanvas = document.getElementById('match-map-preview') as HT
 const matchCreditsEl = document.getElementById('match-credits') as HTMLInputElement
 const matchWinRuleEl = document.getElementById('match-win-rule') as HTMLSelectElement
 const matchWinRuleDescEl = document.getElementById('match-win-rule-desc') as HTMLDivElement
+const matchGeneralRankEl = document.getElementById('match-general-rank') as HTMLSelectElement
 const matchPlayersListEl = document.getElementById('match-players-list') as HTMLDivElement
 const matchBotDiffEl = document.getElementById('match-bot-diff') as HTMLSelectElement
 const matchAddBotEl = document.getElementById('match-add-bot') as HTMLButtonElement
@@ -4859,6 +4860,10 @@ const renderMatchOptions = (msg: LobbyMessage, isHost: boolean): void => {
   const coopControl = msg.settings?.coopControl ?? DEFAULT_MATCH_SETTINGS.coopControl
   if ((COOP_CONTROL_OPTIONS as readonly string[]).includes(coopControl)) matchCoopControlEl.value = coopControl
   matchCoopControlEl.disabled = !isHost
+
+  const generalRank = msg.settings?.generalRank ?? DEFAULT_MATCH_SETTINGS.generalRank
+  matchGeneralRankEl.value = String(generalRank)
+  matchGeneralRankEl.disabled = !isHost
 
   matchMapSelectEl.innerHTML = ''
   if (isHost) {
@@ -5113,6 +5118,12 @@ const coopSelect = (el: HTMLSelectElement, key: string, kind: string): void => {
 coopSelect(matchCoopEconomyEl, 'coopEconomy', 'economy')
 coopSelect(matchCoopRankEl, 'coopRank', 'rank')
 coopSelect(matchCoopControlEl, 'coopControl', 'control')
+
+matchGeneralRankEl.addEventListener('change', () => {
+  if (!lobbyState || lobbyState.yourId !== lobbyState.hostId) return
+  net?.updateRoom({ settings: { generalRank: matchGeneralRankEl.value === 'true' } })
+  setMatchStatus(t('match.generalRankChanging', { n: t(`offline.${matchGeneralRankEl.value === 'true' ? 'rankOn' : 'rankOff'}`) }))
+})
 
 matchAddBotEl.addEventListener('click', () => {
   if (!lobbyState || lobbyState.yourId !== lobbyState.hostId) return
