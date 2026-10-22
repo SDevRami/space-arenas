@@ -729,6 +729,10 @@ html[lang='ar'] { --font-ui: 'Klapt Arabic', 'Kufam', ui-monospace, monospace; }
       .sync-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: var(--color-bg); border: 1px solid var(--color-border); }
       .sync-row + .sync-row { margin-top: 6px; }
       .sync-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: var(--color-text); }
+      .sync-row input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--color-border-light); background: var(--color-surface); cursor: pointer; flex: 0 0 auto; position: relative; }
+      .sync-row input[type="checkbox"]:checked { background: var(--color-primary); border-color: var(--color-primary-hover); }
+      .sync-row input[type="checkbox"]:checked::after { content: '✔'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 12px; color: #fff; line-height: 1; }
+      .sync-row input[type="checkbox"]:disabled { background: var(--color-surface-dark); border-color: var(--color-text-dim); cursor: not-allowed; opacity: 0.6; }
       .sync-row.same { border-color: #2f5a3a; }
       .sync-row.diff { border-color: #7a4030; }
       .sync-status { font-size: 11px; padding: 2px 8px; border-radius: 3px; white-space: nowrap; }

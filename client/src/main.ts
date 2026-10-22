@@ -5267,24 +5267,32 @@ const renderSyncList = (): void => {
   const myFp = syncFingerprint(resolvedDevSettings(), wireClientDevSettings())
   const matchFp = settingsFingerprint(mergeMatchSettings(lobbyState.settings ?? {}))
   syncPlayersEl.innerHTML = ''
-  let selectable = 0
   for (const p of lobbyState.players) {
     if (p.bot) continue
     const isMe = p.id === lobbyState.yourId
     const their = p.devSettings !== undefined ? mergeMatchSettings(p.devSettings) : null
     const same = isMe || (their !== null && syncFingerprint(their, p.clientSettings) === myFp)
-    const matchSame = their !== null && settingsFingerprint(their) === matchFp
 
     const row = document.createElement('div')
     row.className = `sync-row ${same ? 'same' : 'diff'}`
 
-    if (!isMe && their !== null) {
-      selectable++
+    if (isMe) {
+      const who = document.createElement('span')
+      who.style.fontSize = '12px'
+      who.style.color = '#dfe6f2'
+      who.textContent = `${p.name} (${t('sync.youTag')}${p.host ? `, ${t('sync.hostTag')}` : ''})`
+      row.appendChild(who)
+    } else {
+      // Always render a checkbox so the row layout never "drops" a player when
+      // their dev settings haven't been published yet; it is disabled when
+      // there is nothing to clone.
       const cbWrap = document.createElement('label')
       const cb = document.createElement('input')
       cb.type = 'checkbox'
-      cb.checked = syncSelectedId === p.id
+      cb.disabled = their === null
+      cb.checked = syncSelectedId === p.id && their !== null
       cb.addEventListener('change', () => {
+        if (cb.disabled || their === null) return
         syncSelectedId = cb.checked ? p.id : null
         renderSyncList()
       })
@@ -5295,31 +5303,21 @@ const renderSyncList = (): void => {
       row.appendChild(cbWrap)
 
       const status = document.createElement('span')
-      status.className = `sync-status ${same ? 'ok' : 'bad'}`
-      status.textContent = same ? t('sync.sameAsYou') : t('sync.diffFromYou')
+      status.className = `sync-status ${their === null ? 'bad' : (same ? 'ok' : 'bad')}`
+      status.textContent = their === null
+        ? t('sync.noSettingsTag')
+        : same
+          ? t('sync.sameAsYou')
+          : t('sync.diffFromYou')
       row.appendChild(status)
 
       const mChip = document.createElement('span')
       mChip.className = 'sync-status'
+      const matchSame = their !== null && settingsFingerprint(their) === matchFp
       mChip.style.background = matchSame ? '#14301c' : '#1a2030'
       mChip.style.color = matchSame ? '#7cf27c' : '#8fa3c8'
       mChip.textContent = matchSame ? t('sync.matchSame') : t('sync.matchDiff')
       row.appendChild(mChip)
-    } else {
-      const who = document.createElement('span')
-      who.style.fontSize = '12px'
-      who.style.color = '#dfe6f2'
-      who.textContent = isMe ? `${p.name} (${t('sync.youTag')}${p.host ? `, ${t('sync.hostTag')}` : ''})` : `${p.name} (${t('sync.noSettingsTag')})`
-      row.appendChild(who)
-
-      if (!isMe) {
-        const status = document.createElement('span')
-        status.className = 'sync-status'
-        status.style.background = '#1a2030'
-        status.style.color = '#8fa3c8'
-        status.textContent = t('sync.diffFromYou')
-        row.appendChild(status)
-      }
     }
     syncPlayersEl.appendChild(row)
   }
@@ -5332,7 +5330,6 @@ const renderSyncList = (): void => {
   syncCopyBtn.onclick = () => {
     if (sel?.devSettings) cloneDevSettingsFrom(sel.devSettings, sel.clientSettings, true)
   }
-  void selectable
 }
 
 // ---------- replay auto-save toggle (LAN + online match panel; default off) ----------
