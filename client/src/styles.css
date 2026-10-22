@@ -1025,6 +1025,12 @@ html[lang='ar'] { --font-ui: 'Klapt Arabic', 'Kufam', ui-monospace, monospace; }
       .loader { width: 40px; height: 40px; border: 3px solid var(--color-border); border-top-color: var(--color-accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
       .loader-bar { width: 240px; height: 6px; margin-top: 16px; background: var(--color-border); border-radius: 3px; overflow: hidden; }
       #loader-fill { display: block; height: 100%; width: 0%; background: var(--color-accent); transition: width 90ms linear; }
+      /* Small lobby asset-progress bar — shown only while boot-time sprite
+       * preload is still in flight after the loading screen has given way. */
+      .lobby-asset-progress { display: none; margin-top: 14px; width: 260px; font-family: ui-monospace, monospace; }
+      .lobby-asset-bar { width: 100%; height: 5px; background: var(--color-border); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+      #lobby-asset-fill { display: block; height: 100%; width: 0%; background: var(--color-accent); transition: width 90ms linear; }
+      .lobby-asset-status { font-size: 11px; color: var(--color-text-muted); }
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes results-rise { 0% { opacity: 0; transform: translateY(18px) scale(0.92); } 60% { transform: translateY(-2px) scale(1.03); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
       @keyframes cinematic-in { 0% { opacity: 0; transform: scale(0.7) translateY(40px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }

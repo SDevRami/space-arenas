@@ -13,6 +13,7 @@ import { createPlayerRow } from './ui/player-row.ts'
 import { BOT_DIFFICULTIES, type BotDifficulty } from './ai/bot.ts'
 import { initControlsSettings } from './ui/controls-settings.ts'
 import { preloadAllMatchAssets, preloadFxFrames } from './render/building-sprites.ts'
+import { markMatchAssetsReady } from './assets-ready.ts'
 import { WEATHERS, type WeatherId, type GraphicsSettings, getGraphics, setWeather, setBuildingFill, setBuildingOffset, setFieldOffset, setFieldScale, setObstacleScale, setObstacleOffset, setUnitScale, setUnitOffset, setAssetPath, setFxScale, setFxOffset, setMinimapScale, setVictoryCinematicSec, setZoomMin, setZoomMax, setReplayZoomMin, setReplayZoomMax, setSpriteLayerOrder, setProjectileBulletSize, setProjectileRocketSize, setProjectileShellSize, setProjectileShellHeight, DEFAULT_BUILDING_FILL, DEFAULT_BUILDING_OFFSET, DEFAULT_FIELD_OFFSET, DEFAULT_FIELD_SCALE, DEFAULT_OBSTACLE_SCALE, DEFAULT_OBSTACLE_OFFSET, DEFAULT_UNIT_SCALE, DEFAULT_UNIT_OFFSET, DEFAULT_FX_SCALE, DEFAULT_FX_OFFSET, DEFAULT_MINIMAP_SCALE, DEFAULT_VICTORY_CINEMATIC, DEFAULT_ZOOM_MIN, DEFAULT_ZOOM_MAX, DEFAULT_REPLAY_ZOOM_MIN, DEFAULT_REPLAY_ZOOM_MAX, DEFAULT_SPRITE_LAYER_ORDER, DEFAULT_PROJECTILE_BULLET_SIZE, DEFAULT_PROJECTILE_ROCKET_SIZE, DEFAULT_PROJECTILE_SHELL_SIZE, DEFAULT_PROJECTILE_SHELL_HEIGHT, DEFAULT_ASSET_PATHS, SPRITE_LAYER_KINDS, UNIT_ASSET_IDS, HUD_ASSET_IDS, OBSTACLE_ASSET_TYPES, reloadGraphics } from './ui/graphics.ts'
 import { getAudio, setOverride, setTuning, reloadAudio, setMuted, onChangeAudio, TUNING_VOL_MAX, TUNING_PITCH_MIN, TUNING_PITCH_MAX, type SoundId } from './audio/settings.ts'
 import { startLobbyMusic, stopLobbyMusic } from './audio/lobby-music.ts'
@@ -6421,21 +6422,38 @@ if (inviteCode) {
 
 // ---------- hide loading screen ----------
 
-/** Cap on how long the lobby waits on the asset preload. Loads continue in the
- *  background and feed the renderer's caches; the screen always gives way within
- *  budget so an unreachable remote asset origin can never wedge boot. */
-const PRELOAD_BUDGET_MS = 30_000
+/** Safety net: if preload somehow never completes (e.g. a hung fetch), still
+ *  give way after this long so boot is never wedged forever. Default behaviour
+ *  waits for TRUE completion (`done === total`) so the bar reflects real
+ *  progress and the player never enters a match with missing sprites. */
+const PRELOAD_SAFETY_MS = 120_000
 
 const bootReady = (async () => {
   await Promise.allSettled([graphicsReady, audioReady, mapBuilderReady, infoCatalogReady])
   const fillEl = document.getElementById('loader-fill')
   const statusEl = document.getElementById('loader-status')
+  const lobbyFillEl = document.getElementById('lobby-asset-fill')
+  const lobbyStatusEl = document.getElementById('lobby-asset-status')
+  const lobbyProgressEl = document.getElementById('lobby-asset-progress')
+  const setProgress = (done: number, total: number): void => {
+    const pct = Math.min(100, Math.floor((done / Math.max(1, total)) * 100))
+    if (fillEl) fillEl.style.width = `${pct}%`
+    if (statusEl) statusEl.textContent = `Loading assets ${Math.min(done, total)}/${total}`
+    // Lobby bar: only show while preload is still in flight after boot UI is up.
+    if (lobbyProgressEl) lobbyProgressEl.style.display = 'block'
+    if (lobbyFillEl) lobbyFillEl.style.width = `${pct}%`
+    if (lobbyStatusEl) lobbyStatusEl.textContent = `Loading assets ${Math.min(done, total)}/${total}`
+  }
+  const preloadDone = preloadAllMatchAssets(setProgress)
+  // True completion gates C_LOADED (via markMatchAssetsReady); the safety
+  // timeout only prevents an indefinite boot wedge.
+  void preloadDone.then(() => {
+    markMatchAssetsReady()
+    if (lobbyProgressEl) lobbyProgressEl.style.display = 'none'
+  })
   await Promise.race([
-    preloadAllMatchAssets((done, total) => {
-      if (fillEl) fillEl.style.width = `${Math.min(100, Math.floor((done / Math.max(1, total)) * 100))}%`
-      if (statusEl) statusEl.textContent = `Loading assets ${Math.min(done, total)}/${total}`
-    }),
-    new Promise<void>((resolve) => window.setTimeout(resolve, PRELOAD_BUDGET_MS)),
+    preloadDone,
+    new Promise<void>((resolve) => window.setTimeout(resolve, PRELOAD_SAFETY_MS)),
   ])
   const el = document.getElementById('loading-screen')
   if (el) {

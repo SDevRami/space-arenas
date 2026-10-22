@@ -22,6 +22,7 @@ import { SessionRecorder } from '../profile/recorder.ts'
 import { loadProfile, loadProfileConfig, recordMatch, recordSpectate, freshCounters, achievementTarget, type ProfileCounters, type ProfileTypeCounts } from '../profile/profile.ts'
 import { ACHIEVEMENTS, achievementProgress } from '../profile/achievements.ts'
 import { t, tn } from '../i18n/index.ts'
+import { matchAssetsReady } from '../assets-ready.ts'
 import { getControls, modifierLabel } from '../ui/controls.ts'
 import { getGraphics } from '../ui/graphics.ts'
 import { WeatherOverlay } from '../render/weather.ts'
@@ -1217,7 +1218,12 @@ export class Game {
         return
       }
     }
-    if (this.net) this.net.loaded()
+    if (this.net) {
+      // Only tell the host we are loaded once the boot-time sprite preload has
+      // truly finished, so the match never starts with missing textures.
+      await matchAssetsReady
+      this.net.loaded()
+    }
   }
 
   private showNetCountdown(): Promise<boolean> {
