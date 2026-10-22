@@ -634,6 +634,9 @@ export interface LobbyMessage {
   /** Balance-mod details when the room has one; guests must have a matching copy
    *  (same `hash`) installed before the host can start the match. */
   mod?: RoomMod
+  /** Host's current primary LAN IP (advertised so guests can join even after a
+   *  network switch. Updated on the LAN-IP watch interval in the host). */
+  lanIp?: string
 }
 export interface ReadyMessage {
   kind: 'C_READY'

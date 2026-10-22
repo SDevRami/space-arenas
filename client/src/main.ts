@@ -6246,13 +6246,9 @@ createOkBtn.addEventListener('click', async () => {
 })
 
 let currentInviteUrl = ''
+let inviteRefreshTimer: number | null = null
 
-const openInvite = async (): Promise<void> => {
-  inviteOverlay.classList.add('visible')
-  inviteQrImgEl.style.display = 'inline-block'
-  inviteUrlEl.textContent = ''
-  inviteStatusEl.textContent = ''
-  currentInviteUrl = ''
+const refreshInviteOverlay = async (): Promise<void> => {
   try {
     const res = await fetch('/api/invite-info')
     if (!res.ok) {
@@ -6264,10 +6260,24 @@ const openInvite = async (): Promise<void> => {
     currentInviteUrl = data.url
     inviteQrImgEl.src = `/api/invite-qr?t=${Date.now()}`
     inviteUrlEl.textContent = data.url
+    inviteStatusEl.textContent = ''
   } catch {
-    inviteQrImgEl.style.display = 'none'
-    inviteStatusEl.textContent = t('lobby.inviteNone')
+    /* keep showing the last known URL on transient fetch failure */
   }
+}
+
+const openInvite = async (): Promise<void> => {
+  inviteOverlay.classList.add('visible')
+  inviteQrImgEl.style.display = 'inline-block'
+  inviteUrlEl.textContent = ''
+  inviteStatusEl.textContent = ''
+  currentInviteUrl = ''
+  await refreshInviteOverlay()
+  // Re-fetch every 5s so the URL/QR stay current after a host network switch
+  // (router → hotspot). The host re-publishes the QR on IP change; this keeps
+  // the overlay in sync without requiring a page reload.
+  if (inviteRefreshTimer !== null) window.clearInterval(inviteRefreshTimer)
+  inviteRefreshTimer = window.setInterval(() => void refreshInviteOverlay(), 5000)
 }
 
 inviteQrImgEl.addEventListener('error', () => {
@@ -6292,6 +6302,10 @@ matchInviteBtn.addEventListener('click', () => void openInvite())
 inviteCopyBtn.addEventListener('click', () => void copyInviteLink())
 inviteCloseBtn.addEventListener('click', () => {
   inviteOverlay.classList.remove('visible')
+  if (inviteRefreshTimer !== null) {
+    window.clearInterval(inviteRefreshTimer)
+    inviteRefreshTimer = null
+  }
 })
 
 const pollNetwork = async (): Promise<void> => {

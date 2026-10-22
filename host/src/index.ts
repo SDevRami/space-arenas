@@ -229,6 +229,10 @@ const MIME: Record<string, string> = {
 
 let currentName = process.env.SA_NAME ?? hostname()
 
+/** Last-advertised primary LAN IP. Tracked so the host can detect a network
+ *  switch (router → hotspot etc.) and re-publish the invite QR/URL to the new IP. */
+let lastLanIp = firstLanIp()
+
 const rooms = new RoomManager()
 let relay: TickRelay | null = null
 const loadedCount = new Map<WebSocket, boolean>()
@@ -420,6 +424,7 @@ const broadcastLobby = (): void => {
       passwordRequired: room.passwordRequired,
       winRule: room.winRule,
       settings: room.settings,
+      lanIp: firstLanIp(),
       ...dflt,
       ...(room.modId ? { modId: room.modId } : {}),
     })
@@ -1202,6 +1207,20 @@ server.listen(PORT, () => {
 })
 
 discovery.start(BEACON_PORT)
+
+// --- LAN-IP watch: re-publish invite QR/URL when the host's primary LAN IP
+//     changes (e.g. router → hotspot switch) so new guests can still join. ---
+const LAN_IP_WATCH_MS = 5_000
+setInterval(() => {
+  const ip = firstLanIp()
+  if (ip === lastLanIp) return
+  lastLanIp = ip
+  const room = rooms.getRoom()
+  if (!room) return
+  void refreshInviteQr(room.code, room.invitePass, ip, PORT).catch(() => undefined)
+  broadcastLobby()
+  console.log(`[space-arenas host] LAN IP changed to ${ip}; invite QR re-published`)
+}, LAN_IP_WATCH_MS)
 
 // --- keyboard shutdown -------------------------------------------------
 // When the host is run in the launcher window (run-game.bat), pressing 'c'
