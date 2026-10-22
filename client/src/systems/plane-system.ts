@@ -146,7 +146,7 @@ export const PlaneSystem = {
         }
         const dSq = sqDist(t.x, t.y, pt.x, pt.y)
         if (dSq <= rangeSq) {
-          if (canFire) {
+          if (canFire && !a.guardMode) {
             fireGround(world, id, pt.x, pt.y, weapon.damage, weapon.splash)
             p.ammo--
             a.currentCooldown = weapon.cooldownTicks
