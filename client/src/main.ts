@@ -4390,6 +4390,7 @@ const winRuleDesc = document.getElementById('win-rule-desc') as HTMLDivElement
 const startFogEl = document.getElementById('start-fog') as HTMLSelectElement
 const matchFogEl = document.getElementById('match-fog') as HTMLSelectElement
 const startDayNightEl = document.getElementById('start-daynight') as HTMLInputElement
+const startGeneralRankEl = document.getElementById('start-general-rank') as HTMLSelectElement
 const matchDayNightEl = document.getElementById('match-daynight') as HTMLInputElement
 const matchCoopEconomyEl = document.getElementById('match-coop-economy') as HTMLSelectElement
 const matchCoopRankEl = document.getElementById('match-coop-rank') as HTMLSelectElement
@@ -4697,7 +4698,7 @@ startBtn.addEventListener('click', () => {
   // Mission popup + XP on finish) when the Accept toggle is on. The profile toggle
   // decides whether the match feeds counters, history and achievements at all.
   const challenge = resolveDailyChallenge(window.localStorage)
-  const baseSettings: MatchSettings = { ...resolvedDevSettings(), fogMode: startFogEl.value as FogMode, dayNight: startDayNightEl.checked }
+  const baseSettings: MatchSettings = { ...resolvedDevSettings(), fogMode: startFogEl.value as FogMode, dayNight: startDayNightEl.checked, generalRank: startGeneralRankEl.value === 'true' }
   const makeCfg = (settings: MatchSettings): MatchConfig => ({
     map: previewMap,
     seed: (Math.floor(Math.random() * 0xffffffff) >>> 0) || 0x5eed,

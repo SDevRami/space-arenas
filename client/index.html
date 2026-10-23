@@ -278,6 +278,12 @@
                       <option value="command-center" data-i18n="offline.win.commandCenter">Command Center</option>
                     </select>
                     <div class="hint" id="win-rule-desc" data-i18n="offline.winDesc.standard">Lose when your Command Center is destroyed and you cannot rebuild it (all Bulldozers dead, or not enough money to buy a new one).</div>
+                    <label data-i18n="offline.generalRank">General rank system</label>
+                    <select id="start-general-rank" class="fog-select">
+                      <option value="true" data-i18n="offline.rankOn">On (rank-gated upgrades)</option>
+                      <option value="false" data-i18n="offline.rankOff">Off (all upgrades available)</option>
+                    </select>
+                    <div class="hint" id="start-general-rank-desc" data-i18n="offline.generalRankDesc">When on, higher-tier research requires the team's general rank (★). When off, every upgrade is available from the start.</div>
                     <div class="players" id="players-list"></div>
                     <button class="ghost" id="add-bot-btn" data-i18n="offline.addBot">+ Add Bot</button>
                   </div>
