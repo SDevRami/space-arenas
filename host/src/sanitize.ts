@@ -49,6 +49,7 @@ export const sanitizeSettings = (patch: Partial<MatchSettings>): Partial<MatchSe
   }
   if (patch.fogMode && (FOG_MODES as readonly string[]).includes(patch.fogMode)) out.fogMode = patch.fogMode
   if (typeof patch.dayNight === 'boolean') out.dayNight = patch.dayNight
+  if (typeof patch.generalRank === 'boolean') out.generalRank = patch.generalRank
   if ((COOP_ECONOMY_OPTIONS as readonly string[]).includes(patch.coopEconomy as string)) out.coopEconomy = patch.coopEconomy
   if ((COOP_RANK_OPTIONS as readonly string[]).includes(patch.coopRank as string)) out.coopRank = patch.coopRank
   if ((COOP_CONTROL_OPTIONS as readonly string[]).includes(patch.coopControl as string)) out.coopControl = patch.coopControl
