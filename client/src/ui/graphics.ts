@@ -71,6 +71,7 @@ const BUILDING_ASSET_FOLDERS: Record<string, string> = {
   'super-weapon': 'sp',
   bunker: 'bn',
   dock: 'd',
+  'crypto-miner': 'cm',
 }
 
 export const UNIT_ASSET_IDS = [

@@ -7,7 +7,7 @@ const GROUND_SCALE = 0.5
 const GROUND_COLORS: Record<number, string> = {
   [Terrain.Ground]: '#39422f',
   [Terrain.Cliff]: '#5c5140',
-  [Terrain.Water]: '#2c5877',
+  [Terrain.Water]: '#081839',
   [Terrain.Road]: '#454b4f',
   [Terrain.BuildableGround]: '#424d35',
 }

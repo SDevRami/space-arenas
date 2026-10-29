@@ -82,16 +82,36 @@ const ownedBuilding = (world: World, player: number, id: number): boolean => {
   return !!b && world.canControl(player, id)
 }
 
-/** Day 20: whether a bulldozer may take one more build order. A busy dozer is
+/** Day 20: whether a builder may take one more build order. A busy builder is
  *  only eligible while it is constructing (not collecting/repairing), and the
- *  total (active construct + queued) must stay below settings.maxBuildOrders. */
-const canAcceptBuildOrder = (world: World, player: number, id: number): { ok: boolean; reason: string } => {
+ *  total (active construct + queued) must stay below settings.maxBuildOrders.
+ *  Crypto Miners are built by an empty Carrier; everything else by a Bulldozer. */
+const canAcceptBuildOrder = (
+  world: World,
+  player: number,
+  id: number,
+  buildingType: string,
+): { ok: boolean; reason: string } => {
+  const carrierBuild = buildingType === 'crypto-miner'
   const u = world.units.get(id)
-  if (!u || u.unitType !== 'bulldozer' || !world.canControl(player, id)) return { ok: false, reason: 'no available bulldozer' }
+  if (!u || !world.canControl(player, id)) {
+    return { ok: false, reason: carrierBuild ? 'no available carrier' : 'no available bulldozer' }
+  }
+  if (carrierBuild) {
+    if (u.unitType !== 'carrier') return { ok: false, reason: 'no available carrier' }
+    const tc = world.transports.get(id)
+    if (tc && (tc.passengers.length > 0 || tc.loadQueue.length > 0)) {
+      return { ok: false, reason: 'carrier must be empty' }
+    }
+  } else if (u.unitType !== 'bulldozer') {
+    return { ok: false, reason: 'no available bulldozer' }
+  }
   const w = world.works.get(id)
   const queued = world.buildOrderQueues.get(id)?.length ?? 0
   if (w) {
-    if (w.kind !== 'construct') return { ok: false, reason: 'no available bulldozer' }
+    if (w.kind !== 'construct') {
+      return { ok: false, reason: carrierBuild ? 'no available carrier' : 'no available bulldozer' }
+    }
     if (1 + queued >= world.settings.maxBuildOrders) return { ok: false, reason: 'build order queue full' }
   } else if (queued >= world.settings.maxBuildOrders) {
     return { ok: false, reason: 'build order queue full' }
@@ -120,7 +140,7 @@ const blockedByBuilding = (world: World, tx: number, ty: number): boolean => {
   return blocked
 }
 
-const placementValid = (world: World, player: number, buildingType: string, tx: number, ty: number): string | null => {
+export const placementValid = (world: World, player: number, buildingType: string, tx: number, ty: number): string | null => {
   const def = getBuilding(buildingType, world.settings)
   if (!def) return `unknown building ${buildingType}`
   if (def.countLimit !== undefined && countBuilding(world, buildingType, player) >= def.countLimit) {
@@ -133,11 +153,19 @@ const placementValid = (world: World, player: number, buildingType: string, tx: 
   const rect = { x: tx, y: ty, w: def.footprint[0], h: def.footprint[1] }
   if (tx < 0 || ty < 0 || tx + rect.w > world.width || ty + rect.h > world.height) return 'out of bounds'
   if (fog && !placementExplored(fog, world.width, tx, ty, rect.w, rect.h)) return 'area unexplored'
+  // Water-only buildings (the Crypto Miner) use the open-water mask instead of
+  // the land buildable mask; shoreline/land buildings keep the old rule.
+  const waterOnly = buildingType === 'crypto-miner'
   for (let y = ty; y < ty + rect.h; y++) {
     for (let x = tx; x < tx + rect.w; x++) {
       const idx = y * world.width + x
-      if (!grid.buildable[idx]) {
-        return blockedByBuilding(world, x, y) ? 'blocked by existing building' : 'cannot build on this terrain'
+      const ok = waterOnly ? !!grid.water[idx] : !!grid.buildable[idx]
+      if (!ok) {
+        return blockedByBuilding(world, x, y)
+          ? 'blocked by existing building'
+          : waterOnly
+            ? 'crypto miner needs open water'
+            : 'cannot build on this terrain'
       }
     }
   }
@@ -156,6 +184,23 @@ const placementValid = (world: World, player: number, buildingType: string, tx: 
       if (waterAt(tx - 1, ty + i) || waterAt(tx + rect.w, ty + i)) hasWater = true
     }
     if (!hasWater) return 'dock needs water access'
+  }
+  if (waterOnly) {
+    // Keep Crypto Miners spread out: measure the empty gap between footprints on
+    // each axis and require the configured spacing on at least one axis.
+    const spacing = Math.max(0, world.settings.cryptoMinerSpacing)
+    let tooClose = false
+    world.buildings.forEach((id, b) => {
+      if (tooClose || b.buildingType !== 'crypto-miner' || b.team !== player) return
+      const t = world.transforms.get(id)
+      if (!t) return
+      const bx = Math.floor((t.x - b.footprintW * 500) / 1000)
+      const by = Math.floor((t.y - b.footprintH * 500) / 1000)
+      const gapX = Math.max(bx - (tx + rect.w), tx - (bx + b.footprintW))
+      const gapY = Math.max(by - (ty + rect.h), ty - (by + b.footprintH))
+      if (gapX < spacing && gapY < spacing) tooClose = true
+    })
+    if (tooClose) return `crypto miners need ${spacing} tiles between them`
   }
   return null
 }
@@ -1089,10 +1134,11 @@ export const InputSystem = {
           }
           const dozerId = cmd.entities[0]
           if (dozerId === undefined) {
-            world.emit({ type: 'command-rejected', player, reason: 'no available bulldozer' })
+            const missing = buildingType === 'crypto-miner' ? 'no available carrier' : 'no available bulldozer'
+            world.emit({ type: 'command-rejected', player, reason: missing })
             break
           }
-          const order = canAcceptBuildOrder(world, player, dozerId)
+          const order = canAcceptBuildOrder(world, player, dozerId, buildingType)
           if (!order.ok) {
             world.emit({ type: 'command-rejected', player, reason: order.reason })
             break

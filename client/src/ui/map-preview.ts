@@ -3,7 +3,7 @@ import { Terrain, tileIndex, type MapData, applyBrightness, PLAYER_COLORS } from
 const TERRAIN_COLORS: Record<number, string> = {
   [Terrain.Ground]: '#3a442f',
   [Terrain.Cliff]: '#5c5140',
-  [Terrain.Water]: '#2c5877',
+  [Terrain.Water]: '#081839',
   [Terrain.Road]: '#454b4f',
   [Terrain.BuildableGround]: '#4a5838',
 }

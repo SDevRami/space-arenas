@@ -1044,6 +1044,7 @@
     },
     "sections": {
       "economy": "Economy & production",
+      "cryptoMiner": "Crypto Miner (synced)",
       "power": "Power",
       "satellite": "Satellite",
       "laser": "Space laser",
@@ -1089,6 +1090,26 @@
       "oilClaimTicks": {
         "label": "Oil claim time",
         "desc": "Time to take over an oil rig"
+      },
+      "cryptoMinerIncome": {
+        "label": "Crypto Miner income",
+        "desc": "Credits paid by a Crypto Miner at each payout"
+      },
+      "cryptoMinerIncomeIntervalTicks": {
+        "label": "Crypto Miner payout interval",
+        "desc": "Time between Crypto Miner payouts"
+      },
+      "cryptoMinerMissileBoats": {
+        "label": "Required Missile Boats",
+        "desc": "Alive Missile Boats the team must keep to run its Crypto Miners"
+      },
+      "cryptoMinerCarriers": {
+        "label": "Required Carriers",
+        "desc": "Alive Carriers the team must keep to run its Crypto Miners"
+      },
+      "cryptoMinerSpacing": {
+        "label": "Crypto Miner spacing",
+        "desc": "Minimum empty tiles between two friendly Crypto Miner footprints"
       },
       "supplyPerTrip": {
         "label": "Supply per trip",
@@ -1899,6 +1920,10 @@
     "makes": "makes {name}",
     "researching": "researching {name}",
     "powerDownNote": "POWER DOWN",
+    "cryptoMining": "mining — next payout in {s}s",
+    "cryptoOfflinePower": "OFFLINE — no power",
+    "cryptoOfflineDock": "OFFLINE — no Dock",
+    "cryptoOfflineNavy": "OFFLINE — navy below minimum",
     "shieldStatus": "shield {p}%",
     "maxPower": "Max Power",
     "maxPowerActive": "Max Power ({s}s left)",
@@ -2245,6 +2270,7 @@
       "oilClaimed": "Oil field claimed — +$50 every 10s",
       "oilClaimedTeam": "Team {t} claimed an oil field",
       "oilIncome": "+${a} oil income",
+      "cryptoMinerIncome": "+${a} Crypto Miner income",
       "powerDown": "POWER DOWN — production and defenses halted",
       "powerRestored": "Power restored",
       "maxPowerOn": "Max Power engaged — generation doubled",
@@ -2257,6 +2283,8 @@
       "rankUp": "General rank up — you reached ★{rank}!"
     },
     "noFreeDozer": "No free Bulldozer selected",
+    "noFreeCarrier": "No free, empty Carrier selected",
+    "carrierMustBeEmpty": "The Carrier must be empty before it can build",
     "place": "Place {name} — click a location, Esc to cancel",
     "cannotPlace": "Cannot place there",
     "orderQueued": "Build order queued ({n}/{max})",
@@ -2349,6 +2377,7 @@
     "bunker": "Bunker",
     "tech-center": "Tech Center",
     "dock": "Dock",
+    "crypto-miner": "Crypto Miner",
     "bulldozer": "Bulldozer",
     "harvester": "Harvester",
     "scout": "Scout",

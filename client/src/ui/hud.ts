@@ -3,6 +3,7 @@ import type { ProductionOrder, World } from '../core/world.ts'
 import { t, tn } from '../i18n/index.ts'
 import { getGraphics, resolveAssetTemplate } from './graphics.ts'
 import { modifierLabel } from './controls.ts'
+import { cryptoMinerSupportFor } from '../systems/crypto-miner-system.ts'
 
 export interface HudActions {
   onBuildClick: (type: string) => void
@@ -56,6 +57,8 @@ export interface HudActions {
 }
 
 const BUILDER_BUILDABLES = ['command-center', 'power-plant', 'supply-dock', 'barracks', 'war-factory', 'turret', 'bunker', 'tech-center', 'air-force', 'super-weapon', 'dock'] as const
+/** Naval buildings a Carrier can place. Carriers cannot build anything else. */
+const CARRIER_BUILDABLES = ['crypto-miner'] as const
 
 const UPGRADES_BY_BUILDING: Record<string, UpgradeDef[]> = {}
 for (const u of Object.values(UPGRADES)) {
@@ -415,6 +418,7 @@ export class Hud {
 
     const names: string[] = []
     let hasBuilder = false
+    let hasCarrierBuilder = false
     let hasWorkingDozer = false
     selection.forEach((id) => {
       const u = world.units.get(id)
@@ -432,6 +436,14 @@ export class Hud {
             hasBuilder = true
           }
         }
+        if (u.unitType === 'carrier' && u.team === localTeam) {
+          // Crypto Miners need a free, empty Carrier. A Carrier carrying troops or
+          // already repairing/collecting cannot start a build order.
+          const tc = world.transports.get(id)
+          const empty = !tc || (tc.passengers.length === 0 && tc.loadQueue.length === 0)
+          const w = world.works.get(id)
+          if (empty && (!w || w.kind === 'construct')) hasCarrierBuilder = true
+        }
       }
       if (b) names.push(tn(b.buildingType, BUILDINGS[b.buildingType]?.name ?? b.buildingType))
     })
@@ -446,7 +458,7 @@ export class Hud {
     }
     this.updaters.push(() => this.renderAchievement(world, selection))
     this.renderAchievement(world, selection)
-    this.renderMenu(world, selection, localTeam, hasBuilder, hasWorkingDozer, isMobile)
+    this.renderMenu(world, selection, localTeam, hasBuilder, hasCarrierBuilder, hasWorkingDozer, isMobile)
   }
 
   /** Kills + current rank for the selected rank-capable units (troops/vehicles/air). */
@@ -492,6 +504,19 @@ export class Hud {
       if (def.powerGen > 0) parts.push(t('hud.powerPlus', { p: def.powerGen }))
       if (def.powerUse > 0) parts.push(t('hud.powerMinus', { p: def.powerUse }))
       if (b.done && def.powerUse > 0 && world.teamState(b.team).powerDown) parts.push(t('hud.powerDownNote'))
+      if (b.done && b.buildingType === 'crypto-miner') {
+        const s = cryptoMinerSupportFor(world, b.team)
+        if (!s.powered) parts.push(t('hud.cryptoOfflinePower'))
+        else if (!s.dock) parts.push(t('hud.cryptoOfflineDock'))
+        else if (
+          s.boats < world.settings.cryptoMinerMissileBoats ||
+          s.carriers < world.settings.cryptoMinerCarriers
+        ) parts.push(t('hud.cryptoOfflineNavy'))
+        else {
+          const left = Math.max(1, Math.ceil((world.settings.cryptoMinerIncomeIntervalTicks - b.cryptoIncomeTicks) / SIM_TICK_HZ))
+          parts.push(t('hud.cryptoMining', { s: left }))
+        }
+      }
       if (b.maxPowerUntil > world.tick) parts.push(t('hud.maxPowerActive', { s: Math.max(1, Math.ceil((b.maxPowerUntil - world.tick) / SIM_TICK_HZ)) }))
       if (b.maxPowerHpTarget >= 0) parts.push(t('hud.maxPowerHpDrop'))
       if (b.researchQueue.length > 0) {
@@ -546,7 +571,7 @@ export class Hud {
     return parts.sort().join('|')
   }
 
-  private renderMenu(world: World, selection: Set<number>, localTeam: number, hasBuilder: boolean, hasWorkingDozer: boolean, isMobile: boolean): void {
+  private renderMenu(world: World, selection: Set<number>, localTeam: number, hasBuilder: boolean, hasCarrierBuilder: boolean, hasWorkingDozer: boolean, isMobile: boolean): void {
     let anySection = false
     this.hotkeySlots = []
     this.usedHotkeys.clear()
@@ -991,10 +1016,11 @@ export class Hud {
       })
     }
 
-    if (hasBuilder) {
+    const buildables = [...(hasBuilder ? BUILDER_BUILDABLES : []), ...(hasCarrierBuilder ? CARRIER_BUILDABLES : [])]
+    if (buildables.length > 0) {
       this.appendHeader(t('hud.headers.build'))
       anySection = true
-      for (const bdId of BUILDER_BUILDABLES) {
+      for (const bdId of buildables) {
         const bd = getBuilding(bdId, world.settings)
         this.addButton(
           `${hudIconHtml('building', bd.id, tn(bd.id, bd.name))}<span>${tn(bd.id, bd.name)}</span> <span class="cost">$${bd.cost}</span>`,

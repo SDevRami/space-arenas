@@ -1,5 +1,5 @@
 import { BUILDINGS, UNITS, UPGRADES, canThrowBandolier, getBuilding, getUnit, getWeapon, generateDefaultMap, tileToFx, SIM_TICK_HZ, SECONDS_TO_TICKS, PROTOCOL_VERSION, replayDateLabel, defaultReplayName, mergeMatchSettings, type ChatRelayMessage, type EnvelopeCommand, type MatchStartMessage, type PlayerSlot, type ReplayData, type SimCommand, type SpectateSyncMessage, type PingType } from '@space-arenas/shared'
-import { World, placementExplored, type WorldGrid } from '../core/world.ts'
+import { World } from '../core/world.ts'
 import { Simulator } from '../core/Simulator.ts'
 import { GameLoop } from '../core/loop.ts'
 import { Renderer, type GhostState } from '../render/renderer.ts'
@@ -12,6 +12,7 @@ import { ChatBox } from '../ui/chat.ts'
 import { Minimap } from '../render/minimap.ts'
 import { rectFromCenter } from '../core/geometry.ts'
 import { stepWorld } from '../systems/registry.ts'
+import { placementValid } from '../systems/input-system.ts'
 import type { SimEvent } from '../core/events.ts'
 import { BotPlayer } from '../ai/bot.ts'
 import type { MatchConfig } from './match.ts'
@@ -1722,6 +1723,8 @@ export class Game {
         return e.team === this.localTeam ? t('game.events.oilClaimed') : t('game.events.oilClaimedTeam', { t: e.team })
       case 'oil-income':
         return e.team === this.localTeam ? t('game.events.oilIncome', { a: e.amount }) : null
+      case 'crypto-miner-income':
+        return e.team === this.localTeam ? t('game.events.cryptoMinerIncome', { a: e.amount }) : null
       case 'power-down':
         return t('game.events.powerDown')
       case 'power-restored':
@@ -1779,21 +1782,7 @@ export class Game {
   private canPlace(buildingType: string, tx: number, ty: number): boolean {
     const world = this.world
     if (!world) return false
-    const def = getBuilding(buildingType, world.settings)
-    if (!def) return false
-    world.rebuildGridIfDirty()
-    const grid = world.grid as WorldGrid
-    const fog = world.fog.get(this.localTeam)
-    const rect = { x: tx, y: ty, w: def.footprint[0], h: def.footprint[1] }
-    if (tx < 0 || ty < 0 || tx + rect.w > world.width || ty + rect.h > world.height) return false
-    if (fog && !placementExplored(fog, world.width, tx, ty, rect.w, rect.h)) return false
-    for (let y = ty; y < ty + rect.h; y++) {
-      for (let x = tx; x < tx + rect.w; x++) {
-        const idx = y * world.width + x
-        if (!grid.buildable[idx]) return false
-      }
-    }
-    return true
+    return placementValid(world, this.localTeam, buildingType, tx, ty) === null
   }
 
   private dozerOrderCount(world: World, id: number): number {
@@ -1805,28 +1794,45 @@ export class Game {
   private startPlacement(type: string): void {
     const world = this.world
     if (!world) return
-    // A dozer may take more build orders while busy ONLY if it is constructing
-    // (not collecting/repairing) and has queue capacity (Day 20).
-    const dozerId = [...this.selection].find((id) => {
+    const carrierBuild = type === 'crypto-miner'
+    // A builder may take more build orders while busy ONLY if it is constructing
+    // (not collecting/repairing) and has queue capacity (Day 20). Crypto Miners
+    // are built by an empty Carrier; every other building needs a Bulldozer.
+    const carrierEmpty = (id: number): boolean => {
+      const tc = world.transports.get(id)
+      return !tc || (tc.passengers.length === 0 && tc.loadQueue.length === 0)
+    }
+    const builderId = [...this.selection].find((id) => {
       const u = world.units.get(id)
-      if (!u || !world.canControl(this.localTeam, id) || u.unitType !== 'bulldozer') return false
+      if (!u || !world.canControl(this.localTeam, id)) return false
+      if (carrierBuild) {
+        if (u.unitType !== 'carrier' || !carrierEmpty(id)) return false
+      } else if (u.unitType !== 'bulldozer') {
+        return false
+      }
       const w = world.works.get(id)
       if (w && w.kind !== 'construct') return false
       return this.dozerOrderCount(world, id) < world.settings.maxBuildOrders
     })
-    if (dozerId === undefined) {
-      const busyButFull = [...this.selection].some((id) => {
-        const u = world.units.get(id)
-        if (!u || !world.canControl(this.localTeam, id) || u.unitType !== 'bulldozer') return false
+    if (builderId === undefined) {
+      const selected = [...this.selection].map((id) => ({ id, u: world.units.get(id) }))
+      const busyButFull = selected.some(({ id, u }) => {
+        if (!u || !world.canControl(this.localTeam, id)) return false
+        if (carrierBuild ? u.unitType !== 'carrier' : u.unitType !== 'bulldozer') return false
         const w = world.works.get(id)
         if (w && w.kind !== 'construct') return false
         return this.dozerOrderCount(world, id) >= world.settings.maxBuildOrders
       })
-      this.hud.toast(busyButFull ? t('game.orderQueueFull') : t('game.noFreeDozer'))
+      const carrying = carrierBuild
+        ? selected.some(({ id, u }) => !!u && u.unitType === 'carrier' && !carrierEmpty(id))
+        : false
+      if (busyButFull) this.hud.toast(t('game.orderQueueFull'))
+      else if (carrying) this.hud.toast(t('game.carrierMustBeEmpty'))
+      else this.hud.toast(carrierBuild ? t('game.noFreeCarrier') : t('game.noFreeDozer'))
       return
     }
     this.audio.uiClick()
-    this.pendingPlace = { buildingType: type, dozerId }
+    this.pendingPlace = { buildingType: type, dozerId: builderId }
     this.hud.toast(t('game.place', { name: tn(type, getBuilding(type, world.settings).name) }))
   }
 

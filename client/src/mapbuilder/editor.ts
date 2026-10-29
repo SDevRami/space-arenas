@@ -3,7 +3,7 @@ import { DEFAULT_MAX_PLAYERS, Terrain, applyBrightness, clampMapSize, createEmpt
 export const TERRAIN_COLORS: Record<number, string> = {
   [Terrain.Ground]: '#39422f',
   [Terrain.Cliff]: '#6a5c4a',
-  [Terrain.Water]: '#2c5877',
+  [Terrain.Water]: '#081839',
   [Terrain.Road]: '#454b4f',
   [Terrain.BuildableGround]: '#424d35',
 }

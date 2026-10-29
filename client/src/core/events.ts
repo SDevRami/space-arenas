@@ -25,6 +25,7 @@ export type SimEvent =
   | { type: 'oil-claiming'; field: number; entity: number; team: number }
   | { type: 'oil-claimed'; field: number; entity: number; team: number }
   | { type: 'oil-income'; field: number; team: number; amount: number }
+  | { type: 'crypto-miner-income'; entity: number; team: number; amount: number }
   | { type: 'scenery-destroyed'; entity: number; kind: 'rock' | 'tree'; x: number; y: number; w: number; h: number }
   | { type: 'order-queued'; building: number; unitType: string; team: number }
   | { type: 'order-dequeued'; building: number; unitType: string; team: number }

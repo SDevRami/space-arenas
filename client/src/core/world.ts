@@ -119,6 +119,8 @@ export interface BuildingComp {
   shieldHp: number
   /** Day 13 EMP: ticks until the building re-awakens (0/absent = not disabled). */
   empUntil?: number
+  /** Crypto Miner: ticks accumulated toward the next payout. */
+  cryptoIncomeTicks: number
 }
 
 export interface HealthComp {

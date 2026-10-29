@@ -14,6 +14,7 @@ const FOLDERS: Record<string, string> = {
   'super-weapon': 'sp',
   bunker: 'bn',
   dock: 'd',
+  'crypto-miner': 'cm',
 }
 
 export const BUILDING_STATUS_FRAMES = 8

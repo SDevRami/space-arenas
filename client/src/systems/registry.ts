@@ -5,6 +5,7 @@ import { PlacingSystem } from './placing-system.ts'
 import { ProductionSystem } from './production-system.ts'
 import { EconomySystem } from './economy-system.ts'
 import { OilSystem } from './oil-system.ts'
+import { CryptoMinerSystem } from './crypto-miner-system.ts'
 import { SupplyCaptureSystem } from './supply-capture-system.ts'
 import { MovementSystem } from './movement-system.ts'
 import { ScenerySystem } from './scenery-system.ts'
@@ -36,6 +37,7 @@ export const SYSTEMS: SystemDef[] = [
   ProductionSystem,
   EconomySystem,
   OilSystem,
+  CryptoMinerSystem,
   SupplyCaptureSystem,
   MovementSystem,
   MinesSystem,

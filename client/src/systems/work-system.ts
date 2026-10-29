@@ -2,27 +2,27 @@ import { BUILDER_REPAIR_PER_TICK, getBuilding, getUnit, isqrt, sqDist } from '@s
 import type { World } from '../core/world.ts'
 import { setMove } from '../entities/factories.ts'
 
-const passableFx = (world: World, x: number, y: number): boolean => {
+const passableFx = (world: World, x: number, y: number, naval = false): boolean => {
   const grid = world.grid
   if (!grid) return true
   const tx = Math.floor(x / 1000)
   const ty = Math.floor(y / 1000)
   if (tx < 0 || ty < 0 || tx >= world.width || ty >= world.height) return false
-  return !!grid.passable[ty * world.width + tx]
+  return !!(naval ? grid.water : grid.passable)[ty * world.width + tx]
 }
 
 // The connected passable component the given fx point sits in (-1 when the
-// tile is impassable or the grid is not available). The dozer can only reach
-// pads inside its own component, so pick pads that share it.
-const tileComponent = (world: World, x: number, y: number): number => {
+// tile is impassable or the grid is not available). A bulldozer can only reach
+// pads inside its land component; a Carrier uses the water component instead.
+const tileComponent = (world: World, x: number, y: number, naval = false): number => {
   const grid = world.grid
   if (!grid) return -1
   const tx = Math.floor(x / 1000)
   const ty = Math.floor(y / 1000)
   if (tx < 0 || ty < 0 || tx >= world.width || ty >= world.height) return -1
   const i = ty * world.width + tx
-  if (!grid.passable[i]) return -1
-  return grid.component[i]
+  if (!(naval ? grid.water : grid.passable)[i]) return -1
+  return (naval ? grid.waterComponent : grid.component)[i]
 }
 
 const nearestPassableFx = (
@@ -31,6 +31,7 @@ const nearestPassableFx = (
   cy: number,
   maxRadius: number,
   comp: number = -1,
+  naval = false,
 ): { x: number; y: number } | null => {
   const grid = world.grid
   if (!grid) return null
@@ -43,12 +44,12 @@ const nearestPassableFx = (
         const ny = cy + dy
         if (nx < 0 || ny < 0 || nx >= world.width || ny >= world.height) continue
         const i = ny * world.width + nx
-        if (!grid.passable[i]) continue
+        if (!(naval ? grid.water : grid.passable)[i]) continue
         const p = { x: nx * 1000 + 500, y: ny * 1000 + 500 }
         if (fallback === null) fallback = p
-        // Prefer a tile the dozer can actually reach; fall back to any passable
+        // Prefer a tile the builder can actually reach; fall back to any passable
         // tile (keeps genuinely sealed buildings buildable from far).
-        if (comp >= 0 && grid.component[i] === comp) return p
+        if (comp >= 0 && (naval ? grid.waterComponent : grid.component)[i] === comp) return p
       }
     }
   }
@@ -62,6 +63,7 @@ const workArrivePoint = (world: World, buildingId: number, dozerId: number): { x
   const bt = world.transforms.get(buildingId)
   const t = world.transforms.get(dozerId)
   if (!b || !bt || !t) return null
+  const naval = world.units.get(dozerId)?.class === 'naval'
   const pad = workPad(world)
   const halfX = b.footprintW * 500
   const halfY = b.footprintH * 500
@@ -71,7 +73,7 @@ const workArrivePoint = (world: World, buildingId: number, dozerId: number): { x
   // back to the time-based "build from far" path — which is wrong when the route
   // is merely blocked, not sealed. Filtering by component routes the dozer
   // around obstructions to a reachable pad instead.
-  const comp = tileComponent(world, t.x, t.y)
+  const comp = tileComponent(world, t.x, t.y, naval)
   const sides: Array<{ x: number; y: number }> = [
     { x: bt.x - halfX - pad, y: bt.y },
     { x: bt.x + halfX + pad, y: bt.y },
@@ -80,7 +82,7 @@ const workArrivePoint = (world: World, buildingId: number, dozerId: number): { x
   ]
   sides.sort((a, b2) => sqDist(a.x, a.y, t.x, t.y) - sqDist(b2.x, b2.y, t.x, t.y))
   for (const s of sides) {
-    if (passableFx(world, s.x, s.y) && (comp < 0 || tileComponent(world, s.x, s.y) === comp)) return s
+    if (passableFx(world, s.x, s.y, naval) && (comp < 0 || tileComponent(world, s.x, s.y, naval) === comp)) return s
   }
   const corners: Array<{ x: number; y: number }> = [
     { x: bt.x - halfX - pad, y: bt.y - halfY - pad },
@@ -89,9 +91,9 @@ const workArrivePoint = (world: World, buildingId: number, dozerId: number): { x
     { x: bt.x + halfX + pad, y: bt.y + halfY + pad },
   ]
   for (const s of corners) {
-    if (passableFx(world, s.x, s.y) && (comp < 0 || tileComponent(world, s.x, s.y) === comp)) return s
+    if (passableFx(world, s.x, s.y, naval) && (comp < 0 || tileComponent(world, s.x, s.y, naval) === comp)) return s
   }
-  const near = nearestPassableFx(world, Math.floor(bt.x / 1000), Math.floor(bt.y / 1000), 10, comp)
+  const near = nearestPassableFx(world, Math.floor(bt.x / 1000), Math.floor(bt.y / 1000), 10, comp, naval)
   if (near) return near
   return sides[0]
 }
