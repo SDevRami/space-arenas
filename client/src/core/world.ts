@@ -1029,10 +1029,12 @@ export class World {
   }
 
   scoreOf(team: number): number {
+    if (this.settings.generalRank === false) return 9999
     return this.teams.get(this.rankSlot(team))?.score ?? 0
   }
 
   rankOf(team: number): number {
+    if (this.settings.generalRank === false) return MAX_RANK
     return this.teams.get(this.rankSlot(team))?.rank ?? 0
   }
 
