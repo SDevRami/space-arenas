@@ -407,6 +407,23 @@ The effective **defaults** fingerprint (`fingerprintSettings`, canonical-JSON CR
 
 ---
 
+## ADR-021 — Crypto Miner Is a Naval Economy Building Built by an Empty Carrier
+
+**Status:** Accepted
+**Date:** 2026-10-29
+
+**Context:** The economy had two income paths (Harvesters and oil fields), both land-centric. We wanted a late-game naval objective that rewards map control without adding a new resource or a new production building.
+
+**Decision:** A 3×3 naval **Crypto Miner** banks `cryptoMinerIncome` (500) every `cryptoMinerIncomeIntervalTicks` (30 s) while the team has a completed Dock, ≥ 3 living Missile Boats, ≥ 1 living Carrier and non-negative net power. It is placed on **open water only**, at least `cryptoMinerSpacing` (5) empty tiles from another Crypto Miner, and is constructed by an **empty Carrier** (transported units block the order), not a Bulldozer. Support checks are team-wide and map-wide; the income timer resets to 0 while unsupported so no income banks. Water renders as `#081839` everywhere.
+
+**Where it lives:** `shared/src/balance/buildings.ts` (`crypto-miner`), `shared/src/constants.ts` (`CRYPTO_MINER_*`, `MatchSettings` fields), `client/src/systems/crypto-miner-system.ts` (`CryptoMinerSystem`, `cryptoMinerSupportFor`), `client/src/systems/input-system.ts` (`placementValid`, `canAcceptBuildOrder`), `client/src/systems/work-system.ts` (naval pads), `client/src/ui/hud.ts` (`CARRIER_BUILDABLES`), `client/src/core/world.ts` (`cryptoIncomeTicks`).
+
+**Consequences:**
+- **For:** a third income stream with a clear counter-play (kill the boats, the Carrier, or the Dock; or deny water). Numbers stay data and are exposed in Dev Settings.
+- **Against:** asymmetric builder rules (Carrier instead of Bulldozer) add a special case to placement and order dispatch; the team-wide support check makes one miner per team the practical limit early and encourages fleet play.
+
+---
+
 ## Index
 
 | # | Topic | Status |
@@ -431,6 +448,7 @@ The effective **defaults** fingerprint (`fingerprintSettings`, canonical-JSON CR
 | 018 | i18n EN + AR only; RTL first-class | Accepted |
 | 019 | Host-side shadow simulator for net bots | Accepted |
 | 020 | Balance mods as sanitized delta files | Accepted |
+| 021 | Crypto Miner = naval economy built by an empty Carrier | Accepted |
 
 ### Shipped since the original index (formerly "Proposed")
 - *Hosted matchmaking broker* → shipped as the `online/` workspace (`online/src/index.ts`, `rooms.ts`, `relay.ts`, `ratelimit.ts`, `supabase.ts`).

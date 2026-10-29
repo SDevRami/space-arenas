@@ -117,6 +117,7 @@ One faction exercises every system: economy, production, defense, air, naval, st
 | **Super Weapon** | 4×4 | 1500 | 45 s | 1500 | −100 | Limit 1; unlocks Space Laser / Airstrike / EMP and their upgrade research |
 | **Bunker** | 2×2 | 250 | 20 s | 700 | −5 | Garrison 5 infantry; fires one volley per passenger (`bunker-gun`) |
 | **Dock** | 3×3 | 400 | 30 s | 900 | −10 | Naval units (Carrier, Missile Boat) |
+| **Crypto Miner** | 3×3 | 800 | 40 s | 1200 | −20 | Mines `$500` every `30 s` on open water; built by an empty Carrier; needs power, a Dock, 3 Missile Boats and a Carrier |
 
 Every building has a vision radius of 8 tiles regardless of its definition (`client/src/entities/factories.ts`).
 
@@ -140,7 +141,7 @@ Every building has a vision radius of 8 tiles regardless of its definition (`cli
 
 Notes:
 - **Speed** is in fixed-point units per tick (fx, 1000 = 1 tile). E.g. a Rifleman's 90 = 0.09 tiles/tick = 2.25 tiles/s.
-- **Bulldozer** is the sole construction unit; it also repairs, collects wrecks, and removes mines.
+- **Bulldozer** is the sole construction unit for land buildings; it also repairs, collects wrecks, and removes mines. The **Carrier** is the one exception — an empty Carrier builds the Crypto Miner at sea.
 - **Engineer** repairs allies, places/removes mines, and heals in an aura once veteran (rank ≥ 3).
 - **APC / Carrier / Bunker** are transports; only infantry can board.
 - **Fighter** is an aircraft: `capacity` 3 is its home hangar count, `maxAmmo` 2, `reloadTicks` 5 s.
@@ -193,6 +194,7 @@ Leveled upgrades (Space Laser, Weapon Upgrade, Airstrike, EMP) can be researched
 - **Treasury:** integer credits; starts at `startingCredits` (default 800).
 - **Supply capture bonus:** a team whose Scout holds a supply field (uninterrupted presence for `supplyFieldClaimTicks`, default 20 s) banks an extra `supplyFieldBonus`% (default 25%) on every trip from that field. Fields are **never exclusive** — enemy Harvesters still take the base amount. A Scout's absence for `supplyFieldHoldTicks` (default 10 s) drops the bonus.
 - **Oil fields (secondary):** a Scout that holds an oil field for `oilClaimTicks` (default 20 s) captures it; the owner then banks `oilIncome` (default 50) every `oilIncomeIntervalTicks` (default 10 s). Oil fields can also be destroyed by combat (`oilFieldHp`, default 500).
+- **Crypto mining (naval):** a completed **Crypto Miner** banks `cryptoMinerIncome` (default 500) every `cryptoMinerIncomeIntervalTicks` (default 30 s). It runs only while the team has a completed Dock, at least 3 living Missile Boats and at least 1 living Carrier, and its net power is non-negative (`powerDown` false). The income timer resets to 0 whenever those conditions fail, so no income banks up. Crypto Miners are water-only, 3×3, and must be at least `cryptoMinerSpacing` (default 5) empty tiles from any other Crypto Miner, measured edge-to-edge. Only an empty Carrier (no transported units) can place one.
 
 ### 8.2 Power
 

@@ -180,7 +180,7 @@ A `DevOverrideFieldDef` may carry `only: string[]`, restricting the field to
 specific entity ids (e.g. `capacity`/`maxAmmo`/`reloadTicks` only for `fighter`;
 `powerGen` only for `power-plant`; `splash` only for `artillery`).
 
-Scalar sections (in file order): `economy`, `satellite`, `power`, `laser`,
+Scalar sections (in file order): `economy`, `cryptoMiner`, `satellite`, `power`, `laser`,
 `superWeapon`, `fog`, `abilities`, `stealth`, `dayNight`, `mines`, `heal`,
 `worldFields`, `movement`, `combat`, `veterancy`, `planes`, `pathfinding`.
 

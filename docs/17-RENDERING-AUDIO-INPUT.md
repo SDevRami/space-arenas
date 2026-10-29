@@ -249,7 +249,7 @@ Attaches to the canvas/window: `mousedown`/`mousemove`/`mouseup`/`mouseleave`, `
 Key helpers (all deterministic):
 - `resolveMovePoint(world, x, y, naval)` snaps a target to a passable tile; **naval** selections snap to the **water** mask (`nearestPassablePoint`) so fleets aren't stranded on a beach.
 - `formationSlots(world, ids, cx, cy)` lays units on a deterministic grid around a center — cell `2400` if any vehicle/naval, else `1400`, scaled by each unit's `formationSpread`, index-ordered so identical command streams produce identical slots. Used by move/guard/attack orders.
-- `placementValid(world, player, buildingType, tx, ty)` validates a `place` order: unknown type, `countLimit`, in-bounds, `placementExplored` fog check, `grid.buildable` per footprint tile (distinguishing "blocked by existing building" vs "cannot build on this terrain"), and for `dock` at least one footprint edge tile must be **open water**.
+- `placementValid(world, player, buildingType, tx, ty)` validates a `place` order: unknown type, `countLimit`, in-bounds, `placementExplored` fog check, `grid.buildable` per footprint tile (distinguishing "blocked by existing building" vs "cannot build on this terrain"), and for `dock` at least one footprint edge tile must be **open water**. For `crypto-miner` **every** footprint tile must be water and the footprint must clear `cryptoMinerSpacing` empty tiles from any other Crypto Miner; the order also requires an empty Carrier (`canAcceptBuildOrder`).
 - `canAcceptBuildOrder` enforces the dozer construct-queue limit (`settings.maxBuildOrders`); `forfeitPlayer` sells/refunds and clears oil-field claims.
 
 ---

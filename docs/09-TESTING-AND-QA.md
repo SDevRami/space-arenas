@@ -68,6 +68,7 @@ like a dozen cases can expand to more).
 | `tests/mines.test.ts` | 19 | Mine placement, detonation, removal, lockstep determinism. |
 | `tests/oil.test.ts` | 3 | `OilSystem` claiming/income. |
 | `tests/oil-destroy.test.ts` | 3 | Destructible oil fields. |
+| `tests/crypto-miner.test.ts` | 8 | Crypto Miner income/support (Dock + navy + power), timer reset, water-only placement, X/Y spacing, empty-Carrier builder, Bulldozer rejection. |
 | `tests/queue-reorder.test.ts` | 6 | Build-queue reorder keeps two simulators in lockstep. |
 | `tests/sea-army.test.ts` | 12 | Naval movement on open water, dock shoreline placement, sea missiles/splash, carrier amphibious transport. |
 | `tests/transport.test.ts` | 17 | APC boarding/unloading, bunker garrison unloading. |

@@ -143,6 +143,7 @@ A `place` command is rejected unless **all** of the following hold:
 3. The footprint's center tile is explored (fog ≥ 1), else `area unexplored`.
 4. Every footprint tile is buildable, otherwise `blocked by existing building` or `cannot build on this terrain`.
 5. For a `dock`, at least one edge-adjacent tile is open water, else `dock needs water access`.
+6. For a `crypto-miner`, **every** footprint tile must be water (not just adjacent), and the footprint must be at least `cryptoMinerSpacing` (default 5) empty tiles from every other Crypto Miner, measured edge-to-edge. A Carrier can only place one while it is empty (no transported units).
 
 ### 5.2 Bulldozer orders
 
@@ -150,6 +151,7 @@ Construction is issued to a Bulldozer, not instant:
 - The player must have a free Bulldozer with fewer than `maxBuildOrders` (default 3) active/queued orders, else `no available bulldozer` / `build order queue full`.
 - `buildOrderQueues` auto-starts the next queued construction when the dozer becomes free (`startNextQueued`).
 - Building beyond `EXPANSION_RADIUS_TILES` (18) of the team's spawn awards `SCORE_EXPANSION` (25).
+- **Exception:** the Crypto Miner is issued by an empty Carrier, not a Bulldozer (see §10.3).
 
 ### 5.3 Construction & repair (`WorkSystem`)
 
@@ -311,6 +313,13 @@ A `sw-choose` command requires: a Super Weapon building alive, rank ≥ 1, a `ch
 
 - The Dock produces the Carrier (transport) and Missile Boat (weapon). Naval units use the water mask/component for pathfinding and spawn on water.
 - Missile Boats use `sea-missile` (60 damage, 40 t cooldown, 9 range, 1.5 splash).
+
+### 10.3 Crypto Miner (`CryptoMinerSystem`)
+
+- The **Crypto Miner** is a 3×3, 800-credit, 40 s, 1200 HP naval building drawing 20 power. It is placed on **open water only** and must be `cryptoMinerSpacing` (5) empty tiles from any other Crypto Miner.
+- **Builder:** an **empty Carrier** (no transported units) issues the build order and works the naval construction pad like a Bulldozer does on land. Bulldozers and loaded Carriers are rejected.
+- **Income:** while the team has a completed Dock, at least `cryptoMinerMissileBoats` (3) living Missile Boats, at least `cryptoMinerCarriers` (1) living Carrier, and net power ≥ 0, each completed Crypto Miner banks `cryptoMinerIncome` ($500) every `cryptoMinerIncomeIntervalTicks` (30 s) and fires a `crypto-miner-income` event. Support is team-wide and map-wide.
+- **Timer:** `cryptoIncomeTicks` resets to 0 on any tick a miner is unsupported, so interrupted income is not banked. The counter participates in the world hash.
 
 ---
 

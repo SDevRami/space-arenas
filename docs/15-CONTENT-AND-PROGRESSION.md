@@ -27,6 +27,7 @@ Fields: `footprint` = [w, h] tiles; times are `buildTimeTicks` converted with `S
 | `super-weapon` | Super Weapon | 4×4 | 1500 | 45 | 1500 | 0 / 100 | — | — | `countLimit: 1`; unlocks/fuels the chosen superweapon; huge power draw |
 | `bunker` | Bunker | 2×2 | 250 | 20 | 700 | 0 / 5 | `bunker-gun` | — | Garrison: `transportCapacity: 5` infantry |
 | `dock` | Dock | 3×3 | 400 | 30 | 900 | 0 / 10 | — | `carrier` | Naval production (also `missile-boat`) |
+| `crypto-miner` | Crypto Miner | 3×3 | 800 | 40 | 1200 | 0 / 20 | — | — | Naval income: `CRYPTO_MINER_INCOME` = 500 every 30 s; water-only, spacing 5; built by an empty Carrier; needs a Dock + 3 Missile Boats + 1 Carrier |
 
 ## 3. Units (`UNITS` in `shared/src/balance/units.ts`)
 
@@ -97,6 +98,7 @@ Notes:
 - Supply: each completed harvester trip banks `SUPPLY_PER_TRIP` = 50 credits plus a percentage bonus, and awards `SCORE_SUPPLY_PER_TRIP` (2) match score (`economy-system.ts`). Supply fields have a finite number of trips (`trips` on the field).
 - Supply-field control bonus: holding a supply field with a scout grants `SUPPLY_FIELD_BONUS` = +25 % per trip; claiming takes `SUPPLY_FIELD_CLAIM_TICKS` = 20 s and holding ticks every `SUPPLY_FIELD_HOLD_TICKS` = 10 s.
 - Oil fields: owned oil fields pay `OIL_INCOME` = 50 credits every `OIL_INCOME_INTERVAL_TICKS` = 10 s; claiming takes `OIL_CLAIM_TICKS` = 20 s; oil fields have `OIL_FIELD_HP` = 500 and can be destroyed.
+- Crypto Miner: each completed miner pays `CRYPTO_MINER_INCOME` = 500 credits every `CRYPTO_MINER_INCOME_INTERVAL_TICKS` = 30 s while the team has a completed Dock, ≥ `CRYPTO_MINER_MISSILE_BOATS` (3) living Missile Boats, ≥ `CRYPTO_MINER_CARRIERS` (1) living Carrier, and net power ≥ 0. Its timer resets whenever unsupported. Miners are water-only and need `CRYPTO_MINER_SPACING` (5) empty tiles between footprints.
 - Power: `power-plant` `powerGen` 50 (HQ +10); buildings draw `powerUse`. The `super-weapon` alone draws 100.
 
 ## 7. Match Score and Commander (General) Rank

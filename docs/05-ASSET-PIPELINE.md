@@ -37,10 +37,10 @@ This document describes how visual and audio assets are stored, resolved, loaded
 ### 3.1 Committed folders & files (root of `client/dist`)
 | Entry | Kind |
 |---|---|
-| `af, b, bn, cc, d, pp, sd, sp, t, tc, wf` | building sprite frames (per building type) |
+| `af, b, bn, cc, cm, d, pp, sd, sp, t, tc, wf` | building sprite frames (per building type) |
 | `v_a, v_aa, v_at, v_aw, v_b, v_c, v_e, v_f, v_h, v_mb` | unit sprite frames (per unit) |
 | `t_l, t_r, t_s` | additional committed sprite folders |
-| `hud` | HUD selection-bar icons (24 `hud_*.png`) |
+| `hud` | HUD selection-bar icons (25 `hud_*.png`) |
 | `sf` | supply-field frames (25), `of` | oil-field frames (4) |
 | `ao` | obstacle images (`rock, tree, wreck, mine`) |
 | `sound` | sound folders (one per sound id) + `manifest.json` + `CREDITS.md` + `SPACE.ARENAS_by_SDEVRAMI.mp3` |
@@ -61,7 +61,7 @@ Placeholders: `{frame}` = 4-digit zero-padded frame number, `{color}` = 1-based 
 | `obstacle:<k>` | `ao/<k>.png` |
 | `fx:burn` | `''` (empty = procedural flame; a user override like `fx/burn/burn_{frame}.png` loads 2 animated frames) |
 
-- Building folder map: `command-center→cc`, `power-plant→pp`, `supply-dock→sd`, `barracks→b`, `war-factory→wf`, `turret→t`, `tech-center→tc`, `air-force→af`, `super-weapon→sp`, `bunker→bn`, `dock→d` (`BUILDING_ASSET_FOLDERS`).
+- Building folder map: `command-center→cc`, `power-plant→pp`, `supply-dock→sd`, `barracks→b`, `war-factory→wf`, `turret→t`, `tech-center→tc`, `air-force→af`, `super-weapon→sp`, `bunker→bn`, `dock→d`, `crypto-miner→cm` (`BUILDING_ASSET_FOLDERS`).
 - Unit folder map: `bulldozer→v_b`, `harvester→v_h`, `assault-walker→v_aw`, `aa-platform→v_aa`, `artillery→v_a`, `engineer→v_e`, `fighter→v_f`, `carrier→v_c`, `missile-boat→v_mb`, `apc→v_at` (`UNIT_ASSET_FOLDERS`). `UNIT_ASSET_IDS` also includes `scout`, `rifleman`, `rocket-trooper` (which have no entry in `UNIT_ASSET_FOLDERS` and therefore use the procedural shapes even at high quality, since their `unit:<id>` template resolves empty).
 - `HUD_ASSET_IDS` = building ids + unit folder ids (entities with a dedicated selection-bar icon).
 - Color slot is a **subfolder** and is 1-based on disk (`fileColor(index) = index + 1`), while the palette index is 0-based (`pp/1/pp_0001.png` … `pp/10/…`). Frames are zero-padded to 4 digits (`padFrame`).
