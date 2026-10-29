@@ -213,8 +213,9 @@ helper for a host-initiated kick or a forfeit on grace expiry (§4.4).
 - `S_MATCH_START.protocolVersion` is stamped from `makeMatchStart`. The client compares it to its own
   `PROTOCOL_VERSION` and logs a warning if they differ (`Game.startNet`) — feature/replay
   compatibility is then not guaranteed.
-- **After changing `protocol.ts` / `PROTOCOL_VERSION`, run `node scripts/sync-online-shared.mjs`** to
-  re-vendor `shared/src/*.ts` into `online/shared/src/`.
+- **After changing anything under `shared/src/`, run `npm run sync:online`** to re-vendor it into
+  `online/shared/src/`; `npm run check:online-shared` fails the build if the two copies drift.
+  The online server compiles only against the vendored copy (`online/tsconfig.json`).
 
 ### 3.5 Server-side frame validation (the real gate)
 
@@ -615,8 +616,10 @@ anon writes out.
   503s, backups + rate limiting, mod repository, map repository, CORS allow-list, WS lobby round-trip
   + wrong passphrase, the tamper watch, the protocol-version gate, wire-frame validation
   (drop malformed → kick at 10 with `4002`), the balance-mod gate, and the room auth gate.
-- `scripts/sync-online-shared.mjs` vendors `shared/src/*.ts` into `online/shared/src/` — run it after
-  any protocol change so the online service speaks the same wire format.
+- `scripts/sync-online-shared.mjs` (`npm run sync:online`) vendors `shared/src/*.ts` into
+  `online/shared/src/`; `scripts/check-online-shared.mjs` (`npm run check:online-shared`) fails on any
+  missing, extra or changed file. Root `npm run typecheck` runs the check first and then typechecks
+  `online`, so drift breaks locally instead of on the Render deploy.
 
 ---
 

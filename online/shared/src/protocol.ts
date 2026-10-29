@@ -104,7 +104,9 @@ export interface PlayerSlot {
   /** The slot's non-synced dev values (graphics/audio/profile), so the dev sync
    *  panel can clone client-only settings to another machine. */
   clientSettings?: ClientDevSettings
-  /** Guests compare the host's `defaultsHash` to their own; false blocks start. */
+  /** Host-side verdict on whether this slot's effective *defaults* (its
+   *  `settings.json` / localStorage layer) match the host's. `undefined` = unknown
+   *  (old client that never published a defaults hash) and never blocks a start. */
   defaultsOk?: boolean
 }
 
@@ -619,10 +621,12 @@ export interface LobbyMessage {
   passwordRequired: boolean
   winRule?: WinRule
   settings?: Partial<MatchSettings>
-  /** Effective-defaults fingerprint + layers (see `shared/src/protocol.ts`). */
+  /** crc32 (hex) of the host's *effective defaults* (settings.json layers over the
+   *  compiled defaults). Guests compare it to their own to detect a base mismatch. */
   defaultsHash?: string
+  /** The host's effective-defaults layers, so a mismatching guest can adopt them. */
   defaults?: Partial<MatchSettings>
-  /** The host's non-synced dev values, adopted along with `defaults`. */
+  /** The host's client-only dev values, adopted alongside `defaults` on resolution. */
   defaultsClient?: ClientDevSettings
   map?: MapData
   /** Filename of the balance mod the host applied to this room (''/undefined = none). */
@@ -630,6 +634,9 @@ export interface LobbyMessage {
   /** Balance-mod details when the room has one; guests must have a matching copy
    *  (same `hash`) installed before the host can start the match. */
   mod?: RoomMod
+  /** Host's current primary LAN IP (advertised so guests can join even after a
+   *  network switch. Updated on the LAN-IP watch interval in the host). */
+  lanIp?: string
 }
 export interface ReadyMessage {
   kind: 'C_READY'
@@ -744,10 +751,12 @@ export interface SpectateSyncMessage {
 export interface DevSettingsMessage {
   kind: 'C_DEV_SETTINGS'
   settings: Partial<MatchSettings>
-  /** The sender's effective-defaults fingerprint (see `LobbyMessage.defaultsHash`). */
+  /** The sender's effective-defaults fingerprint (see `LobbyMessage.defaultsHash`).
+   *  Omitted by older clients, in which case the host never blocks the slot. */
   defaultsHash?: string
-  /** The sender's non-synced dev values (graphics/audio/profile); host/online
-   *  store them per slot and rebroadcast in the lobby. Omitted by older clients. */
+  /** The sender's non-synced dev values (graphics/audio/profile). Host/online
+   *  store this per slot and rebroadcast it in the lobby so any client can clone
+   *  the full dev state. Omitted by older clients. */
   client?: ClientDevSettings
 }
 

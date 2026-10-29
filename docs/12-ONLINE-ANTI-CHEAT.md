@@ -105,7 +105,8 @@ is no rollback. See [16 §11](16-NETCODE-AND-ONLINE.md).
 - The client warns (does not block) when `S_MATCH_START.protocolVersion` differs from its own
   (`Game.startNet`).
 - Protocol changes under `shared/src/` are vendored into `online/shared/src/` by
-  `scripts/sync-online-shared.mjs` — run it after editing `protocol.ts` / `PROTOCOL_VERSION`.
+  `scripts/sync-online-shared.mjs` (`npm run sync:online`); `npm run check:online-shared` fails the
+  build when the vendored copy drifts, and the root typecheck runs it before `online`.
 - `C_DEV_SETTINGS` payloads are sanitised against the shared clamp tables (`sanitizeSettings` in
   `online/src/sanitize.ts`). There is no dedicated per-minute limiter on `C_DEV_SETTINGS` in the
   current code; the tamper-watch alert de-duplication plus the normal lobby broadcast flow bound the

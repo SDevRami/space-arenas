@@ -28,6 +28,7 @@ export const BUILDING_IDS = [
   'super-weapon',
   'bunker',
   'dock',
+  'crypto-miner',
 ] as const
 
 export type BuildingId = (typeof BUILDING_IDS)[number]
@@ -153,6 +154,16 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     powerGen: 0,
     powerUse: 10,
     producesUnit: 'carrier',
+  },
+  'crypto-miner': {
+    id: 'crypto-miner',
+    name: 'Crypto Miner',
+    footprint: [3, 3],
+    cost: 800,
+    buildTimeTicks: SECONDS_TO_TICKS(40),
+    hp: 1200,
+    powerGen: 0,
+    powerUse: 20,
   },
 }
 

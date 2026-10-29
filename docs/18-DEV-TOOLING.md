@@ -124,7 +124,18 @@ carries a vendored copy of the shared sources.
   and TS sources; no `.js`).
 - Deletes the destination first, then re-copies, so removals propagate.
 - Run it **after any change under `shared/src/`** — especially `protocol.ts` /
-  `PROTOCOL_VERSION` — before pushing the online service.
+  `PROTOCOL_VERSION` — before pushing the online service: `npm run sync:online`.
+
+### 5.1 Drift guard — `scripts/check-online-shared.mjs`
+
+`npm run check:online-shared` compares every `.ts` file in `shared/src/` with its
+copy in `online/shared/src/` (line endings are normalised) and exits non-zero,
+listing missing / extra / changed files, when they differ. It prints
+`Run npm run sync:online` as the fix.
+
+Root `npm run typecheck` runs this guard first and then typechecks `online` as a
+workspace, so a stale vendored copy fails locally instead of during a Render
+deploy (the online build compiles only against `online/shared/src`).
 
 ---
 

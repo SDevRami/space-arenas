@@ -153,6 +153,15 @@ export const OIL_INCOME = 50
 export const OIL_INCOME_INTERVAL_TICKS = SECONDS_TO_TICKS(10)
 export const OIL_CLAIM_TICKS = SECONDS_TO_TICKS(20)
 
+/** Naval Crypto Miner: interval income while powered and supported. */
+export const CRYPTO_MINER_INCOME = 500
+export const CRYPTO_MINER_INCOME_INTERVAL_TICKS = SECONDS_TO_TICKS(30)
+/** Alive team-wide escorts required to keep a Crypto Miner running. */
+export const CRYPTO_MINER_MISSILE_BOATS = 3
+export const CRYPTO_MINER_CARRIERS = 1
+/** Empty tiles required between two friendly Crypto Miner footprints. */
+export const CRYPTO_MINER_SPACING = 5
+
 /** Day 22: extra percent a capturing team banks per supply trip from a field it holds with a scout. */
 export const SUPPLY_FIELD_BONUS = 25
 /** Day 22: scout presence needed (ticks) to flip a supply field's bonus to a new team. */
@@ -246,6 +255,16 @@ export interface MatchSettings {
   oilIncome: number
   oilIncomeIntervalTicks: number
   oilClaimTicks: number
+  /** Naval Crypto Miner: credits paid per payout while it is powered and supported. */
+  cryptoMinerIncome: number
+  /** Naval Crypto Miner: ticks between payouts. */
+  cryptoMinerIncomeIntervalTicks: number
+  /** Naval Crypto Miner: alive Missile Boats required team-wide. */
+  cryptoMinerMissileBoats: number
+  /** Naval Crypto Miner: alive Carriers required team-wide. */
+  cryptoMinerCarriers: number
+  /** Naval Crypto Miner: minimum empty tiles between two friendly footprints. */
+  cryptoMinerSpacing: number
   supplyPerTrip: number
   harvesterLoadTicks: number
   /** Day 22: extra percent a team banks per trip from a supply field it holds with a scout. */
@@ -359,6 +378,14 @@ export interface MatchSettings {
   coopRank: CoopRank
   /** Day 16: how much allied control is allowed (never overrides a mid-match vote). */
   coopControl: CoopControl
+  /** Whether the general 3-star rank ladder is active in this match. When off,
+   *  every rank-gated upgrade is available regardless of requiredRank. */
+  generalRank: boolean
+  /** Score floor to reach for each rank-up (rank 1★, 2★, 3★). Dev-overridable so
+   *  the host can tune how fast each star unlocks. */
+  rankFloor1: number
+  rankFloor2: number
+  rankFloor3: number
   buildingOverrides: Record<string, BuildingOverrides>
   unitOverrides: Record<string, UnitOverrides>
   weaponOverrides: Record<string, WeaponOverrides>
@@ -370,6 +397,11 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   oilIncome: OIL_INCOME,
   oilIncomeIntervalTicks: OIL_INCOME_INTERVAL_TICKS,
   oilClaimTicks: OIL_CLAIM_TICKS,
+  cryptoMinerIncome: CRYPTO_MINER_INCOME,
+  cryptoMinerIncomeIntervalTicks: CRYPTO_MINER_INCOME_INTERVAL_TICKS,
+  cryptoMinerMissileBoats: CRYPTO_MINER_MISSILE_BOATS,
+  cryptoMinerCarriers: CRYPTO_MINER_CARRIERS,
+  cryptoMinerSpacing: CRYPTO_MINER_SPACING,
   supplyPerTrip: SUPPLY_PER_TRIP,
   harvesterLoadTicks: HARVESTER_LOAD_TICKS,
   supplyFieldBonus: SUPPLY_FIELD_BONUS,
@@ -475,6 +507,10 @@ export const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   coopEconomy: 'none',
   coopRank: 'none',
   coopControl: 'none',
+  generalRank: true,
+  rankFloor1: RANK_FLOORS[0],
+  rankFloor2: RANK_FLOORS[1],
+  rankFloor3: RANK_FLOORS[2],
   buildingOverrides: {},
   unitOverrides: {},
   weaponOverrides: {},

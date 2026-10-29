@@ -65,6 +65,16 @@ export const DEV_SCALAR_SECTIONS: DevScalarSectionDef[] = [
     ],
   },
   {
+    title: 'cryptoMiner',
+    fields: [
+      { key: 'cryptoMinerIncome', unit: 'credits', min: 0, max: 100000, step: 50 },
+      { key: 'cryptoMinerIncomeIntervalTicks', unit: 'sec', min: 1, max: 600, step: 1, seconds: true },
+      { key: 'cryptoMinerMissileBoats', unit: 'units', min: 0, max: 20, step: 1 },
+      { key: 'cryptoMinerCarriers', unit: 'units', min: 0, max: 10, step: 1 },
+      { key: 'cryptoMinerSpacing', unit: 'cells', min: 0, max: 30, step: 1 },
+    ],
+  },
+  {
     title: 'satellite',
     fields: [
       { key: 'satelliteRevealTicks', unit: 'sec', min: 0.1, max: 600, step: 0.5, seconds: true },
@@ -153,6 +163,15 @@ export const DEV_SCALAR_SECTIONS: DevScalarSectionDef[] = [
       { key: 'engineerHealRange', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
       { key: 'engineerHealAuraRadius', unit: 'cells', min: 0.5, max: 10, step: 0.5 },
       { key: 'engineerHealRank', unit: 'levels', min: 1, max: 5, step: 1 },
+    ],
+  },
+  {
+    title: 'rank',
+    fields: [
+      { key: 'rankFloor1', unit: 'score', min: 0, max: 100000, step: 100 },
+      { key: 'rankFloor2', unit: 'score', min: 0, max: 100000, step: 100 },
+      { key: 'rankFloor3', unit: 'score', min: 0, max: 100000, step: 100 },
+      { key: 'rankUpPrizeCredits', unit: 'credits', min: 0, max: 100000, step: 100 },
     ],
   },
   {
@@ -258,6 +277,7 @@ export const DEV_OVERRIDE_WEAPON_FIELDS: DevOverrideFieldDef[] = [
 export const DEV_OVERRIDE_UPGRADE_FIELDS: DevOverrideFieldDef[] = [
   { field: 'cost', unit: 'credits', min: 0, max: 1000000, step: 50 },
   { field: 'researchTimeTicks', unit: 'sec', min: 0.1, max: 600, step: 0.5, seconds: true },
+  { field: 'requiredRank', unit: 'levels', min: 0, max: 3, step: 1 },
 ]
 
 /** Host-side clamp table for every numeric `MatchSettings` scalar the host
@@ -268,6 +288,11 @@ export const DEV_SANITIZE: Record<string, { min: number; max: number }> = {
   oilIncome: { min: 0, max: 100000 },
   oilIncomeIntervalTicks: { min: 1, max: 100000 },
   oilClaimTicks: { min: 1, max: 100000 },
+  cryptoMinerIncome: { min: 0, max: 100000 },
+  cryptoMinerIncomeIntervalTicks: { min: 1, max: 100000 },
+  cryptoMinerMissileBoats: { min: 0, max: 20 },
+  cryptoMinerCarriers: { min: 0, max: 10 },
+  cryptoMinerSpacing: { min: 0, max: 30 },
   supplyPerTrip: { min: 0, max: 100000 },
   supplyFieldBonus: { min: 0, max: 1000 },
   supplyFieldClaimTicks: { min: 1, max: 100000 },
@@ -290,6 +315,9 @@ export const DEV_SANITIZE: Record<string, { min: number; max: number }> = {
   laserDelayTicksLv1: { min: 0, max: 100000 },
   laserDelayTicksLv2: { min: 0, max: 100000 },
   maxPowerTicks: { min: 1, max: 100000 },
+  rankFloor1: { min: 0, max: 100000 },
+  rankFloor2: { min: 0, max: 100000 },
+  rankFloor3: { min: 0, max: 100000 },
   rankUpPrizeCredits: { min: 0, max: 100000 },
   fogFadeDistance: { min: 0, max: 30 },
   dayNightCycleTicks: { min: 300, max: 36000 },
