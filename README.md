@@ -99,6 +99,8 @@ npm install
 npm run dev
 ```
 
+`online/` is self-contained for standalone deploys (Render `rootDir: online`) and carries a vendored copy of `shared/src` in `online/shared/src`. After changing anything under `shared/src`, run `npm run sync:online`; `npm run check:online-shared` (also run by the root typecheck) fails if the copies drift.
+
 GitHub Actions deploys `online/public` to GitHub Pages automatically on every push that touches it.
 
 ---
@@ -109,11 +111,11 @@ GitHub Actions deploys `online/public` to GitHub Pages automatically on every pu
 npm test          # Vitest suite — determinism, balance, protocol, pathfinding, vision,
                   #   economy, oil, mines, crush, transport, veterancy, sea army, …
 npm run test:soak # Determinism soak (single fork, sequential) for lockstep confidence
-npm run typecheck # Type-check all workspaces (shared/client/host)
-cd online && npm test  # Online API suite (31 tests) + build/typecheck
+npm run typecheck # vendor-drift guard + all four workspaces (shared/client/host/online)
+cd online && npm test  # Online API suite (66 tests) + build/typecheck
 ```
 
-Current state: **450+ Vitest tests, 27 protocol round-trip tests, 31 online API tests** all green; the client and online services build and typecheck clean.
+Current state: **450+ Vitest tests, 27 protocol round-trip tests, 66 online API tests** all green; the client and online services build and typecheck clean.
 
 ---
 
