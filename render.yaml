@@ -33,6 +33,8 @@ services:
         sync: false
       - key: SA_FORBIDDEN_USERNAME
         sync: false
+      - key: SA_FORBIDDEN_USERNAME_EMAILS
+        sync: false
       - key: SA_MATCHES_MAX_ROWS
         sync: false
       - key: SA_ADMIN_PASSWORD

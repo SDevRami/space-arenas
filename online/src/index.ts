@@ -1547,7 +1547,7 @@ const handleApi = async (req: IncomingMessage, res: ServerResponse, urlPath: str
       const needsUsername = username.trim() === ''
       // A reserved (staff/impersonation) name is treated as a forced rename too, so an account
       // that somehow holds one gets asked to pick another — the server stays authoritative.
-      const usernameForbidden = !needsUsername && isForbiddenUsername(username)
+      const usernameForbidden = !needsUsername && isForbiddenUsername(username, result.data.email)
       const needsUsernameChange = usernameForbidden || (needsUsername ? false : await usernameNeedsChange(result.data.userId, username))
       // First Google sign-in with no profile yet: the tester-only gate decides whether the
       // account may be completed. Existing accounts (hasProfile) are never affected.

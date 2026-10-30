@@ -606,7 +606,7 @@ anon writes out.
 `render.yaml` builds/starts the `online/` subfolder (`SA_MODE=online`, `SA_PORT=17321`,
 `healthCheckPath: /api/status`). Required env (`online/.env.example`): `SA_PASSPHRASE`,
 `SA_PUBLIC_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, optional
-`SA_CORS_ALLOW`.
+`SA_CORS_ALLOW`, `SA_TESTER_EMAILS`, `SA_FORBIDDEN_USERNAME`, `SA_FORBIDDEN_USERNAME_EMAILS`.
 
 ---
 

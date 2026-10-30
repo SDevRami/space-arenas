@@ -1598,6 +1598,67 @@ describe('online server feature gates (Phase 6)', () => {
       guarded.child.kill()
     }
   })
+
+  it('lets a listed email claim a reserved username without exempting other accounts', async () => {
+    // TesterOne is the stub account's current name; sdevrami is the staff handle from the previous
+    // test. Both stay reserved, but the allow-listed email may use them.
+    const owner = await spawnOnline({
+      SUPABASE_URL: stub.url,
+      SUPABASE_ANON_KEY: 'stub-anon',
+      SUPABASE_SERVICE_ROLE_KEY: 'stub-service',
+      SA_TESTERS: 'false',
+      SA_RATE_AUTH_PER_MIN: '200',
+      SA_FORBIDDEN_USERNAME: 'sdevrami,TesterOne',
+      // Trim + case are normalised at startup, like SA_FORBIDDEN_USERNAME.
+      SA_FORBIDDEN_USERNAME_EMAILS: ' Tester@Example.Test ',
+    })
+    try {
+      // Owner: the reserved gate is passed. The stub then reports its usual name clash, which is
+      // exactly what proves the request got past `username not allowed`.
+      const mine = await fetch(`${owner.base}/api/auth/username`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${TEST_TOKEN}` },
+        body: JSON.stringify({ username: 'sdevrami' }),
+      })
+      assert.equal(mine.status, 409)
+      assert.equal(((await mine.json()) as { error: string }).error, 'username already taken')
+
+      // Owner: `/me` no longer asks for a rename, so the popup stops appearing.
+      const me = await fetch(`${owner.base}/api/auth/me`, { headers: { authorization: `Bearer ${TEST_TOKEN}` } })
+      const meBody = (await me.json()) as { data: { usernameForbidden?: boolean; needsUsernameChange?: boolean } }
+      assert.equal(meBody.data.usernameForbidden, false)
+      assert.equal(meBody.data.needsUsernameChange, false)
+
+      // Another account with a different email stays blocked and still gets the rename prompt.
+      const other = await fetch(`${owner.base}/api/auth/username`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${TEST_TOKEN_B}` },
+        body: JSON.stringify({ username: 'sdevrami' }),
+      })
+      assert.equal(other.status, 400)
+      assert.equal(((await other.json()) as { error: string }).error, 'username not allowed')
+      const meOther = await fetch(`${owner.base}/api/auth/me`, { headers: { authorization: `Bearer ${TEST_TOKEN_B}` } })
+      const meOtherBody = (await meOther.json()) as { data: { usernameForbidden?: boolean } }
+      assert.equal(meOtherBody.data.usernameForbidden, true)
+
+      // The legacy register path applies the same email-aware rule.
+      const blocked = await fetch(`${owner.base}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: 'sdevrami', email: 'stranger@example.test', password: '123456' }),
+      })
+      assert.equal(blocked.status, 400)
+      assert.equal(((await blocked.json()) as { error: string }).error, 'username not allowed')
+      const allowed = await fetch(`${owner.base}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: 'sdevrami', email: 'tester@example.test', password: '123456' }),
+      })
+      assert.notEqual(((await allowed.json()) as { error?: string }).error, 'username not allowed')
+    } finally {
+      owner.child.kill()
+    }
+  })
 })
 
 describe('admin dashboard (read-only, password-gated)', () => {

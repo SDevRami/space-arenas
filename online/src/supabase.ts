@@ -54,7 +54,7 @@ export const authRegister = async (email: string, password: string, username: st
   if (name.length < 1 || name.length > USERNAME_MAX_CHARS) {
     return { ok: false, error: `username must be 1-${USERNAME_MAX_CHARS} characters` }
   }
-  if (isForbiddenUsername(name)) return { ok: false, error: 'username not allowed' }
+  if (isForbiddenUsername(name, email)) return { ok: false, error: 'username not allowed' }
   try {
     const taken = await timedFetch(
       `/rest/v1/profiles?username=eq.${encodeURIComponent(name)}&select=user_id&limit=1`,
@@ -254,7 +254,7 @@ export const setProfileUsername = async (
   if (name.length < 1 || name.length > USERNAME_MAX_CHARS) {
     return { ok: false, error: `username must be 1-${USERNAME_MAX_CHARS} characters` }
   }
-  if (isForbiddenUsername(name)) return { ok: false, error: 'username not allowed' }
+  if (isForbiddenUsername(name, email)) return { ok: false, error: 'username not allowed' }
   try {
     // Creating the profile is what turns a first-time Google sign-in into an account, so the
     // tester-only gate is enforced here (Supabase governs the OAuth sign-in itself).

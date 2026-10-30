@@ -80,12 +80,28 @@ export const FORBIDDEN_USERNAMES: string[] = (process.env.SA_FORBIDDEN_USERNAME 
   .map((s) => s.trim().toLowerCase())
   .filter((s) => s !== '')
 
+/** Emails exempt from the reserved-username guard (comma-separated, trimmed, case-insensitive).
+ *  Set on Render, e.g. `SA_FORBIDDEN_USERNAME_EMAILS=owner@gmail.com`. Only accounts you control
+ *  belong here: the exemption follows the verified login email, not the name being requested. */
+export const FORBIDDEN_USERNAME_EMAILS: string[] = (process.env.SA_FORBIDDEN_USERNAME_EMAILS ?? '')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter((s) => s !== '')
+
+/** True when `email` may claim a name from `FORBIDDEN_USERNAMES`. Empty emails never match. */
+export const isForbiddenUsernameEmail = (email: string): boolean => {
+  const addr = email.trim().toLowerCase()
+  return addr !== '' && FORBIDDEN_USERNAME_EMAILS.includes(addr)
+}
+
 /** True when `username` *contains* a reserved token (case-insensitive, surrounding space ignored).
  *  Substring match (which includes the prefix case), so `admin` blocks `admin2`, `the_admin` and
- *  `superadmin`. Keep the tokens distinctive — a short token like `mod` also blocks `Commander`. */
-export const isForbiddenUsername = (username: string): boolean => {
+ *  `superadmin`. Keep the tokens distinctive — a short token like `mod` also blocks `Commander`.
+ *  An email listed in `SA_FORBIDDEN_USERNAME_EMAILS` bypasses the guard for its own account. */
+export const isForbiddenUsername = (username: string, email = ''): boolean => {
   const name = username.trim().toLowerCase()
-  return name !== '' && FORBIDDEN_USERNAMES.some((token) => name.includes(token))
+  if (name === '' || isForbiddenUsernameEmail(email)) return false
+  return FORBIDDEN_USERNAMES.some((token) => name.includes(token))
 }
 
 /** Retention for `public.matches` (the JSONB-heavy raw match log): keep only the newest N rows.

@@ -146,12 +146,19 @@ them.
 - Existing accounts that already hold a reserved name are treated like a username conflict: `GET /api/auth/me`
   returns `needsUsernameChange:true` + `usernameForbidden:true`, and both clients prompt for a new name
   (distinct hint: "That username is reserved.").
+- **Owner exemption:** `SA_FORBIDDEN_USERNAME_EMAILS` is a comma-separated, case-insensitive list of
+  account emails that may claim a reserved name. The check follows the **verified login email** (the
+  Supabase auth user), not the requested name, so only those accounts bypass it: `authRegister` and
+  `setProfileUsername` accept the name, and `/api/auth/me` does not flag it for rename. Every other
+  account keeps the normal reserved-name popup. Leave empty to disable the exemption.
 
-**Where:** `online/src/config.ts` (`FORBIDDEN_USERNAMES`, `isForbiddenUsername`), `online/src/supabase.ts`,
-`online/src/index.ts` (`/api/auth/me`), `client/src/main.ts`, `online/public/app.js`,
-`client/src/i18n/lang/{en,ar}.json`, `online/.env.example`, `render.yaml`.
+**Where:** `online/src/config.ts` (`FORBIDDEN_USERNAMES`, `FORBIDDEN_USERNAME_EMAILS`,
+`isForbiddenUsername`, `isForbiddenUsernameEmail`), `online/src/supabase.ts`, `online/src/index.ts`
+(`/api/auth/me`), `client/src/main.ts`, `online/public/app.js`, `client/src/i18n/lang/{en,ar}.json`,
+`online/.env.example`, `render.yaml`.
 
 **Render:** add key `SA_FORBIDDEN_USERNAME` = `sdevrami,developer,owner,...` (comma-separated, no spaces needed).
+To let your own account use one of those names, also add `SA_FORBIDDEN_USERNAME_EMAILS` = your login email.
 
 ## Addendum: the `matches` table — purpose and retention
 
